@@ -114,16 +114,56 @@ def topological_sort(crates: list[dict]) -> list[dict]:
     return result
 
 
+def _parse_retry_after(stderr: str) -> float | None:
+    """Parse the 'try again after' timestamp from crates.io 429 errors."""
+    m = re.search(r"try again after ([^\s]+ [^\s]+ [^\s]+ [^\s]+ [^\s]+)", stderr)
+    if not m:
+        return None
+    ts = m.group(1)
+    try:
+        from datetime import datetime, timezone
+
+        # Example: Sun, 19 Jul 2026 15:12:39 GMT
+        dt = datetime.strptime(ts, "%a, %d %b %Y %H:%M:%S %Z")
+        dt = dt.replace(tzinfo=timezone.utc)
+        return max(0, (dt - datetime.now(timezone.utc)).total_seconds())
+    except ValueError:
+        return None
+
+
 def publish_crate(toml: Path, dry_run: bool) -> None:
     name = toml.parent.name
     if dry_run:
         print(f"[dry-run] cargo publish -p {name}")
         return
-    subprocess.run(
-        ["cargo", "publish", "-p", name, "--allow-dirty"],
-        cwd=REPO_ROOT,
-        check=True,
-    )
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        proc = subprocess.run(
+            ["cargo", "publish", "-p", name, "--allow-dirty"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            return
+
+        stderr = proc.stderr
+        if "429" in stderr or "Too Many Requests" in stderr:
+            wait = _parse_retry_after(stderr)
+            if wait is None:
+                wait = 120.0
+            print(
+                f"rate-limited publishing {name}; waiting {wait:.0f}s before retry "
+                f"(attempt {attempt + 1}/{max_retries})"
+            )
+            time.sleep(wait)
+            continue
+
+        print(stderr, file=sys.stderr)
+        proc.check_returncode()
+
+    raise RuntimeError(f"failed to publish {name} after {max_retries} attempts")
 
 
 def check_crate(crate: dict) -> tuple[dict, bool]:
@@ -168,8 +208,10 @@ def main() -> int:
         print(f"build {c['name']} {c['version']}")
         publish_crate(c["path"], args.dry_run)
         # New project creation on crates.io is throttled; sleep between publishes.
+        # Observed limit: ~5 new crates per 2-minute window. 25s is a conservative
+        # base delay; the retry loop handles 429s with the exact Retry-After window.
         if not args.dry_run:
-            time.sleep(5)
+            time.sleep(25)
         published += 1
 
     print(f"published {published} crate(s)")
