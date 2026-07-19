@@ -19,3 +19,4 @@ cortexcode-tui-images = { workspace = true }
 cortexcode-tui-keys = { workspace = true }
 cortexcode-tui-render = { workspace = true }
 cortexcode-tui-util = { workspace = true }
+once_cell = "1"

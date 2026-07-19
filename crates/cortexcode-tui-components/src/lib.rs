@@ -4,6 +4,7 @@
 //! (plus `autocomplete.ts` and `editor-component.ts`, which live at the
 //! package root but are tightly coupled to the `Editor` component).
 
+mod autocomplete;
 mod box_component;
 mod cancellable_loader;
 mod color;
@@ -14,6 +15,10 @@ mod spacer;
 mod text;
 mod truncated_text;
 
+pub use autocomplete::{
+    ApplyCompletionResult, AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions,
+    CombinedAutocompleteProvider, CommandEntry, SlashCommand,
+};
 pub use box_component::BoxComponent;
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
