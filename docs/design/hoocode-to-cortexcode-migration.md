@@ -840,7 +840,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 ### Phase 2 — TUI Namespace (T0)
 
 - [x] **2.1 cortexcode-tui-util** — ANSI width, grapheme handling, truncate/wrap — **DONE**
-- [ ] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching
+- [x] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching — **DONE**
 - [ ] **2.3 cortexcode-tui-keys** — Key parsing + keybindings
 - [ ] **2.4 cortexcode-tui-terminal** — Terminal abstraction (raw mode, stdin buffer)
 - [ ] **2.5 cortexcode-tui-render** — Differential renderer
