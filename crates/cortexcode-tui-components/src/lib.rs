@@ -1,4 +1,28 @@
-//! UI components for the cortex TUI
+//! UI components for the cortex TUI.
 //!
-//! This crate is currently a placeholder reserved for the cortexcode Rust migration.
-//! Functionality will be ported from the TypeScript HooCode project incrementally.
+//! Ported from TypeScript `@kolisachint/hoocode-tui`'s `components/*.ts`
+//! (plus `autocomplete.ts` and `editor-component.ts`, which live at the
+//! package root but are tightly coupled to the `Editor` component).
+
+mod box_component;
+mod cancellable_loader;
+mod color;
+mod image;
+mod loader;
+mod select_list;
+mod spacer;
+mod text;
+mod truncated_text;
+
+pub use box_component::BoxComponent;
+pub use cancellable_loader::{AbortSignal, CancellableLoader};
+pub use color::{identity_color, ColorFn};
+pub use image::{Image, ImageOptions, ImageTheme};
+pub use loader::{Loader, LoaderIndicatorOptions};
+pub use select_list::{
+    SelectItem, SelectList, SelectListLayoutOptions, SelectListTheme,
+    SelectListTruncatePrimaryContext,
+};
+pub use spacer::Spacer;
+pub use text::Text;
+pub use truncated_text::TruncatedText;
