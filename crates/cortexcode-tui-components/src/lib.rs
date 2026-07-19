@@ -11,6 +11,7 @@ mod color;
 mod image;
 mod input;
 mod loader;
+mod markdown;
 mod select_list;
 mod settings_list;
 mod spacer;
@@ -27,6 +28,7 @@ pub use color::{identity_color, ColorFn};
 pub use image::{Image, ImageOptions, ImageTheme};
 pub use input::Input;
 pub use loader::{Loader, LoaderIndicatorOptions};
+pub use markdown::{DefaultTextStyle, HighlightCodeFn, Markdown, MarkdownTheme};
 pub use select_list::{
     SelectItem, SelectList, SelectListLayoutOptions, SelectListTheme,
     SelectListTruncatePrimaryContext,
