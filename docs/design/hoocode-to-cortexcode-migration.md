@@ -831,7 +831,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **1.5 cortexcode-ai-provider-faux** — Test provider (port `faux.ts`) — **DONE**
 - [x] **1.6 cortexcode-ai-provider-anthropic** — Anthropic streaming provider — **DONE**
 - [x] **1.7 cortexcode-ai-provider-openai** — OpenAI Chat Completions provider — **DONE** (Responses/Codex APIs not yet ported)
-- [ ] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers
+- [x] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers — **DONE** (Vertex ADC/service-account auth deferred; API-key/access-token auth only)
 - [ ] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI provider
 - [ ] **1.10 cortexcode-ai-oauth** — OAuth flow support
 - [ ] **1.11 cortexcode-ai-images** — Image generation support

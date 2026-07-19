@@ -15,12 +15,18 @@ use std::sync::{Arc, Mutex};
 // ---------------------------------------------------------------------------
 
 /// Default conversion from `AgentMessage` to `Message` — filters out custom messages.
-pub fn default_convert_to_llm(messages: Vec<AgentMessage>) -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn default_convert_to_llm(
+    messages: Vec<AgentMessage>,
+) -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>> {
     Ok(messages
         .into_iter()
         .filter_map(|msg| match msg.inner {
             AgentMessageInner::Standard(m) => Some(m),
-            AgentMessageInner::Custom { role: _, content: _, timestamp: _ } => None,
+            AgentMessageInner::Custom {
+                role: _,
+                content: _,
+                timestamp: _,
+            } => None,
         })
         .collect())
 }
@@ -90,13 +96,15 @@ impl BackgroundTaskManager {
             dyn FnOnce(
                     String,
                     serde_json::Value,
-                ) -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
+                )
+                    -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
                 + Send,
         >,
         create_message: Box<dyn FnOnce(BackgroundToolResult) -> AgentMessage + Send>,
         on_count_change: Option<Box<dyn Fn(usize) + Send>>,
     ) {
-        self.pending.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.pending
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let count = self.pending_count();
         if let Some(ref cb) = on_count_change {
             cb(count);
@@ -225,9 +233,11 @@ fn stream_assistant_response(
         match event_stream.next_event() {
             Some(AssistantMessageEvent::Start { partial }) => {
                 partial_message = Some(partial.clone());
-                context.messages.push(AgentMessage::from_message(Message::Assistant(
-                    partial.clone(),
-                )));
+                context
+                    .messages
+                    .push(AgentMessage::from_message(Message::Assistant(
+                        partial.clone(),
+                    )));
                 added_partial = true;
                 emit(AgentEvent::MessageStart {
                     message: AgentMessage::from_message(Message::Assistant(partial)),
@@ -262,24 +272,28 @@ fn stream_assistant_response(
                         *last = AgentMessage::from_message(Message::Assistant(updated.clone()));
                     }
                     emit(AgentEvent::MessageUpdate {
-                        assistant_message_event: crate::types::AssistantMessagePartialEvent::TextDelta {
-                            index: 0,
-                            delta: String::new(),
-                        },
+                        assistant_message_event:
+                            crate::types::AssistantMessagePartialEvent::TextDelta {
+                                index: 0,
+                                delta: String::new(),
+                            },
                         message: AgentMessage::from_message(Message::Assistant(updated.clone())),
                     });
                 }
             }
-            Some(AssistantMessageEvent::Done { message }) | Some(AssistantMessageEvent::Error { error: message }) => {
+            Some(AssistantMessageEvent::Done { message })
+            | Some(AssistantMessageEvent::Error { error: message }) => {
                 final_message = Some(message.clone());
                 if added_partial {
                     if let Some(last) = context.messages.last_mut() {
                         *last = AgentMessage::from_message(Message::Assistant(message.clone()));
                     }
                 } else {
-                    context.messages.push(AgentMessage::from_message(Message::Assistant(
-                        message.clone(),
-                    )));
+                    context
+                        .messages
+                        .push(AgentMessage::from_message(Message::Assistant(
+                            message.clone(),
+                        )));
                     emit(AgentEvent::MessageStart {
                         message: AgentMessage::from_message(Message::Assistant(message.clone())),
                     });
@@ -311,9 +325,7 @@ enum PreparedToolCallKind {
         args: serde_json::Value,
     },
     /// The tool should return an immediate error result.
-    Blocked {
-        reason: String,
-    },
+    Blocked { reason: String },
     /// The tool was not found.
     NotFound,
 }
@@ -353,7 +365,9 @@ fn prepare_tool_call(
             if result.block {
                 return PreparedToolCall {
                     kind: PreparedToolCallKind::Blocked {
-                        reason: result.reason.unwrap_or_else(|| format!("Tool '{}' execution blocked", tool.name)),
+                        reason: result
+                            .reason
+                            .unwrap_or_else(|| format!("Tool '{}' execution blocked", tool.name)),
                     },
                 };
             }
@@ -373,12 +387,7 @@ fn execute_single_tool(
     tool_call_id: &str,
     args: serde_json::Value,
 ) -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>> {
-    (tool.execute)(
-        tool_call_id.to_string(),
-        args,
-        None,
-        None,
-    )
+    (tool.execute)(tool_call_id.to_string(), args, None, None)
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +446,7 @@ fn execute_tool_calls_sequential(
                     cache_control: None,
                 })],
                 tool_call_id: tc.id.clone(),
+                tool_name: tc.name.clone(),
                 is_error: false,
                 timestamp: None,
             }));
@@ -478,28 +488,21 @@ fn execute_tool_calls_sequential(
             args: tc.arguments.clone(),
         });
 
-        let result = execute_single_tool_call(
-            context,
-            assistant_message,
-            tc,
-            config,
-        );
+        let result = execute_single_tool_call(context, assistant_message, tc, config);
 
         // Apply after_tool_call hook
-        let (final_result, is_error, should_terminate) = apply_after_tool_call(
-            &result,
-            config,
-            context,
-            assistant_message,
-            tc,
-        );
+        let (final_result, is_error, should_terminate) =
+            apply_after_tool_call(&result, config, context, assistant_message, tc);
 
-        messages.push(AgentMessage::from_message(Message::ToolResult(ToolResultMessage {
-            content: final_result.content.clone(),
-            tool_call_id: tc.id.clone(),
-            is_error,
-            timestamp: None,
-        })));
+        messages.push(AgentMessage::from_message(Message::ToolResult(
+            ToolResultMessage {
+                content: final_result.content.clone(),
+                tool_call_id: tc.id.clone(),
+                tool_name: tc.name.clone(),
+                is_error,
+                timestamp: None,
+            },
+        )));
 
         emit(AgentEvent::ToolExecutionEnd {
             tool_call_id: tc.id.clone(),
@@ -514,7 +517,10 @@ fn execute_tool_calls_sequential(
         }
     }
 
-    ExecutedToolCallBatch { messages, terminate }
+    ExecutedToolCallBatch {
+        messages,
+        terminate,
+    }
 }
 
 fn execute_tool_calls_parallel(
@@ -527,7 +533,14 @@ fn execute_tool_calls_parallel(
 ) -> ExecutedToolCallBatch {
     // For the initial implementation, just fall back to sequential
     // Full parallel implementation would use threads/async
-    execute_tool_calls_sequential(context, assistant_message, tool_calls, config, emit, background)
+    execute_tool_calls_sequential(
+        context,
+        assistant_message,
+        tool_calls,
+        config,
+        emit,
+        background,
+    )
 }
 
 fn execute_single_tool_call(
@@ -629,8 +642,12 @@ pub fn run_agent_loop(
     emit(AgentEvent::AgentStart);
     emit(AgentEvent::TurnStart);
     for msg in &prompts {
-        emit(AgentEvent::MessageStart { message: msg.clone() });
-        emit(AgentEvent::MessageEnd { message: msg.clone() });
+        emit(AgentEvent::MessageStart {
+            message: msg.clone(),
+        });
+        emit(AgentEvent::MessageEnd {
+            message: msg.clone(),
+        });
     }
 
     run_loop(&mut context, &mut new_messages, &config, emit)?;
@@ -683,16 +700,17 @@ fn run_loop(
     let mut first_turn = true;
 
     // Helper to collect pending messages (steering + background results)
-    let collect_pending = |config: &AgentLoopConfig, bg: &mut BackgroundTaskManager| -> Vec<AgentMessage> {
-        let mut results = bg.drain_results();
-        let steering = config
-            .get_steering_messages
-            .as_ref()
-            .and_then(|f| f().ok())
-            .unwrap_or_default();
-        results.extend(steering);
-        results
-    };
+    let collect_pending =
+        |config: &AgentLoopConfig, bg: &mut BackgroundTaskManager| -> Vec<AgentMessage> {
+            let mut results = bg.drain_results();
+            let steering = config
+                .get_steering_messages
+                .as_ref()
+                .and_then(|f| f().ok())
+                .unwrap_or_default();
+            results.extend(steering);
+            results
+        };
 
     let mut pending_messages: Vec<AgentMessage> = collect_pending(config, &mut background);
 
@@ -701,7 +719,8 @@ fn run_loop(
         let mut has_more_tool_calls = true;
 
         // Inner loop: process tool calls, steering, background results
-        while has_more_tool_calls || !pending_messages.is_empty() || background.pending_count() > 0 {
+        while has_more_tool_calls || !pending_messages.is_empty() || background.pending_count() > 0
+        {
             // Nothing new to act on, but background work is in flight — wait for it
             if !has_more_tool_calls && pending_messages.is_empty() {
                 background.wait_for_next();
@@ -721,8 +740,12 @@ fn run_loop(
             if !pending_messages.is_empty() {
                 let msgs: Vec<AgentMessage> = std::mem::take(&mut pending_messages);
                 for msg in &msgs {
-                    emit(AgentEvent::MessageStart { message: msg.clone() });
-                    emit(AgentEvent::MessageEnd { message: msg.clone() });
+                    emit(AgentEvent::MessageStart {
+                        message: msg.clone(),
+                    });
+                    emit(AgentEvent::MessageEnd {
+                        message: msg.clone(),
+                    });
                     context.messages.push(msg.clone());
                     new_messages.push(msg.clone());
                 }
@@ -741,9 +764,14 @@ fn run_loop(
             // Stream assistant response
             let message = stream_assistant_response(context, config, emit)?;
 
-            new_messages.push(AgentMessage::from_message(Message::Assistant(message.clone())));
+            new_messages.push(AgentMessage::from_message(Message::Assistant(
+                message.clone(),
+            )));
 
-            if matches!(message.stop_reason, Some(StopReason::Error | StopReason::Aborted)) {
+            if matches!(
+                message.stop_reason,
+                Some(StopReason::Error | StopReason::Aborted)
+            ) {
                 emit(AgentEvent::TurnEnd {
                     message: message.clone(),
                     tool_results: vec![],
@@ -801,7 +829,10 @@ fn run_loop(
                 }
             }
 
-            let tool_results_msg: Vec<Message> = tool_results.iter().filter_map(|m| m.extract_message()).collect();
+            let tool_results_msg: Vec<Message> = tool_results
+                .iter()
+                .filter_map(|m| m.extract_message())
+                .collect();
 
             emit(AgentEvent::TurnEnd {
                 message: message.clone(),

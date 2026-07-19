@@ -359,6 +359,7 @@ mod tests {
                 cache_control: None,
             })],
             tool_call_id: "call_1".into(),
+            tool_name: "read_file".into(),
             is_error: false,
             timestamp: None,
         })];
@@ -378,6 +379,7 @@ mod tests {
                 cache_control: None,
             })],
             tool_call_id: "call_1".into(),
+            tool_name: "read_file".into(),
             is_error: false,
             timestamp: None,
         })];
