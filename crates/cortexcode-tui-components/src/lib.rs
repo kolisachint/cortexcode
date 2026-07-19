@@ -9,6 +9,7 @@ mod box_component;
 mod cancellable_loader;
 mod color;
 mod image;
+mod input;
 mod loader;
 mod select_list;
 mod spacer;
@@ -23,6 +24,7 @@ pub use box_component::BoxComponent;
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
 pub use image::{Image, ImageOptions, ImageTheme};
+pub use input::Input;
 pub use loader::{Loader, LoaderIndicatorOptions};
 pub use select_list::{
     SelectItem, SelectList, SelectListLayoutOptions, SelectListTheme,
