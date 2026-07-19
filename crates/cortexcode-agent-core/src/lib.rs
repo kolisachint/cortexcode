@@ -18,18 +18,13 @@ use types::*;
 // ---------------------------------------------------------------------------
 
 /// Controls how queued messages are drained.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum QueueMode {
     /// All queued messages are drained at once.
     All,
     /// One message is drained at a time.
+    #[default]
     OneAtATime,
-}
-
-impl Default for QueueMode {
-    fn default() -> Self {
-        QueueMode::OneAtATime
-    }
 }
 
 struct PendingMessageQueue {
@@ -155,6 +150,7 @@ impl InnerState {
 /// and exposes queueing APIs for steering and follow-up messages.
 pub struct Agent {
     inner: Arc<Mutex<InnerState>>,
+    #[allow(clippy::type_complexity)]
     listeners: Arc<Mutex<Vec<Box<dyn Fn(AgentEvent) + Send>>>>,
     steering_queue: Arc<Mutex<PendingMessageQueue>>,
     follow_up_queue: Arc<Mutex<PendingMessageQueue>>,
@@ -170,6 +166,7 @@ impl Agent {
 
     /// Create a new Agent with the given options.
     pub fn with_options(options: AgentOptions) -> Self {
+        #[allow(clippy::arc_with_non_send_sync)]
         let inner = Arc::new(Mutex::new(InnerState::new(options.initial_state)));
 
         Agent {
@@ -319,9 +316,8 @@ impl Agent {
 
         // Check last message
         if let Some(last) = context.messages.last() {
-            match &last.inner {
-                AgentMessageInner::Standard(Message::Assistant(_)) => {
-                    // Try steering/follow-up messages first
+            if let AgentMessageInner::Standard(Message::Assistant(_)) = &last.inner {
+                // Try steering/follow-up messages first
                     let steering = self.steering_queue.lock().unwrap().drain();
                     if !steering.is_empty() {
                         return self.run_prompt_messages(steering, true);
@@ -332,8 +328,6 @@ impl Agent {
                     }
                     return Err("Cannot continue from message role: assistant".into());
                 }
-                _ => {}
-            }
         } else {
             return Err("No messages to continue from".into());
         }

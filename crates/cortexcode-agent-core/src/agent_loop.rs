@@ -82,6 +82,7 @@ impl BackgroundTaskManager {
         *notified = false;
     }
 
+    #[allow(clippy::type_complexity)]
     fn spawn_background(
         &self,
         tool_call: AgentToolCall,
@@ -652,11 +653,8 @@ pub fn run_agent_loop_continue(
     }
 
     if let Some(last) = context.messages.last() {
-        match &last.inner {
-            AgentMessageInner::Standard(Message::Assistant(_)) => {
-                return Err("Cannot continue from message role: assistant".into());
-            }
-            _ => {}
+        if let AgentMessageInner::Standard(Message::Assistant(_)) = &last.inner {
+            return Err("Cannot continue from message role: assistant".into());
         }
     }
 
@@ -721,7 +719,7 @@ fn run_loop(
 
             // Process pending messages before next assistant response
             if !pending_messages.is_empty() {
-                let msgs: Vec<AgentMessage> = pending_messages.drain(..).collect();
+                let msgs: Vec<AgentMessage> = std::mem::take(&mut pending_messages);
                 for msg in &msgs {
                     emit(AgentEvent::MessageStart { message: msg.clone() });
                     emit(AgentEvent::MessageEnd { message: msg.clone() });

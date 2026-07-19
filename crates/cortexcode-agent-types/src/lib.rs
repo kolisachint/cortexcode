@@ -11,16 +11,11 @@ use std::collections::HashSet;
 // ---------------------------------------------------------------------------
 
 /// How tool calls from a single assistant message are executed.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ToolExecutionMode {
     Sequential,
+    #[default]
     Parallel,
-}
-
-impl Default for ToolExecutionMode {
-    fn default() -> Self {
-        ToolExecutionMode::Parallel
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +193,7 @@ pub struct AgentToolResult {
 ///
 /// `AgentTool` stores function pointers and boxed closures, so it does not
 /// implement `Clone` or `Debug`. Use the tool-building helpers to create one.
+#[allow(clippy::type_complexity)]
 pub struct AgentTool {
     pub name: String,
     pub description: String,
@@ -245,6 +241,7 @@ impl std::fmt::Debug for AgentTools {
 }
 
 impl AgentTools {
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new(tools: Vec<AgentTool>) -> Self {
         Self(std::sync::Arc::new(tools))
     }
@@ -362,6 +359,7 @@ pub struct AgentLoopTurnUpdate {
 /// Configuration for the agent loop.
 ///
 /// Contains optional callback closures and is not `Clone` nor fully `Debug`.
+#[allow(clippy::type_complexity)]
 pub struct AgentLoopConfig {
     pub model: Model,
     pub reasoning: Option<ThinkingLevel>,

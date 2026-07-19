@@ -193,18 +193,13 @@ pub struct ThinkingBudgets {
 pub type ThinkingLevelMap = HashMap<String, serde_json::Value>;
 
 /// Transport preference for streaming.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Transport {
+    #[default]
     Auto,
     Sse,
     Stdio,
     StreamableHttp,
-}
-
-impl Default for Transport {
-    fn default() -> Self {
-        Transport::Auto
-    }
 }
 
 /// Model definition.

@@ -13,3 +13,4 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+dirs = "5"
