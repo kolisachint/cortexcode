@@ -13,3 +13,6 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+base64 = "0.22"
+once_cell = "1"
+rand = "0.8"

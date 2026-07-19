@@ -842,12 +842,12 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **2.1 cortexcode-tui-util** — ANSI width, grapheme handling, truncate/wrap — **DONE**
 - [x] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching — **DONE**
 - [x] **2.3 cortexcode-tui-keys** — Key parsing + keybindings — **DONE** (global keybindings singleton not ported)
-- [ ] **2.4 cortexcode-tui-terminal** — Terminal abstraction (raw mode, stdin buffer)
-- [ ] **2.5 cortexcode-tui-render** — Differential renderer
-- [ ] **2.6 cortexcode-tui-editing** — Text editor, kill ring, undo stack
-- [ ] **2.7 cortexcode-tui-components** — Box, text, markdown, select-list, autocomplete, etc.
-- [ ] **2.8 cortexcode-tui-images** — Terminal image rendering
-- [ ] **2.9 cortexcode-tui umbrella publishable** — All T0 leaves `publish = true`
+- [x] **2.4 cortexcode-tui-terminal** — Terminal abstraction (raw mode, stdin buffer) — **DONE** (Windows `ENABLE_VIRTUAL_TERMINAL_INPUT` koffi tweak deferred)
+- [x] **2.5 cortexcode-tui-render** — Differential renderer — **DONE** (flatten memoization and 16ms render-coalescing are performance-only optimizations, not ported; differential terminal output is behaviorally equivalent)
+- [x] **2.6 cortexcode-tui-editing** — Text editor, kill ring, undo stack — **DONE** (`KillRing`, `UndoStack`; `editor-component.ts`'s trait is defined in 2.7 alongside `AutocompleteProvider`/`Editor`)
+- [x] **2.7 cortexcode-tui-components** — Box, text, markdown, select-list, autocomplete, etc. — **DONE**: Spacer, Text, TruncatedText, BoxComponent, Image, Loader, CancellableLoader, SelectList, SettingsList, Input, AutocompleteProvider, Markdown, Editor (109 tests). `Editor` is reduced-scope (see `crates/cortexcode-tui-components/src/editor/editor.rs`): no paste-marker compression, no vim-style char-jump mode, no internal viewport scrolling.
+- [x] **2.8 cortexcode-tui-images** — Terminal image rendering — **DONE** (ported ahead of 2.5/2.6/2.7 since the renderer depends on it)
+- [x] **2.9 cortexcode-tui umbrella publishable** — All T0 leaves `publish = true` — **DONE** (all TUI leaves already had `publish = true` from scaffolding; wired the umbrella's `lib.rs` to re-export every leaf, matching the AI umbrella pattern). Phase 2 is now complete.
 
 ### Phase 3 — Agent Namespace (T0/T1)
 

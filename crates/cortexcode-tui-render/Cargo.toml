@@ -13,3 +13,7 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+cortexcode-tui-images = { workspace = true }
+cortexcode-tui-keys = { workspace = true }
+cortexcode-tui-terminal = { workspace = true }
+cortexcode-tui-util = { workspace = true }
