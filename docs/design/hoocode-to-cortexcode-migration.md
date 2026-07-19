@@ -843,7 +843,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching — **DONE**
 - [x] **2.3 cortexcode-tui-keys** — Key parsing + keybindings — **DONE** (global keybindings singleton not ported)
 - [x] **2.4 cortexcode-tui-terminal** — Terminal abstraction (raw mode, stdin buffer) — **DONE** (Windows `ENABLE_VIRTUAL_TERMINAL_INPUT` koffi tweak deferred)
-- [ ] **2.5 cortexcode-tui-render** — Differential renderer
+- [x] **2.5 cortexcode-tui-render** — Differential renderer — **DONE** (flatten memoization and 16ms render-coalescing are performance-only optimizations, not ported; differential terminal output is behaviorally equivalent)
 - [ ] **2.6 cortexcode-tui-editing** — Text editor, kill ring, undo stack
 - [ ] **2.7 cortexcode-tui-components** — Box, text, markdown, select-list, autocomplete, etc.
 - [x] **2.8 cortexcode-tui-images** — Terminal image rendering — **DONE** (ported ahead of 2.5/2.6/2.7 since the renderer depends on it)
