@@ -3,9 +3,7 @@
 //! Provides a simple channel-based `AssistantMessageEventStream` implementation
 //! that the agent loop uses to consume LLM responses event-by-event.
 
-use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream,
-};
+use cortexcode_ai_types::{AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream};
 use std::sync::mpsc;
 
 // ---------------------------------------------------------------------------

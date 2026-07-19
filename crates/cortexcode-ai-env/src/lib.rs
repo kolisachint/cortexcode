@@ -5,7 +5,6 @@
 //!
 //! Ported from TypeScript `@kolisachint/hoocode-ai` → `env-api-keys.ts`.
 
-
 // ---------------------------------------------------------------------------
 // Env-var mapping
 // ---------------------------------------------------------------------------
@@ -94,7 +93,10 @@ fn check_vertex_adc_credentials() -> bool {
     // Fall back to default ADC path.
     let home = dirs::home_dir();
     if let Some(home) = home {
-        let default_adc = home.join(".config").join("gcloud").join("application_default_credentials.json");
+        let default_adc = home
+            .join(".config")
+            .join("gcloud")
+            .join("application_default_credentials.json");
         if default_adc.exists() {
             return true;
         }
@@ -170,7 +172,7 @@ pub fn get_env_api_key(provider: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, LazyLock};
+    use std::sync::{LazyLock, Mutex};
 
     /// Serializes tests that modify environment variables to prevent races.
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -185,7 +187,10 @@ mod tests {
 
     #[test]
     fn test_openai_key() {
-        assert_eq!(get_api_key_env_vars("openai"), Some(&["OPENAI_API_KEY"][..]));
+        assert_eq!(
+            get_api_key_env_vars("openai"),
+            Some(&["OPENAI_API_KEY"][..])
+        );
     }
 
     #[test]
@@ -266,7 +271,10 @@ mod tests {
 
         let keys = find_env_keys("github-copilot");
         assert_eq!(keys, Some(vec!["COPILOT_GITHUB_TOKEN".to_string()]));
-        assert_eq!(get_env_api_key("github-copilot"), Some("copilot-token".into()));
+        assert_eq!(
+            get_env_api_key("github-copilot"),
+            Some("copilot-token".into())
+        );
 
         match saved {
             Ok(v) => std::env::set_var("COPILOT_GITHUB_TOKEN", v),

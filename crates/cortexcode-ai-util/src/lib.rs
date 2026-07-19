@@ -21,10 +21,8 @@ pub fn short_hash(input: &str) -> String {
         h2 = h2.wrapping_mul(1597334677) ^ ch;
     }
 
-    h1 = (h1 ^ (h1 >> 16)).wrapping_mul(2246822507)
-        ^ (h2 ^ (h2 >> 13)).wrapping_mul(3266489909);
-    h2 = (h2 ^ (h2 >> 16)).wrapping_mul(2246822507)
-        ^ (h1 ^ (h1 >> 13)).wrapping_mul(3266489909);
+    h1 = (h1 ^ (h1 >> 16)).wrapping_mul(2246822507) ^ (h2 ^ (h2 >> 13)).wrapping_mul(3266489909);
+    h2 = (h2 ^ (h2 >> 16)).wrapping_mul(2246822507) ^ (h1 ^ (h1 >> 13)).wrapping_mul(3266489909);
 
     format!("{:x}{:x}", h2, h1)
 }
@@ -36,7 +34,9 @@ pub fn short_hash(input: &str) -> String {
 /// Convert a `Vec<(String, String)>` of HTTP headers to a `HashMap`.
 ///
 /// Ported from TypeScript `utils/headers.ts` → `headersToRecord()`.
-pub fn headers_to_record(headers: &[(String, String)]) -> std::collections::HashMap<String, String> {
+pub fn headers_to_record(
+    headers: &[(String, String)],
+) -> std::collections::HashMap<String, String> {
     headers.iter().cloned().collect()
 }
 
@@ -48,7 +48,9 @@ use std::collections::HashSet;
 
 /// Set of valid JSON escape characters.
 fn valid_json_escapes() -> HashSet<char> {
-    ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'].into_iter().collect()
+    ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']
+        .into_iter()
+        .collect()
 }
 
 /// Check if a character is a control character (U+0000–U+001F).
@@ -60,8 +62,8 @@ fn is_control_char(c: char) -> bool {
 /// Escape a control character as a JSON escape sequence.
 fn escape_control_char(c: char) -> String {
     match c {
-        '\u{0008}' => "\\b".to_string(),  // backspace
-        '\u{000C}' => "\\f".to_string(),  // form feed
+        '\u{0008}' => "\\b".to_string(), // backspace
+        '\u{000C}' => "\\f".to_string(), // form feed
         '\n' => "\\n".to_string(),
         '\r' => "\\r".to_string(),
         '\t' => "\\t".to_string(),
@@ -149,7 +151,9 @@ pub fn repair_json(json: &str) -> String {
 /// Parse JSON, repairing common malformations first if the initial parse fails.
 ///
 /// Ported from TypeScript `utils/json-parse.ts` → `parseJsonWithRepair()`.
-pub fn parse_json_with_repair<T: serde::de::DeserializeOwned>(json: &str) -> Result<T, serde_json::Error> {
+pub fn parse_json_with_repair<T: serde::de::DeserializeOwned>(
+    json: &str,
+) -> Result<T, serde_json::Error> {
     match serde_json::from_str(json) {
         Ok(val) => Ok(val),
         Err(e) => {
@@ -274,7 +278,9 @@ pub fn is_context_overflow(message: &AssistantMessage, context_window: Option<u6
 
     // Case 3: Length-stop overflow (Xiaomi MiMo style) — server truncates input
     // to fit context window, leaving no room for output.
-    if message.stop_reason == Some(StopReason::StopSequence) || message.stop_reason == Some(StopReason::MaxTokens) {
+    if message.stop_reason == Some(StopReason::StopSequence)
+        || message.stop_reason == Some(StopReason::MaxTokens)
+    {
         if let Some(ref usage) = message.usage {
             if usage.output == 0 {
                 let input_tokens = usage.input + usage.cache_read;
@@ -331,7 +337,9 @@ fn is_non_overflow(msg: &str) -> bool {
         r"(?i)too many requests",
     ];
     patterns.iter().any(|p| {
-        regex::Regex::new(p).map(|re| re.is_match(msg)).unwrap_or(false)
+        regex::Regex::new(p)
+            .map(|re| re.is_match(msg))
+            .unwrap_or(false)
     })
 }
 
