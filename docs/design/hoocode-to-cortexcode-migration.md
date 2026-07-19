@@ -834,7 +834,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers — **DONE** (Vertex ADC/service-account auth deferred; API-key/access-token auth only)
 - [x] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI Responses provider — **DONE** (cross-provider reasoning-item ID pairing not ported)
 - [x] **1.10 cortexcode-ai-oauth** — OAuth flow support — **DONE** (Anthropic PKCE + GitHub Copilot device flow; interactive browser/callback-server wiring deferred to CLI layer)
-- [ ] **1.11 cortexcode-ai-images** — Image generation support
+- [x] **1.11 cortexcode-ai-images** — Image generation support — **DONE** (OpenRouter provider)
 - [ ] **1.12 cortexcode-ai umbrella publishable** — Flip all T0/T1 leaves to `publish = true`
 
 ### Phase 2 — TUI Namespace (T0)
