@@ -12,6 +12,7 @@ mod image;
 mod input;
 mod loader;
 mod select_list;
+mod settings_list;
 mod spacer;
 mod text;
 mod truncated_text;
@@ -29,6 +30,10 @@ pub use loader::{Loader, LoaderIndicatorOptions};
 pub use select_list::{
     SelectItem, SelectList, SelectListLayoutOptions, SelectListTheme,
     SelectListTruncatePrimaryContext,
+};
+pub use settings_list::{
+    SettingItem, SettingsList, SettingsListOptions, SettingsListTheme, SubmenuFactory,
+    SubmenuOutcome,
 };
 pub use spacer::Spacer;
 pub use text::Text;
