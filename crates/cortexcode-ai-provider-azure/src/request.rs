@@ -280,6 +280,12 @@ mod tests {
     use cortexcode_ai_types::{
         AssistantMessage, TextContent, ToolCallContent, ToolResultMessage, UserMessage,
     };
+    use std::sync::{LazyLock, Mutex};
+
+    /// Serializes tests that mutate `AZURE_OPENAI_*` env vars — they're
+    /// process-global, and `cargo test` runs tests in this module in
+    /// parallel threads by default.
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn model(base_url: &str) -> Model {
         Model {
@@ -309,12 +315,14 @@ mod tests {
 
     #[test]
     fn test_resolve_deployment_name_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("AZURE_OPENAI_DEPLOYMENT_NAME_MAP");
         assert_eq!(resolve_deployment_name("gpt-5"), "gpt-5");
     }
 
     #[test]
     fn test_resolve_deployment_name_from_map() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::set_var(
             "AZURE_OPENAI_DEPLOYMENT_NAME_MAP",
             "gpt-5=my-gpt5-deployment,gpt-4=my-gpt4",
@@ -354,6 +362,7 @@ mod tests {
 
     #[test]
     fn test_resolve_azure_config_from_resource_name() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("AZURE_OPENAI_BASE_URL");
         std::env::set_var("AZURE_OPENAI_RESOURCE_NAME", "myres");
         std::env::remove_var("AZURE_OPENAI_API_VERSION");
@@ -365,6 +374,7 @@ mod tests {
 
     #[test]
     fn test_resolve_azure_config_falls_back_to_model_base_url() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("AZURE_OPENAI_BASE_URL");
         std::env::remove_var("AZURE_OPENAI_RESOURCE_NAME");
         let (base_url, _) =
@@ -374,6 +384,7 @@ mod tests {
 
     #[test]
     fn test_resolve_azure_config_missing() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("AZURE_OPENAI_BASE_URL");
         std::env::remove_var("AZURE_OPENAI_RESOURCE_NAME");
         assert!(resolve_azure_config(&model("")).is_err());
