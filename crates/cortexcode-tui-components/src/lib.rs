@@ -8,6 +8,7 @@ mod autocomplete;
 mod box_component;
 mod cancellable_loader;
 mod color;
+mod editor;
 mod image;
 mod input;
 mod loader;
@@ -25,6 +26,7 @@ pub use autocomplete::{
 pub use box_component::BoxComponent;
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
+pub use editor::{word_wrap_line, Editor, EditorOptions, EditorTheme, TextChunk};
 pub use image::{Image, ImageOptions, ImageTheme};
 pub use input::Input;
 pub use loader::{Loader, LoaderIndicatorOptions};
