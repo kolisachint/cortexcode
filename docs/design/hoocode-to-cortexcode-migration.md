@@ -824,11 +824,11 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 
 ### Phase 1 — AI Namespace (T0/T1)
 
-- [ ] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE**
-- [ ] **1.2 cortexcode-ai-env** — API key detection from environment variables
-- [ ] **1.3 cortexcode-ai-models** — Model registry + generated model lists (build.rs)
-- [ ] **1.4 cortexcode-ai-util** — JSON repair, validation, hash, header utilities
-- [ ] **1.5 cortexcode-ai-provider-faux** — Test provider (port `faux.ts`)
+- [x] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE**
+- [x] **1.2 cortexcode-ai-env** — API key detection from environment variables — **DONE**
+- [x] **1.3 cortexcode-ai-models** — Model registry + generated model lists — **DONE**
+- [x] **1.4 cortexcode-ai-util** — JSON repair, validation, hash, header utilities — **DONE**
+- [x] **1.5 cortexcode-ai-provider-faux** — Test provider (port `faux.ts`) — **DONE**
 - [ ] **1.6 cortexcode-ai-provider-anthropic** — Anthropic streaming provider
 - [ ] **1.7 cortexcode-ai-provider-openai** — OpenAI completions/responses/codex providers
 - [ ] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers
