@@ -131,6 +131,10 @@ pub struct AssistantMessage {
 pub struct ToolResultMessage {
     pub content: Vec<Content>,
     pub tool_call_id: String,
+    /// Name of the tool that produced this result. Required by providers
+    /// (e.g. Gemini's `functionResponse.name`) that correlate results by
+    /// tool name rather than call ID.
+    pub tool_name: String,
     pub is_error: bool,
     pub timestamp: Option<i64>,
 }
@@ -336,9 +340,7 @@ pub struct ProviderStreamOptions {
 #[derive(Debug, Clone)]
 pub enum AssistantMessageEvent {
     /// Streaming has started; `partial` contains the initial message.
-    Start {
-        partial: AssistantMessage,
-    },
+    Start { partial: AssistantMessage },
     /// A text content block has started.
     TextStart {
         partial: AssistantMessage,
@@ -388,13 +390,9 @@ pub enum AssistantMessageEvent {
         index: usize,
     },
     /// Streaming completed successfully.
-    Done {
-        message: AssistantMessage,
-    },
+    Done { message: AssistantMessage },
     /// An error occurred during streaming.
-    Error {
-        error: AssistantMessage,
-    },
+    Error { error: AssistantMessage },
 }
 
 // ---------------------------------------------------------------------------

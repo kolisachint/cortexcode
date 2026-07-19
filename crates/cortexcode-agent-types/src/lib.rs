@@ -3,7 +3,10 @@
 //! These types mirror the TypeScript types in `@kolisachint/hoocode-agent-core` and
 //! are used by the agent runtime, harness, and tool crates.
 
-use cortexcode_ai_types::{AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions, ThinkingLevel};
+use cortexcode_ai_types::{
+    AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
+    ThinkingLevel,
+};
 use std::collections::HashSet;
 
 // ---------------------------------------------------------------------------
@@ -86,12 +89,16 @@ pub struct AfterToolCallResult {
 pub enum AgentEvent {
     AgentStart,
     TurnStart,
-    MessageStart { message: AgentMessage },
+    MessageStart {
+        message: AgentMessage,
+    },
     MessageUpdate {
         assistant_message_event: AssistantMessagePartialEvent,
         message: AgentMessage,
     },
-    MessageEnd { message: AgentMessage },
+    MessageEnd {
+        message: AgentMessage,
+    },
     ToolExecutionStart {
         tool_call_id: String,
         tool_name: String,
@@ -364,78 +371,92 @@ pub struct AgentLoopConfig {
     pub model: Model,
     pub reasoning: Option<ThinkingLevel>,
     pub convert_to_llm: Option<
-        Box<dyn Fn(Vec<AgentMessage>) -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>> + Send>,
+        Box<
+            dyn Fn(
+                    Vec<AgentMessage>,
+                )
+                    -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
+        >,
     >,
     pub transform_context: Option<
         Box<
             dyn Fn(
                     Vec<AgentMessage>,
                     Option<cortexcode_ai_types::AbortSignal>,
-                ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>>
+                )
+                    -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>>
                 + Send,
         >,
     >,
-    pub get_api_key:
-        Option<Box<dyn Fn(String) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> + Send>>,
-    pub should_stop_after_turn:
-        Option<
-            Box<
-                dyn Fn(ShouldStopAfterTurnContext) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>
-                    + Send,
-            >,
+    pub get_api_key: Option<
+        Box<
+            dyn Fn(String) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
         >,
-    pub prepare_next_turn:
-        Option<
-            Box<
-                dyn Fn(
-                        PrepareNextTurnContext,
-                    ) -> Result<Option<AgentLoopTurnUpdate>, Box<dyn std::error::Error + Send + Sync>>
-                    + Send,
-            >,
+    >,
+    pub should_stop_after_turn: Option<
+        Box<
+            dyn Fn(
+                    ShouldStopAfterTurnContext,
+                ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
         >,
-    pub get_steering_messages:
-        Option<Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>>,
-    pub get_follow_up_messages:
-        Option<Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>>,
-    pub create_background_result_message: Option<Box<dyn Fn(BackgroundToolResult) -> AgentMessage + Send>>,
+    >,
+    pub prepare_next_turn: Option<
+        Box<
+            dyn Fn(
+                    PrepareNextTurnContext,
+                )
+                    -> Result<Option<AgentLoopTurnUpdate>, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
+        >,
+    >,
+    pub get_steering_messages: Option<
+        Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>,
+    >,
+    pub get_follow_up_messages: Option<
+        Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>,
+    >,
+    pub create_background_result_message:
+        Option<Box<dyn Fn(BackgroundToolResult) -> AgentMessage + Send>>,
     pub create_background_placeholder: Option<Box<dyn Fn(AgentToolCall) -> Option<String> + Send>>,
     pub on_background_task_count_change: Option<Box<dyn Fn(usize) + Send>>,
-    pub before_tool_call:
-        Option<
-            Box<
-                dyn Fn(
-                        BeforeToolCallContext,
-                        Option<cortexcode_ai_types::AbortSignal>,
-                    ) -> Result<Option<BeforeToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
-                    + Send,
-            >,
+    pub before_tool_call: Option<
+        Box<
+            dyn Fn(
+                    BeforeToolCallContext,
+                    Option<cortexcode_ai_types::AbortSignal>,
+                )
+                    -> Result<Option<BeforeToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
         >,
-    pub after_tool_call:
-        Option<
-            Box<
-                dyn Fn(
-                        AfterToolCallContext,
-                        Option<cortexcode_ai_types::AbortSignal>,
-                    ) -> Result<Option<AfterToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
-                    + Send,
-            >,
+    >,
+    pub after_tool_call: Option<
+        Box<
+            dyn Fn(
+                    AfterToolCallContext,
+                    Option<cortexcode_ai_types::AbortSignal>,
+                )
+                    -> Result<Option<AfterToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
         >,
+    >,
     pub tool_execution: ToolExecutionMode,
     /// Stream function used to call the LLM.
-    pub stream_fn:
-        Option<
-            Box<
-                dyn Fn(
-                        Model,
-                        cortexcode_ai_types::Context,
-                        SimpleStreamOptions,
-                    ) -> Result<
-                        Box<dyn AssistantMessageEventStream>,
-                        Box<dyn std::error::Error + Send + Sync>,
-                    > + Send
-                    + Sync,
-            >,
+    pub stream_fn: Option<
+        Box<
+            dyn Fn(
+                    Model,
+                    cortexcode_ai_types::Context,
+                    SimpleStreamOptions,
+                ) -> Result<
+                    Box<dyn AssistantMessageEventStream>,
+                    Box<dyn std::error::Error + Send + Sync>,
+                > + Send
+                + Sync,
         >,
+    >,
     pub signal: Option<cortexcode_ai_types::AbortSignal>,
     pub api_key: Option<String>,
     pub session_id: Option<String>,
@@ -462,8 +483,14 @@ impl std::fmt::Debug for AgentLoopConfig {
             .field("thinking_budgets", &self.thinking_budgets)
             .field("thinking_display", &self.thinking_display)
             .field("transport", &self.transport)
-            .field("send_session_affinity_headers", &self.send_session_affinity_headers)
-            .field("supports_long_cache_retention", &self.supports_long_cache_retention)
+            .field(
+                "send_session_affinity_headers",
+                &self.send_session_affinity_headers,
+            )
+            .field(
+                "supports_long_cache_retention",
+                &self.supports_long_cache_retention,
+            )
             .field("prompt_suffix", &self.prompt_suffix)
             .finish()
     }

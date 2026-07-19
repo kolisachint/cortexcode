@@ -11,9 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use cortexcode_ai_stream::{AiMessageEventSender, AiMessageEventStream};
 use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Content, Context,
-    Cost, Model, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent,
-    Usage,
+    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Content, Context, Cost,
+    Model, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
 };
 
 // ---------------------------------------------------------------------------
@@ -468,12 +467,8 @@ fn fast_hash(input: &str) -> String {
         h2 = h2.wrapping_mul(1597334677) ^ ch;
     }
 
-    h1 = (h1 ^ (h1 >> 16))
-        .wrapping_mul(2246822507)
-        ^ (h2 ^ (h2 >> 13)).wrapping_mul(3266489909);
-    h2 = (h2 ^ (h2 >> 16))
-        .wrapping_mul(2246822507)
-        ^ (h1 ^ (h1 >> 13)).wrapping_mul(3266489909);
+    h1 = (h1 ^ (h1 >> 16)).wrapping_mul(2246822507) ^ (h2 ^ (h2 >> 13)).wrapping_mul(3266489909);
+    h2 = (h2 ^ (h2 >> 16)).wrapping_mul(2246822507) ^ (h1 ^ (h1 >> 13)).wrapping_mul(3266489909);
 
     format!("{:x}{:x}", h2, h1)
 }
@@ -568,7 +563,10 @@ mod tests {
         }
 
         assert!(!events.is_empty(), "should have at least one event");
-        assert!(events.len() >= 3, "should have start, text events, and done");
+        assert!(
+            events.len() >= 3,
+            "should have start, text events, and done"
+        );
 
         // First event should be Start
         match &events[0] {

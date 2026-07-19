@@ -13,3 +13,5 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+unicode-width = "0.2"
+unicode-segmentation = "1"

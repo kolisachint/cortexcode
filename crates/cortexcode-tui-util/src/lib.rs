@@ -1,4 +1,16 @@
-//! Shared utilities for the cortex TUI
+//! Shared utilities for the cortex TUI: ANSI-aware string width, wrapping,
+//! truncation, and column slicing.
 //!
-//! This crate is currently a placeholder reserved for the cortexcode Rust migration.
-//! Functionality will be ported from the TypeScript HooCode project incrementally.
+//! Ported from TypeScript `@kolisachint/hoocode-tui` → `utils.ts`.
+
+mod ansi;
+mod text;
+mod width;
+
+pub use ansi::{extract_ansi_code, AnsiCodeTracker};
+pub use text::{
+    apply_background_to_line, extract_segments, is_punctuation_char, is_whitespace_char,
+    normalize_terminal_output, slice_by_column, slice_with_width, truncate_to_width,
+    wrap_text_with_ansi,
+};
+pub use width::visible_width;

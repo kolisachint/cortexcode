@@ -23,8 +23,8 @@ fn registry() -> &'static Registry {
     REGISTRY.get_or_init(|| {
         // Start with built-in models from embedded JSON.
         let data = include_str!("../data/models.json");
-        let model_list: Vec<serde_json::Value> = serde_json::from_str(data)
-            .expect("embedded data/models.json is valid JSON");
+        let model_list: Vec<serde_json::Value> =
+            serde_json::from_str(data).expect("embedded data/models.json is valid JSON");
         build_registry_from_json(&model_list)
     })
 }
@@ -67,7 +67,9 @@ fn build_registry_from_json(model_list: &[serde_json::Value]) -> Registry {
     registry
 }
 
-fn parse_thinking_level_map(entry: &serde_json::Value) -> Option<HashMap<String, serde_json::Value>> {
+fn parse_thinking_level_map(
+    entry: &serde_json::Value,
+) -> Option<HashMap<String, serde_json::Value>> {
     let map = entry.get("thinkingLevelMap")?;
     if map.is_null() {
         return None;
@@ -83,7 +85,11 @@ fn parse_thinking_level_map(entry: &serde_json::Value) -> Option<HashMap<String,
 fn parse_input_modalities(entry: &serde_json::Value) -> Vec<String> {
     entry["input"]
         .as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_else(|| vec!["text".to_string()])
 }
 
@@ -99,7 +105,11 @@ fn parse_headers(entry: &serde_json::Value) -> Option<HashMap<String, String>> {
             result.insert(k.clone(), val.to_string());
         }
     }
-    if result.is_empty() { None } else { Some(result) }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -127,14 +137,23 @@ pub fn get_models(provider: &str) -> Vec<&'static Model> {
 /// Calculate the monetary cost for a given model and usage.
 ///
 /// Cost is computed as: `model_cost_per_million * usage_tokens / 1_000_000`.
-pub fn calculate_cost(model: &Model, usage: &cortexcode_ai_types::Usage) -> cortexcode_ai_types::Cost {
+pub fn calculate_cost(
+    model: &Model,
+    usage: &cortexcode_ai_types::Usage,
+) -> cortexcode_ai_types::Cost {
     let input = (model.cost.input / 1_000_000.0) * usage.input as f64;
     let output = (model.cost.output / 1_000_000.0) * usage.output as f64;
     let cache_read = (model.cost.cache_read / 1_000_000.0) * usage.cache_read as f64;
     let cache_write = (model.cost.cache_write / 1_000_000.0) * usage.cache_write as f64;
     let total = input + output + cache_read + cache_write;
 
-    cortexcode_ai_types::Cost { input, output, cache_read, cache_write, total }
+    cortexcode_ai_types::Cost {
+        input,
+        output,
+        cache_read,
+        cache_write,
+        total,
+    }
 }
 
 /// Ordered list of all thinking levels.
@@ -193,7 +212,10 @@ pub fn clamp_thinking_level(
     }
 
     let Some(idx) = EXTENDED_THINKING_LEVELS.iter().position(|l| l == level) else {
-        return available.first().cloned().unwrap_or(cortexcode_ai_types::ThinkingLevel::Off);
+        return available
+            .first()
+            .cloned()
+            .unwrap_or(cortexcode_ai_types::ThinkingLevel::Off);
     };
 
     // Try higher levels first.
@@ -210,7 +232,10 @@ pub fn clamp_thinking_level(
         }
     }
 
-    available.first().cloned().unwrap_or(cortexcode_ai_types::ThinkingLevel::Off)
+    available
+        .first()
+        .cloned()
+        .unwrap_or(cortexcode_ai_types::ThinkingLevel::Off)
 }
 
 /// Check if two models are equal by comparing both their ID and provider.
@@ -222,8 +247,6 @@ pub fn models_are_equal(a: Option<&Model>, b: Option<&Model>) -> bool {
         _ => false,
     }
 }
-
-
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -253,7 +276,10 @@ mod tests {
     #[test]
     fn test_get_providers() {
         let providers = get_providers();
-        assert!(providers.contains(&"anthropic"), "providers should include anthropic");
+        assert!(
+            providers.contains(&"anthropic"),
+            "providers should include anthropic"
+        );
     }
 
     #[test]
@@ -331,7 +357,10 @@ mod tests {
     #[test]
     fn test_clamp_level_exact() {
         let model = get_model("anthropic", "claude-haiku-4-5").expect("claude-haiku-4-5 exists");
-        assert_eq!(clamp_thinking_level(model, &ThinkingLevel::Minimal), ThinkingLevel::Minimal);
+        assert_eq!(
+            clamp_thinking_level(model, &ThinkingLevel::Minimal),
+            ThinkingLevel::Minimal
+        );
     }
 
     #[test]
@@ -339,7 +368,10 @@ mod tests {
         // gpt-5 via azure-openai-responses has reasoning=true and xhigh not in thinkingLevelMap
         // so xhigh should be unsupported, clamp should pick nearest supported (high)
         let model = get_model("azure-openai-responses", "gpt-5").expect("gpt-5 exists");
-        assert_eq!(clamp_thinking_level(model, &ThinkingLevel::XHigh), ThinkingLevel::High);
+        assert_eq!(
+            clamp_thinking_level(model, &ThinkingLevel::XHigh),
+            ThinkingLevel::High
+        );
     }
 
     #[test]
@@ -364,5 +396,4 @@ mod tests {
             assert!(providers.contains(p), "expected provider '{p}' in registry");
         }
     }
-
 }

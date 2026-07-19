@@ -248,7 +248,8 @@ impl Agent {
 
     /// Abort the current run, if one is active.
     pub fn abort(&self) {
-        self.stop_requested.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.stop_requested
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Clear transcript state and queued messages.
@@ -266,7 +267,10 @@ impl Agent {
     ///
     /// This is a synchronous call that processes the prompt and returns when done.
     /// Events are emitted to subscribed listeners during processing.
-    pub fn prompt(&self, input: PromptInput) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn prompt(
+        &self,
+        input: PromptInput,
+    ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
         let messages = self.normalize_prompt_input(input);
         let context = {
             let inner = self.inner.lock().unwrap();
@@ -304,7 +308,9 @@ impl Agent {
     }
 
     /// Continue from the current transcript.
-    pub fn r#continue(&self) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn r#continue(
+        &self,
+    ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
         let context = {
             let inner = self.inner.lock().unwrap();
             AgentContext::new_with_tools(
@@ -318,16 +324,16 @@ impl Agent {
         if let Some(last) = context.messages.last() {
             if let AgentMessageInner::Standard(Message::Assistant(_)) = &last.inner {
                 // Try steering/follow-up messages first
-                    let steering = self.steering_queue.lock().unwrap().drain();
-                    if !steering.is_empty() {
-                        return self.run_prompt_messages(steering, true);
-                    }
-                    let follow_ups = self.follow_up_queue.lock().unwrap().drain();
-                    if !follow_ups.is_empty() {
-                        return self.run_prompt_messages(follow_ups, false);
-                    }
-                    return Err("Cannot continue from message role: assistant".into());
+                let steering = self.steering_queue.lock().unwrap().drain();
+                if !steering.is_empty() {
+                    return self.run_prompt_messages(steering, true);
                 }
+                let follow_ups = self.follow_up_queue.lock().unwrap().drain();
+                if !follow_ups.is_empty() {
+                    return self.run_prompt_messages(follow_ups, false);
+                }
+                return Err("Cannot continue from message role: assistant".into());
+            }
         } else {
             return Err("No messages to continue from".into());
         }
@@ -406,7 +412,9 @@ impl Agent {
         Ok(result)
     }
 
-    fn build_loop_config(&self) -> Result<AgentLoopConfig, Box<dyn std::error::Error + Send + Sync>> {
+    fn build_loop_config(
+        &self,
+    ) -> Result<AgentLoopConfig, Box<dyn std::error::Error + Send + Sync>> {
         let inner = self.inner.lock().unwrap();
 
         Ok(AgentLoopConfig {

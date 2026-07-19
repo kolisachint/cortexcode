@@ -829,19 +829,19 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **1.3 cortexcode-ai-models** — Model registry + generated model lists — **DONE**
 - [x] **1.4 cortexcode-ai-util** — JSON repair, validation, hash, header utilities — **DONE**
 - [x] **1.5 cortexcode-ai-provider-faux** — Test provider (port `faux.ts`) — **DONE**
-- [ ] **1.6 cortexcode-ai-provider-anthropic** — Anthropic streaming provider
-- [ ] **1.7 cortexcode-ai-provider-openai** — OpenAI completions/responses/codex providers
-- [ ] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers
-- [ ] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI provider
-- [ ] **1.10 cortexcode-ai-oauth** — OAuth flow support
-- [ ] **1.11 cortexcode-ai-images** — Image generation support
-- [ ] **1.12 cortexcode-ai umbrella publishable** — Flip all T0/T1 leaves to `publish = true`
+- [x] **1.6 cortexcode-ai-provider-anthropic** — Anthropic streaming provider — **DONE**
+- [x] **1.7 cortexcode-ai-provider-openai** — OpenAI Chat Completions provider — **DONE** (Responses/Codex APIs not yet ported)
+- [x] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers — **DONE** (Vertex ADC/service-account auth deferred; API-key/access-token auth only)
+- [x] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI Responses provider — **DONE** (cross-provider reasoning-item ID pairing not ported)
+- [x] **1.10 cortexcode-ai-oauth** — OAuth flow support — **DONE** (Anthropic PKCE + GitHub Copilot device flow; interactive browser/callback-server wiring deferred to CLI layer)
+- [x] **1.11 cortexcode-ai-images** — Image generation support — **DONE** (OpenRouter provider)
+- [x] **1.12 cortexcode-ai umbrella publishable** — Flip all T0/T1 leaves to `publish = true` — **DONE** (all AI leaves already had `publish = true` from scaffolding; wired the umbrella's `lib.rs` to actually re-export every leaf)
 
 ### Phase 2 — TUI Namespace (T0)
 
-- [ ] **2.1 cortexcode-tui-util** — ANSI width, grapheme handling, truncate/wrap
-- [ ] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching
-- [ ] **2.3 cortexcode-tui-keys** — Key parsing + keybindings
+- [x] **2.1 cortexcode-tui-util** — ANSI width, grapheme handling, truncate/wrap — **DONE**
+- [x] **2.2 cortexcode-tui-fuzzy** — Fuzzy matching — **DONE**
+- [x] **2.3 cortexcode-tui-keys** — Key parsing + keybindings — **DONE** (global keybindings singleton not ported)
 - [ ] **2.4 cortexcode-tui-terminal** — Terminal abstraction (raw mode, stdin buffer)
 - [ ] **2.5 cortexcode-tui-render** — Differential renderer
 - [ ] **2.6 cortexcode-tui-editing** — Text editor, kill ring, undo stack
