@@ -846,7 +846,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [ ] **2.5 cortexcode-tui-render** — Differential renderer
 - [ ] **2.6 cortexcode-tui-editing** — Text editor, kill ring, undo stack
 - [ ] **2.7 cortexcode-tui-components** — Box, text, markdown, select-list, autocomplete, etc.
-- [ ] **2.8 cortexcode-tui-images** — Terminal image rendering
+- [x] **2.8 cortexcode-tui-images** — Terminal image rendering — **DONE** (ported ahead of 2.5/2.6/2.7 since the renderer depends on it)
 - [ ] **2.9 cortexcode-tui umbrella publishable** — All T0 leaves `publish = true`
 
 ### Phase 3 — Agent Namespace (T0/T1)
