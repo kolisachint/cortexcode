@@ -202,11 +202,17 @@ def main() -> int:
                 print(f"skip  {c['name']} {c['version']} (already on crates.io)")
 
     published = 0
+    failed: list[str] = []
     for c in to_publish:
         if presence.get(c["name"], False):
             continue
         print(f"build {c['name']} {c['version']}")
-        publish_crate(c["path"], args.dry_run)
+        try:
+            publish_crate(c["path"], args.dry_run)
+        except Exception as e:
+            print(f"failed {c['name']}: {e}", file=sys.stderr)
+            failed.append(c["name"])
+            continue
         # New project creation on crates.io is throttled; sleep between publishes.
         # Observed limit: ~5 new crates per 2-minute window. 25s is a conservative
         # base delay; the retry loop handles 429s with the exact Retry-After window.
@@ -215,6 +221,9 @@ def main() -> int:
         published += 1
 
     print(f"published {published} crate(s)")
+    if failed:
+        print(f"failed {len(failed)} crate(s): {', '.join(failed)}", file=sys.stderr)
+        return 2
     return 0
 
 
