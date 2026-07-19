@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-agent"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Umbrella crate for the cortex agent namespace"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-agent-core = { workspace = true }
+cortexcode-agent-compaction = { workspace = true }
+cortexcode-agent-harness = { workspace = true }
+cortexcode-agent-loop = { workspace = true }
+cortexcode-agent-mcp = { workspace = true }
+cortexcode-agent-session = { workspace = true }
+cortexcode-agent-tools = { workspace = true }
+cortexcode-agent-types = { workspace = true }

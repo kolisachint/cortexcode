@@ -1,0 +1,117 @@
+[workspace]
+members = [
+    # Top-level umbrella
+    "crates/cortexcode",
+
+    # AI namespace
+    "crates/cortexcode-ai",
+    "crates/cortexcode-ai-env",
+    "crates/cortexcode-ai-images",
+    "crates/cortexcode-ai-models",
+    "crates/cortexcode-ai-oauth",
+    "crates/cortexcode-ai-provider-anthropic",
+    "crates/cortexcode-ai-provider-azure",
+    "crates/cortexcode-ai-provider-faux",
+    "crates/cortexcode-ai-provider-google",
+    "crates/cortexcode-ai-provider-openai",
+    "crates/cortexcode-ai-stream",
+    "crates/cortexcode-ai-types",
+    "crates/cortexcode-ai-util",
+
+    # Agent namespace
+    "crates/cortexcode-agent",
+    "crates/cortexcode-agent-core",
+    "crates/cortexcode-agent-compaction",
+    "crates/cortexcode-agent-harness",
+    "crates/cortexcode-agent-loop",
+    "crates/cortexcode-agent-mcp",
+    "crates/cortexcode-agent-session",
+    "crates/cortexcode-agent-tools",
+    "crates/cortexcode-agent-types",
+
+    # Code namespace
+    "crates/cortexcode-code",
+    "crates/cortexcode-code-config",
+    "crates/cortexcode-code-extensions",
+    "crates/cortexcode-code-main",
+    "crates/cortexcode-code-print",
+    "crates/cortexcode-code-prompts",
+    "crates/cortexcode-code-resources",
+    "crates/cortexcode-code-rpc",
+    "crates/cortexcode-code-session",
+    "crates/cortexcode-code-subagents",
+    "crates/cortexcode-code-tools",
+
+    # TUI namespace
+    "crates/cortexcode-tui",
+    "crates/cortexcode-tui-components",
+    "crates/cortexcode-tui-editing",
+    "crates/cortexcode-tui-fuzzy",
+    "crates/cortexcode-tui-images",
+    "crates/cortexcode-tui-keys",
+    "crates/cortexcode-tui-render",
+    "crates/cortexcode-tui-terminal",
+    "crates/cortexcode-tui-util",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+authors = ["Mario Zechner (original author)", "Sachin Koli (HooCode fork)"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/kolisachint/cortexcode"
+rust-version = "1.78"
+
+[workspace.dependencies]
+cortexcode = { path = "crates/cortexcode" }
+
+cortexcode-ai = { path = "crates/cortexcode-ai" }
+cortexcode-ai-env = { path = "crates/cortexcode-ai-env" }
+cortexcode-ai-images = { path = "crates/cortexcode-ai-images" }
+cortexcode-ai-models = { path = "crates/cortexcode-ai-models" }
+cortexcode-ai-oauth = { path = "crates/cortexcode-ai-oauth" }
+cortexcode-ai-provider-anthropic = { path = "crates/cortexcode-ai-provider-anthropic" }
+cortexcode-ai-provider-azure = { path = "crates/cortexcode-ai-provider-azure" }
+cortexcode-ai-provider-faux = { path = "crates/cortexcode-ai-provider-faux" }
+cortexcode-ai-provider-google = { path = "crates/cortexcode-ai-provider-google" }
+cortexcode-ai-provider-openai = { path = "crates/cortexcode-ai-provider-openai" }
+cortexcode-ai-stream = { path = "crates/cortexcode-ai-stream" }
+cortexcode-ai-types = { path = "crates/cortexcode-ai-types" }
+cortexcode-ai-util = { path = "crates/cortexcode-ai-util" }
+
+cortexcode-agent = { path = "crates/cortexcode-agent" }
+cortexcode-agent-core = { path = "crates/cortexcode-agent-core" }
+cortexcode-agent-compaction = { path = "crates/cortexcode-agent-compaction" }
+cortexcode-agent-harness = { path = "crates/cortexcode-agent-harness" }
+cortexcode-agent-loop = { path = "crates/cortexcode-agent-loop" }
+cortexcode-agent-mcp = { path = "crates/cortexcode-agent-mcp" }
+cortexcode-agent-session = { path = "crates/cortexcode-agent-session" }
+cortexcode-agent-tools = { path = "crates/cortexcode-agent-tools" }
+cortexcode-agent-types = { path = "crates/cortexcode-agent-types" }
+
+cortexcode-code = { path = "crates/cortexcode-code" }
+cortexcode-code-config = { path = "crates/cortexcode-code-config" }
+cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
+cortexcode-code-main = { path = "crates/cortexcode-code-main" }
+cortexcode-code-print = { path = "crates/cortexcode-code-print" }
+cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
+cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
+cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }
+cortexcode-code-session = { path = "crates/cortexcode-code-session" }
+cortexcode-code-subagents = { path = "crates/cortexcode-code-subagents" }
+cortexcode-code-tools = { path = "crates/cortexcode-code-tools" }
+
+cortexcode-tui = { path = "crates/cortexcode-tui" }
+cortexcode-tui-components = { path = "crates/cortexcode-tui-components" }
+cortexcode-tui-editing = { path = "crates/cortexcode-tui-editing" }
+cortexcode-tui-fuzzy = { path = "crates/cortexcode-tui-fuzzy" }
+cortexcode-tui-images = { path = "crates/cortexcode-tui-images" }
+cortexcode-tui-keys = { path = "crates/cortexcode-tui-keys" }
+cortexcode-tui-render = { path = "crates/cortexcode-tui-render" }
+cortexcode-tui-terminal = { path = "crates/cortexcode-tui-terminal" }
+cortexcode-tui-util = { path = "crates/cortexcode-tui-util" }
+
+[workspace.metadata.cortex]
+# Lockstep version bump script uses this as the single source of truth.
+# All crates must share the workspace `version` above.

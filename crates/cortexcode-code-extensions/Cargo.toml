@@ -1,0 +1,15 @@
+[package]
+name = "cortexcode-code-extensions"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Extension system for the cortex coding agent"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]

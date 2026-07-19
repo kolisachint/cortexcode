@@ -1,0 +1,24 @@
+name: Reserve crates.io names
+
+# One-off (step 0.3): publish 0.0.1 placeholder crates for all workspace members
+# to reserve the names on crates.io. Safe to re-run: already-published versions
+# are skipped.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  reserve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Log in to crates.io
+        run: cargo login "$CRATES_IO_TOKEN"
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      - name: Publish placeholder crates
+        run: python3 scripts/publish_packages.py
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}

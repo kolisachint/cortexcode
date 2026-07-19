@@ -1,0 +1,15 @@
+[package]
+name = "cortexcode-ai-images"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Image generation and model registry for cortex AI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]

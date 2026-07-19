@@ -1,0 +1,15 @@
+[package]
+name = "cortexcode-tui-terminal"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Terminal abstraction for the cortex TUI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]

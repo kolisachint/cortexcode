@@ -1,0 +1,15 @@
+[package]
+name = "cortexcode-agent-session"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Session management for cortex agents"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]

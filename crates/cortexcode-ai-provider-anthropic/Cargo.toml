@@ -1,0 +1,15 @@
+[package]
+name = "cortexcode-ai-provider-anthropic"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Anthropic provider for cortex AI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]

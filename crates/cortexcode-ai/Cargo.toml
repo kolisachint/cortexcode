@@ -1,0 +1,27 @@
+[package]
+name = "cortexcode-ai"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Umbrella crate for the cortex AI namespace"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-ai-env = { workspace = true }
+cortexcode-ai-images = { workspace = true }
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-oauth = { workspace = true }
+cortexcode-ai-provider-anthropic = { workspace = true }
+cortexcode-ai-provider-azure = { workspace = true }
+cortexcode-ai-provider-faux = { workspace = true }
+cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-provider-openai = { workspace = true }
+cortexcode-ai-stream = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-ai-util = { workspace = true }

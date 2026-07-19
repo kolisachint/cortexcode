@@ -1,0 +1,19 @@
+[package]
+name = "cortexcode"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Umbrella crate for the cortexcode Rust SDK"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-ai = { workspace = true }
+cortexcode-agent = { workspace = true }
+cortexcode-code = { workspace = true }
+cortexcode-tui = { workspace = true }

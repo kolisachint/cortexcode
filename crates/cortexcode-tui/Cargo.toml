@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-tui"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Umbrella crate for the cortex TUI namespace"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-tui-components = { workspace = true }
+cortexcode-tui-editing = { workspace = true }
+cortexcode-tui-fuzzy = { workspace = true }
+cortexcode-tui-images = { workspace = true }
+cortexcode-tui-keys = { workspace = true }
+cortexcode-tui-render = { workspace = true }
+cortexcode-tui-terminal = { workspace = true }
+cortexcode-tui-util = { workspace = true }

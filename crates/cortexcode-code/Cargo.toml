@@ -1,0 +1,25 @@
+[package]
+name = "cortexcode-code"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Umbrella crate for the cortex code namespace"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-code-config = { workspace = true }
+cortexcode-code-extensions = { workspace = true }
+cortexcode-code-main = { workspace = true }
+cortexcode-code-print = { workspace = true }
+cortexcode-code-prompts = { workspace = true }
+cortexcode-code-resources = { workspace = true }
+cortexcode-code-rpc = { workspace = true }
+cortexcode-code-session = { workspace = true }
+cortexcode-code-subagents = { workspace = true }
+cortexcode-code-tools = { workspace = true }
