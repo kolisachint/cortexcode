@@ -13,3 +13,8 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+cortexcode-ai-types = { workspace = true }
+cortexcode-ai-stream = { workspace = true }
+cortexcode-agent-types = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
