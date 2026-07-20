@@ -272,6 +272,36 @@ impl AgentTools {
 }
 
 impl AgentTool {
+    /// Create a new agent tool.
+    #[allow(clippy::type_complexity)]
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        parameters: serde_json::Value,
+        execute: Box<
+            dyn Fn(
+                    String,
+                    serde_json::Value,
+                    Option<cortexcode_ai_types::AbortSignal>,
+                    Option<AgentToolUpdateCallback>,
+                )
+                -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
+                + Send,
+        >,
+    ) -> Self {
+        let name = name.into();
+        Self {
+            name: name.clone(),
+            description: description.into(),
+            label: name,
+            parameters,
+            prepare_arguments: None,
+            execute,
+            background: false,
+            execution_mode: None,
+        }
+    }
+
     /// Clone the tool's identifying fields (not the closures).
     /// Used when we need an owned copy for background dispatch.
     pub fn clone_via_fields(&self) -> Self {
