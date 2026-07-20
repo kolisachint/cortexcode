@@ -858,8 +858,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **3.8 cortexcode-agent umbrella publishable** — T0/T1 leaves `publish = true` — **DONE** (umbrella re-exports all agent leaves; all T0/T1 leaves publish = true). Phase 3 T0/T1 is complete.
 ### Phase 4 — Code Namespace Core (T2)
 
-- [ ] **4.1 cortexcode-code-config** — Settings load/merge/persist, config paths
-- [ ] **4.2 cortexcode-code-tools** — `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`
+- [x] **4.1 cortexcode-code-config** — Settings load/merge/persist, config paths — **DONE** (JSON config, merge, default paths)- [ ] **4.2 cortexcode-code-tools** — `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`
 - [ ] **4.3 cortexcode-code-session** — Session CRUD, directory layout, lifecycle
 - [ ] **4.4 cortexcode-code-prompts** — System prompt assembly, mode prompts
 - [ ] **4.5 cortexcode-code-print** — Non-interactive print mode
