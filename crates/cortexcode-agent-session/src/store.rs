@@ -74,7 +74,13 @@ impl FileSessionStore {
     fn path(&self, id: &str) -> PathBuf {
         let safe_id: String = id
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         self.dir.join(format!("{}.json", safe_id))
     }
@@ -177,14 +183,7 @@ mod tests {
     use cortexcode_agent_types::{AgentContext, AgentTools};
 
     fn sample_data() -> SessionData {
-        SessionData::from_context(
-            "abc",
-            &AgentContext::new(
-                "system".into(),
-                vec![],
-                vec![],
-            ),
-        )
+        SessionData::from_context("abc", &AgentContext::new("system".into(), vec![], vec![]))
     }
 
     #[test]
@@ -207,10 +206,7 @@ mod tests {
 
     #[test]
     fn test_file_store_roundtrip() {
-        let dir = std::env::temp_dir().join(format!(
-            "cortex-session-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("cortex-session-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = FileSessionStore::new(&dir);
         let data = sample_data().with_title("Test");

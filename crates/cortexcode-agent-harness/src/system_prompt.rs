@@ -29,10 +29,8 @@ impl SystemPromptBuilder {
             .map(|(i, item)| format!("{}. {}", i + 1, item.as_ref()))
             .collect::<Vec<_>>()
             .join("\n");
-        self.sections.push(format!(
-            "Follow these rules when working:\n{}",
-            joined
-        ));
+        self.sections
+            .push(format!("Follow these rules when working:\n{}", joined));
         self
     }
 
@@ -46,18 +44,17 @@ impl SystemPromptBuilder {
             .map(|d| format!("- {}", d.as_ref()))
             .collect::<Vec<_>>()
             .join("\n");
-        self.sections
-            .push(format!("You have access to the following tools:\n{}", joined));
+        self.sections.push(format!(
+            "You have access to the following tools:\n{}",
+            joined
+        ));
         self
     }
 
     /// Add an arbitrary section.
     pub fn section(mut self, heading: impl AsRef<str>, body: impl Into<String>) -> Self {
-        self.sections.push(format!(
-            "{}\n{}",
-            heading.as_ref(),
-            body.into()
-        ));
+        self.sections
+            .push(format!("{}\n{}", heading.as_ref(), body.into()));
         self
     }
 

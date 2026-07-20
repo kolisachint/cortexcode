@@ -69,10 +69,7 @@ impl PromptTemplate {
     }
 
     /// Render the template strictly, failing on unresolved placeholders.
-    pub fn render_strict(
-        &self,
-        vars: &HashMap<String, String>,
-    ) -> Result<String, TemplateError> {
+    pub fn render_strict(&self, vars: &HashMap<String, String>) -> Result<String, TemplateError> {
         render_strict(&self.body, vars)
     }
 }

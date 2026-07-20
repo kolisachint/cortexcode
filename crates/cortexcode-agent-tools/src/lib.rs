@@ -126,10 +126,7 @@ pub fn terminate_result(text: impl Into<String>) -> AgentToolResult {
 }
 
 /// Build a tool result message suitable for appending to a conversation.
-pub fn tool_result_message(
-    tool_call: &AgentToolCall,
-    result: &AgentToolResult,
-) -> Message {
+pub fn tool_result_message(tool_call: &AgentToolCall, result: &AgentToolResult) -> Message {
     Message::ToolResult(ToolResultMessage {
         content: result.content.clone(),
         tool_call_id: tool_call.id.clone(),
@@ -240,9 +237,7 @@ mod tests {
 
     #[test]
     fn test_factory_input_tool() {
-        let tool = factory::input_tool("echo", "echo input", |_id, input| {
-            Ok(text_result(input))
-        });
+        let tool = factory::input_tool("echo", "echo input", |_id, input| Ok(text_result(input)));
         let result = (tool.execute)(
             "call-1".into(),
             serde_json::json!({"input": "hello"}),
@@ -250,13 +245,19 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(result.content.iter().any(|c| matches!(c, Content::Text(t) if t.text == "hello")));
+        assert!(result
+            .content
+            .iter()
+            .any(|c| matches!(c, Content::Text(t) if t.text == "hello")));
     }
 
     #[test]
     fn test_text_result() {
         let result = text_result("done");
-        assert!(result.content.iter().any(|c| matches!(c, Content::Text(t) if t.text == "done")));
+        assert!(result
+            .content
+            .iter()
+            .any(|c| matches!(c, Content::Text(t) if t.text == "done")));
         assert!(!result.terminate);
     }
 

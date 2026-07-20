@@ -64,11 +64,7 @@ impl SessionData {
 
     /// Rebuild an `AgentContext` using the supplied tools.
     pub fn to_context(&self, tools: Vec<AgentTool>) -> AgentContext {
-        AgentContext::new(
-            self.system_prompt.clone(),
-            self.messages.clone(),
-            tools,
-        )
+        AgentContext::new(self.system_prompt.clone(), self.messages.clone(), tools)
     }
 }
 
@@ -109,11 +105,7 @@ mod tests {
 
     #[test]
     fn test_session_data_from_context() {
-        let ctx = AgentContext::new(
-            "system".into(),
-            vec![],
-            vec![],
-        );
+        let ctx = AgentContext::new("system".into(), vec![], vec![]);
         let data = SessionData::from_context("test", &ctx);
         assert_eq!(data.id, "test");
         assert_eq!(data.system_prompt, "system");
@@ -122,11 +114,7 @@ mod tests {
 
     #[test]
     fn test_session_data_roundtrip_context() {
-        let ctx = AgentContext::new(
-            "system".into(),
-            vec![],
-            vec![],
-        );
+        let ctx = AgentContext::new("system".into(), vec![], vec![]);
         let data = SessionData::from_context("test", &ctx).with_title("My Session");
         let rebuilt = data.to_context(vec![]);
         assert_eq!(rebuilt.system_prompt, "system");

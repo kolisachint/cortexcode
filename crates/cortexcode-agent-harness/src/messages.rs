@@ -67,7 +67,10 @@ pub fn filter_by_role(messages: &[AgentMessage], role: &str) -> Vec<AgentMessage
             matches!(
                 (&msg.inner, role),
                 (AgentMessageInner::Standard(Message::User(_)), "user")
-                    | (AgentMessageInner::Standard(Message::Assistant(_)), "assistant")
+                    | (
+                        AgentMessageInner::Standard(Message::Assistant(_)),
+                        "assistant"
+                    )
                     | (AgentMessageInner::Standard(Message::ToolResult(_)), "tool")
             )
         })

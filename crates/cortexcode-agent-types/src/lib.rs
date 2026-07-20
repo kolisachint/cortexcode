@@ -285,7 +285,7 @@ impl AgentTool {
                     Option<cortexcode_ai_types::AbortSignal>,
                     Option<AgentToolUpdateCallback>,
                 )
-                -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
+                    -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
                 + Send,
         >,
     ) -> Self {
