@@ -4,10 +4,11 @@
 //! low-level agent loop — plus the loop functions themselves. It mirrors the
 //! TypeScript `@kolisachint/hoocode-agent-core` package.
 
-mod agent_loop;
 pub mod types;
 
-use agent_loop::{default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink};
+use cortexcode_agent_loop::{
+    default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
+};
 use cortexcode_ai_types::{self as ai_types, Content, Message, Model, TextContent, ThinkingLevel};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
