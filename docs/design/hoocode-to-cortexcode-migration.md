@@ -855,8 +855,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **3.2 cortexcode-agent-loop** — Turn loop, tool dispatch, background tools — **DONE** (loop moved from agent-core into standalone crate; sequential/parallel dispatch, background tasks, hooks)
 - [x] **3.3 cortexcode-agent-harness** — Message conversion, system prompt, prompt templates — **DONE** (message helpers, system-prompt builder, prompt templates)
 - [x] **3.4 cortexcode-agent-session** — Session persistence, file management — **DONE** (SessionData, FileSessionStore, MemorySessionStore)- [x] **3.5 cortexcode-agent-compaction** — Context window compaction, summarization — **DONE** (token estimation, KeepRecentStrategy, SummaryStrategy)- [x] **3.6 cortexcode-agent-tools** — Tool registry / factory pattern — **DONE** (ToolRegistry, factory helpers, result constructors)- [ ] **3.7 cortexcode-agent-mcp** — MCP transport, tool discovery
-- [ ] **3.8 cortexcode-agent umbrella publishable** — T0/T1 leaves `publish = true`
-
+- [x] **3.8 cortexcode-agent umbrella publishable** — T0/T1 leaves `publish = true` — **DONE** (umbrella re-exports all agent leaves; all T0/T1 leaves publish = true). Phase 3 T0/T1 is complete.
 ### Phase 4 — Code Namespace Core (T2)
 
 - [ ] **4.1 cortexcode-code-config** — Settings load/merge/persist, config paths
