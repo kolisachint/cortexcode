@@ -1,4 +1,12 @@
-//! Agent harness for cortex agents
+//! Agent harness: message conversion, system prompts, and prompt templates.
 //!
-//! This crate is currently a placeholder reserved for the cortexcode Rust migration.
-//! Functionality will be ported from the TypeScript HooCode project incrementally.
+//! Mirrors the `harness/` directory from the TypeScript
+//! `@kolisachint/hoocode-agent-core` package.
+
+pub mod messages;
+pub mod prompt_templates;
+pub mod system_prompt;
+
+pub use messages::*;
+pub use prompt_templates::*;
+pub use system_prompt::*;
