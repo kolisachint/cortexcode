@@ -7,6 +7,7 @@ use cortexcode_ai_types::{
     AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
     ThinkingLevel,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 // ---------------------------------------------------------------------------
@@ -139,12 +140,12 @@ pub enum AssistantMessagePartialEvent {
 // ---------------------------------------------------------------------------
 
 /// Agent message: a `Message` or a custom app message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMessage {
     pub inner: AgentMessageInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentMessageInner {
     Standard(Message),
     Custom {

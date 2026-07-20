@@ -3,6 +3,7 @@
 //! These types mirror the TypeScript types in `@kolisachint/hoocode-ai` and are used
 //! by all AI providers, the agent runtime, and tooling crates.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -10,7 +11,7 @@ use std::collections::HashMap;
 // ---------------------------------------------------------------------------
 
 /// Text content block.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextContent {
     pub text: String,
     /// Optional cache control for prompt caching.
@@ -18,7 +19,7 @@ pub struct TextContent {
 }
 
 /// Image content block (base64-encoded data or URI).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImageContent {
     pub data: String,
     pub media_type: String,
@@ -26,14 +27,14 @@ pub struct ImageContent {
 }
 
 /// Thinking/reasoning content block.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: Option<String>,
 }
 
 /// A tool-call content block inside an assistant message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolCallContent {
     pub id: String,
     pub name: String,
@@ -41,7 +42,7 @@ pub struct ToolCallContent {
 }
 
 /// Union of all content-block types.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Content {
     Text(TextContent),
     Image(ImageContent),
@@ -54,7 +55,7 @@ pub enum Content {
 // ---------------------------------------------------------------------------
 
 /// Cache-control marker for prompt caching support.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CacheControl {
     /// Anthropic-style `cache_control` with optional TTL.
     Ephemeral,
@@ -67,7 +68,7 @@ pub enum CacheControl {
 // ---------------------------------------------------------------------------
 
 /// Reason why an assistant message stopped generating.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StopReason {
     EndTurn,
     StopSequence,
@@ -83,7 +84,7 @@ pub enum StopReason {
 // ---------------------------------------------------------------------------
 
 /// Token usage statistics for a model request.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Usage {
     pub input: u64,
     pub output: u64,
@@ -94,7 +95,7 @@ pub struct Usage {
 }
 
 /// Cost breakdown (in USD).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Cost {
     pub input: f64,
     pub output: f64,
@@ -108,14 +109,14 @@ pub struct Cost {
 // ---------------------------------------------------------------------------
 
 /// A user message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserMessage {
     pub content: Vec<Content>,
     pub timestamp: Option<i64>,
 }
 
 /// An assistant message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AssistantMessage {
     pub content: Vec<Content>,
     pub stop_reason: Option<StopReason>,
@@ -127,7 +128,7 @@ pub struct AssistantMessage {
 }
 
 /// A tool-result message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolResultMessage {
     pub content: Vec<Content>,
     pub tool_call_id: String,
@@ -140,7 +141,7 @@ pub struct ToolResultMessage {
 }
 
 /// Union of all message types.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Message {
     User(UserMessage),
     Assistant(AssistantMessage),
