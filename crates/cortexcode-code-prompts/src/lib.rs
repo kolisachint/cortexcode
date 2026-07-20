@@ -92,14 +92,8 @@ pub fn initial_user_prompt(mode: Mode, request: &str) -> String {
             "Please help me with the following coding task:\n{}",
             request
         ),
-        Mode::Review => format!(
-            "Please review the following code or change:\n{}",
-            request
-        ),
-        Mode::Explain => format!(
-            "Please explain the following:\n{}",
-            request
-        ),
+        Mode::Review => format!("Please review the following code or change:\n{}", request),
+        Mode::Explain => format!("Please explain the following:\n{}", request),
     }
 }
 

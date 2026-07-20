@@ -66,11 +66,7 @@ pub fn write_file(
 }
 
 /// Apply a single exact-string replacement in a file.
-pub fn edit_file(
-    path: impl AsRef<Path>,
-    old_text: &str,
-    new_text: &str,
-) -> Result<(), EditError> {
+pub fn edit_file(path: impl AsRef<Path>, old_text: &str, new_text: &str) -> Result<(), EditError> {
     let path = path.as_ref();
     let text = std::fs::read_to_string(path)?;
     if !text.contains(old_text) {
@@ -121,10 +117,7 @@ impl From<std::io::Error> for EditError {
 }
 
 /// Execute a shell command and return stdout/stderr.
-pub fn bash(
-    command: &str,
-    cwd: Option<&Path>,
-) -> Result<std::process::Output, std::io::Error> {
+pub fn bash(command: &str, cwd: Option<&Path>) -> Result<std::process::Output, std::io::Error> {
     let mut cmd = if cfg!(target_os = "windows") {
         let mut c = std::process::Command::new("cmd");
         c.args(["/C", command]);
@@ -174,12 +167,7 @@ pub fn grep(
             let text = std::fs::read_to_string(path)?;
             for (i, line) in text.lines().enumerate() {
                 if regex.is_match(line) {
-                    matches.push(format!(
-                        "{}:{}:{}",
-                        path.display(),
-                        i + 1,
-                        line
-                    ));
+                    matches.push(format!("{}:{}:{}", path.display(), i + 1, line));
                 }
             }
         }
@@ -224,10 +212,7 @@ pub fn ls(dir: impl AsRef<Path>) -> Result<Vec<std::path::PathBuf>, std::io::Err
 }
 
 /// Return the default set of coding tools ready to register with an agent.
-pub fn default_tools(
-    cwd: std::path::PathBuf,
-    _permissions: PermissionPolicy,
-) -> Vec<AgentTool> {
+pub fn default_tools(cwd: std::path::PathBuf, _permissions: PermissionPolicy) -> Vec<AgentTool> {
     let cwd_read = cwd.clone();
     let cwd_bash = cwd.clone();
     let cwd_write = cwd.clone();

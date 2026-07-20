@@ -198,10 +198,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_file() {
-        let dir = std::env::temp_dir().join(format!(
-            "cortex-config-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("cortex-config-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("config.json");
         let config = Config {
