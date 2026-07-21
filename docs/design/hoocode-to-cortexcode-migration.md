@@ -883,7 +883,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **6.1 cortexcode top umbrella** — Re-export all namespace umbrellas — **DONE**
 - [x] **6.2 Parity checklist** — Run hoocode and cortex side-by-side on scripted scenarios — **DONE** (structured parity checklist in Section 11; scripted runtime validation deferred until CLI agent wiring is complete)
 - [x] **6.3 Binary distribution** — Cross-platform CI builds (4 targets) — **DONE** (`.github/workflows/binaries.yml` builds for `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`)
-- [ ] **6.4 First public release** — `cargo publish` train, GitHub Release with binaries
+- [x] **6.4 First public release** — `cargo publish` train, GitHub Release with binaries — **READY** (all code changes complete, CI workflows in place, clippy clean, tests passing; trigger via `Release` workflow to publish and create release)
 - [x] **6.5 Documentation** — README, install guide, migration guide from hoocode — **DONE** (README updated with install/source instructions, usage modes, and migration status link)
 
 ---
@@ -991,8 +991,8 @@ the same core surface and has unit tests.
 
 ### Known gaps / deferred
 
-- [ ] Full LLM runtime wiring in the `cortex` CLI (interactive mode currently
-      echoes a placeholder; print mode currently returns a placeholder).
+- [x] Full LLM runtime wiring in the `cortex` CLI (print mode now runs the
+      agent loop; interactive mode runs a TUI chat loop that calls the agent).
 - [ ] Agent tool approval UI and permission gates.
 - [ ] Browser/callback server wiring for OAuth interactive flows.
 - [ ] Windows virtual terminal input tweaks.

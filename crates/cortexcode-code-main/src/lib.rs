@@ -3,10 +3,13 @@
 //!
 //! Mirrors `main.ts` and `cli/args.ts` from the TypeScript
 //! `packages/coding-agent` package. This crate currently exposes the CLI
-//! surface and command routing; the runtime-backed commands (interactive TUI,
-//! RPC server, fully wired print mode) are dispatched to the relevant leaf
-//! crates once their runtimes are ported.
+//! surface and command routing. The runtime-backed commands (interactive TUI,
+//! RPC server, fully wired print mode) are dispatched to the `runtime` module
+//! and the agent namespace crates.
 
+mod runtime;
+
+use cortexcode_code_config::Config;
 use cortexcode_code_print::PrintMode;
 use std::str::FromStr;
 
@@ -295,11 +298,14 @@ pub fn run(
         .and_then(|m| PrintMode::from_str(m).ok());
 
     if args.print || mode == Some(PrintMode::Text) || mode == Some(PrintMode::Json) {
-        writeln!(
-            err,
-            "print mode is not yet fully wired to the agent runtime"
-        )?;
-        return Ok(1);
+        let print_mode = mode.unwrap_or_default();
+        return match runtime::run_print_mode(args, print_mode, output, err) {
+            Ok(()) => Ok(0),
+            Err(e) => {
+                writeln!(err, "{}", e)?;
+                Ok(1)
+            }
+        }
     }
 
     if args.mode.as_deref() == Some("rpc") || args.mode.as_deref() == Some("subagent") {
@@ -316,92 +322,19 @@ pub fn run(
         return Ok(0);
     }
 
-    interactive_mode(args, output, err)
-}
-
-/// Minimal TUI-based interactive mode.
-///
-/// Uses `crossterm` for raw terminal input and renders a simple chat loop.
-/// The actual LLM agent runtime is not yet wired, so the assistant side
-/// returns a placeholder response. This function satisfies the Phase 5.5
-/// "interactive mode wiring" milestone; full agent integration will replace
-/// the echo loop later.
-#[cfg(not(test))]
-pub fn interactive_mode(
-    _args: &Args,
-    output: &mut dyn std::io::Write,
-    err: &mut dyn std::io::Write,
-) -> std::io::Result<u8> {
-    use crossterm::{
-        cursor, event,
-        style::{self, Stylize},
-        terminal, QueueableCommand,
-    };
-    use std::io::Write;
-
-    let mut stdout = std::io::stdout();
-    terminal::enable_raw_mode()?;
-    let _ = stdout
-        .queue(terminal::Clear(terminal::ClearType::All))?
-        .queue(cursor::MoveTo(0, 0))?
-        .flush();
-
-    writeln!(
-        output,
-        "{} Interactive Cortex mode. Type your message and press Enter. /quit to exit.",
-        "TUI".bold()
-    )?;
-
-    let mut input = String::new();
-    loop {
-        let _ = stdout
-            .queue(cursor::MoveToColumn(0))?
-            .queue(terminal::Clear(terminal::ClearType::CurrentLine))?
-            .queue(style::Print("cortex> "))?
-            .queue(style::Print(&input))?
-            .flush();
-
-        if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
-            if let Ok(event::Event::Key(key)) = event::read() {
-                match key.code {
-                    event::KeyCode::Enter => {
-                        let line = input.trim();
-                        if line == "/quit" {
-                            break;
-                        }
-                        if !line.is_empty() {
-                            writeln!(output, "\nYou: {}", line)?;
-                            writeln!(output, "Cortex: (agent runtime integration pending)\n")?;
-                        }
-                        input.clear();
-                    }
-                    event::KeyCode::Char(c) => {
-                        if key.modifiers == event::KeyModifiers::CONTROL && c == 'c' {
-                            break;
-                        }
-                        input.push(c);
-                    }
-                    event::KeyCode::Backspace => {
-                        input.pop();
-                    }
-                    _ => {}
-                }
-            }
+    match runtime::run_interactive_mode(args, output, err) {
+        Ok(()) => Ok(0),
+        Err(e) => {
+            writeln!(err, "{}", e)?;
+            Ok(1)
         }
     }
-
-    let _ = terminal::disable_raw_mode();
-    writeln!(err, "interactive session ended")?;
-    Ok(0)
 }
 
-#[cfg(test)]
-fn interactive_mode(
-    _args: &Args,
-    _output: &mut dyn std::io::Write,
-    _err: &mut dyn std::io::Write,
-) -> std::io::Result<u8> {
-    Ok(0)
+/// Return the default configuration. Custom config file loading is not yet
+/// wired; once `--config` is added to the CLI this will load from that path.
+pub fn config_or_default(_args: &Args) -> Config {
+    Config::default()
 }
 
 #[cfg(test)]
@@ -476,14 +409,14 @@ mod tests {
     }
 
     #[test]
-    fn test_run_print_placeholder() {
+    fn test_run_print_missing_key() {
         let args = parse_args(&["-p".to_string(), "hi".to_string()]);
         let mut out = Vec::new();
         let mut err = Vec::new();
         let code = run(&args, &mut out, &mut err).unwrap();
         assert_eq!(code, 1);
         let err = String::from_utf8(err).unwrap();
-        assert!(err.contains("print mode is not yet fully wired"));
+        assert!(err.contains("no API key found"));
     }
 
     #[test]

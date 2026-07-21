@@ -71,10 +71,11 @@ cargo test --workspace
 
 ## Migration status
 
-The workspace is currently being ported from the TypeScript HooCode project.
+The workspace is being ported from the TypeScript HooCode project.
 See [`docs/design/hoocode-to-cortexcode-migration.md`](docs/design/hoocode-to-cortexcode-migration.md)
-for the detailed phase checklist. Phase 5 (code namespace advanced features) is
-complete and Phase 6 (release, parity, and documentation) is in progress.
+for the detailed phase checklist. Phase 5 (code namespace advanced features) and
+Phase 6 (release, parity, and documentation) are complete; the `cortex` CLI
+now runs the agent loop in print and interactive modes.
 
 ## Publishing
 

@@ -17,4 +17,12 @@ cortexcode-code-print = { workspace = true }
 cortexcode-code-config = { workspace = true }
 cortexcode-code-prompts = { workspace = true }
 cortexcode-code-rpc = { workspace = true }
+cortexcode-code-tools = { workspace = true }
+cortexcode-code-resources = { workspace = true }
+cortexcode-ai-env = { workspace = true }
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-agent-core = { workspace = true }
+cortexcode-agent-types = { workspace = true }
+cortexcode-agent-tools = { workspace = true }
 crossterm = "0.28"

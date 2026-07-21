@@ -91,6 +91,7 @@ fn default_model() -> Model {
 struct InnerState {
     system_prompt: String,
     model: Model,
+    api_key: Option<String>,
     thinking_level: ThinkingLevel,
     tools: AgentTools,
     messages: Vec<AgentMessage>,
@@ -101,7 +102,7 @@ struct InnerState {
 }
 
 impl InnerState {
-    fn new(initial: Option<AgentState>) -> Self {
+    fn new(initial: Option<AgentState>, api_key: Option<String>) -> Self {
         let state = initial.unwrap_or(AgentState {
             system_prompt: String::new(),
             model: default_model(),
@@ -117,6 +118,7 @@ impl InnerState {
         Self {
             system_prompt: state.system_prompt,
             model: state.model,
+            api_key,
             thinking_level: state.thinking_level,
             tools: state.tools,
             messages: state.messages,
@@ -184,7 +186,10 @@ impl Agent {
     /// Create a new Agent with the given options.
     pub fn with_options(options: AgentOptions) -> Self {
         #[allow(clippy::arc_with_non_send_sync)]
-        let inner = Arc::new(Mutex::new(InnerState::new(options.initial_state)));
+        let inner = Arc::new(Mutex::new(InnerState::new(
+            options.initial_state,
+            options.api_key,
+        )));
 
         Agent {
             inner,
@@ -318,7 +323,7 @@ impl Agent {
         }
 
         // Build the event sink
-        let mut emit: AgentEventSink = Box::new(|_event| {});
+        let mut emit = self.event_sink();
 
         let result = run_agent_loop(messages, context, config, &mut emit)?;
 
@@ -472,7 +477,7 @@ impl Agent {
             stream_fn: None,
             tool_execution: ToolExecutionMode::Parallel,
             signal: None,
-            api_key: None,
+            api_key: inner.api_key.clone(),
             session_id: None,
             max_retry_delay_ms: None,
             thinking_budgets: None,
@@ -502,6 +507,7 @@ impl Default for Agent {
 #[derive(Default)]
 pub struct AgentOptions {
     pub initial_state: Option<AgentState>,
+    pub api_key: Option<String>,
     pub steering_mode: Option<QueueMode>,
     pub follow_up_mode: Option<QueueMode>,
 }
