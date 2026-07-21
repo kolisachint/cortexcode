@@ -25,6 +25,8 @@ pub struct Args {
     pub model: Option<String>,
     /// API key override.
     pub api_key: Option<String>,
+    /// Explicit config file path override.
+    pub config: Option<String>,
     /// Custom system prompt.
     pub system_prompt: Option<String>,
     /// Continue the current session.
@@ -142,6 +144,15 @@ pub fn parse_args(raw: &[String]) -> Args {
                         .push(Diagnostic::error("--api-key requires a value".to_string()));
                 }
             }
+            "--config" => {
+                if let Some(value) = raw.get(i + 1) {
+                    i += 1;
+                    args.config = Some(value.clone());
+                } else {
+                    args.diagnostics
+                        .push(Diagnostic::error("--config requires a value".to_string()));
+                }
+            }
             "--system-prompt" => {
                 if let Some(value) = raw.get(i + 1) {
                     i += 1;
@@ -235,6 +246,7 @@ Options:
       --provider <NAME>      LLM provider to use
       --model <ID>           Model id to use
       --api-key <KEY>        API key for the provider
+      --config <PATH>        Path to a config file (overrides the default)
       --system-prompt <TEXT> Override the system prompt
       --session <ID>         Session id or path
       --session-dir <PATH>   Directory for session storage
@@ -342,9 +354,13 @@ pub fn run(
 /// startup (see [`crate::main`] / `bin/main.rs`) via
 /// `cortexcode_code_config::migrate::auto_migrate`, so by the time this is
 /// called `~/.cortexcode/config.json` already reflects any migrated legacy
-/// settings. Custom `--config <path>` overrides are not yet wired; once that
-/// flag is added to the CLI this will load from that path instead.
-pub fn config_or_default(_args: &Args) -> Config {
+/// settings. When `--config <path>` is supplied, that file is loaded instead of
+/// the default location (a missing or malformed file still falls back to
+/// [`Config::default`]).
+pub fn config_or_default(args: &Args) -> Config {
+    if let Some(path) = &args.config {
+        return Config::from_file(std::path::Path::new(path)).unwrap_or_default();
+    }
     cortexcode_code_config::load_default().unwrap_or_default()
 }
 
@@ -388,6 +404,23 @@ mod tests {
 
         let args = parse_args(&["--mode".to_string(), "unknown".to_string()]);
         assert!(args.mode.is_none());
+        assert!(args
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Error));
+    }
+
+    #[test]
+    fn test_parse_config_flag() {
+        let args = parse_args(&["--config".to_string(), "/tmp/custom.json".to_string()]);
+        assert_eq!(args.config, Some("/tmp/custom.json".to_string()));
+        assert!(args.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_parse_config_flag_missing_value() {
+        let args = parse_args(&["--config".to_string()]);
+        assert!(args.config.is_none());
         assert!(args
             .diagnostics
             .iter()
