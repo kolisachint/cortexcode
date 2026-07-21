@@ -867,7 +867,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **4.3 cortexcode-code-session** — Session CRUD, directory layout, lifecycle — **DONE** (JSONL session tree with append-only entries, branching, labels, compaction/context building, CRUD/list/fork)
 - [x] **4.4 cortexcode-code-prompts** — System prompt assembly, mode prompts — **DONE** (Mode, system_prompt, initial_user_prompt, templates)
 - [x] **4.5 cortexcode-code-print** — Non-interactive print mode — **DONE** (text/JSON output formatting, `PrintFormatter`)
-- [ ] **4.6 cortexcode-code-main** — CLI entry point (`cortex` binary), arg parsing
+- [x] **4.6 cortexcode-code-main** — CLI entry point (`cortex` binary), arg parsing — **DONE** (`cortex` binary, `Args`, `parse_args`, dispatch; runtime modes deferred)
 
 ### Phase 5 — Code Namespace Full (T3)
 

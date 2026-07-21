@@ -13,3 +13,6 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+cortexcode-code-print = { workspace = true }
+cortexcode-code-config = { workspace = true }
+cortexcode-code-prompts = { workspace = true }
