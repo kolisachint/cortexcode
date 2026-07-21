@@ -11,6 +11,7 @@ use cortexcode_agent_loop::{
 };
 use cortexcode_ai_types::{self as ai_types, Content, Message, Model, TextContent, ThinkingLevel};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use types::*;
 
@@ -152,11 +153,26 @@ impl InnerState {
 pub struct Agent {
     inner: Arc<Mutex<InnerState>>,
     #[allow(clippy::type_complexity)]
-    listeners: Arc<Mutex<Vec<Box<dyn Fn(AgentEvent) + Send>>>>,
+    listeners: Arc<Mutex<Vec<(usize, Box<dyn Fn(AgentEvent) + Send>)>>>,
+    next_listener_id: Arc<AtomicUsize>,
     steering_queue: Arc<Mutex<PendingMessageQueue>>,
     follow_up_queue: Arc<Mutex<PendingMessageQueue>>,
     /// A flag used to signal that the agent should stop.
     stop_requested: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Handle returned by [`Agent::subscribe`]. Removes the listener when dropped.
+pub struct Subscription {
+    id: usize,
+    #[allow(clippy::type_complexity)]
+    listeners: Arc<Mutex<Vec<(usize, Box<dyn Fn(AgentEvent) + Send>)>>>,
+}
+
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        let mut listeners = self.listeners.lock().unwrap();
+        listeners.retain(|(id, _)| *id != self.id);
+    }
 }
 
 impl Agent {
@@ -180,6 +196,7 @@ impl Agent {
                 options.follow_up_mode.unwrap_or_default(),
             ))),
             stop_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            next_listener_id: Arc::new(AtomicUsize::new(1)),
         }
     }
 
@@ -191,20 +208,29 @@ impl Agent {
     /// Subscribe to agent lifecycle events.
     ///
     /// Returns a handle that removes the listener when dropped.
-    pub fn subscribe<F>(&self, listener: F)
+    pub fn subscribe<F>(&self, listener: F) -> Subscription
     where
         F: Fn(AgentEvent) + Send + 'static,
     {
-        self.listeners.lock().unwrap().push(Box::new(listener));
+        let id = self.next_listener_id.fetch_add(1, Ordering::SeqCst);
+        self.listeners
+            .lock()
+            .unwrap()
+            .push((id, Box::new(listener)));
+        Subscription {
+            id,
+            listeners: Arc::clone(&self.listeners),
+        }
     }
 
-    #[allow(dead_code)]
-    /// Emit an event to all subscribed listeners.
-    fn emit(&self, event: AgentEvent) {
-        let listeners = self.listeners.lock().unwrap();
-        for listener in listeners.iter() {
-            listener(event.clone());
-        }
+    fn event_sink(&self) -> AgentEventSink {
+        let listeners = Arc::clone(&self.listeners);
+        Box::new(move |event| {
+            let listeners = listeners.lock().unwrap();
+            for (_, listener) in listeners.iter() {
+                listener(event.clone());
+            }
+        })
     }
 
     // -----------------------------------------------------------------------
@@ -347,7 +373,7 @@ impl Agent {
         }
 
         let mut context_mut = context;
-        let mut emit: AgentEventSink = Box::new(|_event| {});
+        let mut emit = self.event_sink();
 
         let result = run_agent_loop_continue(&mut context_mut, &config, &mut emit)?;
 
@@ -401,7 +427,7 @@ impl Agent {
             inner.is_streaming = true;
         }
 
-        let mut emit: AgentEventSink = Box::new(|_event| {});
+        let mut emit = self.event_sink();
         let result = run_agent_loop(messages, context, config, &mut emit)?;
 
         {
