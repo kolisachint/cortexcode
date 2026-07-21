@@ -7,6 +7,7 @@
 //! RPC server, fully wired print mode) are dispatched to the `runtime` module
 //! and the agent namespace crates.
 
+mod permission_dialog;
 mod runtime;
 
 use cortexcode_code_config::Config;
@@ -305,7 +306,7 @@ pub fn run(
                 writeln!(err, "{}", e)?;
                 Ok(1)
             }
-        }
+        };
     }
 
     if args.mode.as_deref() == Some("rpc") || args.mode.as_deref() == Some("subagent") {

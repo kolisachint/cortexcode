@@ -354,6 +354,19 @@ fn prepare_tool_call(
         tool_call.arguments.clone()
     };
 
+    // Apply permission gate if configured.
+    if let Some(ref gate) = config.permission_gate {
+        match gate.request(tool_call) {
+            cortexcode_agent_types::PermissionDecision::Grant => {}
+            cortexcode_agent_types::PermissionDecision::GrantAlways => {}
+            cortexcode_agent_types::PermissionDecision::Deny { reason } => {
+                return PreparedToolCall {
+                    kind: PreparedToolCallKind::Blocked { reason },
+                };
+            }
+        }
+    }
+
     // Call before_tool_call hook
     if let Some(ref before) = config.before_tool_call {
         let before_ctx = BeforeToolCallContext {

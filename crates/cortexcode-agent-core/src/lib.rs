@@ -161,6 +161,7 @@ pub struct Agent {
     follow_up_queue: Arc<Mutex<PendingMessageQueue>>,
     /// A flag used to signal that the agent should stop.
     stop_requested: Arc<std::sync::atomic::AtomicBool>,
+    permission_gate: Option<Arc<dyn PermissionGate>>,
 }
 
 /// Handle returned by [`Agent::subscribe`]. Removes the listener when dropped.
@@ -202,6 +203,7 @@ impl Agent {
             ))),
             stop_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             next_listener_id: Arc::new(AtomicUsize::new(1)),
+            permission_gate: options.permission_gate,
         }
     }
 
@@ -474,6 +476,7 @@ impl Agent {
             on_background_task_count_change: None,
             before_tool_call: None,
             after_tool_call: None,
+            permission_gate: self.permission_gate.clone(),
             stream_fn: None,
             tool_execution: ToolExecutionMode::Parallel,
             signal: None,
@@ -510,6 +513,7 @@ pub struct AgentOptions {
     pub api_key: Option<String>,
     pub steering_mode: Option<QueueMode>,
     pub follow_up_mode: Option<QueueMode>,
+    pub permission_gate: Option<Arc<dyn PermissionGate>>,
 }
 
 // ---------------------------------------------------------------------------

@@ -26,3 +26,4 @@ cortexcode-agent-core = { workspace = true }
 cortexcode-agent-types = { workspace = true }
 cortexcode-agent-tools = { workspace = true }
 crossterm = "0.28"
+serde_json = "1"

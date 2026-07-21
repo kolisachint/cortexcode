@@ -34,6 +34,30 @@ pub struct AgentToolCall {
     pub arguments: serde_json::Value,
 }
 
+// ---------------------------------------------------------------------------
+// Permission gate
+// ---------------------------------------------------------------------------
+
+/// Decision returned by a permission gate for a requested tool call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PermissionDecision {
+    /// Approve this invocation.
+    Grant,
+    /// Approve this invocation and all future invocations of this tool.
+    GrantAlways,
+    /// Reject this invocation.
+    Deny { reason: String },
+}
+
+/// A gate that approves or denies tool calls before they are executed.
+///
+/// Implementations may prompt the user, consult a configuration policy, or
+/// auto-approve based on the tool name and arguments.
+pub trait PermissionGate: Send + Sync {
+    /// Return the permission decision for `tool_call`.
+    fn request(&self, tool_call: &AgentToolCall) -> PermissionDecision;
+}
+
 /// A finished background tool result.
 #[derive(Debug, Clone)]
 pub struct BackgroundToolResult {
@@ -473,6 +497,8 @@ pub struct AgentLoopConfig {
                 + Send,
         >,
     >,
+    /// Gate that approves or denies tool calls before execution.
+    pub permission_gate: Option<std::sync::Arc<dyn PermissionGate>>,
     pub tool_execution: ToolExecutionMode,
     /// Stream function used to call the LLM.
     pub stream_fn: Option<
@@ -514,6 +540,7 @@ impl std::fmt::Debug for AgentLoopConfig {
             .field("thinking_budgets", &self.thinking_budgets)
             .field("thinking_display", &self.thinking_display)
             .field("transport", &self.transport)
+            .field("permission_gate", &self.permission_gate.is_some())
             .field(
                 "send_session_affinity_headers",
                 &self.send_session_affinity_headers,

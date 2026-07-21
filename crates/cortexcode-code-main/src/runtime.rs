@@ -8,14 +8,15 @@
 use crate::Args;
 use cortexcode_agent_core::PromptInput;
 use cortexcode_agent_core::{Agent, AgentOptions};
-use cortexcode_agent_types::{AgentMessage, AgentState};
+use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_models::get_model;
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
 use cortexcode_code_prompts::{initial_user_prompt, system_prompt, Mode};
-use cortexcode_code_tools::permissions::PermissionPolicy;
+use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
 use std::io::Write;
+use std::sync::Arc;
 
 /// Error type for runtime operations.
 #[derive(Debug)]
@@ -106,8 +107,29 @@ fn build_tools() -> Vec<cortexcode_agent_types::AgentTool> {
     cortexcode_code_tools::default_tools(cwd, PermissionPolicy::default())
 }
 
-/// Build an `Agent` from CLI arguments.
-fn build_agent(args: &Args) -> Result<Agent, RuntimeError> {
+/// Build the permission gate for the current CLI mode.
+fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGate> {
+    let config = crate::config_or_default(args);
+
+    if interactive {
+        let inner = Arc::new(crate::permission_dialog::InteractivePermissionGate);
+        return Arc::new(PolicyPermissionGate::new(
+            PermissionPolicy::Ask,
+            config.auto_approve_read_only(),
+            Some(inner),
+        ));
+    }
+
+    // Non-interactive (print) mode: auto-approve dangerous tools.
+    Arc::new(PolicyPermissionGate::new(
+        PermissionPolicy::Auto,
+        config.auto_approve_read_only(),
+        None,
+    ))
+}
+
+/// Build an `Agent` from CLI arguments with a configured permission gate.
+fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
     let model = get_model(&provider, &model_id)
         .cloned()
@@ -136,9 +158,12 @@ fn build_agent(args: &Args) -> Result<Agent, RuntimeError> {
         error_message: None,
     };
 
+    let permission_gate = Some(build_permission_gate(args, interactive));
+
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state),
         api_key,
+        permission_gate,
         ..Default::default()
     });
 
@@ -188,7 +213,7 @@ pub fn run_print_mode(
     output: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
-    let agent = build_agent(args)?;
+    let agent = build_agent_with_gate(args, false)?;
     let messages = build_user_messages(args);
 
     let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
@@ -238,7 +263,7 @@ pub fn run_interactive_mode(
     };
     use std::io::Write as _;
 
-    let agent = build_agent(args)?;
+    let agent = build_agent_with_gate(args, true)?;
     let mut stdout = std::io::stdout();
     terminal::enable_raw_mode().map_err(|e| RuntimeError::Setup(e.to_string()))?;
     let _ = stdout

@@ -993,7 +993,7 @@ the same core surface and has unit tests.
 
 - [x] Full LLM runtime wiring in the `cortex` CLI (print mode now runs the
       agent loop; interactive mode runs a TUI chat loop that calls the agent).
-- [ ] Agent tool approval UI and permission gates.
+- [x] Agent tool approval UI and permission gates — **DONE** (`PermissionGate` trait in `cortexcode-agent-types`; `PolicyPermissionGate`, `AutoPermissionGate`, `DenyPermissionGate` in `cortexcode-code-tools`; crossterm-based interactive dialog in `cortexcode-code-main`; wired into print/interactive modes; read-only tools auto-approved by default).
 - [ ] Browser/callback server wiring for OAuth interactive flows.
 - [ ] Windows virtual terminal input tweaks.
 - [ ] Advanced editor features (paste-marker compression, vim char-jump,
