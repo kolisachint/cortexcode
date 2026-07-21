@@ -14,6 +14,12 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+/// Parsed HTTP request captured by the test server.
+type Request = (String, String, HashMap<String, String>, Vec<u8>);
+
+/// Headers observed by the test server.
+type SeenHeaders = Arc<Mutex<Vec<(String, HashMap<String, String>)>>>;
+
 // ---------------------------------------------------------------------------
 // Empty / missing config
 // ---------------------------------------------------------------------------
@@ -90,9 +96,7 @@ fn test_stdio_stub_server() {
 // HTTP test servers
 // ---------------------------------------------------------------------------
 
-fn parse_request(
-    reader: &mut BufReader<&TcpStream>,
-) -> Option<(String, String, HashMap<String, String>, Vec<u8>)> {
+fn parse_request(reader: &mut BufReader<&TcpStream>) -> Option<Request> {
     let mut request_line = String::new();
     reader.read_line(&mut request_line).ok()?;
     let parts: Vec<&str> = request_line.split_whitespace().collect();
@@ -192,7 +196,7 @@ struct TestServer {
     url: String,
     shutdown: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
-    seen_headers: Arc<Mutex<Vec<(String, HashMap<String, String>)>>>,
+    seen_headers: SeenHeaders,
 }
 
 impl TestServer {
@@ -209,8 +213,7 @@ fn start_streamable_server(sse_responses: bool) -> TestServer {
     let port = listener.local_addr().unwrap().port();
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_c = Arc::clone(&shutdown);
-    let seen_headers: Arc<Mutex<Vec<(String, HashMap<String, String>)>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    let seen_headers: SeenHeaders = Arc::new(Mutex::new(Vec::new()));
     let seen_c = Arc::clone(&seen_headers);
 
     let handle = std::thread::spawn(move || {
@@ -331,8 +334,7 @@ fn start_legacy_sse_server(reject_405_on_mcp_post: bool) -> TestServer {
     let port = listener.local_addr().unwrap().port();
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_c = Arc::clone(&shutdown);
-    let seen_headers: Arc<Mutex<Vec<(String, HashMap<String, String>)>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    let seen_headers: SeenHeaders = Arc::new(Mutex::new(Vec::new()));
     let seen_c = Arc::clone(&seen_headers);
     let sse_stream: Arc<Mutex<Option<TcpStream>>> = Arc::new(Mutex::new(None));
     let sse_stream_c = Arc::clone(&sse_stream);

@@ -16,3 +16,5 @@ publish = true
 cortexcode-code-print = { workspace = true }
 cortexcode-code-config = { workspace = true }
 cortexcode-code-prompts = { workspace = true }
+cortexcode-code-rpc = { workspace = true }
+crossterm = "0.28"

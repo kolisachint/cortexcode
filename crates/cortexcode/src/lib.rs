@@ -1,4 +1,8 @@
-//! Umbrella crate for the cortexcode Rust SDK
+//! Umbrella crate for the cortexcode Rust SDK.
 //!
-//! This crate is currently a placeholder reserved for the cortexcode Rust migration.
-//! Functionality will be ported from the TypeScript HooCode project incrementally.
+//! Re-exports the namespace umbrella crates: `ai`, `agent`, `code`, and `tui`.
+
+pub use cortexcode_agent as agent;
+pub use cortexcode_ai as ai;
+pub use cortexcode_code as code;
+pub use cortexcode_tui as tui;

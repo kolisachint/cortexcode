@@ -180,7 +180,7 @@ impl SessionStore for MemorySessionStore {
 mod tests {
     use super::*;
     use crate::SessionData;
-    use cortexcode_agent_types::{AgentContext, AgentTools};
+    use cortexcode_agent_types::AgentContext;
 
     fn sample_data() -> SessionData {
         SessionData::from_context("abc", &AgentContext::new("system".into(), vec![], vec![]))

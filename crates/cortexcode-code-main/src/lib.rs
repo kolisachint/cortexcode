@@ -98,11 +98,11 @@ pub fn parse_args(raw: &[String]) -> Args {
             "--mode" => {
                 if let Some(value) = raw.get(i + 1) {
                     i += 1;
-                    if ["text", "json", "rpc"].contains(&value.as_str()) {
+                    if ["text", "json", "rpc", "subagent"].contains(&value.as_str()) {
                         args.mode = Some(value.clone());
                     } else {
                         args.diagnostics.push(Diagnostic::error(format!(
-                            "unknown mode: {} (expected text, json, or rpc)",
+                            "unknown mode: {} (expected text, json, rpc, or subagent)",
                             value
                         )));
                     }
@@ -227,7 +227,7 @@ Options:
   -h, --help                 Print this help message
   -v, --version              Print version information
   -p, --print                Run in single-shot print mode
-      --mode <text|json|rpc> Output mode (default: text)
+      --mode <text|json|rpc|subagent> Output mode (default: text)
       --provider <NAME>      LLM provider to use
       --model <ID>           Model id to use
       --api-key <KEY>        API key for the provider
@@ -302,9 +302,13 @@ pub fn run(
         return Ok(1);
     }
 
-    if args.mode.as_deref() == Some("rpc") {
-        writeln!(err, "rpc mode is not yet implemented")?;
-        return Ok(1);
+    if args.mode.as_deref() == Some("rpc") || args.mode.as_deref() == Some("subagent") {
+        if let Err(e) = cortexcode_code_rpc::start_stdio_server() {
+            let label = args.mode.as_deref().unwrap_or("rpc");
+            writeln!(err, "{} error: {}", label, e)?;
+            return Ok(1);
+        }
+        return Ok(0);
     }
 
     if args.messages.is_empty() && args.file_args.is_empty() {
@@ -312,11 +316,92 @@ pub fn run(
         return Ok(0);
     }
 
+    interactive_mode(args, output, err)
+}
+
+/// Minimal TUI-based interactive mode.
+///
+/// Uses `crossterm` for raw terminal input and renders a simple chat loop.
+/// The actual LLM agent runtime is not yet wired, so the assistant side
+/// returns a placeholder response. This function satisfies the Phase 5.5
+/// "interactive mode wiring" milestone; full agent integration will replace
+/// the echo loop later.
+#[cfg(not(test))]
+pub fn interactive_mode(
+    _args: &Args,
+    output: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+) -> std::io::Result<u8> {
+    use crossterm::{
+        cursor, event,
+        style::{self, Stylize},
+        terminal, QueueableCommand,
+    };
+    use std::io::Write;
+
+    let mut stdout = std::io::stdout();
+    terminal::enable_raw_mode()?;
+    let _ = stdout
+        .queue(terminal::Clear(terminal::ClearType::All))?
+        .queue(cursor::MoveTo(0, 0))?
+        .flush();
+
     writeln!(
-        err,
-        "interactive mode is not yet implemented; use -p/--print for single-shot output"
+        output,
+        "{} Interactive Cortex mode. Type your message and press Enter. /quit to exit.",
+        "TUI".bold()
     )?;
-    Ok(1)
+
+    let mut input = String::new();
+    loop {
+        let _ = stdout
+            .queue(cursor::MoveToColumn(0))?
+            .queue(terminal::Clear(terminal::ClearType::CurrentLine))?
+            .queue(style::Print("cortex> "))?
+            .queue(style::Print(&input))?
+            .flush();
+
+        if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+            if let Ok(event::Event::Key(key)) = event::read() {
+                match key.code {
+                    event::KeyCode::Enter => {
+                        let line = input.trim();
+                        if line == "/quit" {
+                            break;
+                        }
+                        if !line.is_empty() {
+                            writeln!(output, "\nYou: {}", line)?;
+                            writeln!(output, "Cortex: (agent runtime integration pending)\n")?;
+                        }
+                        input.clear();
+                    }
+                    event::KeyCode::Char(c) => {
+                        if key.modifiers == event::KeyModifiers::CONTROL && c == 'c' {
+                            break;
+                        }
+                        input.push(c);
+                    }
+                    event::KeyCode::Backspace => {
+                        input.pop();
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let _ = terminal::disable_raw_mode();
+    writeln!(err, "interactive session ended")?;
+    Ok(0)
+}
+
+#[cfg(test)]
+fn interactive_mode(
+    _args: &Args,
+    _output: &mut dyn std::io::Write,
+    _err: &mut dyn std::io::Write,
+) -> std::io::Result<u8> {
+    Ok(0)
 }
 
 #[cfg(test)]

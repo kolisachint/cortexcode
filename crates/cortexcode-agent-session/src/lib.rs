@@ -101,7 +101,6 @@ pub fn ensure_parent(path: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cortexcode_agent_types::AgentTools;
 
     #[test]
     fn test_session_data_from_context() {

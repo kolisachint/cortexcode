@@ -195,8 +195,6 @@ pub mod factory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cortexcode_agent_types::AgentTools;
-
     fn dummy_tool(name: &str) -> AgentTool {
         AgentTool::new(
             name,

@@ -1,0 +1,78 @@
+name: Build binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to build (e.g. v0.1.0)"
+        required: true
+        type: string
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }} --bin cortex
+
+      - name: Package (unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/cortex dist/cortex-${{ matrix.target }}
+          tar czf dist/cortex-${{ matrix.target }}.tar.gz -C dist cortex-${{ matrix.target }}
+
+      - name: Package (windows)
+        if: matrix.archive == 'zip'
+        run: |
+          mkdir dist
+          cp target/${{ matrix.target }}/release/cortex.exe dist/cortex-${{ matrix.target }}.exe
+          cd dist
+          7z a cortex-${{ matrix.target }}.zip cortex-${{ matrix.target }}.exe
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/cortex-${{ matrix.target }}.${{ matrix.archive }} --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-${{ matrix.target }}
+          path: dist/cortex-${{ matrix.target }}.${{ matrix.archive }}

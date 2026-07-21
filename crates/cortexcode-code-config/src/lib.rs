@@ -180,8 +180,8 @@ mod tests {
     fn test_default_config() {
         let config = Config::new();
         assert!(config.model.is_none());
-        assert_eq!(config.auto_approve_read_only(), true);
-        assert_eq!(config.auto_approve_dangerous(), false);
+        assert!(config.auto_approve_read_only());
+        assert!(!config.auto_approve_dangerous());
     }
 
     #[test]
