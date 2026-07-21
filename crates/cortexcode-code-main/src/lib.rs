@@ -7,6 +7,7 @@
 //! RPC server, fully wired print mode) are dispatched to the `runtime` module
 //! and the agent namespace crates.
 
+mod auth;
 mod permission_dialog;
 mod runtime;
 
@@ -25,6 +26,8 @@ pub struct Args {
     pub model: Option<String>,
     /// API key override.
     pub api_key: Option<String>,
+    /// Interactive OAuth login for the named provider, then exit.
+    pub login: Option<String>,
     /// Explicit config file path override.
     pub config: Option<String>,
     /// Custom system prompt.
@@ -144,6 +147,15 @@ pub fn parse_args(raw: &[String]) -> Args {
                         .push(Diagnostic::error("--api-key requires a value".to_string()));
                 }
             }
+            "--login" => {
+                if let Some(value) = raw.get(i + 1) {
+                    i += 1;
+                    args.login = Some(value.clone());
+                } else {
+                    args.diagnostics
+                        .push(Diagnostic::error("--login requires a value".to_string()));
+                }
+            }
             "--config" => {
                 if let Some(value) = raw.get(i + 1) {
                     i += 1;
@@ -246,6 +258,7 @@ Options:
       --provider <NAME>      LLM provider to use
       --model <ID>           Model id to use
       --api-key <KEY>        API key for the provider
+      --login <PROVIDER>     Sign in via OAuth (anthropic | github-copilot)
       --config <PATH>        Path to a config file (overrides the default)
       --system-prompt <TEXT> Override the system prompt
       --session <ID>         Session id or path
@@ -303,6 +316,16 @@ pub fn run(
         .any(|d| d.kind == DiagnosticKind::Error)
     {
         return Ok(2);
+    }
+
+    if let Some(provider) = &args.login {
+        return match auth::login(provider, output) {
+            Ok(()) => Ok(0),
+            Err(e) => {
+                writeln!(err, "{}", e)?;
+                Ok(1)
+            }
+        };
     }
 
     let mode = args

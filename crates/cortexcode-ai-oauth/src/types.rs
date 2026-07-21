@@ -2,8 +2,10 @@
 //!
 //! Ported from TypeScript `@kolisachint/hoocode-ai` → `utils/oauth/types.ts`.
 
+use serde::{Deserialize, Serialize};
+
 /// Credentials returned by a completed OAuth flow and persisted by the caller.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OAuthCredentials {
     pub refresh: String,
     pub access: String,

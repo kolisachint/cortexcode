@@ -121,7 +121,53 @@ fn resolve_api_key_with_config(provider: &str, args: &Args, config: &Config) -> 
     if let Some(key) = &config.api_key {
         return Some(key.clone());
     }
-    get_env_api_key(provider)
+    if let Some(key) = get_env_api_key(provider) {
+        return Some(key);
+    }
+    oauth_api_key(provider)
+}
+
+/// Fall back to an OAuth access token persisted by `cortex --login <provider>`,
+/// refreshing it first if it has expired.
+fn oauth_api_key(provider: &str) -> Option<String> {
+    let store_key = match provider {
+        "anthropic" | "claude" => "anthropic",
+        "github-copilot" | "github" | "copilot" => "github-copilot",
+        _ => return None,
+    };
+    let store = crate::auth::CredentialStore::default_location();
+    let credentials = store.get(store_key)?;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+
+    if !credentials.is_expired(now) {
+        return Some(credentials.access);
+    }
+
+    // Expired: attempt a refresh, persisting the new tokens on success.
+    let refreshed = match store_key {
+        "anthropic" => cortexcode_ai_oauth::anthropic::refresh_token(&credentials.refresh).ok(),
+        "github-copilot" => {
+            let enterprise = credentials
+                .extra
+                .get("enterprise_url")
+                .and_then(|v| v.as_str());
+            cortexcode_ai_oauth::github_copilot::refresh_token(&credentials.refresh, enterprise)
+                .ok()
+        }
+        _ => None,
+    };
+    match refreshed {
+        Some(fresh) => {
+            let _ = store.save(store_key, &fresh);
+            Some(fresh.access)
+        }
+        // Refresh failed (offline, revoked); fall back to the stale token.
+        None => Some(credentials.access),
+    }
 }
 
 /// Build the system prompt from CLI arguments.
