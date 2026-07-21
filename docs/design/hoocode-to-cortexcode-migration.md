@@ -832,7 +832,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **1.6 cortexcode-ai-provider-anthropic** — Anthropic streaming provider — **DONE**
 - [x] **1.7 cortexcode-ai-provider-openai** — OpenAI Chat Completions provider — **DONE** (Responses/Codex APIs not yet ported)
 - [x] **1.8 cortexcode-ai-provider-google** — Google Gemini + Vertex providers — **DONE** (Vertex ADC/service-account auth deferred; API-key/access-token auth only)
-- [x] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI Responses provider — **DONE** (cross-provider reasoning-item ID pairing not ported)
+- [x] **1.9 cortexcode-ai-provider-azure** — Azure OpenAI Responses provider — **DONE** (reasoning-item ID pairing ported: streamed function calls carry their Responses item id encoded as `call_id|item_id` on `ToolCallContent::id`, reasoning items are stored verbatim in `ThinkingContent::signature`, and both are split/replayed on the next turn so Azure's `rs_...`/`fc_...` pairing validation passes; the cross-provider / different-model foreign-id remapping is not ported since the Rust `AssistantMessage` carries no originating provider/model)
 - [x] **1.10 cortexcode-ai-oauth** — OAuth flow support — **DONE** (Anthropic PKCE + GitHub Copilot device flow; interactive browser/callback-server wiring deferred to CLI layer)
 - [x] **1.11 cortexcode-ai-images** — Image generation support — **DONE** (OpenRouter provider)
 - [x] **1.12 cortexcode-ai umbrella publishable** — Flip all T0/T1 leaves to `publish = true` — **DONE** (all AI leaves already had `publish = true` from scaffolding; wired the umbrella's `lib.rs` to actually re-export every leaf)
@@ -999,7 +999,7 @@ the same core surface and has unit tests.
 - [ ] Advanced editor features (paste-marker compression, vim char-jump,
       internal viewport scrolling).
 - [x] Data migration from existing `~/.hoocode` settings — **DONE** (`cortexcode_code_config::migrate` reads the legacy TypeScript hoocode global `~/.hoocode/settings.json`, maps `defaultProvider`/`defaultModel`/`defaultThinkingLevel` onto typed `Config` fields, preserves every other field verbatim in `Config::extra`, and writes the result to `~/.cortexcode/config.json`; the `cortex` binary auto-migrates once at startup, before any config file exists, without touching the filesystem in library/test code paths). `cortexcode-code-main::config_or_default` now loads `~/.cortexcode/config.json` (via `cortexcode_code_config::load_default`) instead of always returning `Config::default()`, so migrated `provider`/`model`/`api_key`/`providers[*].api_key` values are actually consulted by `resolve_provider_model`/`resolve_api_key` (CLI flag > config > built-in default / env var), in addition to already flowing into `system_prompt`. Explicit `--config <path>` CLI overrides are now wired: `parse_args` accepts `--config <PATH>` (emitting a diagnostic when the value is missing), and `config_or_default` loads that file via `Config::from_file` instead of the default location (a missing/malformed file still falls back to `Config::default()`).
-- [ ] Cross-provider reasoning-item ID pairing in Azure.
+- [x] Reasoning-item ID pairing in Azure — **DONE** (see 1.9; the same-provider `call_id|item_id` pipe-encoding and reasoning-item replay are ported. The cross-provider / different-model foreign-id remapping remains out of scope because `AssistantMessage` does not record the originating provider/model).
 - [ ] Vertex ADC / service-account auth in Google provider.
 - [ ] Full parity testing with scripted hoocode scenarios.
 

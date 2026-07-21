@@ -6,9 +6,13 @@
 //!
 //! Ported from TypeScript `@kolisachint/hoocode-ai` →
 //! `providers/azure-openai-responses.ts` and
-//! `providers/openai-responses-shared.ts`. See `request.rs` for the
-//! simplifications made relative to the TS source (no cross-provider
-//! reasoning-item ID pairing).
+//! `providers/openai-responses-shared.ts`. Reasoning-item ID pairing is
+//! ported: streamed function calls carry their Responses item id encoded as
+//! `call_id|item_id` on [`ToolCallContent::id`], and reasoning items are
+//! stored verbatim in [`ThinkingContent::signature`] so both can be replayed
+//! on the next turn (see `request.rs`). The cross-provider / different-model
+//! foreign-id remapping from the TS source is not ported, since the Rust
+//! `AssistantMessage` does not carry the originating provider/model.
 
 mod request;
 mod sse;
@@ -144,7 +148,14 @@ fn fail(sender: &AiMessageEventSender, message: String) {
 enum BlockKind {
     Text,
     Thinking,
-    ToolCall { call_id: String, name: String },
+    ToolCall {
+        call_id: String,
+        name: String,
+        /// The Responses API item id (e.g. `fc_...`) for this function call.
+        /// Preserved so it can be paired back with its `reasoning` item on
+        /// replay via the `call_id|item_id` encoding.
+        item_id: String,
+    },
 }
 
 struct StreamState {
@@ -203,6 +214,7 @@ impl StreamState {
                     "function_call" => BlockKind::ToolCall {
                         call_id: item["call_id"].as_str().unwrap_or_default().to_string(),
                         name: item["name"].as_str().unwrap_or_default().to_string(),
+                        item_id: item["id"].as_str().unwrap_or_default().to_string(),
                     },
                     _ => BlockKind::Text,
                 };
@@ -353,11 +365,20 @@ impl StreamState {
                 } else {
                     self.thinking_buf.remove(&output_index).unwrap_or_default()
                 };
+                // Preserve the full Responses `reasoning` item as the signature so
+                // it can be replayed verbatim on the next turn (Azure pairs each
+                // `rs_...` reasoning item with the `fc_...` function call that
+                // follows it). Only meaningful items carry an id.
+                let signature = if item.get("id").and_then(|v| v.as_str()).is_some() {
+                    Some(item.to_string())
+                } else {
+                    None
+                };
                 self.partial
                     .content
                     .push(Content::Thinking(ThinkingContent {
                         thinking,
-                        signature: None,
+                        signature,
                     }));
                 sender.push(AssistantMessageEvent::ThinkingEnd {
                     index,
@@ -384,7 +405,11 @@ impl StreamState {
                     partial: self.partial.clone(),
                 });
             }
-            BlockKind::ToolCall { call_id, name } => {
+            BlockKind::ToolCall {
+                call_id,
+                name,
+                item_id,
+            } => {
                 let raw = self.tool_json_buf.remove(&output_index).unwrap_or_default();
                 let arguments = if raw.trim().is_empty() {
                     serde_json::json!({})
@@ -392,10 +417,19 @@ impl StreamState {
                     cortexcode_ai_util::parse_json_with_repair(&raw)
                         .unwrap_or_else(|_| serde_json::json!({}))
                 };
+                // Encode the wire `call_id` together with the Responses item id
+                // as `call_id|item_id` so the pairing survives a replay round
+                // trip. When the item id is absent, fall back to the bare
+                // `call_id`.
+                let id = if item_id.is_empty() {
+                    call_id
+                } else {
+                    format!("{call_id}|{item_id}")
+                };
                 self.partial
                     .content
                     .push(Content::ToolCall(ToolCallContent {
-                        id: call_id,
+                        id,
                         name,
                         arguments,
                     }));
@@ -599,6 +633,53 @@ mod tests {
                         assert_eq!(tc.name, "read_file");
                         assert_eq!(tc.id, "call_1");
                         assert_eq!(tc.arguments["path"], "a.rs");
+                    }
+                    other => panic!("expected tool call, got {other:?}"),
+                }
+            }
+            other => panic!("expected Done, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_stream_pairs_reasoning_item_with_tool_call() {
+        // A reasoning item followed by a function_call carrying an `fc_...`
+        // item id: the reasoning item is preserved verbatim in the thinking
+        // signature, and the tool call id is pipe-encoded as `call_id|item_id`.
+        let sse = concat!(
+            "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\"}}\n\n",
+            "data: {\"type\":\"response.reasoning_text.delta\",\"output_index\":0,\"delta\":\"pondering\"}\n\n",
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\",\"summary\":[]}}\n\n",
+            "data: {\"type\":\"response.output_item.added\",\"output_index\":1,\"item\":{\"type\":\"function_call\",\"call_id\":\"call_1\",\"id\":\"fc_1\",\"name\":\"read_file\",\"arguments\":\"\"}}\n\n",
+            "data: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"{}\"}\n\n",
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"function_call\",\"call_id\":\"call_1\",\"id\":\"fc_1\",\"name\":\"read_file\"}}\n\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n",
+        );
+        let base_url = spawn_mock_server(sse);
+        let model = test_model(base_url);
+        let context = Context::new("".into(), vec![], vec![]);
+        let options = SimpleStreamOptions {
+            api_key: Some("azkey".into()),
+            ..Default::default()
+        };
+
+        let s = stream(model, context, options).expect("stream should start");
+        let events = collect(s);
+        match events.last().unwrap() {
+            AssistantMessageEvent::Done { message } => {
+                match &message.content[0] {
+                    Content::Thinking(t) => {
+                        let sig = t.signature.as_ref().expect("reasoning signature");
+                        let item: serde_json::Value = serde_json::from_str(sig).unwrap();
+                        assert_eq!(item["type"], "reasoning");
+                        assert_eq!(item["id"], "rs_1");
+                    }
+                    other => panic!("expected thinking, got {other:?}"),
+                }
+                match &message.content[1] {
+                    Content::ToolCall(tc) => {
+                        // call_id|item_id pairing survives into ToolCallContent::id.
+                        assert_eq!(tc.id, "call_1|fc_1");
                     }
                     other => panic!("expected tool call, got {other:?}"),
                 }

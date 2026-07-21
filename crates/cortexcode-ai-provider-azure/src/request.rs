@@ -4,11 +4,16 @@
 //! `providers/azure-openai-responses.ts` and the shared
 //! `providers/openai-responses-shared.ts` (request-building portion).
 //!
-//! Simplification vs. the TS source: cross-provider reasoning-item ID
-//! pairing (the `callId|itemId` pipe-encoding used to replay OpenAI
-//! `reasoning`/`function_call` items produced by a *different* provider) is
-//! not ported. Each tool call's wire `call_id` is its `ToolCallContent::id`
-//! directly, and the Responses API item id is derived from it.
+//! Reasoning-item ID pairing is ported: a tool call's `ToolCallContent::id`
+//! may be pipe-encoded as `call_id|item_id`, where `item_id` is the Responses
+//! API `function_call` item id (`fc_...`) that Azure pairs with the preceding
+//! `reasoning` item (`rs_...`). On replay we split the two parts, re-emit the
+//! reasoning item verbatim from `ThinkingContent::signature`, and attach the
+//! preserved `item_id` to the `function_call` so Azure's pairing validation
+//! passes. When no `item_id` is present we derive a stable `fc_...` id from the
+//! call id. The cross-provider / different-model foreign-id remapping from the
+//! TS source is not ported (the Rust `AssistantMessage` carries no originating
+//! provider/model).
 
 use cortexcode_ai_types::{Content, Context, Message, Model, SimpleStreamOptions, Tool};
 
@@ -112,8 +117,58 @@ pub fn resolve_azure_config(model: &Model) -> Result<(String, String), String> {
     Ok((normalize_azure_base_url(&resolved), api_version))
 }
 
+/// Sanitize an id part to the Responses API's allowed character set, cap it at
+/// 64 characters, and strip trailing underscores. Mirrors `normalizeIdPart`
+/// from the TS source.
+fn normalize_id_part(part: &str) -> String {
+    let sanitized: String = part
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let capped = if sanitized.len() > 64 {
+        &sanitized[..64]
+    } else {
+        &sanitized
+    };
+    capped.trim_end_matches('_').to_string()
+}
+
+/// Derive a stable `fc_...` Responses item id from a tool call id, used when
+/// the tool call carries no explicit item id.
 fn fc_item_id(tool_call_id: &str) -> String {
     format!("fc_{}", cortexcode_ai_util::short_hash(tool_call_id))
+}
+
+/// Split a possibly pipe-encoded tool call id into its `(call_id, item_id)`
+/// parts. The `item_id` is `None` when the id is not pipe-encoded.
+fn split_tool_call_id(id: &str) -> (&str, Option<&str>) {
+    match id.split_once('|') {
+        Some((call_id, item_id)) => (call_id, Some(item_id)),
+        None => (id, None),
+    }
+}
+
+/// Resolve the Responses `function_call` item id for a tool call: prefer the
+/// preserved `item_id` from the pipe-encoding (normalized, forced to start with
+/// `fc_`), otherwise derive one from the wire `call_id`.
+fn resolve_fc_item_id(call_id: &str, item_id: Option<&str>) -> String {
+    match item_id.filter(|s| !s.is_empty()) {
+        Some(raw) => {
+            let normalized = normalize_id_part(raw);
+            if normalized.starts_with("fc_") {
+                normalized
+            } else {
+                normalize_id_part(&format!("fc_{normalized}"))
+            }
+        }
+        None => fc_item_id(call_id),
+    }
 }
 
 fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Value> {
@@ -166,17 +221,32 @@ fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Value> 
                             }));
                         }
                         Content::ToolCall(tc) => {
+                            let (call_id, item_id) = split_tool_call_id(&tc.id);
                             items.push(serde_json::json!({
                                 "type": "function_call",
-                                "id": fc_item_id(&tc.id),
-                                "call_id": tc.id,
+                                "id": resolve_fc_item_id(call_id, item_id),
+                                "call_id": call_id,
                                 "name": tc.name,
                                 "arguments": tc.arguments.to_string(),
                             }));
                         }
-                        // Reasoning replay across turns is not ported (see module docs);
-                        // thinking blocks are dropped rather than resent to the API.
-                        Content::Thinking(_) | Content::Image(_) => {}
+                        // Replay the paired `reasoning` item verbatim when a
+                        // signature is present (Azure pairs each `rs_...`
+                        // reasoning item with the `fc_...` function call that
+                        // follows it). Signatures that are not valid Responses
+                        // items are dropped rather than resent.
+                        Content::Thinking(t) => {
+                            if let Some(sig) = &t.signature {
+                                if let Ok(item) = serde_json::from_str::<serde_json::Value>(sig) {
+                                    if item.get("type").and_then(|v| v.as_str())
+                                        == Some("reasoning")
+                                    {
+                                        items.push(item);
+                                    }
+                                }
+                            }
+                        }
+                        Content::Image(_) => {}
                     }
                 }
             }
@@ -217,9 +287,10 @@ fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Value> 
                     serde_json::json!(text)
                 };
 
+                let (call_id, _) = split_tool_call_id(&m.tool_call_id);
                 items.push(serde_json::json!({
                     "type": "function_call_output",
-                    "call_id": m.tool_call_id,
+                    "call_id": call_id,
                     "output": output,
                 }));
             }
@@ -278,7 +349,8 @@ pub fn build_request_body(
 mod tests {
     use super::*;
     use cortexcode_ai_types::{
-        AssistantMessage, TextContent, ToolCallContent, ToolResultMessage, UserMessage,
+        AssistantMessage, TextContent, ThinkingContent, ToolCallContent, ToolResultMessage,
+        UserMessage,
     };
     use std::sync::{LazyLock, Mutex};
 
@@ -425,6 +497,129 @@ mod tests {
         assert_eq!(items[1]["type"], "function_call_output");
         assert_eq!(items[1]["call_id"], "call_1");
         assert_eq!(items[1]["output"], "contents");
+    }
+
+    #[test]
+    fn test_convert_messages_tool_call_preserves_paired_item_id() {
+        // A pipe-encoded `call_id|item_id` from a previous Azure turn must be
+        // split back apart: the wire `call_id` goes to `call_id`, and the
+        // preserved `fc_...` item id goes to `id` so pairing validation passes.
+        let m = model("https://myres.openai.azure.com");
+        let messages = vec![
+            Message::Assistant(AssistantMessage {
+                content: vec![Content::ToolCall(ToolCallContent {
+                    id: "call_abc|fc_xyz789".into(),
+                    name: "read_file".into(),
+                    arguments: serde_json::json!({"path": "a.rs"}),
+                })],
+                stop_reason: None,
+                stop_sequence: None,
+                usage: None,
+                timestamp: None,
+                error_message: None,
+            }),
+            Message::ToolResult(ToolResultMessage {
+                content: vec![Content::Text(TextContent {
+                    text: "contents".into(),
+                    cache_control: None,
+                })],
+                tool_call_id: "call_abc|fc_xyz789".into(),
+                tool_name: "read_file".into(),
+                is_error: false,
+                timestamp: None,
+            }),
+        ];
+        let ctx = Context::new("".into(), messages, vec![]);
+        let items = convert_messages(&m, &ctx);
+        assert_eq!(items[0]["type"], "function_call");
+        assert_eq!(items[0]["call_id"], "call_abc");
+        assert_eq!(items[0]["id"], "fc_xyz789");
+        // The tool result strips the item id from the pipe-encoded id too.
+        assert_eq!(items[1]["type"], "function_call_output");
+        assert_eq!(items[1]["call_id"], "call_abc");
+    }
+
+    #[test]
+    fn test_convert_messages_forces_fc_prefix_on_item_id() {
+        let m = model("https://myres.openai.azure.com");
+        let messages = vec![Message::Assistant(AssistantMessage {
+            content: vec![Content::ToolCall(ToolCallContent {
+                id: "call_1|rs_weird".into(),
+                name: "read_file".into(),
+                arguments: serde_json::json!({}),
+            })],
+            stop_reason: None,
+            stop_sequence: None,
+            usage: None,
+            timestamp: None,
+            error_message: None,
+        })];
+        let ctx = Context::new("".into(), messages, vec![]);
+        let items = convert_messages(&m, &ctx);
+        // An item id that does not already start with `fc_` gets the prefix.
+        assert_eq!(items[0]["id"], "fc_rs_weird");
+    }
+
+    #[test]
+    fn test_convert_messages_replays_reasoning_signature() {
+        let m = model("https://myres.openai.azure.com");
+        let reasoning_item = serde_json::json!({
+            "type": "reasoning",
+            "id": "rs_123",
+            "summary": [{"type": "summary_text", "text": "thinking"}]
+        });
+        let messages = vec![Message::Assistant(AssistantMessage {
+            content: vec![
+                Content::Thinking(ThinkingContent {
+                    thinking: "thinking".into(),
+                    signature: Some(reasoning_item.to_string()),
+                }),
+                Content::ToolCall(ToolCallContent {
+                    id: "call_1|fc_1".into(),
+                    name: "read_file".into(),
+                    arguments: serde_json::json!({}),
+                }),
+            ],
+            stop_reason: None,
+            stop_sequence: None,
+            usage: None,
+            timestamp: None,
+            error_message: None,
+        })];
+        let ctx = Context::new("".into(), messages, vec![]);
+        let items = convert_messages(&m, &ctx);
+        // The reasoning item is replayed verbatim, ahead of its function call.
+        assert_eq!(items[0]["type"], "reasoning");
+        assert_eq!(items[0]["id"], "rs_123");
+        assert_eq!(items[1]["type"], "function_call");
+        assert_eq!(items[1]["id"], "fc_1");
+    }
+
+    #[test]
+    fn test_convert_messages_drops_non_reasoning_signature() {
+        let m = model("https://myres.openai.azure.com");
+        let messages = vec![Message::Assistant(AssistantMessage {
+            content: vec![Content::Thinking(ThinkingContent {
+                thinking: "thinking".into(),
+                // Not a Responses reasoning item — must not be resent.
+                signature: Some("not json".into()),
+            })],
+            stop_reason: None,
+            stop_sequence: None,
+            usage: None,
+            timestamp: None,
+            error_message: None,
+        })];
+        let ctx = Context::new("".into(), messages, vec![]);
+        let items = convert_messages(&m, &ctx);
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_id_part_sanitizes_and_caps() {
+        assert_eq!(normalize_id_part("abc!def"), "abc_def");
+        assert_eq!(normalize_id_part("trail___"), "trail");
+        assert_eq!(normalize_id_part(&"x".repeat(80)).len(), 64);
     }
 
     #[test]
