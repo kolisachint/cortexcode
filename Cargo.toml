@@ -56,7 +56,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Mario Zechner (original author)", "Sachin Koli (HooCode fork)"]
 edition = "2021"
 license = "MIT"
