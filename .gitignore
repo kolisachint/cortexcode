@@ -4,3 +4,4 @@ Cargo.lock
 *.pdb
 .DS_Store
 scripts/__pycache__/
+.agents/
