@@ -2,6 +2,8 @@
 //!
 //! Mirrors the config handling in the TypeScript `packages/coding-agent` package.
 
+pub mod migrate;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,6 +12,8 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    /// Default provider identifier (e.g. `anthropic`).
+    pub provider: Option<String>,
     /// Default model identifier (e.g. `claude-sonnet-4`).
     pub model: Option<String>,
     /// Explicit API key (overrides environment detection).
@@ -52,6 +56,9 @@ impl Config {
 
     /// Merge another config into this one. Non-None values from `other` win.
     pub fn merge(&mut self, other: Config) {
+        if other.provider.is_some() {
+            self.provider = other.provider;
+        }
         if other.model.is_some() {
             self.model = other.model;
         }

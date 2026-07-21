@@ -334,6 +334,13 @@ pub fn run(
 
 /// Return the default configuration. Custom config file loading is not yet
 /// wired; once `--config` is added to the CLI this will load from that path.
+///
+/// Legacy `~/.hoocode/settings.json` data migration runs separately at CLI
+/// startup (see [`crate::main`] / `bin/main.rs`) via
+/// `cortexcode_code_config::migrate::auto_migrate`, so the process's
+/// `~/.cortexcode/config.json` is populated before this is ever consulted.
+/// This function intentionally stays pure (no filesystem access) so it is
+/// safe to call from tests.
 pub fn config_or_default(_args: &Args) -> Config {
     Config::default()
 }
