@@ -12,6 +12,7 @@ use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_models::get_model;
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
+use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
 use cortexcode_code_prompts::{initial_user_prompt, system_prompt, Mode};
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
@@ -56,17 +57,36 @@ impl From<std::io::Error> for RuntimeError {
     }
 }
 
-/// Resolve the provider and model from CLI arguments.
+/// Resolve the provider and model from CLI arguments, falling back to the
+/// persisted/migrated config file and finally to hardcoded defaults.
 fn resolve_provider_model(args: &Args) -> Result<(String, String), RuntimeError> {
+    let config = crate::config_or_default(args);
+    Ok(resolve_provider_model_with_config(args, &config))
+}
+
+/// Pure variant of [`resolve_provider_model`] taking an explicit config, so
+/// the fallback precedence can be unit-tested without touching the
+/// filesystem.
+fn resolve_provider_model_with_config(args: &Args, config: &Config) -> (String, String) {
     let provider = args
         .provider
         .clone()
+        .or_else(|| config.provider.clone())
         .unwrap_or_else(|| "anthropic".to_string());
     let model = args
         .model
         .clone()
+        .or_else(|| {
+            // Only trust the config's model if it was paired with the same
+            // provider (or no provider override was requested at all).
+            if args.provider.is_none() || args.provider.as_deref() == config.provider.as_deref() {
+                config.model.clone()
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| default_model_for_provider(&provider));
-    Ok((provider, model))
+    (provider, model)
 }
 
 fn default_model_for_provider(provider: &str) -> String {
@@ -81,7 +101,24 @@ fn default_model_for_provider(provider: &str) -> String {
 
 /// Resolve the API key for the provider.
 fn resolve_api_key(provider: &str, args: &Args) -> Option<String> {
+    let config = crate::config_or_default(args);
+    resolve_api_key_with_config(provider, args, &config)
+}
+
+/// Pure variant of [`resolve_api_key`] taking an explicit config, so the
+/// fallback precedence (CLI flag > per-provider config > global config >
+/// environment variable) can be unit-tested without touching the
+/// filesystem.
+fn resolve_api_key_with_config(provider: &str, args: &Args, config: &Config) -> Option<String> {
     if let Some(key) = &args.api_key {
+        return Some(key.clone());
+    }
+    if let Some(provider_config) = config.providers.get(provider) {
+        if let Some(key) = &provider_config.api_key {
+            return Some(key.clone());
+        }
+    }
+    if let Some(key) = &config.api_key {
         return Some(key.clone());
     }
     get_env_api_key(provider)
@@ -350,5 +387,113 @@ mod tests {
     fn test_text_message() {
         let msg = text_message("hello");
         assert!(msg.extract_message().is_some());
+    }
+
+    #[test]
+    fn test_resolve_provider_model_cli_args_win_over_config() {
+        let args = Args {
+            provider: Some("openai".into()),
+            model: Some("gpt-4".into()),
+            ..Default::default()
+        };
+        let config = Config {
+            provider: Some("anthropic".into()),
+            model: Some("claude-sonnet-4".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_provider_model_with_config(&args, &config),
+            ("openai".to_string(), "gpt-4".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_provider_model_falls_back_to_config() {
+        let args = Args::default();
+        let config = Config {
+            provider: Some("anthropic".into()),
+            model: Some("claude-opus-4".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_provider_model_with_config(&args, &config),
+            ("anthropic".to_string(), "claude-opus-4".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_provider_model_ignores_mismatched_config_model() {
+        // Config's default model belongs to a different provider than the
+        // one requested on the CLI, so it must not leak across providers.
+        let args = Args {
+            provider: Some("openai".into()),
+            ..Default::default()
+        };
+        let config = Config {
+            provider: Some("anthropic".into()),
+            model: Some("claude-opus-4".into()),
+            ..Default::default()
+        };
+        let (provider, model) = resolve_provider_model_with_config(&args, &config);
+        assert_eq!(provider, "openai");
+        assert_eq!(model, default_model_for_provider("openai"));
+    }
+
+    #[test]
+    fn test_resolve_provider_model_no_args_no_config_uses_defaults() {
+        let args = Args::default();
+        let config = Config::default();
+        let (provider, model) = resolve_provider_model_with_config(&args, &config);
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, default_model_for_provider("anthropic"));
+    }
+
+    #[test]
+    fn test_resolve_api_key_cli_arg_wins() {
+        let args = Args {
+            api_key: Some("cli-key".into()),
+            ..Default::default()
+        };
+        let config = Config {
+            api_key: Some("config-key".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_api_key_with_config("anthropic", &args, &config),
+            Some("cli-key".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_api_key_prefers_provider_specific_config() {
+        let args = Args::default();
+        let mut config = Config {
+            api_key: Some("global-key".into()),
+            ..Default::default()
+        };
+        config.providers.insert(
+            "anthropic".into(),
+            cortexcode_code_config::ProviderConfig {
+                api_key: Some("provider-key".into()),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            resolve_api_key_with_config("anthropic", &args, &config),
+            Some("provider-key".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_api_key_falls_back_to_global_config() {
+        let args = Args::default();
+        let config = Config {
+            api_key: Some("global-key".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_api_key_with_config("anthropic", &args, &config),
+            Some("global-key".to_string())
+        );
     }
 }
