@@ -357,11 +357,7 @@ pub fn run(
     // If an explicit --mode was given without a prompt, that is an error.
     if args.messages.is_empty() && args.file_args.is_empty() {
         if let Some(mode) = &args.mode {
-            writeln!(
-                err,
-                "error: --mode {} requires a prompt argument",
-                mode
-            )?;
+            writeln!(err, "error: --mode {} requires a prompt argument", mode)?;
             return Ok(2);
         }
         return match runtime::run_interactive_mode(args, output, err) {
@@ -494,7 +490,7 @@ mod tests {
     fn test_run_print_missing_key() {
         // Use an empty config file so no API key is available.
         let empty_config = std::env::temp_dir().join("cortex-test-empty-config.json");
-        std::fs::write(&empty_config, "{}" ).unwrap();
+        std::fs::write(&empty_config, "{}").unwrap();
         let args = parse_args(&[
             "-p".to_string(),
             "hi".to_string(),

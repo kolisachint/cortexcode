@@ -9,7 +9,10 @@ pub mod types;
 use cortexcode_agent_loop::{
     default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
 };
-use cortexcode_ai_types::{self as ai_types, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions, TextContent, ThinkingLevel};
+use cortexcode_ai_types::{
+    self as ai_types, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
+    TextContent, ThinkingLevel,
+};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -20,7 +23,16 @@ use types::*;
 // ---------------------------------------------------------------------------
 
 /// Function type for creating an AI stream for a given model, context, and options.
-pub type StreamFn = Box<dyn Fn(Model, ai_types::Context, SimpleStreamOptions) -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>> + Send + Sync>;
+pub type StreamFn = Box<
+    dyn Fn(
+            Model,
+            ai_types::Context,
+            SimpleStreamOptions,
+        )
+            -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>>
+        + Send
+        + Sync,
+>;
 
 /// Arc-wrapped stream function.
 pub type SharedStreamFn = Arc<StreamFn>;
@@ -491,7 +503,10 @@ impl Agent {
             before_tool_call: None,
             after_tool_call: None,
             permission_gate: self.permission_gate.clone(),
-            stream_fn: self.stream_fn.clone().map(|a| -> StreamFn { Box::new(move |m, c, o| (*a)(m, c, o)) }),
+            stream_fn: self
+                .stream_fn
+                .clone()
+                .map(|a| -> StreamFn { Box::new(move |m, c, o| (*a)(m, c, o)) }),
             tool_execution: ToolExecutionMode::Parallel,
             signal: None,
             api_key: inner.api_key.clone(),

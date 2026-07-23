@@ -396,8 +396,7 @@ impl Editor {
         if line_count > 5 || char_count > 200 {
             self.paste_counter += 1;
             let marker = format!("[paste #{} ...]", self.paste_counter);
-            self.paste_markers
-                .insert(marker.clone(), filtered.clone());
+            self.paste_markers.insert(marker.clone(), filtered.clone());
             self.insert_text_at_cursor_internal(&marker);
         } else {
             self.insert_text_at_cursor_internal(&filtered);

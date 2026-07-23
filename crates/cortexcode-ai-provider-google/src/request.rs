@@ -76,9 +76,11 @@ pub fn resolve_vertex_credentials(
         return Ok(creds);
     }
 
-    Err("Vertex AI requires credentials. Set GOOGLE_VERTEX_ACCESS_TOKEN, GOOGLE_ACCESS_TOKEN, \
+    Err(
+        "Vertex AI requires credentials. Set GOOGLE_VERTEX_ACCESS_TOKEN, GOOGLE_ACCESS_TOKEN, \
          GOOGLE_APPLICATION_CREDENTIALS, or provide api_key in config."
-        .to_string())
+            .to_string(),
+    )
 }
 
 /// Helper to resolve project and location for Vertex credentials.
@@ -141,8 +143,8 @@ fn resolve_service_account_credentials() -> Result<VertexCredentials, String> {
         .map_err(|e| format!("Failed to read service account key file: {e}"))?;
 
     // Parse the service account key
-    let sa_key: ServiceAccountKey =
-        serde_json::from_str(&key_json).map_err(|e| format!("Failed to parse service account key: {e}"))?;
+    let sa_key: ServiceAccountKey = serde_json::from_str(&key_json)
+        .map_err(|e| format!("Failed to parse service account key: {e}"))?;
 
     if sa_key.key_type != "service_account" {
         return Err(format!(
@@ -196,8 +198,7 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
     let key = EncodingKey::from_rsa_pem(sa_key.private_key.as_bytes())
         .map_err(|e| format!("Failed to parse private key: {e}"))?;
 
-    let jwt =
-        encode(&header, &claims, &key).map_err(|e| format!("Failed to create JWT: {e}"))?;
+    let jwt = encode(&header, &claims, &key).map_err(|e| format!("Failed to create JWT: {e}"))?;
 
     // Exchange JWT for access token
     let client = reqwest::blocking::Client::new();
@@ -215,11 +216,14 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
     let status = response.status();
     if !status.is_success() {
         let body = response.text().unwrap_or_default();
-        return Err(format!("Token exchange failed with status {status}: {body}"));
+        return Err(format!(
+            "Token exchange failed with status {status}: {body}"
+        ));
     }
 
-    let token_response: serde_json::Value =
-        response.json().map_err(|e| format!("Failed to parse token response: {e}"))?;
+    let token_response: serde_json::Value = response
+        .json()
+        .map_err(|e| format!("Failed to parse token response: {e}"))?;
 
     token_response["access_token"]
         .as_str()
@@ -305,8 +309,7 @@ pub fn build_request_body(
         "generationConfig": {"maxOutputTokens": model.max_tokens},
     });
     if !context.system_prompt.is_empty() {
-        body["systemInstruction"] =
-            serde_json::json!({"parts": [{"text": context.system_prompt}]});
+        body["systemInstruction"] = serde_json::json!({"parts": [{"text": context.system_prompt}]});
     }
     if !context.tools.is_empty() {
         if let Some(tools) = convert_tools(&context.tools, false) {
@@ -329,7 +332,11 @@ pub fn build_request_body(
 // ---------------------------------------------------------------------------
 
 /// Resolve the thinking budget for a given model + level.
-fn resolve_thinking_budget(_model: &Model, level: &ThinkingLevel, budgets: Option<&ThinkingBudgets>) -> u32 {
+fn resolve_thinking_budget(
+    _model: &Model,
+    level: &ThinkingLevel,
+    budgets: Option<&ThinkingBudgets>,
+) -> u32 {
     if *level == ThinkingLevel::Off {
         return 0;
     }
@@ -353,7 +360,11 @@ fn resolve_thinking_budget(_model: &Model, level: &ThinkingLevel, budgets: Optio
 }
 
 /// Build the `thinkingConfig` object for the generation config.
-fn build_thinking_config(model: &Model, level: &ThinkingLevel, budgets: Option<&ThinkingBudgets>) -> serde_json::Value {
+fn build_thinking_config(
+    model: &Model,
+    level: &ThinkingLevel,
+    budgets: Option<&ThinkingBudgets>,
+) -> serde_json::Value {
     if *level == ThinkingLevel::Off {
         return serde_json::json!({"thinkingBudget": 0});
     }

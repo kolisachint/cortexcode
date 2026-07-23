@@ -11,8 +11,10 @@ use cortexcode_agent_core::{Agent, AgentOptions};
 use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_models::get_model;
+use cortexcode_ai_types::{
+    AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
+};
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
-use cortexcode_ai_types::{Context, Model as AiModel, AssistantMessageEventStream, SimpleStreamOptions};
 
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
@@ -24,7 +26,16 @@ use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate}
 // ---------------------------------------------------------------------------
 
 /// Function type for creating an AI stream.
-type StreamFn = Box<dyn Fn(AiModel, Context, SimpleStreamOptions) -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>> + Send + Sync>;
+type StreamFn = Box<
+    dyn Fn(
+            AiModel,
+            Context,
+            SimpleStreamOptions,
+        )
+            -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>>
+        + Send
+        + Sync,
+>;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -222,9 +233,7 @@ fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGa
 }
 
 /// Create the streaming function for a given provider.
-fn make_stream_fn(
-    provider: &str,
-) -> Option<StreamFn> {
+fn make_stream_fn(provider: &str) -> Option<StreamFn> {
     match provider {
         "anthropic" => Some(Box::new(cortexcode_ai_provider_anthropic::stream)),
         "openai" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
@@ -263,8 +272,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
                  Edit ~/.cortexcode/config.json and set \"provider\" to one of the above,\n\
                  then set the corresponding API key, e.g.:\n\
                    export ANTHROPIC_API_KEY=your-key-here",
-                provider,
-                list
+                provider, list
             )
         };
         return Err(RuntimeError::Setup(hint));
@@ -374,7 +382,10 @@ pub fn run_print_mode(
                 return Err(RuntimeError::Agent(error.clone()));
             }
             if am.stop_reason == Some(cortexcode_ai_types::StopReason::Error) {
-                let msg = am.error_message.clone().unwrap_or_else(|| "unknown error".into());
+                let msg = am
+                    .error_message
+                    .clone()
+                    .unwrap_or_else(|| "unknown error".into());
                 return Err(RuntimeError::Agent(msg));
             }
         }
