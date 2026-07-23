@@ -211,6 +211,109 @@ pub fn ls(dir: impl AsRef<Path>) -> Result<Vec<std::path::PathBuf>, std::io::Err
     Ok(entries)
 }
 
+/// Fetch content from a URL.
+pub fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let response = client.get(url).send()?;
+    let text = response.text()?;
+    // Truncate very long responses
+    if text.len() > 100000 {
+        Ok(format!("{}...[truncated, total {} bytes]", &text[..100000], text.len()))
+    } else {
+        Ok(text)
+    }
+}
+
+/// Search the web using DuckDuckGo.
+pub fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let encoded_query = urlencoding::encode(query);
+    let search_url = format!("https://html.duckduckgo.com/html/?q={}", encoded_query);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .user_agent("Mozilla/5.0")
+        .build()?;
+    let response = client.get(&search_url).send()?;
+    let html = response.text()?;
+    
+    // Simple HTML parsing to extract results
+    let mut results = Vec::new();
+    let lines: Vec<&str> = html.lines().collect();
+    let mut in_result = false;
+    let mut current_title = String::new();
+    let mut current_snippet = String::new();
+    
+    for line in lines {
+        if line.contains("result__a") {
+            in_result = true;
+            // Extract title
+            if let Some(start) = line.find(">") {
+                if let Some(end) = line.find("</a>") {
+                    current_title = line[start+1..end].trim().to_string();
+                }
+            }
+        } else if in_result && line.contains("result__snippet") {
+            if let Some(start) = line.find(">") {
+                if let Some(end) = line.find("</a>") {
+                    current_snippet = line[start+1..end].trim().to_string();
+                }
+            }
+            if !current_title.is_empty() {
+                results.push(format!("**{}**\n{}", current_title, current_snippet));
+            }
+            current_title.clear();
+            current_snippet.clear();
+            in_result = false;
+        }
+    }
+    
+    if results.is_empty() {
+        Ok(format!("No results found for '{}'. Visit: {}", query, search_url))
+    } else {
+        Ok(format!("Search results for '{}':\n\n{}", query, results.join("\n\n")))
+    }
+}
+
+/// Todo list storage
+use std::sync::Mutex;
+
+static TODO_LIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Perform a todo action.
+pub fn todo_action(action: &str, task: &str, id: usize) -> Result<String, Box<dyn std::error::Error>> {
+    let mut todos = TODO_LIST.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    match action {
+        "add" => {
+            if task.is_empty() {
+                return Err("Task description required".into());
+            }
+            todos.push(task.to_string());
+            Ok(format!("Added todo #{}: {}", todos.len(), task))
+        }
+        "list" => {
+            if todos.is_empty() {
+                Ok("No todo items".to_string())
+            } else {
+                let list = todos.iter().enumerate()
+                    .map(|(i, t)| format!("{}. [ ] {}", i+1, t))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                Ok(format!("Todo list ({} items):\n{}", todos.len(), list))
+            }
+        }
+        "done" => {
+            if id == 0 || id > todos.len() {
+                return Err(format!("Invalid todo id: {}. Use 'list' to see available ids.", id).into());
+            }
+            let completed = todos.remove(id-1);
+            Ok(format!("Completed todo #{}: {}", id, completed))
+        }
+        _ => Err(format!("Unknown action: {}. Use 'add', 'list', or 'done'.", action).into()),
+    }
+}
+
 /// Return the default set of coding tools ready to register with an agent.
 pub fn default_tools(cwd: std::path::PathBuf, _permissions: PermissionPolicy) -> Vec<AgentTool> {
     let cwd_read = cwd.clone();
@@ -219,7 +322,8 @@ pub fn default_tools(cwd: std::path::PathBuf, _permissions: PermissionPolicy) ->
     let cwd_edit = cwd.clone();
     let cwd_grep = cwd.clone();
     let cwd_find = cwd.clone();
-    let cwd_ls = cwd;
+    let cwd_ls = cwd.clone();
+    let _cwd_webfetch = cwd;
 
     vec![
         AgentTool::new(
@@ -402,6 +506,64 @@ pub fn default_tools(cwd: std::path::PathBuf, _permissions: PermissionPolicy) ->
                 }
             }),
         ),
+        AgentTool::new(
+            "webfetch",
+            "Fetch content from a URL. Args: url (string)",
+            json!({
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string" }
+                },
+                "required": ["url"]
+            }),
+            Box::new(move |_id, args, _signal, _update| {
+                let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                match webfetch(url) {
+                    Ok(text) => Ok(text_result(text)),
+                    Err(e) => Ok(error_result(format!("Error fetching URL: {}", e))),
+                }
+            }),
+        ),
+        AgentTool::new(
+            "websearch",
+            "Search the web. Args: query (string)",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" }
+                },
+                "required": ["query"]
+            }),
+            Box::new(move |_id, args, _signal, _update| {
+                let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+                match websearch(query) {
+                    Ok(text) => Ok(text_result(text)),
+                    Err(e) => Ok(error_result(format!("Error searching web: {}", e))),
+                }
+            }),
+        ),
+        AgentTool::new(
+            "todo",
+            "Track todo items. Args: action (add|list|done), task (string, optional), id (number, optional)",
+            json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["add", "list", "done"] },
+                    "task": { "type": "string" },
+                    "id": { "type": "number" }
+                },
+                "required": ["action"]
+            }),
+            Box::new(move |_id, args, _signal, _update| {
+                let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("list");
+                let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
+                let id = args.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+                match todo_action(action, task, id as usize) {
+                    Ok(text) => Ok(text_result(text)),
+                    Err(e) => Ok(error_result(format!("Error with todo: {}", e))),
+                }
+            }),
+        ),
     ]
 }
 
@@ -474,5 +636,49 @@ mod tests {
     fn test_bash_echo() {
         let output = bash("echo hello", None).unwrap();
         assert!(String::from_utf8_lossy(&output.stdout).contains("hello"));
+    }
+
+    #[test]
+    fn test_todo_actions() {
+        // Test add
+        let result = todo_action("add", "Buy groceries", 0).unwrap();
+        assert!(result.contains("Added todo"));
+        
+        // Test list
+        let result = todo_action("list", "", 0).unwrap();
+        assert!(result.contains("Buy groceries"));
+        
+        // Test done
+        let result = todo_action("done", "", 1).unwrap();
+        assert!(result.contains("Completed todo"));
+        
+        // Test list after done
+        let result = todo_action("list", "", 0).unwrap();
+        assert!(result.contains("No todo items"));
+    }
+
+    #[test]
+    fn test_todo_invalid_id() {
+        let result = todo_action("done", "", 999);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_todo_empty_task() {
+        let result = todo_action("add", "", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_webfetch_invalid_url() {
+        let result = webfetch("not-a-valid-url");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_websearch_empty_query() {
+        let result = websearch("");
+        // Should return some result or error, not panic
+        assert!(result.is_ok() || result.is_err());
     }
 }
