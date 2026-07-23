@@ -184,12 +184,12 @@ pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
         ),
         (
             "tui.editor.jumpForward",
-            &["ctrl+]"],
+            &["ctrl+]", "f"],
             "Jump forward to character",
         ),
         (
             "tui.editor.jumpBackward",
-            &["ctrl+alt+]"],
+            &["ctrl+alt+]", "F"],
             "Jump backward to character",
         ),
         ("tui.editor.pageUp", &["pageUp"], "Page up"),

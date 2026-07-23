@@ -167,6 +167,27 @@ impl Terminal for ProcessTerminal {
         self.was_raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
         let _ = crossterm::terminal::enable_raw_mode();
 
+        // Windows: Enable virtual terminal input processing.
+        // This allows Windows to process escape sequences properly,
+        // including mouse events, bracketed paste, and Kitty keyboard protocol.
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::io::AsRawHandle;
+            use windows_sys::Win32::System::Console::{
+                GetConsoleMode, SetConsoleMode, ENABLE_VIRTUAL_TERMINAL_INPUT,
+            };
+
+            let stdin = io::stdin();
+            let handle = stdin.as_raw_handle();
+            let mut mode: u32 = 0;
+            unsafe {
+                if GetConsoleMode(handle, &mut mode) != 0 {
+                    mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+                    SetConsoleMode(handle, mode);
+                }
+            }
+        }
+
         // Bracketed paste mode.
         self.raw_write("\x1b[?2004h");
 

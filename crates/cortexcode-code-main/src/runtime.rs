@@ -12,10 +12,19 @@ use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_models::get_model;
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
+use cortexcode_ai_types::{Context, Model as AiModel, AssistantMessageEventStream, SimpleStreamOptions};
+
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
 use cortexcode_code_prompts::{initial_user_prompt, system_prompt, Mode};
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
+
+// ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+/// Function type for creating an AI stream.
+type StreamFn = Box<dyn Fn(AiModel, Context, SimpleStreamOptions) -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>> + Send + Sync>;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -93,6 +102,7 @@ fn default_model_for_provider(provider: &str) -> String {
     match provider {
         "anthropic" => "claude-sonnet-4-5".to_string(),
         "openai" => "gpt-4o".to_string(),
+        "opencode" | "opencode-go" => "mimo-v2.5-free".to_string(),
         "google" => "gemini-2.5-pro".to_string(),
         "azure" => "gpt-4o".to_string(),
         _ => "unknown".to_string(),
@@ -211,6 +221,20 @@ fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGa
     ))
 }
 
+/// Create the streaming function for a given provider.
+fn make_stream_fn(
+    provider: &str,
+) -> Option<StreamFn> {
+    match provider {
+        "anthropic" => Some(Box::new(cortexcode_ai_provider_anthropic::stream)),
+        "openai" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
+        "opencode" | "opencode-go" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
+        "google" => Some(Box::new(cortexcode_ai_provider_google::stream)),
+        "azure" => Some(Box::new(cortexcode_ai_provider_azure::stream)),
+        _ => None,
+    }
+}
+
 /// Build an `Agent` from CLI arguments with a configured permission gate.
 fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
@@ -220,10 +244,30 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
 
     let api_key = resolve_api_key(&provider, args);
     if api_key.is_none() {
-        return Err(RuntimeError::Setup(format!(
-            "no API key found for provider {}",
-            provider
-        )));
+        let supported = ["anthropic", "openai", "opencode", "google", "azure"];
+        let is_known = supported.contains(&provider.as_str());
+        let hint = if is_known {
+            format!(
+                "No API key for provider '{}'.\n\
+                 Set the environment variable:\n\
+                   export {}_API_KEY=your-key-here\n\n\
+                 Or run:  cortex --login {}",
+                provider,
+                provider.to_uppercase(),
+                provider
+            )
+        } else {
+            let list = supported.join(", ");
+            format!(
+                "Provider '{}' is not supported. Use one of: {}\n\
+                 Edit ~/.cortexcode/config.json and set \"provider\" to one of the above,\n\
+                 then set the corresponding API key, e.g.:\n\
+                   export ANTHROPIC_API_KEY=your-key-here",
+                provider,
+                list
+            )
+        };
+        return Err(RuntimeError::Setup(hint));
     }
 
     let system_prompt = build_system_prompt(args);
@@ -242,11 +286,13 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     };
 
     let permission_gate = Some(build_permission_gate(args, interactive));
+    let stream_fn = make_stream_fn(&provider).map(std::sync::Arc::new);
 
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state),
         api_key,
         permission_gate,
+        stream_fn,
         ..Default::default()
     });
 
@@ -294,7 +340,7 @@ pub fn run_print_mode(
     args: &Args,
     mode: PrintMode,
     output: &mut dyn Write,
-    err: &mut dyn Write,
+    _err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
     let agent = build_agent_with_gate(args, false)?;
     let messages = build_user_messages(args);
@@ -325,7 +371,11 @@ pub fn run_print_mode(
     if let Some(last) = result.last() {
         if let Some(Message::Assistant(am)) = last.extract_message() {
             if let Some(error) = &am.error_message {
-                writeln!(err, "error: {}", error)?;
+                return Err(RuntimeError::Agent(error.clone()));
+            }
+            if am.stop_reason == Some(cortexcode_ai_types::StopReason::Error) {
+                let msg = am.error_message.clone().unwrap_or_else(|| "unknown error".into());
+                return Err(RuntimeError::Agent(msg));
             }
         }
     }

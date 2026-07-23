@@ -9,11 +9,21 @@ pub mod types;
 use cortexcode_agent_loop::{
     default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
 };
-use cortexcode_ai_types::{self as ai_types, Content, Message, Model, TextContent, ThinkingLevel};
+use cortexcode_ai_types::{self as ai_types, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions, TextContent, ThinkingLevel};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use types::*;
+
+// ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+/// Function type for creating an AI stream for a given model, context, and options.
+pub type StreamFn = Box<dyn Fn(Model, ai_types::Context, SimpleStreamOptions) -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>> + Send + Sync>;
+
+/// Arc-wrapped stream function.
+pub type SharedStreamFn = Arc<StreamFn>;
 
 // ---------------------------------------------------------------------------
 // PendingMessageQueue
@@ -53,6 +63,8 @@ impl PendingMessageQueue {
     fn drain(&mut self) -> Vec<AgentMessage> {
         if self.mode == QueueMode::All {
             std::mem::take(&mut self.messages)
+        } else if self.messages.is_empty() {
+            Vec::new()
         } else {
             self.messages.drain(..1).collect()
         }
@@ -162,6 +174,7 @@ pub struct Agent {
     /// A flag used to signal that the agent should stop.
     stop_requested: Arc<std::sync::atomic::AtomicBool>,
     permission_gate: Option<Arc<dyn PermissionGate>>,
+    stream_fn: Option<SharedStreamFn>,
 }
 
 /// Handle returned by [`Agent::subscribe`]. Removes the listener when dropped.
@@ -204,6 +217,7 @@ impl Agent {
             stop_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             next_listener_id: Arc::new(AtomicUsize::new(1)),
             permission_gate: options.permission_gate,
+            stream_fn: options.stream_fn.map(|b| b as _),
         }
     }
 
@@ -477,7 +491,7 @@ impl Agent {
             before_tool_call: None,
             after_tool_call: None,
             permission_gate: self.permission_gate.clone(),
-            stream_fn: None,
+            stream_fn: self.stream_fn.clone().map(|a| -> StreamFn { Box::new(move |m, c, o| (*a)(m, c, o)) }),
             tool_execution: ToolExecutionMode::Parallel,
             signal: None,
             api_key: inner.api_key.clone(),
@@ -514,6 +528,7 @@ pub struct AgentOptions {
     pub steering_mode: Option<QueueMode>,
     pub follow_up_mode: Option<QueueMode>,
     pub permission_gate: Option<Arc<dyn PermissionGate>>,
+    pub stream_fn: Option<SharedStreamFn>,
 }
 
 // ---------------------------------------------------------------------------

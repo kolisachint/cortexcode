@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.cortex]
 publish = true
 
+[[bin]]
+name = "cortex"
+path = "src/main.rs"
+
 [dependencies]
 cortexcode-code-print = { workspace = true }
 cortexcode-code-config = { workspace = true }
@@ -23,6 +27,10 @@ cortexcode-ai-env = { workspace = true }
 cortexcode-ai-models = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
 cortexcode-ai-types = { workspace = true }
+cortexcode-ai-provider-anthropic = { workspace = true }
+cortexcode-ai-provider-openai = { workspace = true }
+cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-provider-azure = { workspace = true }
 cortexcode-agent-core = { workspace = true }
 cortexcode-agent-types = { workspace = true }
 cortexcode-agent-tools = { workspace = true }
