@@ -114,7 +114,18 @@ cortex --provider opencode --model mimo-v2.5-free -p "Hello"
 
 ## Remaining Items (2%)
 
-### 1. Full Parity Testing with Scripted Hoocode Scenarios
+### 1. Additional Features (Deferred to Post-Release)
+**Status:** ⏳ Deferred
+**Priority:** Low
+**Notes:** These are additional features not in the original migration plan
+
+**What's Needed:**
+- Webfetch tool (web content fetching)
+- Websearch tool (web search)
+- Todo tracking tool
+- Plugin system (WASM)
+
+### 2. Full Parity Testing with Scripted Hoocode Scenarios
 **Status:** ⏳ Deferred
 **Priority:** Low
 **Notes:** Can be done incrementally post-release
@@ -124,15 +135,10 @@ cortex --provider opencode --model mimo-v2.5-free -p "Hello"
 - Automated parity testing
 - Feature-by-feature comparison
 
-### 2. Release Notes and Changelog
-**Status:** ⏳ Pending release
+### 3. Release Notes and Changelog
+**Status:** ✅ Done (CHANGELOG.md created)
 **Priority:** Medium
-**Notes:** Will be created when ready to release
-
-**What's Needed:**
-- Release notes for v0.1.0
-- CHANGELOG.md file
-- Migration guide for users
+**Notes:** Created for v0.1.0 release
 
 ---
 
