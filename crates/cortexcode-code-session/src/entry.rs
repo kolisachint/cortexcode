@@ -16,7 +16,7 @@ pub const CURRENT_SESSION_VERSION: u32 = 3;
 #[serde(rename_all = "camelCase")]
 pub struct Header {
     /// Format version. Older sessions may omit this field.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
     /// Unique session identifier.
     pub id: String,
@@ -25,8 +25,11 @@ pub struct Header {
     /// Working directory captured when the session started.
     pub cwd: String,
     /// Path to the parent session when this session was forked.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_session: Option<String>,
+    /// Git branch the session started on (absent outside a repo / detached HEAD).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 /// Content of a `custom_message` entry, mirroring the TypeScript
@@ -59,8 +62,11 @@ impl From<Vec<Content>> for CustomMessageContent {
 }
 
 /// A single line in a session file.
+///
+/// Wire format matches hoocode `SessionHeader | SessionTreeEntry`
+/// (`packages/agent/src/harness/types.ts`): snake_case `type` tags, camelCase fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all_fields = "camelCase")]
 pub enum FileEntry {
     /// Session header. Always appears as the first line.
     #[serde(rename = "session")]
@@ -103,11 +109,11 @@ pub enum FileEntry {
         summary: String,
         first_kept_entry_id: String,
         tokens_before: u64,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         tokens_after: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         details: Option<serde_json::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         from_hook: Option<bool>,
     },
 
@@ -119,9 +125,9 @@ pub enum FileEntry {
         timestamp: String,
         from_id: String,
         summary: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         details: Option<serde_json::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         from_hook: Option<bool>,
     },
 
@@ -132,7 +138,7 @@ pub enum FileEntry {
         parent_id: Option<String>,
         timestamp: String,
         custom_type: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         data: Option<serde_json::Value>,
     },
 
@@ -145,7 +151,7 @@ pub enum FileEntry {
         custom_type: String,
         content: CustomMessageContent,
         display: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         details: Option<serde_json::Value>,
     },
 
@@ -156,7 +162,7 @@ pub enum FileEntry {
         parent_id: Option<String>,
         timestamp: String,
         target_id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         label: Option<String>,
     },
 
@@ -166,8 +172,11 @@ pub enum FileEntry {
         id: String,
         parent_id: Option<String>,
         timestamp: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
+        /// Display colour slot (1-6), if set by this entry.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<u8>,
     },
 }
 
@@ -240,6 +249,7 @@ mod tests {
     #[test]
     fn header_roundtrips() {
         let header = Header {
+            branch: None,
             version: Some(CURRENT_SESSION_VERSION),
             id: "sess-1".into(),
             timestamp: "2026-01-01T00:00:00.000Z".into(),
@@ -255,7 +265,7 @@ mod tests {
     fn message_entry_roundtrips() {
         let msg = AgentMessage::from_message(Message::User(UserMessage {
             content: vec![],
-            timestamp: None,
+            timestamp: 0,
         }));
         let entry = FileEntry::Message {
             id: "m1".into(),

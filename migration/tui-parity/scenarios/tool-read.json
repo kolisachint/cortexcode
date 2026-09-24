@@ -1,0 +1,19 @@
+{
+  "description": "The model calls the read tool on a workspace file, then answers; renders the tool execution block.",
+  "phase": "10.2",
+  "terminal": {"cols": 100, "rows": 34},
+  "files": {"notes.txt": "alpha\nbeta\ngamma\n"},
+  "llm": [
+    {"text": "Let me read it.", "tool_calls": [{"id": "call_read_1", "name": "read", "arguments": {"path": "notes.txt"}}]},
+    {"text": "The file has three lines: alpha, beta, gamma."}
+  ],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "read notes.txt"},
+    {"keys": ["Enter"]},
+    {"wait_for": "three lines", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "after-tool", "contains": ["notes.txt", "three lines"]}
+  ]
+}

@@ -265,6 +265,7 @@ mod tests {
 
     fn default_model() -> Model {
         Model {
+            compat: None,
             id: "gpt-test".into(),
             name: "GPT Test".into(),
             api: "openai-completions".into(),
@@ -299,6 +300,7 @@ mod tests {
     #[test]
     fn test_user_message_text_only() {
         let content = vec![Content::Text(TextContent {
+            text_signature: None,
             text: "hi".into(),
             cache_control: None,
         })];
@@ -311,6 +313,7 @@ mod tests {
     fn test_user_message_with_image() {
         let content = vec![
             Content::Text(TextContent {
+                text_signature: None,
                 text: "look".into(),
                 cache_control: None,
             }),
@@ -332,6 +335,7 @@ mod tests {
     #[test]
     fn test_assistant_message_with_tool_call() {
         let content = vec![Content::ToolCall(ToolCallContent {
+            thought_signature: None,
             id: "call_1".into(),
             name: "read_file".into(),
             arguments: serde_json::json!({"path": "a.rs"}),
@@ -353,6 +357,7 @@ mod tests {
     #[test]
     fn test_convert_messages_tool_result_with_image_hoists_user_message() {
         let messages = vec![Message::ToolResult(ToolResultMessage {
+            details: None,
             content: vec![Content::Image(ImageContent {
                 data: "xyz".into(),
                 media_type: "image/png".into(),
@@ -361,7 +366,7 @@ mod tests {
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
             is_error: false,
-            timestamp: None,
+            timestamp: 0,
         })];
         let out = convert_messages(&messages);
         assert_eq!(out.len(), 2);
@@ -374,14 +379,16 @@ mod tests {
     #[test]
     fn test_convert_messages_plain_tool_result() {
         let messages = vec![Message::ToolResult(ToolResultMessage {
+            details: None,
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "output here".into(),
                 cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
             is_error: false,
-            timestamp: None,
+            timestamp: 0,
         })];
         let out = convert_messages(&messages);
         assert_eq!(out.len(), 1);
@@ -396,10 +403,11 @@ mod tests {
             "be nice".into(),
             vec![Message::User(UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "hi".into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: 0,
             })],
             vec![],
         );
@@ -459,14 +467,21 @@ mod tests {
     #[test]
     fn test_assistant_content_roundtrip() {
         let msg = AiAssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "hello".into(),
                 cache_control: None,
             })],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         };
         let v = assistant_message(&msg.content).unwrap();

@@ -361,6 +361,7 @@ mod tests {
 
     fn model(base_url: &str) -> Model {
         Model {
+            compat: None,
             id: "gpt-5".into(),
             name: "GPT-5".into(),
             api: "azure-openai-responses".into(),
@@ -467,26 +468,35 @@ mod tests {
         let m = model("https://myres.openai.azure.com");
         let messages = vec![
             Message::Assistant(AssistantMessage {
+                provider: String::new(),
+                response_id: None,
+                response_model: None,
+                api: String::new(),
+                diagnostics: None,
+                model: String::new(),
                 content: vec![Content::ToolCall(ToolCallContent {
+                    thought_signature: None,
                     id: "call_1".into(),
                     name: "read_file".into(),
                     arguments: serde_json::json!({"path": "a.rs"}),
                 })],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: None,
+                stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: 0,
                 error_message: None,
             }),
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "contents".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
         ];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -507,26 +517,35 @@ mod tests {
         let m = model("https://myres.openai.azure.com");
         let messages = vec![
             Message::Assistant(AssistantMessage {
+                provider: String::new(),
+                response_id: None,
+                response_model: None,
+                api: String::new(),
+                diagnostics: None,
+                model: String::new(),
                 content: vec![Content::ToolCall(ToolCallContent {
+                    thought_signature: None,
                     id: "call_abc|fc_xyz789".into(),
                     name: "read_file".into(),
                     arguments: serde_json::json!({"path": "a.rs"}),
                 })],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: None,
+                stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: 0,
                 error_message: None,
             }),
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "contents".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_abc|fc_xyz789".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
         ];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -543,15 +562,22 @@ mod tests {
     fn test_convert_messages_forces_fc_prefix_on_item_id() {
         let m = model("https://myres.openai.azure.com");
         let messages = vec![Message::Assistant(AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::ToolCall(ToolCallContent {
+                thought_signature: None,
                 id: "call_1|rs_weird".into(),
                 name: "read_file".into(),
                 arguments: serde_json::json!({}),
             })],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -569,21 +595,29 @@ mod tests {
             "summary": [{"type": "summary_text", "text": "thinking"}]
         });
         let messages = vec![Message::Assistant(AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![
                 Content::Thinking(ThinkingContent {
+                    redacted: false,
                     thinking: "thinking".into(),
                     signature: Some(reasoning_item.to_string()),
                 }),
                 Content::ToolCall(ToolCallContent {
+                    thought_signature: None,
                     id: "call_1|fc_1".into(),
                     name: "read_file".into(),
                     arguments: serde_json::json!({}),
                 }),
             ],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -599,15 +633,22 @@ mod tests {
     fn test_convert_messages_drops_non_reasoning_signature() {
         let m = model("https://myres.openai.azure.com");
         let messages = vec![Message::Assistant(AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::Thinking(ThinkingContent {
+                redacted: false,
                 thinking: "thinking".into(),
                 // Not a Responses reasoning item — must not be resent.
                 signature: Some("not json".into()),
             })],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -629,10 +670,11 @@ mod tests {
             "".into(),
             vec![Message::User(UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "hi".into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: 0,
             })],
             vec![],
         );

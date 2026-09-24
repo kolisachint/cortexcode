@@ -1,0 +1,86 @@
+{
+  "_comment": "Volatile third-party crates may be depended on ONLY by their adapter crate(s), which expose cortexcode-owned types. Upgrading or swapping one of these deps must touch exactly the listed crates. Checked by migration/check_dep_firewall.py (CI). 'pending' lists current violations tolerated until the named ledger task fixes them; never add to it without a task id.",
+  "owners": {
+    "rmcp": [
+      "cortexcode-agent-mcp"
+    ],
+    "wasmtime": [
+      "cortexcode-code-extensions"
+    ],
+    "jsonwebtoken": [
+      "cortexcode-ai-provider-google"
+    ],
+    "eventsource-stream": [
+      "cortexcode-ai-sse"
+    ],
+    "reqwest-eventsource": [
+      "cortexcode-ai-sse"
+    ],
+    "jsonschema": [
+      "cortexcode-ai-util"
+    ],
+    "partial-json-fixer": [
+      "cortexcode-ai-util"
+    ],
+    "grep-searcher": [
+      "cortexcode-code-tool-search"
+    ],
+    "grep-regex": [
+      "cortexcode-code-tool-search"
+    ],
+    "htmd": [
+      "cortexcode-code-tool-web"
+    ],
+    "dom_smoothie": [
+      "cortexcode-code-tool-web"
+    ],
+    "process-wrap": [
+      "cortexcode-code-tool-bash"
+    ],
+    "similar": [
+      "cortexcode-code-tools-fs",
+      "cortexcode-code-tui-widgets"
+    ],
+    "syntect": [
+      "cortexcode-tui-highlight"
+    ],
+    "two-face": [
+      "cortexcode-tui-highlight"
+    ],
+    "pulldown-cmark": [
+      "cortexcode-tui-components"
+    ],
+    "arboard": [
+      "cortexcode-code-tui-app"
+    ],
+    "image": [
+      "cortexcode-code-media"
+    ],
+    "clap": [
+      "cortexcode-code-cli"
+    ],
+    "crossterm": [
+      "cortexcode-tui-terminal"
+    ],
+    "windows-sys": [
+      "cortexcode-tui-terminal"
+    ],
+    "serde_yaml_ng": [
+      "cortexcode-code-resources"
+    ],
+    "croner": [
+      "cortexcode-code-scheduler"
+    ],
+    "bm25": [
+      "cortexcode-code-capabilities"
+    ],
+    "notify": [
+      "cortexcode-code-watch"
+    ]
+  },
+  "pending": {
+    "crossterm": {
+      "cortexcode-code-main": "11.1 (interactive mode moves onto tui-render)"
+    }
+  }
+}

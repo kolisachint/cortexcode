@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-ai-registry"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "API provider registry for cortex AI: dispatches streams on model.api"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-types = { workspace = true }
+cortexcode-ai-provider-anthropic = { workspace = true }
+cortexcode-ai-provider-openai = { workspace = true }
+cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-provider-azure = { workspace = true }
+
+[dev-dependencies]
+cortexcode-ai-provider-faux = { workspace = true }

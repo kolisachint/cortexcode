@@ -1,8 +1,8 @@
 /target
-Cargo.lock
 **/*.rs.bk
 *.pdb
 .DS_Store
 scripts/__pycache__/
 .agents/
 .hoocode/dispatch/
+migration/**/__pycache__/

@@ -15,6 +15,7 @@ pub use permissions::*;
 pub fn text_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],
@@ -27,6 +28,7 @@ pub fn text_result(text: impl Into<String>) -> AgentToolResult {
 pub fn error_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],
@@ -220,7 +222,11 @@ pub fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let text = response.text()?;
     // Truncate very long responses
     if text.len() > 100000 {
-        Ok(format!("{}...[truncated, total {} bytes]", &text[..100000], text.len()))
+        Ok(format!(
+            "{}...[truncated, total {} bytes]",
+            &text[..100000],
+            text.len()
+        ))
     } else {
         Ok(text)
     }
@@ -236,27 +242,27 @@ pub fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
         .build()?;
     let response = client.get(&search_url).send()?;
     let html = response.text()?;
-    
+
     // Simple HTML parsing to extract results
     let mut results = Vec::new();
     let lines: Vec<&str> = html.lines().collect();
     let mut in_result = false;
     let mut current_title = String::new();
     let mut current_snippet = String::new();
-    
+
     for line in lines {
         if line.contains("result__a") {
             in_result = true;
             // Extract title
             if let Some(start) = line.find(">") {
                 if let Some(end) = line.find("</a>") {
-                    current_title = line[start+1..end].trim().to_string();
+                    current_title = line[start + 1..end].trim().to_string();
                 }
             }
         } else if in_result && line.contains("result__snippet") {
             if let Some(start) = line.find(">") {
                 if let Some(end) = line.find("</a>") {
-                    current_snippet = line[start+1..end].trim().to_string();
+                    current_snippet = line[start + 1..end].trim().to_string();
                 }
             }
             if !current_title.is_empty() {
@@ -267,11 +273,18 @@ pub fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
             in_result = false;
         }
     }
-    
+
     if results.is_empty() {
-        Ok(format!("No results found for '{}'. Visit: {}", query, search_url))
+        Ok(format!(
+            "No results found for '{}'. Visit: {}",
+            query, search_url
+        ))
     } else {
-        Ok(format!("Search results for '{}':\n\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "Search results for '{}':\n\n{}",
+            query,
+            results.join("\n\n")
+        ))
     }
 }
 
@@ -281,9 +294,13 @@ use std::sync::Mutex;
 static TODO_LIST: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// Perform a todo action.
-pub fn todo_action(action: &str, task: &str, id: usize) -> Result<String, Box<dyn std::error::Error>> {
+pub fn todo_action(
+    action: &str,
+    task: &str,
+    id: usize,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mut todos = TODO_LIST.lock().map_err(|e| format!("Lock error: {}", e))?;
-    
+
     match action {
         "add" => {
             if task.is_empty() {
@@ -296,8 +313,10 @@ pub fn todo_action(action: &str, task: &str, id: usize) -> Result<String, Box<dy
             if todos.is_empty() {
                 Ok("No todo items".to_string())
             } else {
-                let list = todos.iter().enumerate()
-                    .map(|(i, t)| format!("{}. [ ] {}", i+1, t))
+                let list = todos
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| format!("{}. [ ] {}", i + 1, t))
                     .collect::<Vec<_>>()
                     .join("\n");
                 Ok(format!("Todo list ({} items):\n{}", todos.len(), list))
@@ -305,9 +324,11 @@ pub fn todo_action(action: &str, task: &str, id: usize) -> Result<String, Box<dy
         }
         "done" => {
             if id == 0 || id > todos.len() {
-                return Err(format!("Invalid todo id: {}. Use 'list' to see available ids.", id).into());
+                return Err(
+                    format!("Invalid todo id: {}. Use 'list' to see available ids.", id).into(),
+                );
             }
-            let completed = todos.remove(id-1);
+            let completed = todos.remove(id - 1);
             Ok(format!("Completed todo #{}: {}", id, completed))
         }
         _ => Err(format!("Unknown action: {}. Use 'add', 'list', or 'done'.", action).into()),
@@ -643,15 +664,15 @@ mod tests {
         // Test add
         let result = todo_action("add", "Buy groceries", 0).unwrap();
         assert!(result.contains("Added todo"));
-        
+
         // Test list
         let result = todo_action("list", "", 0).unwrap();
         assert!(result.contains("Buy groceries"));
-        
+
         // Test done
         let result = todo_action("done", "", 1).unwrap();
         assert!(result.contains("Completed todo"));
-        
+
         // Test list after done
         let result = todo_action("list", "", 0).unwrap();
         assert!(result.contains("No todo items"));

@@ -51,11 +51,17 @@ impl AssistantMessageEventStream for AiMessageEventStream {
                 Ok(StreamMessage::Event(_)) => continue,
                 Err(_) => {
                     return AssistantMessage {
+                        provider: String::new(),
+                        response_id: None,
+                        response_model: None,
+                        api: String::new(),
+                        diagnostics: None,
+                        model: String::new(),
                         content: vec![],
-                        stop_reason: Some(cortexcode_ai_types::StopReason::Error),
-                        stop_sequence: None,
-                        usage: None,
-                        timestamp: None,
+                        stop_reason: cortexcode_ai_types::StopReason::Error,
+
+                        usage: Default::default(),
+                        timestamp: cortexcode_ai_types::now_ms(),
                         error_message: Some("Stream ended without result".into()),
                     };
                 }

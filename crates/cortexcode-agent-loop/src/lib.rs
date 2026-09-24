@@ -21,14 +21,8 @@ pub fn default_convert_to_llm(
 ) -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>> {
     Ok(messages
         .into_iter()
-        .filter_map(|msg| match msg.inner {
-            AgentMessageInner::Standard(m) => Some(m),
-            AgentMessageInner::Custom {
-                role: _,
-                content: _,
-                timestamp: _,
-            } => None,
-        })
+        // defaultConvertToLlm() in agent.ts: keep user/assistant/toolResult only.
+        .filter_map(|msg| msg.extract_message())
         .collect())
 }
 
@@ -124,6 +118,7 @@ impl BackgroundTaskManager {
                 Err(e) => (
                     AgentToolResult {
                         content: vec![Content::Text(TextContent {
+                            text_signature: None,
                             text: format!("Error: {}", e),
                             cache_control: None,
                         })],
@@ -454,39 +449,35 @@ fn execute_tool_calls_sequential(
         {
             let tc_owned: AgentToolCall = (*tc).clone();
 
+            // createBackgroundPlaceholderOutcome() in agent-loop.ts (generic fallback text).
             let placeholder = AgentMessage::from_message(Message::ToolResult(ToolResultMessage {
-                content: vec![Content::Text(TextContent {
-                    text: format!("Started {} in the background", tc.name),
-                    cache_control: None,
-                })],
+                details: Some(serde_json::json!({"background": true, "status": "running"})),
+                content: vec![Content::text(format!(
+                    "Started \"{}\" in the background. Its result will arrive as a follow-up message once it finishes — keep working in the meantime.",
+                    tc.name
+                ))],
                 tool_call_id: tc.id.clone(),
                 tool_name: tc.name.clone(),
                 is_error: false,
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             }));
             messages.push(placeholder);
 
             background.spawn_background(
                 tc_owned,
                 Box::new(move |id, args| execute_single_tool(&tool, &id, args)),
+                // createDefaultBackgroundResultMessage() in agent-loop.ts.
                 Box::new(|bg: BackgroundToolResult| {
-                    let content_text: String = bg
-                        .result
-                        .content
-                        .iter()
-                        .filter_map(|c| match c {
-                            Content::Text(t) => Some(t.text.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    AgentMessage::new(AgentMessageInner::Custom {
-                        role: "user".into(),
-                        content: vec![Content::Text(TextContent {
-                            text: content_text,
-                            cache_control: None,
-                        })],
-                        timestamp: None,
+                    let verb = if bg.is_error { "failed" } else { "finished" };
+                    let header = format!(
+                        "Background tool \"{}\" (id {}) {}:",
+                        bg.tool_call.name, bg.tool_call.id, verb
+                    );
+                    let mut content = vec![Content::text(header)];
+                    content.extend(bg.result.content.iter().cloned());
+                    AgentMessage::User(cortexcode_ai_types::UserMessage {
+                        content,
+                        timestamp: cortexcode_ai_types::now_ms(),
                     })
                 }),
                 None,
@@ -510,11 +501,12 @@ fn execute_tool_calls_sequential(
 
         messages.push(AgentMessage::from_message(Message::ToolResult(
             ToolResultMessage {
+                details: None,
                 content: final_result.content.clone(),
                 tool_call_id: tc.id.clone(),
                 tool_name: tc.name.clone(),
                 is_error,
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             },
         )));
 
@@ -570,6 +562,7 @@ fn execute_single_tool_call(
         }
         PreparedToolCallKind::Blocked { reason } => Ok(AgentToolResult {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: reason,
                 cache_control: None,
             })],
@@ -578,6 +571,7 @@ fn execute_single_tool_call(
         }),
         PreparedToolCallKind::NotFound => Ok(AgentToolResult {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: format!("Tool '{}' not found", tool_call.name),
                 cache_control: None,
             })],
@@ -599,6 +593,7 @@ fn apply_after_tool_call(
         Err(e) => (
             AgentToolResult {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: format!("Error: {}", e),
                     cache_control: None,
                 })],
@@ -683,10 +678,8 @@ pub fn run_agent_loop_continue(
         return Err("Cannot continue: no messages in context".into());
     }
 
-    if let Some(last) = context.messages.last() {
-        if let AgentMessageInner::Standard(Message::Assistant(_)) = &last.inner {
-            return Err("Cannot continue from message role: assistant".into());
-        }
+    if let Some(AgentMessage::Assistant(_)) = context.messages.last() {
+        return Err("Cannot continue from message role: assistant".into());
     }
 
     let mut new_messages = Vec::new();
@@ -782,10 +775,7 @@ fn run_loop(
                 message.clone(),
             )));
 
-            if matches!(
-                message.stop_reason,
-                Some(StopReason::Error | StopReason::Aborted)
-            ) {
+            if matches!(message.stop_reason, StopReason::Error | StopReason::Aborted) {
                 emit(AgentEvent::TurnEnd {
                     message: message.clone(),
                     tool_results: vec![],

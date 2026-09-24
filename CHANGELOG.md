@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration re-baseline (2026-09-24)
+- Pinned the port to hoocode v0.5.89 (`a6cd96e7`). An audit found the earlier
+  "100% complete" status overstated, and progress is now tracked in
+  `migration/ledger.json` (see `docs/design/hoocode-to-cortexcode-migration.md` §0).
+- Added two-level done gates: Level 1 = cargo checks, Level 2 = rendered-TUI parity
+  against hoocode via `migration/tui-parity/`.
+- Removed the stale status reports (`MIGRATION_*.md`, `TEST_RECORD.md`,
+  `E2E_TESTING_SUMMARY.md`, `OPENCODE_E2E_TEST_REPORT.md`, `QUICKSTART.md`).
+- Live OpenCode checks moved to `scripts/live/` and
+  `crates/cortexcode-ai-provider-openai/tests/opencode_live.rs` (`#[ignore]`d). The API
+  key now comes only from `OPENCODE_API_KEY`. A key previously committed in these
+  files must be rotated.
+
 ### Added
 - OpenCode API provider support (opencode, opencode-go)
 - mimo-v2.5-free as default model for OpenCode provider

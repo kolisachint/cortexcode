@@ -1,0 +1,63 @@
+{
+  "_comment": "Regex rules applied to BOTH apps' captured screens before comparison. {HOME}, {WORK}, {TMP} expand to the run's escaped temp paths. Keep rules minimal: every rule hides a potential difference.",
+  "rules": [
+    {
+      "pattern": "^┌─+ [a-z]+-[a-z]+ ──┐$",
+      "replace": "┌<editor-top-border: session-name badge, color derived from random session id>┐",
+      "style": "<masked>"
+    },
+    {
+      "pattern": "{WORK}",
+      "replace": "<WORK>"
+    },
+    {
+      "pattern": "{HOME}",
+      "replace": "<HOME>"
+    },
+    {
+      "pattern": "{TMP}",
+      "replace": "<TMP>"
+    },
+    {
+      "pattern": "/tmp/parity-[A-Za-z0-9_]+",
+      "replace": "<TMP>"
+    },
+    {
+      "pattern": "\\bhoo│code_",
+      "replace": "<WORDMARK>"
+    },
+    {
+      "pattern": "\\bHooCode\\b",
+      "replace": "<APP>"
+    },
+    {
+      "pattern": "\\bhoocode\\b",
+      "replace": "<app>"
+    },
+    {
+      "pattern": "\\bCortexCode\\b|\\bCortex\\b",
+      "replace": "<APP>"
+    },
+    {
+      "pattern": "\\bcortexcode\\b|\\bcortex\\b",
+      "replace": "<app>"
+    },
+    {
+      "pattern": "\\bv\\d+\\.\\d+\\.\\d+\\b",
+      "replace": "v<VERSION>"
+    },
+    {
+      "pattern": "\\b\\d+(\\.\\d+)?(ms|s)\\b",
+      "replace": "<DUR>"
+    },
+    {
+      "pattern": "^Pane is dead \\(status (\\d+), .*\\)$",
+      "replace": "<exited status=\\1>"
+    },
+    {
+      "pattern": "^ [○●] (Working\\.\\.\\.)$",
+      "replace": " <working-blink> \\1",
+      "style": "<masked: blinking indicator>"
+    }
+  ]
+}

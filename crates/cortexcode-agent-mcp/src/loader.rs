@@ -108,6 +108,7 @@ fn create_agent_tool(server_name: &str, conn: &McpConnectionRef, tool: &McpToolD
             let text = serde_json::to_string_pretty(&result).unwrap_or_else(|_| result.to_string());
             Ok(cortexcode_agent_types::AgentToolResult {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text,
                     cache_control: None,
                 })],

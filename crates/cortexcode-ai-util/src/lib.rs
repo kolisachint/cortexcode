@@ -254,7 +254,7 @@ use cortexcode_ai_types::{AssistantMessage, StopReason};
 ///    return successfully. Use `context_window` to detect via token counts.
 pub fn is_context_overflow(message: &AssistantMessage, context_window: Option<u64>) -> bool {
     // Case 1: Check error message patterns.
-    if message.stop_reason == Some(StopReason::Error) {
+    if message.stop_reason == StopReason::Error {
         if let Some(ref err) = message.error_message {
             if !is_non_overflow(err) && overflow_patterns().iter().any(|p| p.is_match(err)) {
                 return true;
@@ -262,33 +262,24 @@ pub fn is_context_overflow(message: &AssistantMessage, context_window: Option<u6
         }
     }
 
-    let Some(cw) = context_window else {
+    // `contextWindow &&` in TS: absent or 0 disables the usage-based checks.
+    let Some(cw) = context_window.filter(|cw| *cw > 0) else {
         return false;
     };
+    let input_tokens = message.usage.input + message.usage.cache_read;
 
     // Case 2: Silent overflow (z.ai style) — successful but usage exceeds context.
-    if message.stop_reason == Some(StopReason::EndTurn) {
-        if let Some(ref usage) = message.usage {
-            let input_tokens = usage.input + usage.cache_read;
-            if input_tokens > cw {
-                return true;
-            }
-        }
+    if message.stop_reason == StopReason::Stop && input_tokens > cw {
+        return true;
     }
 
-    // Case 3: Length-stop overflow (Xiaomi MiMo style) — server truncates input
-    // to fit context window, leaving no room for output.
-    if message.stop_reason == Some(StopReason::StopSequence)
-        || message.stop_reason == Some(StopReason::MaxTokens)
+    // Case 3: Length-stop overflow (Xiaomi MiMo style) — server truncates oversized
+    // input to fit the context window, leaving no room for output.
+    if message.stop_reason == StopReason::Length
+        && message.usage.output == 0
+        && input_tokens as f64 >= cw as f64 * 0.99
     {
-        if let Some(ref usage) = message.usage {
-            if usage.output == 0 {
-                let input_tokens = usage.input + usage.cache_read;
-                if input_tokens as f64 >= cw as f64 * 0.99 {
-                    return true;
-                }
-            }
-        }
+        return true;
     }
 
     false
@@ -439,11 +430,17 @@ mod tests {
 
     fn make_error_msg(msg: &str) -> AssistantMessage {
         AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![],
-            stop_reason: Some(StopReason::Error),
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: StopReason::Error,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: Some(msg.to_string()),
         }
     }
@@ -475,11 +472,17 @@ mod tests {
     #[test]
     fn test_not_overflow_no_error() {
         let msg = AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![],
-            stop_reason: Some(StopReason::EndTurn),
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         };
         assert!(!is_context_overflow(&msg, Some(100_000)));
@@ -488,18 +491,24 @@ mod tests {
     #[test]
     fn test_silent_overflow_z_ai() {
         let msg = AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![],
-            stop_reason: Some(StopReason::EndTurn),
-            stop_sequence: None,
-            usage: Some(cortexcode_ai_types::Usage {
+            stop_reason: StopReason::Stop,
+
+            usage: cortexcode_ai_types::Usage {
                 input: 150_000,
                 output: 100,
                 cache_read: 0,
                 cache_write: 0,
                 total_tokens: 150_100,
                 cost: cortexcode_ai_types::Cost::default(),
-            }),
-            timestamp: None,
+            },
+            timestamp: 0,
             error_message: None,
         };
         assert!(is_context_overflow(&msg, Some(100_000)));

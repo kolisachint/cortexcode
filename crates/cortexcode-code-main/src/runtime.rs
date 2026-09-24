@@ -10,7 +10,6 @@ use cortexcode_agent_core::PromptInput;
 use cortexcode_agent_core::{Agent, AgentOptions};
 use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
-use cortexcode_ai_models::get_model;
 use cortexcode_ai_types::{
     AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
 };
@@ -233,25 +232,37 @@ fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGa
 }
 
 /// Create the streaming function for a given provider.
-fn make_stream_fn(provider: &str) -> Option<StreamFn> {
-    match provider {
-        "anthropic" => Some(Box::new(cortexcode_ai_provider_anthropic::stream)),
-        "openai" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
-        "opencode" | "opencode-go" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
-        "google" => Some(Box::new(cortexcode_ai_provider_google::stream)),
-        "azure" => Some(Box::new(cortexcode_ai_provider_azure::stream)),
-        _ => None,
-    }
+/// Streams are dispatched on `model.api` through the API registry (ledger 8.2a),
+/// so any provider whose models use a registered API works.
+fn make_stream_fn() -> StreamFn {
+    Box::new(cortexcode_ai_registry::stream_simple)
 }
 
 /// Build an `Agent` from CLI arguments with a configured permission gate.
 fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
-    let model = get_model(&provider, &model_id)
+    // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
+    let registry = match cortexcode_code_models::default_models_json_path() {
+        Some(path) => cortexcode_code_models::ModelRegistry::create(path),
+        None => cortexcode_code_models::ModelRegistry::in_memory(),
+    };
+    let mut model = registry
+        .find(&provider, &model_id)
         .cloned()
         .ok_or_else(|| RuntimeError::Setup(format!("unknown model {}:{}", provider, model_id)))?;
 
-    let api_key = resolve_api_key(&provider, args);
+    // CLI/config/env/OAuth first (existing behavior), then models.json request auth.
+    // Full auth.json precedence arrives with code-auth (ledger 10.4b).
+    let request_auth = registry
+        .get_api_key_and_headers(&model, &cortexcode_code_models::NoAuth)
+        .map_err(RuntimeError::Setup)?;
+    if let Some(headers) = request_auth.headers {
+        model
+            .headers
+            .get_or_insert_with(Default::default)
+            .extend(headers);
+    }
+    let api_key = resolve_api_key(&provider, args).or(request_auth.api_key);
     if api_key.is_none() {
         let supported = ["anthropic", "openai", "opencode", "google", "azure"];
         let is_known = supported.contains(&provider.as_str());
@@ -294,7 +305,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     };
 
     let permission_gate = Some(build_permission_gate(args, interactive));
-    let stream_fn = make_stream_fn(&provider).map(std::sync::Arc::new);
+    let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
 
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state),
@@ -336,10 +347,11 @@ fn build_user_messages(args: &Args) -> Vec<AgentMessage> {
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.to_string(),
             cache_control: None,
         })],
-        timestamp: None,
+        timestamp: cortexcode_ai_types::now_ms(),
     }))
 }
 
@@ -381,7 +393,7 @@ pub fn run_print_mode(
             if let Some(error) = &am.error_message {
                 return Err(RuntimeError::Agent(error.clone()));
             }
-            if am.stop_reason == Some(cortexcode_ai_types::StopReason::Error) {
+            if am.stop_reason == cortexcode_ai_types::StopReason::Error {
                 let msg = am
                     .error_message
                     .clone()

@@ -14,6 +14,7 @@ members = [
     "crates/cortexcode-ai-provider-faux",
     "crates/cortexcode-ai-provider-google",
     "crates/cortexcode-ai-provider-openai",
+    "crates/cortexcode-ai-registry",
     "crates/cortexcode-ai-stream",
     "crates/cortexcode-ai-types",
     "crates/cortexcode-ai-util",
@@ -34,6 +35,7 @@ members = [
     "crates/cortexcode-code-config",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
+    "crates/cortexcode-code-models",
     "crates/cortexcode-code-print",
     "crates/cortexcode-code-prompts",
     "crates/cortexcode-code-resources",
@@ -61,7 +63,7 @@ authors = ["Mario Zechner (original author)", "Sachin Koli (HooCode fork)"]
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/kolisachint/cortexcode"
-rust-version = "1.78"
+rust-version = "1.88"
 
 [workspace.dependencies]
 cortexcode = { path = "crates/cortexcode" }
@@ -95,6 +97,8 @@ cortexcode-code-config = { path = "crates/cortexcode-code-config" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
 cortexcode-code-print = { path = "crates/cortexcode-code-print" }
+cortexcode-code-models = { path = "crates/cortexcode-code-models" }
+cortexcode-ai-registry = { path = "crates/cortexcode-ai-registry" }
 cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }
@@ -115,3 +119,10 @@ cortexcode-tui-util = { path = "crates/cortexcode-tui-util" }
 [workspace.metadata.cortex]
 # Lockstep version bump script uses this as the single source of truth.
 # All crates must share the workspace `version` above.
+
+[workspace.metadata.cortex.source]
+# Pinned hoocode snapshot this migration ports from. Changing the pin is a
+# deliberate PR; see docs/design/hoocode-to-cortexcode-migration.md §0.1.
+repository = "https://github.com/kolisachint/hoocode"
+hoocode-version = "0.5.89"
+hoocode-commit = "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"

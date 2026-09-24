@@ -4,6 +4,7 @@
 # This script tests the OpenCode provider integration thoroughly
 
 set -e
+cd "$(dirname "$0")/../.."
 
 echo "============================================"
 echo "OpenCode API End-to-End Testing Suite"
@@ -12,7 +13,7 @@ echo "============================================"
 echo ""
 
 # Set the API key
-export OPENCODE_API_KEY="sk-YbD8JYT7pQuD1gEd8Gx5f4qR6itxCdqpjlnuLy0nqiU9FUMLQKTJumJmU3ouq62Q"
+: "${OPENCODE_API_KEY:?set OPENCODE_API_KEY to run live tests}"
 
 echo "✓ API key configured"
 echo ""

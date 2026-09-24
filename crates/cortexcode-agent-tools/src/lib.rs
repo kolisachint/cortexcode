@@ -99,6 +99,7 @@ impl FromIterator<AgentTool> for ToolRegistry {
 pub fn text_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],
@@ -117,6 +118,7 @@ pub fn json_result<T: serde::Serialize>(value: T) -> Result<AgentToolResult, ser
 pub fn terminate_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],
@@ -128,11 +130,12 @@ pub fn terminate_result(text: impl Into<String>) -> AgentToolResult {
 /// Build a tool result message suitable for appending to a conversation.
 pub fn tool_result_message(tool_call: &AgentToolCall, result: &AgentToolResult) -> Message {
     Message::ToolResult(ToolResultMessage {
+        details: None,
         content: result.content.clone(),
         tool_call_id: tool_call.id.clone(),
         tool_name: tool_call.name.clone(),
         is_error: false,
-        timestamp: None,
+        timestamp: cortexcode_ai_types::now_ms(),
     })
 }
 

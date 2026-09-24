@@ -5,7 +5,7 @@
 
 use cortexcode_ai_types::{
     AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
-    ThinkingLevel,
+    ThinkingLevel, ToolResultMessage, UserMessage,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -160,41 +160,137 @@ pub enum AssistantMessagePartialEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Agent message (extensible)
+// Agent message (hoocode `AgentMessage` union, tagged by `role`)
 // ---------------------------------------------------------------------------
+//
+// Mirrors `AgentMessage` in hoocode `packages/agent/src/types.ts` plus the harness
+// roles declared in `packages/agent/src/harness/messages.ts`. Serialized exactly as
+// in hoocode session files: `{"role":"user",...}`, `{"role":"bashExecution",...}`.
 
-/// Agent message: a `Message` or a custom app message.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentMessage {
-    pub inner: AgentMessageInner,
+/// `!` / `!!` bash execution recorded in the conversation (`role: "bashExecution"`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BashExecutionMessage {
+    pub command: String,
+    pub output: String,
+    /// `undefined` in TS when the process did not exit normally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    pub cancelled: bool,
+    pub truncated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_output_path: Option<String>,
+    pub timestamp: i64,
+    /// `!!` prefix: excluded from LLM context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude_from_context: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AgentMessageInner {
-    Standard(Message),
-    Custom {
-        role: String,
-        content: Vec<Content>,
-        timestamp: Option<i64>,
-    },
+/// Extension-injected message (`role: "custom"`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomMessage {
+    pub custom_type: String,
+    #[serde(deserialize_with = "cortexcode_ai_types::deserialize_string_or_blocks")]
+    pub content: Vec<Content>,
+    pub display: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+    pub timestamp: i64,
+}
+
+/// Summary of an abandoned branch (`role: "branchSummary"`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSummaryMessage {
+    pub summary: String,
+    pub from_id: String,
+    pub timestamp: i64,
+}
+
+/// Compaction summary (`role: "compactionSummary"`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactionSummaryMessage {
+    pub summary: String,
+    pub tokens_before: u64,
+    /// Absent on entries written before this field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_after: Option<u64>,
+    pub timestamp: i64,
+}
+
+/// A conversation message as seen by the agent: an LLM message or a harness message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "role")]
+pub enum AgentMessage {
+    #[serde(rename = "user")]
+    User(UserMessage),
+    #[serde(rename = "assistant")]
+    Assistant(AssistantMessage),
+    #[serde(rename = "toolResult")]
+    ToolResult(ToolResultMessage),
+    #[serde(rename = "bashExecution")]
+    BashExecution(BashExecutionMessage),
+    #[serde(rename = "custom")]
+    Custom(CustomMessage),
+    #[serde(rename = "branchSummary")]
+    BranchSummary(BranchSummaryMessage),
+    #[serde(rename = "compactionSummary")]
+    CompactionSummary(CompactionSummaryMessage),
 }
 
 impl AgentMessage {
-    pub fn new(inner: AgentMessageInner) -> Self {
-        Self { inner }
-    }
-
+    /// Wrap an LLM message.
     pub fn from_message(message: Message) -> Self {
-        Self {
-            inner: AgentMessageInner::Standard(message),
+        match message {
+            Message::User(m) => AgentMessage::User(m),
+            Message::Assistant(m) => AgentMessage::Assistant(m),
+            Message::ToolResult(m) => AgentMessage::ToolResult(m),
         }
     }
 
-    /// Extract the inner `Message` if this is a standard message.
+    /// A user text message stamped with the current time.
+    pub fn user_text(text: impl Into<String>) -> Self {
+        AgentMessage::User(UserMessage {
+            content: vec![Content::text(text)],
+            timestamp: cortexcode_ai_types::now_ms(),
+        })
+    }
+
+    /// The LLM message, if this is a user/assistant/toolResult message.
     pub fn extract_message(&self) -> Option<Message> {
-        match &self.inner {
-            AgentMessageInner::Standard(m) => Some(m.clone()),
-            AgentMessageInner::Custom { .. } => None,
+        match self {
+            AgentMessage::User(m) => Some(Message::User(m.clone())),
+            AgentMessage::Assistant(m) => Some(Message::Assistant(m.clone())),
+            AgentMessage::ToolResult(m) => Some(Message::ToolResult(m.clone())),
+            _ => None,
+        }
+    }
+
+    /// The `role` discriminator as written on the wire.
+    pub fn role(&self) -> &'static str {
+        match self {
+            AgentMessage::User(_) => "user",
+            AgentMessage::Assistant(_) => "assistant",
+            AgentMessage::ToolResult(_) => "toolResult",
+            AgentMessage::BashExecution(_) => "bashExecution",
+            AgentMessage::Custom(_) => "custom",
+            AgentMessage::BranchSummary(_) => "branchSummary",
+            AgentMessage::CompactionSummary(_) => "compactionSummary",
+        }
+    }
+
+    /// Unix-ms timestamp of the message.
+    pub fn timestamp(&self) -> i64 {
+        match self {
+            AgentMessage::User(m) => m.timestamp,
+            AgentMessage::Assistant(m) => m.timestamp,
+            AgentMessage::ToolResult(m) => m.timestamp,
+            AgentMessage::BashExecution(m) => m.timestamp,
+            AgentMessage::Custom(m) => m.timestamp,
+            AgentMessage::BranchSummary(m) => m.timestamp,
+            AgentMessage::CompactionSummary(m) => m.timestamp,
         }
     }
 }

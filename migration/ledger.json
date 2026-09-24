@@ -1,0 +1,1507 @@
+{
+ "_comment": "Migration ledger - single source of truth for task status. Edit via migration/ledger.py. Order of 'tasks' is the execution order.",
+ "pin": {
+  "hoocode_version": "0.5.89",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
+ },
+ "statuses": {
+  "todo": "not started",
+  "in_progress": "being worked on (only one at a time)",
+  "l1_done": "programmatic gate green; L2 scenarios not yet passing (usually waiting on other tasks)",
+  "done": "L1 and L2 green (or L2 n/a with reason)",
+  "blocked": "see log",
+  "deferred": "needs a user go/no-go"
+ },
+ "tasks": [
+  {
+   "id": "7.0",
+   "title": "Docs hygiene: fold stale MIGRATION_*.md/TEST_RECORD/E2E docs into CHANGELOG, README points at plan + ledger",
+   "phase": 7,
+   "status": "done",
+   "depends": [],
+   "crates": [],
+   "sources": [],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: docs only",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-24T19:20:22Z",
+     "commit": "d7d1548",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:21:51Z",
+     "commit": "d7d1548",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:22:55Z",
+     "commit": "d7d1548",
+     "kind": "note",
+     "text": "cargo fmt was already failing on main (webfetch/websearch code from 8a8bc4e); fixed with cargo fmt --all. Note for 10.2e: webfetch truncates with &text[..100000], which panics on a UTF-8 boundary."
+    },
+    {
+     "at": "2026-09-24T19:22:55Z",
+     "commit": "d7d1548",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "7.1",
+   "title": "MSRV 1.88, rust-toolchain.toml, commit Cargo.lock (binary app), CI runs dep-firewall + ledger check",
+   "phase": 7,
+   "status": "done",
+   "depends": [],
+   "crates": [],
+   "sources": [],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/check_dep_firewall.py",
+    "python3 migration/ledger.py check"
+   ],
+   "l2": "n/a: build infra",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-24T19:24:52Z",
+     "commit": "f88b868",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:26:38Z",
+     "commit": "f88b868",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "7.2",
+   "title": "Hoocode-compatible wire types (role/type tags, camelCase, AssistantMessage api/provider/model/usage, custom agent roles, session entry field casing) + v1-v3 session migration",
+   "phase": 7,
+   "status": "done",
+   "depends": [
+    "7.1"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-agent-types",
+    "cortexcode-code-session",
+    "cortexcode-agent-harness",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-azure",
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-util",
+    "cortexcode-code-print"
+   ],
+   "sources": [
+    "packages/ai/src/types.ts",
+    "packages/agent/src/types.ts",
+    "packages/agent/src/harness/messages.ts",
+    "packages/coding-agent/src/core/session-manager.ts",
+    "packages/coding-agent/docs/session-format.md"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/session-manager/"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: serialization; acceptance = round-trip of hoocode-recorded sessions (harness --keep leaves ~/.hoocode/sessions/*.jsonl) as fixtures under tests/fixtures/hoocode-0.5.89/",
+   "notes": "Blocker A1. Every provider crate must be updated for the new AssistantMessage fields.",
+   "log": [
+    {
+     "at": "2026-09-24T19:26:47Z",
+     "commit": "5c82d01",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:45:38Z",
+     "commit": "5c82d01",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.4a",
+   "title": "Custom providers via models.json (~/.hoocode|~/.cortexcode), new crate code-models (registry = built-in catalog + custom)",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-code-models",
+    "cortexcode-code-main",
+    "cortexcode-ai-types",
+    "cortexcode-ai-models"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/model-registry.ts",
+    "packages/coding-agent/docs/models.md"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/model-registry*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic"
+   ],
+   "notes": "M1 slice: needed for any L2 scenario (the mock LLM is a custom provider).",
+   "log": [
+    {
+     "at": "2026-09-24T19:46:46Z",
+     "commit": "8d8ce6f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:50:59Z",
+     "commit": "8d8ce6f",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:51:29Z",
+     "commit": "8d8ce6f",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=fail"
+    },
+    {
+     "at": "2026-09-24T19:54:15Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
+  },
+  {
+   "id": "8.2a",
+   "title": "Dispatch streams on model.api (openai-completions, anthropic-messages, google-*, azure-openai-responses); remove hard-coded provider match in code-main",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-ai-registry",
+    "cortexcode-code-main",
+    "cortexcode-ai-provider-faux"
+   ],
+   "sources": [
+    "packages/ai/src/api-registry.ts",
+    "packages/ai/src/providers/register-builtins.ts",
+    "packages/ai/src/stream.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic"
+   ],
+   "notes": "API registry lives in its own crate cortexcode-ai-registry (umbrella crates stay code-free).",
+   "log": [
+    {
+     "at": "2026-09-24T19:52:18Z",
+     "commit": "c6e45c5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:54:06Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:54:36Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.7a",
+   "title": "New crate code-cli: clap-derived parser with exactly the pinned flag set; unported flags fail with a clear 'not yet supported'; code-main becomes a thin bin",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-code-cli",
+    "cortexcode-code-main"
+   ],
+   "sources": [
+    "packages/coding-agent/src/cli/args.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/args*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.8a",
+   "title": "Print mode text output parity (-p): final assistant text, exit codes, stderr errors",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.4a",
+    "8.2a",
+    "10.7a"
+   ],
+   "crates": [
+    "cortexcode-code-print"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/print-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic"
+   ],
+   "notes": "M1 milestone: first L2 green scenario.",
+   "log": []
+  },
+  {
+   "id": "10.2a",
+   "title": "read tool at pin semantics (line numbers, offset/limit, truncation, images, read-dedup) in new crates code-tool-api + code-tools-fs",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.8a"
+   ],
+   "crates": [
+    "cortexcode-code-tool-api",
+    "cortexcode-code-tools-fs"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/read.ts",
+    "packages/coding-agent/src/core/tools/read-dedup.ts",
+    "packages/coding-agent/src/core/tools/truncate.ts",
+    "packages/coding-agent/src/core/tools/path-utils.ts",
+    "packages/coding-agent/src/core/tools/tool-definition-wrapper.ts",
+    "packages/agent/src/harness/utils/truncate.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tools*.test.ts",
+    "packages/coding-agent/test/read*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-read"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.4c",
+   "title": "System prompt parity for the default tool bundle (same text the model sees, modulo app name)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-prompts"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/system-prompt.ts",
+    "packages/agent/src/harness/system-prompt.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-read"
+   ],
+   "notes": "print-tool-read compares requests.messages, which includes the system prompt.",
+   "log": []
+  },
+  {
+   "id": "7.3",
+   "title": "Async core: async reqwest + shared SSE decoder crate ai-sse (eventsource-stream), futures Stream events, CancellationToken abort; drop reqwest::blocking",
+   "phase": 7,
+   "status": "todo",
+   "depends": [
+    "10.8a"
+   ],
+   "crates": [
+    "cortexcode-ai-sse",
+    "cortexcode-ai-stream",
+    "cortexcode-ai-types",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-azure",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core"
+   ],
+   "sources": [
+    "packages/ai/src/utils/event-stream.ts",
+    "packages/ai/src/stream.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/abort.test.ts",
+    "packages/ai/test/stream.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic",
+    "print-tool-read"
+   ],
+   "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
+   "log": []
+  },
+  {
+   "id": "7.4",
+   "title": "One session stack: code-session is the implementation; agent-session reduced to the storage trait (memory + JSONL repo)",
+   "phase": 7,
+   "status": "todo",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-agent-session",
+    "cortexcode-code-session"
+   ],
+   "sources": [
+    "packages/agent/src/harness/session/"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "7.5",
+   "title": "Agent + loop parity: steering/follow-up queues, prepareNextTurn, transformContext, parallel tools, abort, full event sequence; port agent tests on faux",
+   "phase": 7,
+   "status": "todo",
+   "depends": [
+    "7.3"
+   ],
+   "crates": [
+    "cortexcode-agent-core",
+    "cortexcode-agent-loop"
+   ],
+   "sources": [
+    "packages/agent/src/agent.ts",
+    "packages/agent/src/agent-loop.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/agent.test.ts",
+    "packages/agent/test/agent-loop.test.ts",
+    "packages/agent/test/prepare-next-turn-refresh.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.1",
+   "title": "Model catalog at pin in new data crate ai-models-catalog (1224 models + image models, compat structs); ai-models keeps lookup logic",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-ai-models-catalog",
+    "cortexcode-ai-models",
+    "cortexcode-ai-types"
+   ],
+   "sources": [
+    "packages/ai/src/models.generated.ts",
+    "packages/ai/src/image-models.generated.ts",
+    "packages/ai/src/models.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/*models*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Volatile data isolated: regenerated on every pin bump by scripts/convert_models_to_json.py. ai-models stores the catalog in a HashMap, so per-provider model order is lost. TS getModels() order matters (parseModels uses builtIn[0] for defaults, and the lists are UI-visible). code-models currently sorts by id as a stopgap. Model.compat is untyped JSON until the compat structs land.",
+   "log": []
+  },
+  {
+   "id": "8.2",
+   "title": "All 31 known providers routed via api + compat; env-api-keys parity for every provider",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.1",
+    "8.2a"
+   ],
+   "crates": [
+    "cortexcode-ai",
+    "cortexcode-ai-env",
+    "cortexcode-ai-provider-openai"
+   ],
+   "sources": [
+    "packages/ai/src/env-api-keys.ts",
+    "packages/ai/src/providers/openai-completions.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/env-api-keys.test.ts",
+    "packages/ai/test/openai-completions-*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.3",
+   "title": "New crate ai-provider-openai-responses (extracted from azure); openai-responses API; azure depends on it",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "7.3"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-openai-responses",
+    "cortexcode-ai-provider-azure"
+   ],
+   "sources": [
+    "packages/ai/src/providers/openai-responses-shared.ts",
+    "packages/ai/src/providers/openai-responses.ts",
+    "packages/ai/src/providers/azure-openai-responses.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/openai-responses-*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.4a",
+   "title": "openai-codex-responses provider crate + ChatGPT OAuth crate ai-oauth-openai-codex",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.3",
+    "8.7"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-openai-codex",
+    "cortexcode-ai-oauth-openai-codex"
+   ],
+   "sources": [
+    "packages/ai/src/providers/openai-codex-responses.ts",
+    "packages/ai/src/utils/oauth/openai-codex.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/openai-codex-*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.4b",
+   "title": "GitHub Copilot routing (anthropic + openai backends) via compat/headers",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.2",
+    "8.7"
+   ],
+   "crates": [
+    "cortexcode-ai",
+    "cortexcode-ai-oauth-github-copilot"
+   ],
+   "sources": [
+    "packages/ai/src/utils/oauth/github-copilot.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/github-copilot-*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.4c",
+   "title": "google-gemini-cli + antigravity provider crate and OAuth crate ai-oauth-google",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "7.3",
+    "8.7"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-google-gemini-cli",
+    "cortexcode-ai-oauth-google"
+   ],
+   "sources": [
+    "packages/ai/src/providers/google-gemini-cli.ts",
+    "packages/ai/src/utils/oauth/google-gemini-cli.ts",
+    "packages/ai/src/utils/oauth/google-antigravity.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/google-gemini-cli.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.5",
+   "title": "Provider utilities: transform-messages, overflow, retry-delay, param-fallback, tool-constraints, simple-options, validation via jsonschema, partial JSON",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "7.3"
+   ],
+   "crates": [
+    "cortexcode-ai-util",
+    "cortexcode-ai"
+   ],
+   "sources": [
+    "packages/ai/src/providers/transform-messages.ts",
+    "packages/ai/src/utils/"
+   ],
+   "ts_tests": [
+    "packages/ai/test/cross-provider-handoff.test.ts",
+    "packages/ai/test/overflow.test.ts",
+    "packages/ai/test/retry-delay.test.ts",
+    "packages/ai/test/validation.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "8.6",
+   "title": "Port remaining ai test files (ledger of 68); live-key e2e tests as #[ignore]",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.5"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-google"
+   ],
+   "sources": [
+    "packages/ai/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
+   "log": []
+  },
+  {
+   "id": "8.7",
+   "title": "Split ai-oauth into core (PKCE, loopback server, types, refresh) + ai-oauth-anthropic + ai-oauth-github-copilot",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "7.3"
+   ],
+   "crates": [
+    "cortexcode-ai-oauth",
+    "cortexcode-ai-oauth-anthropic",
+    "cortexcode-ai-oauth-github-copilot"
+   ],
+   "sources": [
+    "packages/ai/src/utils/oauth/"
+   ],
+   "ts_tests": [
+    "packages/ai/test/anthropic-oauth.test.ts",
+    "packages/ai/test/github-copilot-oauth.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Each OAuth flow changes with its vendor: one crate per vendor.",
+   "log": []
+  },
+  {
+   "id": "9.1",
+   "title": "MCP on rmcp (stdio, streamable HTTP, SSE, OAuth); keep mcp.json loader + tool naming",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "7.3",
+    "7.1"
+   ],
+   "crates": [
+    "cortexcode-agent-mcp"
+   ],
+   "sources": [
+    "packages/agent/src/tools/mcp-tools.ts",
+    "packages/agent/src/tools/mcp-http-transport.ts",
+    "packages/agent/src/tools/mcp-oauth.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/tools/"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "mcp-tool-call"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "9.2",
+   "title": "Compaction + branch summarization + auto-compaction thresholds",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "7.5"
+   ],
+   "crates": [
+    "cortexcode-agent-compaction"
+   ],
+   "sources": [
+    "packages/agent/src/harness/compaction/",
+    "packages/coding-agent/src/core/agent-session-compaction.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "compact-command"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "9.3",
+   "title": "Harness utils: skills, prompt-templates, messages, truncate, shell-output, output-compression (deltas since 0.4.x)",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [
+    "cortexcode-agent-harness"
+   ],
+   "sources": [
+    "packages/agent/src/harness/"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/",
+    "packages/agent/test/utils/"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "9.4",
+   "title": "Agent harness + execution environment (env/nodejs.ts -> tokio)",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "7.5"
+   ],
+   "crates": [
+    "cortexcode-agent-harness"
+   ],
+   "sources": [
+    "packages/agent/src/harness/agent-harness.ts",
+    "packages/agent/src/harness/env/nodejs.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.1",
+   "title": "Split code-config into code-paths (dirs, env overrides, .hoocode fallback) + code-settings (types/defaults/manager/storage, fs4 locks, atomic writes, unknown-key passthrough)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.7a"
+   ],
+   "crates": [
+    "cortexcode-code-paths",
+    "cortexcode-code-settings",
+    "cortexcode-code-config"
+   ],
+   "sources": [
+    "packages/coding-agent/src/config.ts",
+    "packages/coding-agent/src/core/settings-manager.ts",
+    "packages/coding-agent/src/core/settings-types.ts",
+    "packages/coding-agent/src/core/settings-defaults.ts",
+    "packages/coding-agent/src/core/settings-storage.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/settings*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic"
+   ],
+   "notes": "Highest-churn core area (139 commits): schema isolated in code-settings.",
+   "log": []
+  },
+  {
+   "id": "10.2b",
+   "title": "bash tool: new crate code-tool-bash (process-wrap groups, timeout, abort, output accumulator, shell resolution)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a",
+    "7.3"
+   ],
+   "crates": [
+    "cortexcode-code-tool-bash"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/bash.ts",
+    "packages/coding-agent/src/core/bash-executor.ts",
+    "packages/coding-agent/src/core/tools/output-accumulator.ts",
+    "packages/coding-agent/src/utils/shell.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-bash",
+    "tool-bash"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.2c",
+   "title": "edit + write tools (edit-diff fuzzy matching via similar, file-mutation-queue)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tools-fs"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/edit.ts",
+    "packages/coding-agent/src/core/tools/edit-diff.ts",
+    "packages/coding-agent/src/core/tools/write.ts",
+    "packages/coding-agent/src/core/tools/file-mutation-queue.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/edit*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-edit",
+    "tool-edit"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.2d",
+   "title": "SearchCodebase lexical mode: new crate code-tool-search (grep-searcher + ignore)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tool-search"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/search.ts",
+    "packages/coding-agent/src/core/search/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-search"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.2e",
+   "title": "webfetch + websearch: new crate code-tool-web (htmd, dom_smoothie)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tool-web"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/webfetch.ts",
+    "packages/coding-agent/src/core/tools/websearch.ts",
+    "packages/coding-agent/src/core/tools/webtools-shared.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.2f",
+   "title": "Opt-in tools: TodoWrite, ask_options",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tool-api"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/todo.ts",
+    "packages/coding-agent/src/extensions/core/ask-options.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "todo-write"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.3",
+   "title": "New crate code-agent-session: AgentSession orchestrator (persist, retry, auto-compact, stats, tree navigation, model/thinking switch)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "7.5",
+    "7.4",
+    "10.1"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/agent-session-runtime.ts",
+    "packages/coding-agent/src/core/agent-session-services.ts",
+    "packages/coding-agent/src/core/agent-session-retry.ts",
+    "packages/coding-agent/src/core/agent-session-stats.ts",
+    "packages/coding-agent/src/core/agent-session-tree-navigation.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/agent-session*.test.ts",
+    "packages/coding-agent/test/suite/"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-continue"
+   ],
+   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
+   "log": []
+  },
+  {
+   "id": "10.4b",
+   "title": "Model resolver (--models scoping, patterns) + auth-storage (auth.json compat, locked refresh) in code-models / new code-auth",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.4a",
+    "10.1"
+   ],
+   "crates": [
+    "cortexcode-code-models",
+    "cortexcode-code-auth"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/model-resolver.ts",
+    "packages/coding-agent/src/core/auth-storage.ts",
+    "packages/coding-agent/src/core/auth-guidance.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/model-resolver*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "list-models"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.5",
+   "title": "Resources: resource-loader, skills, prompt templates, context files, slash-command discovery, agent frontmatter/registry (serde_yaml_ng)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.1"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/core/skills.ts",
+    "packages/coding-agent/src/core/prompt-templates.ts",
+    "packages/coding-agent/src/core/context-files.ts",
+    "packages/coding-agent/src/core/slash-commands.ts",
+    "packages/coding-agent/src/core/agent-frontmatter.ts",
+    "packages/coding-agent/src/core/agent-registry.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-context-files"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.5b",
+   "title": "New crate code-modes: ask/plan/build/debug modes, mode prompts, /mode /plan /approve semantics",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5"
+   ],
+   "crates": [
+    "cortexcode-code-modes"
+   ],
+   "sources": [
+    "packages/coding-agent/src/extensions/core/modes.ts",
+    "packages/coding-agent/src/core/mode-prompts.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "mode-plan"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.6",
+   "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-permissions"
+   ],
+   "sources": [
+    "packages/coding-agent/src/extensions/core/permission-gate.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "permission-prompt"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.7b",
+   "title": "CLI session flags (--continue/--resume/--session/--fork/--no-session/--session-dir), --list-models, --export, --tools/--no-tools, --thinking",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3",
+    "10.4b"
+   ],
+   "crates": [
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/cli/args.ts",
+    "packages/coding-agent/src/cli/list-models.ts",
+    "packages/coding-agent/src/cli/session-picker.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-continue",
+    "list-models"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.8b",
+   "title": "--mode json event stream parity",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-print"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/print-mode.ts",
+    "packages/coding-agent/docs/json.md"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "json-basic"
+   ],
+   "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
+   "log": []
+  },
+  {
+   "id": "10.8c",
+   "title": "RPC protocol parity (rpc-types/rpc-mode/jsonl) + Rust rpc client; replaces generic JSON-RPC server",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-rpc"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/rpc/",
+    "packages/coding-agent/docs/rpc.md"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/rpc*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "rpc-basic"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.9",
+   "title": "Subagents: pool, Task/TaskOutput tools, depth guard, lifeguard, inbox on the RPC protocol",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.8c"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/subagent-pool.ts",
+    "packages/coding-agent/src/core/tools/subagent.ts",
+    "packages/coding-agent/src/core/lifeguard.ts",
+    "packages/coding-agent/src/core/dispatch-evaluator.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "subagent-task"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.10",
+   "title": "Small core modules: exec, event-bus, git-branch, format-*, token-budget, output-guard, resolve-config-value, utils (paths, git, mime, tls-ca)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session",
+    "cortexcode-code-paths"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/",
+    "packages/coding-agent/src/utils/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.11",
+   "title": "New crate code-mcp: MCP server discovery (mcp-loader), deferred MCP, status",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "9.1",
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-mcp"
+   ],
+   "sources": [
+    "packages/coding-agent/src/extensions/core/mcp-loader.ts",
+    "packages/coding-agent/src/extensions/core/mcp-deferred.ts",
+    "packages/coding-agent/src/core/mcp-status.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "mcp-tool-call"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "11.1",
+   "title": "Interactive shell on ported TUI: new crates code-tui-app, code-tui-theme (theme.ts + JSON themes), code-tui-keybindings; header/editor/footer idle screen",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "10.3",
+    "10.1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-theme",
+    "cortexcode-code-tui-keybindings"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/theme/",
+    "packages/coding-agent/src/core/keybindings.ts",
+    "packages/coding-agent/src/modes/interactive/components/footer.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "startup"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "11.2",
+   "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (syntect); user/assistant messages, tool execution, diff, bash, summaries, usage line",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-tui-highlight"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "chat-basic",
+    "tool-read",
+    "tool-bash",
+    "tool-edit"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "11.3",
+   "title": "Selectors and dialogs: new crate code-tui-selectors (model, session, tree, settings, thinking, theme, login, ask-options)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "model-selector",
+    "session-resume"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "11.4",
+   "title": "Input: slash command executor, @file autocomplete, ! bash, clipboard (arboard) + image paste (code-media)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/utils/clipboard*.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "slash-commands",
+    "file-autocomplete"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "11.5",
+   "title": "Task panel + subagent progress",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2",
+    "10.9"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/task-panel.ts",
+    "packages/coding-agent/src/core/task-store.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "subagent-task"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "12.1",
+   "title": "Declarative plugins + marketplace (.agents-plugin, claude/copilot formats)",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-plugins"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/extensions/plugins/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.2",
+   "title": "Package manager (git/local sources)",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-packages"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/package-manager.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.3",
+   "title": "Code extensions (out-of-process protocol; wasm optional)",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-extensions"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/extensions/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.4",
+   "title": "Semantic/hybrid search + capability retrieval",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-capabilities"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/embsearch/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.5",
+   "title": "Scheduler, /loop, Cron tools (croner)",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-scheduler"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/scheduler.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.6",
+   "title": "Warm subagent pool",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/warm-subagent-pool.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "12.7",
+   "title": "learn, canvas, teams, voice, export-html/share, telemetry, version check (case-by-case)",
+   "phase": 12,
+   "status": "deferred",
+   "depends": [
+    "10.3"
+   ],
+   "crates": [
+    "cortexcode-code-extras"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a",
+   "notes": "Needs a go/no-go decision from the user before starting.",
+   "log": []
+  },
+  {
+   "id": "13.1",
+   "title": "Level-2 harness (tmux + mock LLM) and fixture recording from pinned hoocode",
+   "phase": 13,
+   "status": "done",
+   "depends": [],
+   "crates": [],
+   "sources": [
+    "migration/tui-parity/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: this is the harness",
+   "notes": "harness.py run/selfcheck/png; scenarios in migration/tui-parity/scenarios.",
+   "log": []
+  },
+  {
+   "id": "13.2",
+   "title": "Level-1 fixture replay: insta snapshot tests over hoocode-recorded sessions/json/rpc transcripts",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "7.2"
+   ],
+   "crates": [],
+   "sources": [
+    "migration/tui-parity/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: test infra",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "13.3",
+   "title": "Replace scripts/parity_test.sh (--help greps) with harness smoke; CI workflow tui-parity (manual/nightly)",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "10.8a"
+   ],
+   "crates": [],
+   "sources": [],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: test infra",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "13.4",
+   "title": "TS test port ledger: every one of the 400 TS test files marked ported/equivalent/n.a.",
+   "phase": 13,
+   "status": "todo",
+   "depends": [],
+   "crates": [],
+   "sources": [
+    "packages/*/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": []
+  }
+ ]
+}

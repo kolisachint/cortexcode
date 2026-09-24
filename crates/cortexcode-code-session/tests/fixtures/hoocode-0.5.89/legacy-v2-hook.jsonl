@@ -1,0 +1,3 @@
+{"type":"session","version":2,"id":"sess-2","timestamp":"2025-01-01T00:00:00Z","cwd":"/tmp"}
+{"type":"message","id":"abc12345","parentId":null,"timestamp":"2025-01-01T00:00:01Z","message":{"role":"user","content":"hi","timestamp":1}}
+{"type":"message","id":"def67890","parentId":"abc12345","timestamp":"2025-01-01T00:00:02Z","message":{"role":"hookMessage","customType":"x","content":"from hook","display":true,"timestamp":2}}

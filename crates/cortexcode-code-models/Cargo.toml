@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-code-models"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Model registry for the cortex coding agent: built-in catalog plus models.json custom providers and overrides"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-types = { workspace = true }
+cortexcode-ai-models = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+
+[dev-dependencies]
+tempfile = "3"

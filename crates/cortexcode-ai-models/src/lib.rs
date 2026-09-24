@@ -56,6 +56,7 @@ fn build_registry_from_json(model_list: &[serde_json::Value]) -> Registry {
             context_window: entry["contextWindow"].as_u64().unwrap_or(4096),
             max_tokens: entry["maxTokens"].as_u64().unwrap_or(4096),
             headers: parse_headers(entry),
+            compat: entry.get("compat").cloned(),
         };
 
         registry

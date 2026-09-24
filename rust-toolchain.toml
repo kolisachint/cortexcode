@@ -1,0 +1,6 @@
+# Development toolchain: pinned so fmt/clippy results match CI. The MSRV (1.88) is
+# `rust-version` in Cargo.toml and is checked separately.
+[toolchain]
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

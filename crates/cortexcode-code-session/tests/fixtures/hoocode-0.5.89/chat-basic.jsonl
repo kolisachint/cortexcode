@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"01a0d4ed-239d-768f-a000-3dc408b38115","timestamp":"2026-09-24T19:38:26.078Z","cwd":"/tmp/parity-s68r4l4q/work"}
+{"type":"model_change","id":"f99640fa","parentId":null,"timestamp":"2026-09-24T19:38:26.113Z","provider":"mock","modelId":"mock-model"}
+{"type":"thinking_level_change","id":"90e241c7","parentId":"f99640fa","timestamp":"2026-09-24T19:38:26.113Z","thinkingLevel":"off"}
+{"type":"message","id":"8e8bf9a3","parentId":"90e241c7","timestamp":"2026-09-24T19:38:27.324Z","message":{"role":"user","content":[{"type":"text","text":"say hello"}],"timestamp":1790278707312}}
+{"type":"message","id":"45802b2c","parentId":"8e8bf9a3","timestamp":"2026-09-24T19:38:27.483Z","message":{"role":"assistant","content":[{"type":"text","text":"Hello from the mock model. **bold** and `code`."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1790278707354,"responseId":"chatcmpl-mock"}}

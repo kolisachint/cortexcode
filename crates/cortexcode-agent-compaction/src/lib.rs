@@ -88,10 +88,11 @@ impl CompactionStrategy for SummaryStrategy {
         let summary_text = summarize_messages(older);
         let summary = AgentMessage::from_message(Message::User(cortexcode_ai_types::UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: format!("[Summary of earlier conversation]\n{}", summary_text),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: cortexcode_ai_types::now_ms(),
         }));
 
         let mut compacted = Vec::with_capacity(recent.len() + 1);
@@ -123,10 +124,11 @@ mod tests {
     fn user_msg(text: &str) -> AgentMessage {
         AgentMessage::from_message(Message::User(cortexcode_ai_types::UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: text.into(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: 0,
         }))
     }
 
