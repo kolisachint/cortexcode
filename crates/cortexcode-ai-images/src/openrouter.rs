@@ -101,7 +101,7 @@ pub fn generate_images(
         provider: model.provider.clone(),
         model: model.id.clone(),
         output: vec![],
-        stop_reason: StopReason::EndTurn,
+        stop_reason: StopReason::Stop,
         error_message: None,
         usage: None,
         timestamp: now_millis(),
@@ -167,6 +167,7 @@ pub fn generate_images(
         if let Some(text) = message["content"].as_str() {
             if !text.is_empty() {
                 output.output.push(Content::Text(TextContent {
+                    text_signature: None,
                     text: text.to_string(),
                     cache_control: None,
                 }));
@@ -264,6 +265,7 @@ mod tests {
         let context = ImagesContext {
             input: vec![
                 Content::Text(TextContent {
+                    text_signature: None,
                     text: "a cat".into(),
                     cache_control: None,
                 }),
@@ -296,6 +298,7 @@ mod tests {
         let model = test_model(base_url);
         let context = ImagesContext {
             input: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "a cat".into(),
                 cache_control: None,
             })],
@@ -306,7 +309,7 @@ mod tests {
         };
 
         let result = generate_images(&model, &context, &options);
-        assert_eq!(result.stop_reason, StopReason::EndTurn);
+        assert_eq!(result.stop_reason, StopReason::Stop);
         assert_eq!(result.output.len(), 2);
         match &result.output[0] {
             Content::Text(t) => assert_eq!(t.text, "here is a cat"),

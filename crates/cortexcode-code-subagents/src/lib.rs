@@ -372,6 +372,7 @@ pub fn task_tool(pool: SubagentPool) -> AgentTool {
             };
             Ok(AgentToolResult {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text,
                     cache_control: None,
                 })],

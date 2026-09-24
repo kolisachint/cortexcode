@@ -51,10 +51,11 @@ fn simple_text_context(prompt: &str) -> Context {
         vec![cortexcode_ai_types::Message::User(
             cortexcode_ai_types::UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: prompt.into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
         vec![],
@@ -68,10 +69,11 @@ fn tool_context(prompt: &str) -> Context {
         vec![cortexcode_ai_types::Message::User(
             cortexcode_ai_types::UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: prompt.into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
         vec![
@@ -162,9 +164,10 @@ fn test_basic_text_completion() {
     let done_event = events.last().unwrap();
     match done_event {
         cortexcode_ai_types::AssistantMessageEvent::Done { message } => {
-            assert!(
-                message.stop_reason.is_some(),
-                "Message should have a stop reason"
+            assert_ne!(
+                message.stop_reason,
+                cortexcode_ai_types::StopReason::Error,
+                "Message should not end in an error"
             );
             assert!(!message.content.is_empty(), "Message should have content");
         }
@@ -253,28 +256,37 @@ fn test_conversation_context() {
     let messages = vec![
         cortexcode_ai_types::Message::User(cortexcode_ai_types::UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "My name is Alice.".into(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: cortexcode_ai_types::now_ms(),
         }),
         cortexcode_ai_types::Message::Assistant(cortexcode_ai_types::AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "Hello Alice! Nice to meet you.".into(),
                 cache_control: None,
             })],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: cortexcode_ai_types::now_ms(),
             error_message: None,
         }),
         cortexcode_ai_types::Message::User(cortexcode_ai_types::UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "What is my name?".into(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: cortexcode_ai_types::now_ms(),
         }),
     ];
 
@@ -315,10 +327,11 @@ fn test_system_prompt() {
         vec![cortexcode_ai_types::Message::User(
             cortexcode_ai_types::UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "Hello!".into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
         vec![],
@@ -388,7 +401,8 @@ fn test_usage_tracking() {
     match done_event {
         cortexcode_ai_types::AssistantMessageEvent::Done { message } => {
             // Usage may or may not be present depending on the API
-            if let Some(usage) = &message.usage {
+            {
+                let usage = &message.usage;
                 assert!(usage.total_tokens > 0, "Total tokens should be positive");
                 println!("Usage: {:?}", usage);
             }
@@ -496,22 +510,17 @@ fn test_stop_reasons() {
 
     match done_event {
         cortexcode_ai_types::AssistantMessageEvent::Done { message } => {
-            match &message.stop_reason {
-                Some(reason) => {
-                    // Valid stop reasons
-                    assert!(
-                        matches!(
-                            reason,
-                            cortexcode_ai_types::StopReason::EndTurn
-                                | cortexcode_ai_types::StopReason::ToolUse
-                                | cortexcode_ai_types::StopReason::MaxTokens
-                        ),
-                        "Invalid stop reason: {:?}",
-                        reason
-                    );
-                }
-                None => panic!("Stop reason should be present"),
-            }
+            let reason = &message.stop_reason;
+            assert!(
+                matches!(
+                    reason,
+                    cortexcode_ai_types::StopReason::Stop
+                        | cortexcode_ai_types::StopReason::ToolUse
+                        | cortexcode_ai_types::StopReason::Length
+                ),
+                "Invalid stop reason: {:?}",
+                reason
+            );
         }
         other => panic!("Expected Done event, got: {:?}", other),
     }
@@ -655,10 +664,11 @@ fn test_multiple_tools() {
         vec![cortexcode_ai_types::Message::User(
             cortexcode_ai_types::UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "Search for all .rs files".into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
         tools,

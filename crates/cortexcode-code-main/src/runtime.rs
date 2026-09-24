@@ -336,10 +336,11 @@ fn build_user_messages(args: &Args) -> Vec<AgentMessage> {
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.to_string(),
             cache_control: None,
         })],
-        timestamp: None,
+        timestamp: cortexcode_ai_types::now_ms(),
     }))
 }
 
@@ -381,7 +382,7 @@ pub fn run_print_mode(
             if let Some(error) = &am.error_message {
                 return Err(RuntimeError::Agent(error.clone()));
             }
-            if am.stop_reason == Some(cortexcode_ai_types::StopReason::Error) {
+            if am.stop_reason == cortexcode_ai_types::StopReason::Error {
                 let msg = am
                     .error_message
                     .clone()

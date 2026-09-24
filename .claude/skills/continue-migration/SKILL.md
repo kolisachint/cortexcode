@@ -61,6 +61,16 @@ migration/tui-parity/setup_hoocode.sh     # idempotent: builds the pinned hoocod
    changed, what's left, and the exact next step. Keep it short.
 10. Go back to 0 and take the next task.
 
+## Tools
+
+- `migration/tools/fix_struct_fields.py`: compiler-driven fixer for struct-shape changes.
+  It inserts missing fields, deletes removed ones, and unwraps `Some`/`None` for fields
+  that are no longer optional. Extend its tables when you change a widely used type,
+  run it repeatedly (each crate layer surfaces errors only once its dependencies
+  compile), then review the diff.
+- Recording hoocode data (sessions, etc.): `harness.py run <scenario> --app hoocode --keep`,
+  then look in the kept temp HOME (path in `target/tui-parity/<scenario>/hoocode/tmpdir.txt`).
+
 ## Rules
 
 - **Never mark done by hand.** Only `ledger.py verify` sets `l1_done`/`done`. Don't edit

@@ -15,6 +15,7 @@ pub use permissions::*;
 pub fn text_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],
@@ -27,6 +28,7 @@ pub fn text_result(text: impl Into<String>) -> AgentToolResult {
 pub fn error_result(text: impl Into<String>) -> AgentToolResult {
     AgentToolResult {
         content: vec![Content::Text(TextContent {
+            text_signature: None,
             text: text.into(),
             cache_control: None,
         })],

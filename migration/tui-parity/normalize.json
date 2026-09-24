@@ -53,6 +53,11 @@
     {
       "pattern": "^Pane is dead \\(status (\\d+), .*\\)$",
       "replace": "<exited status=\\1>"
+    },
+    {
+      "pattern": "^ [○●] (Working\\.\\.\\.)$",
+      "replace": " <working-blink> \\1",
+      "style": "<masked: blinking indicator>"
     }
   ]
 }

@@ -243,8 +243,8 @@ pub fn convert_tools(tools: &[Tool], use_parameters: bool) -> Option<serde_json:
 /// Map a Gemini `finishReason` string to a cortex `StopReason`.
 pub fn map_stop_reason(reason: &str) -> StopReason {
     match reason {
-        "STOP" => StopReason::EndTurn,
-        "MAX_TOKENS" => StopReason::MaxTokens,
+        "STOP" => StopReason::Stop,
+        "MAX_TOKENS" => StopReason::Length,
         _ => StopReason::Error,
     }
 }
@@ -295,10 +295,11 @@ mod tests {
             "".into(),
             vec![Message::User(UserMessage {
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "hi".into(),
                     cache_control: None,
                 })],
-                timestamp: None,
+                timestamp: 0,
             })],
             vec![],
         );
@@ -313,15 +314,22 @@ mod tests {
         let ctx = Context::new(
             "".into(),
             vec![Message::Assistant(AssistantMessage {
+                api: String::new(),
+                provider: String::new(),
+                model: String::new(),
+                response_model: None,
+                response_id: None,
+                diagnostics: None,
                 content: vec![Content::ToolCall(ToolCallContent {
+                    thought_signature: None,
                     id: "call_1".into(),
                     name: "read_file".into(),
                     arguments: serde_json::json!({"path": "a.rs"}),
                 })],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: None,
+                stop_reason: StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: 0,
                 error_message: None,
             })],
             vec![],
@@ -339,15 +347,22 @@ mod tests {
         let ctx = Context::new(
             "".into(),
             vec![Message::Assistant(AssistantMessage {
+                api: String::new(),
+                provider: String::new(),
+                model: String::new(),
+                response_model: None,
+                response_id: None,
+                diagnostics: None,
                 content: vec![Content::ToolCall(ToolCallContent {
+                    thought_signature: None,
                     id: "call_1".into(),
                     name: "read_file".into(),
                     arguments: serde_json::json!({}),
                 })],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: None,
+                stop_reason: StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: 0,
                 error_message: None,
             })],
             vec![],
@@ -361,24 +376,28 @@ mod tests {
         let m = model("gemini-2.0-flash", &["text"]);
         let messages = vec![
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "result 1".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "result 2".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_2".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
         ];
         let ctx = Context::new("".into(), messages, vec![]);
@@ -391,14 +410,16 @@ mod tests {
     fn test_convert_messages_tool_result_error() {
         let m = model("gemini-2.0-flash", &["text"]);
         let messages = vec![Message::ToolResult(ToolResultMessage {
+            details: None,
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: "boom".into(),
                 cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
             is_error: true,
-            timestamp: None,
+            timestamp: 0,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
         let out = convert_messages(&m, &ctx);
@@ -412,6 +433,7 @@ mod tests {
     fn test_convert_messages_tool_result_with_image_gemini3_inline() {
         let m = model("gemini-3-pro", &["text", "image"]);
         let messages = vec![Message::ToolResult(ToolResultMessage {
+            details: None,
             content: vec![Content::Image(ImageContent {
                 data: "abc".into(),
                 media_type: "image/png".into(),
@@ -420,7 +442,7 @@ mod tests {
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
             is_error: false,
-            timestamp: None,
+            timestamp: 0,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
         let out = convert_messages(&m, &ctx);
@@ -436,6 +458,7 @@ mod tests {
     fn test_convert_messages_tool_result_with_image_gemini2_separate_turn() {
         let m = model("gemini-2.0-flash", &["text", "image"]);
         let messages = vec![Message::ToolResult(ToolResultMessage {
+            details: None,
             content: vec![Content::Image(ImageContent {
                 data: "abc".into(),
                 media_type: "image/png".into(),
@@ -444,7 +467,7 @@ mod tests {
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
             is_error: false,
-            timestamp: None,
+            timestamp: 0,
         })];
         let ctx = Context::new("".into(), messages, vec![]);
         let out = convert_messages(&m, &ctx);
@@ -488,8 +511,8 @@ mod tests {
 
     #[test]
     fn test_map_stop_reason() {
-        assert_eq!(map_stop_reason("STOP"), StopReason::EndTurn);
-        assert_eq!(map_stop_reason("MAX_TOKENS"), StopReason::MaxTokens);
+        assert_eq!(map_stop_reason("STOP"), StopReason::Stop);
+        assert_eq!(map_stop_reason("MAX_TOKENS"), StopReason::Length);
         assert_eq!(map_stop_reason("SAFETY"), StopReason::Error);
     }
 }

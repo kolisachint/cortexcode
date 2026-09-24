@@ -43,7 +43,13 @@ pub fn stream(
     let (sender, recv_stream) = AiMessageEventStream::new();
 
     std::thread::spawn(move || {
-        run_stream(url, headers, body, sender);
+        run_stream(
+            url,
+            headers,
+            body,
+            sender,
+            AssistantMessage::for_model(&model),
+        );
     });
 
     Ok(Box::new(recv_stream))
@@ -58,11 +64,16 @@ fn run_stream(
     headers: Vec<(String, String)>,
     body: serde_json::Value,
     sender: AiMessageEventSender,
+    template: AssistantMessage,
 ) {
     let client = match reqwest::blocking::Client::builder().build() {
         Ok(c) => c,
         Err(e) => {
-            fail(&sender, format!("failed to build HTTP client: {e}"));
+            fail(
+                &sender,
+                &template,
+                format!("failed to build HTTP client: {e}"),
+            );
             return;
         }
     };
@@ -75,7 +86,11 @@ fn run_stream(
     let response = match request.json(&body).send() {
         Ok(r) => r,
         Err(e) => {
-            fail(&sender, format!("request to Anthropic API failed: {e}"));
+            fail(
+                &sender,
+                &template,
+                format!("request to Anthropic API failed: {e}"),
+            );
             return;
         }
     };
@@ -83,19 +98,27 @@ fn run_stream(
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().unwrap_or_default();
-        fail(&sender, format!("Anthropic API returned {status}: {text}"));
+        fail(
+            &sender,
+            &template,
+            format!("Anthropic API returned {status}: {text}"),
+        );
         return;
     }
 
     let reader = BufReader::new(response);
     let events = sse::SseEvents::new(reader);
 
-    let mut state = StreamState::new();
+    let mut state = StreamState::new(template.clone());
     for frame in events {
         let payload = match frame {
             Ok(p) => p,
             Err(e) => {
-                fail(&sender, format!("error reading response stream: {e}"));
+                fail(
+                    &sender,
+                    &template,
+                    format!("error reading response stream: {e}"),
+                );
                 return;
             }
         };
@@ -116,13 +139,19 @@ fn run_stream(
     state.finish(&sender);
 }
 
-fn fail(sender: &AiMessageEventSender, message: String) {
+fn fail(sender: &AiMessageEventSender, template: &AssistantMessage, message: String) {
     let error = AssistantMessage {
+        provider: template.provider.clone(),
+        response_id: None,
+        response_model: None,
+        api: template.api.clone(),
+        diagnostics: None,
+        model: template.model.clone(),
         content: vec![],
-        stop_reason: Some(StopReason::Error),
-        stop_sequence: None,
-        usage: None,
-        timestamp: None,
+        stop_reason: StopReason::Error,
+
+        usage: Default::default(),
+        timestamp: cortexcode_ai_types::now_ms(),
         error_message: Some(message),
     };
     sender.push(AssistantMessageEvent::Error {
@@ -152,14 +181,20 @@ struct StreamState {
 }
 
 impl StreamState {
-    fn new() -> Self {
+    fn new(template: AssistantMessage) -> Self {
         Self {
             partial: AssistantMessage {
+                provider: template.provider.clone(),
+                response_id: None,
+                response_model: None,
+                api: template.api.clone(),
+                diagnostics: None,
+                model: template.model.clone(),
                 content: vec![],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: Some(now_millis()),
+                stop_reason: StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: now_millis(),
                 error_message: None,
             },
             block_kinds: HashMap::new(),
@@ -181,7 +216,7 @@ impl StreamState {
                 if !self.started {
                     self.started = true;
                     if let Some(usage) = value["message"].get("usage") {
-                        self.partial.usage = Some(parse_usage(usage, None));
+                        self.partial.usage = parse_usage(usage, None);
                     }
                     sender.push(AssistantMessageEvent::Start {
                         partial: self.partial.clone(),
@@ -271,13 +306,16 @@ impl StreamState {
             }
             "message_delta" => {
                 if let Some(stop_reason) = value["delta"]["stop_reason"].as_str() {
-                    self.partial.stop_reason = Some(map_stop_reason(stop_reason));
-                }
-                if let Some(stop_sequence) = value["delta"]["stop_sequence"].as_str() {
-                    self.partial.stop_sequence = Some(stop_sequence.to_string());
+                    match map_stop_reason(stop_reason) {
+                        Ok(reason) => self.partial.stop_reason = reason,
+                        Err(message) => {
+                            self.partial.stop_reason = StopReason::Error;
+                            self.partial.error_message = Some(message);
+                        }
+                    }
                 }
                 if let Some(usage) = value.get("usage") {
-                    self.partial.usage = Some(parse_usage(usage, self.partial.usage.as_ref()));
+                    self.partial.usage = parse_usage(usage, Some(&self.partial.usage));
                 }
                 false
             }
@@ -290,7 +328,7 @@ impl StreamState {
                     .as_str()
                     .unwrap_or("unknown Anthropic API error")
                     .to_string();
-                self.partial.stop_reason = Some(StopReason::Error);
+                self.partial.stop_reason = StopReason::Error;
                 self.partial.error_message = Some(message);
                 sender.push(AssistantMessageEvent::Error {
                     error: self.partial.clone(),
@@ -310,6 +348,7 @@ impl StreamState {
             BlockKind::Text => {
                 let text = self.text_buffers.remove(&index).unwrap_or_default();
                 self.partial.content.push(Content::Text(TextContent {
+                    text_signature: None,
                     text,
                     cache_control: None,
                 }));
@@ -324,6 +363,7 @@ impl StreamState {
                 self.partial
                     .content
                     .push(Content::Thinking(ThinkingContent {
+                        redacted: false,
                         thinking,
                         signature,
                     }));
@@ -343,6 +383,7 @@ impl StreamState {
                 self.partial
                     .content
                     .push(Content::ToolCall(ToolCallContent {
+                        thought_signature: None,
                         id,
                         name,
                         arguments,
@@ -356,9 +397,6 @@ impl StreamState {
     }
 
     fn finish(&mut self, sender: &AiMessageEventSender) {
-        if self.partial.stop_reason.is_none() {
-            self.partial.stop_reason = Some(StopReason::EndTurn);
-        }
         sender.push(AssistantMessageEvent::Done {
             message: self.partial.clone(),
         });
@@ -391,14 +429,22 @@ fn parse_usage(value: &serde_json::Value, previous: Option<&Usage>) -> Usage {
     }
 }
 
-fn map_stop_reason(reason: &str) -> StopReason {
-    match reason {
-        "end_turn" => StopReason::EndTurn,
-        "stop_sequence" => StopReason::StopSequence,
-        "max_tokens" => StopReason::MaxTokens,
+/// Port of `mapStopReason` in `providers/anthropic.ts`. Unknown values are an
+/// error there (`throw`), which ends the stream with `stopReason: "error"`.
+fn map_stop_reason(reason: &str) -> Result<StopReason, String> {
+    Ok(match reason {
+        "end_turn" => StopReason::Stop,
+        "max_tokens" => StopReason::Length,
         "tool_use" => StopReason::ToolUse,
-        other => StopReason::Other(other.to_string()),
-    }
+        "refusal" => StopReason::Error,
+        // Stop is good enough -> resubmit
+        "pause_turn" => StopReason::Stop,
+        // We don't supply stop sequences, so this should never happen
+        "stop_sequence" => StopReason::Stop,
+        // Content flagged by safety filters
+        "sensitive" => StopReason::Error,
+        other => return Err(format!("Unhandled stop reason: {other}")),
+    })
 }
 
 fn now_millis() -> i64 {
@@ -532,8 +578,8 @@ mod tests {
 
         match events.last().unwrap() {
             AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, Some(StopReason::EndTurn));
-                let usage = message.usage.as_ref().unwrap();
+                assert_eq!(message.stop_reason, StopReason::Stop);
+                let usage = &message.usage;
                 assert_eq!(usage.input, 10);
                 assert_eq!(usage.output, 5);
             }
@@ -572,7 +618,7 @@ mod tests {
 
         match events.last().unwrap() {
             AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, Some(StopReason::ToolUse));
+                assert_eq!(message.stop_reason, StopReason::ToolUse);
                 assert_eq!(message.content.len(), 1);
                 match &message.content[0] {
                     Content::ToolCall(tc) => {
@@ -604,7 +650,7 @@ mod tests {
         let events = collect(s);
         match events.last().unwrap() {
             AssistantMessageEvent::Error { error } => {
-                assert_eq!(error.stop_reason, Some(StopReason::Error));
+                assert_eq!(error.stop_reason, StopReason::Error);
                 assert!(error.error_message.as_ref().unwrap().contains("429"));
             }
             other => panic!("expected Error, got {other:?}"),
@@ -637,8 +683,15 @@ mod tests {
 
     #[test]
     fn test_map_stop_reason() {
-        assert_eq!(map_stop_reason("end_turn"), StopReason::EndTurn);
-        assert_eq!(map_stop_reason("tool_use"), StopReason::ToolUse);
-        assert_eq!(map_stop_reason("weird"), StopReason::Other("weird".into()));
+        assert_eq!(map_stop_reason("end_turn"), Ok(StopReason::Stop));
+        assert_eq!(map_stop_reason("tool_use"), Ok(StopReason::ToolUse));
+        assert_eq!(map_stop_reason("max_tokens"), Ok(StopReason::Length));
+        assert_eq!(map_stop_reason("refusal"), Ok(StopReason::Error));
+        assert_eq!(map_stop_reason("pause_turn"), Ok(StopReason::Stop));
+        assert_eq!(map_stop_reason("sensitive"), Ok(StopReason::Error));
+        assert_eq!(
+            map_stop_reason("weird"),
+            Err("Unhandled stop reason: weird".to_string())
+        );
     }
 }

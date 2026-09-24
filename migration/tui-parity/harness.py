@@ -347,13 +347,18 @@ def wait_for(tmux: Tmux, pattern: str, timeout: float, absent: bool = False) -> 
     raise StepError(f"timeout waiting for /{pattern}/ to {what}; screen was:\n{screen}")
 
 
-def wait_stable(tmux: Tmux, quiet: float, timeout: float) -> None:
+def wait_stable(tmux: Tmux, quiet: float, timeout: float, normalizer: "Normalizer") -> None:
+    """Wait until the *normalized* screen stops changing (masked animations don't count)."""
+
+    def snap() -> str:
+        return grid_styled(normalizer.apply(parse_screen(tmux.capture(styled=True))))
+
     deadline = time.time() + timeout
-    last = tmux.capture(styled=True)
+    last = snap()
     since = time.time()
     while time.time() < deadline:
         time.sleep(0.05)
-        cur = tmux.capture(styled=True)
+        cur = snap()
         if cur != last:
             last, since = cur, time.time()
         elif time.time() - since >= quiet:
@@ -446,7 +451,7 @@ def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: 
     elif "wait_gone" in step:
         wait_for(tmux, step["wait_gone"], timeout, absent=True)
     elif "wait_stable" in step:
-        wait_stable(tmux, float(step["wait_stable"]), timeout)
+        wait_stable(tmux, float(step["wait_stable"]), timeout, normalizer)
     elif "wait_exit" in step:
         deadline = time.time() + timeout
         while not tmux.dead():

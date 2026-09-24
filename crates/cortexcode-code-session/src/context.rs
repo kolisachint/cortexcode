@@ -5,8 +5,10 @@
 //! entries (custom messages, branch summaries) into `AgentMessage`s.
 
 use crate::entry::{CustomMessageContent, FileEntry};
-use cortexcode_agent_types::{AgentMessage, AgentMessageInner};
-use cortexcode_ai_types::{Content, TextContent};
+use cortexcode_agent_types::{
+    AgentMessage, BranchSummaryMessage, CompactionSummaryMessage, CustomMessage,
+};
+use cortexcode_ai_types::Content;
 
 /// Resolved model reference extracted from the session branch.
 #[derive(Debug, Clone)]
@@ -28,14 +30,11 @@ pub struct SessionContext {
     pub model: Option<ModelRef>,
 }
 
-const COMPACTION_SUMMARY_PREFIX: &str = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n";
-const COMPACTION_SUMMARY_SUFFIX: &str = "\n</summary>";
-
-const BRANCH_SUMMARY_PREFIX: &str =
-    "The following is a summary of a branch that this conversation came back from:\n\n<summary>\n";
-const BRANCH_SUMMARY_SUFFIX: &str = "\n</summary>";
-
 /// Build a `SessionContext` from a root-to-leaf list of entries.
+///
+/// Port of `buildSessionContext` in hoocode `packages/agent/src/harness/session/session.ts`:
+/// settings (thinking level, model) come from the whole path; messages start at the
+/// compaction summary (if any), then the kept entries before it, then everything after.
 pub fn build_session_context(entries: &[FileEntry]) -> SessionContext {
     let mut thinking_level = "off".to_string();
     let mut model: Option<ModelRef> = None;
@@ -57,6 +56,15 @@ pub fn build_session_context(entries: &[FileEntry]) -> SessionContext {
                     model_id: model_id.clone(),
                 });
             }
+            FileEntry::Message {
+                message: AgentMessage::Assistant(a),
+                ..
+            } => {
+                model = Some(ModelRef {
+                    provider: a.provider.clone(),
+                    model_id: a.model.clone(),
+                });
+            }
             FileEntry::Compaction { .. } => {
                 compaction = Some(entry);
             }
@@ -66,50 +74,44 @@ pub fn build_session_context(entries: &[FileEntry]) -> SessionContext {
 
     let mut messages = Vec::new();
 
-    if let Some(comp) = compaction {
-        if let FileEntry::Compaction {
-            summary,
-            timestamp,
-            first_kept_entry_id,
-            ..
-        } = comp
-        {
-            messages.push(make_custom_message(
-                "compactionSummary",
-                format!("{COMPACTION_SUMMARY_PREFIX}{summary}{COMPACTION_SUMMARY_SUFFIX}"),
+    match compaction {
+        Some(
+            comp @ FileEntry::Compaction {
+                summary,
                 timestamp,
-            ));
-
-            let compaction_id = comp.id().unwrap_or_default();
-            let first_kept_id = first_kept_entry_id;
-
+                first_kept_entry_id,
+                tokens_before,
+                tokens_after,
+                ..
+            },
+        ) => {
+            messages.push(AgentMessage::CompactionSummary(CompactionSummaryMessage {
+                summary: summary.clone(),
+                tokens_before: *tokens_before,
+                tokens_after: *tokens_after,
+                timestamp: parse_timestamp(timestamp),
+            }));
+            let compaction_idx = entries
+                .iter()
+                .position(|e| std::ptr::eq(e, comp))
+                .unwrap_or(entries.len());
             let mut found_first_kept = false;
-            for entry in entries {
-                if entry.id() == Some(compaction_id) {
-                    break;
-                }
-                if entry.id() == Some(first_kept_id) {
+            for entry in &entries[..compaction_idx] {
+                if entry.id() == Some(first_kept_entry_id.as_str()) {
                     found_first_kept = true;
                 }
                 if found_first_kept {
                     append_message(entry, &mut messages);
                 }
             }
-
-            let mut after_compaction = false;
-            for entry in entries {
-                if entry.id() == Some(compaction_id) {
-                    after_compaction = true;
-                    continue;
-                }
-                if after_compaction {
-                    append_message(entry, &mut messages);
-                }
+            for entry in entries.iter().skip(compaction_idx + 1) {
+                append_message(entry, &mut messages);
             }
         }
-    } else {
-        for entry in entries {
-            append_message(entry, &mut messages);
+        _ => {
+            for entry in entries {
+                append_message(entry, &mut messages);
+            }
         }
     }
 
@@ -122,76 +124,47 @@ pub fn build_session_context(entries: &[FileEntry]) -> SessionContext {
 
 fn append_message(entry: &FileEntry, messages: &mut Vec<AgentMessage>) {
     match entry {
-        FileEntry::Message { message, .. } => {
-            messages.push(message.clone());
-        }
+        FileEntry::Message { message, .. } => messages.push(message.clone()),
+        // createCustomMessage()
         FileEntry::CustomMessage {
             custom_type,
             content,
-            timestamp,
+            display,
             details,
+            timestamp,
             ..
-        } => {
-            let content_blocks = match content {
-                CustomMessageContent::Text(text) => {
-                    vec![Content::Text(TextContent {
-                        text: text.clone(),
-                        cache_control: None,
-                    })]
-                }
+        } => messages.push(AgentMessage::Custom(CustomMessage {
+            custom_type: custom_type.clone(),
+            content: match content {
+                CustomMessageContent::Text(text) => vec![Content::text(text.clone())],
                 CustomMessageContent::Blocks(blocks) => blocks.clone(),
-            };
-            let mut extra = Vec::new();
-            if let Some(details) = details {
-                extra.push(Content::Text(TextContent {
-                    text: format!(
-                        "<details>{}</details>",
-                        serde_json::to_string(details).unwrap_or_default()
-                    ),
-                    cache_control: None,
-                }));
-            }
-            let mut all = content_blocks;
-            all.extend(extra);
-            messages.push(AgentMessage::new(AgentMessageInner::Custom {
-                role: custom_type.clone(),
-                content: all,
-                timestamp: parse_timestamp(timestamp),
-            }));
-        }
+            },
+            display: *display,
+            details: details.clone(),
+            timestamp: parse_timestamp(timestamp),
+        })),
+        // createBranchSummaryMessage(), only for non-empty summaries
         FileEntry::BranchSummary {
             summary,
             from_id,
             timestamp,
             ..
-        } => {
-            messages.push(make_custom_message(
-                "branchSummary",
-                format!(
-                    "{BRANCH_SUMMARY_PREFIX}{summary}\n(from branch {from_id}){BRANCH_SUMMARY_SUFFIX}"
-                ),
-                timestamp,
-            ));
+        } if !summary.is_empty() => {
+            messages.push(AgentMessage::BranchSummary(BranchSummaryMessage {
+                summary: summary.clone(),
+                from_id: from_id.clone(),
+                timestamp: parse_timestamp(timestamp),
+            }))
         }
         _ => {}
     }
 }
 
-fn make_custom_message(role: &str, text: String, timestamp: &str) -> AgentMessage {
-    AgentMessage::new(AgentMessageInner::Custom {
-        role: role.to_string(),
-        content: vec![Content::Text(TextContent {
-            text,
-            cache_control: None,
-        })],
-        timestamp: parse_timestamp(timestamp),
-    })
-}
-
-fn parse_timestamp(ts: &str) -> Option<i64> {
+/// `new Date(timestamp).getTime()`; invalid dates become 0 (NaN in TS).
+fn parse_timestamp(ts: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(ts)
-        .ok()
-        .map(|dt| dt.with_timezone(&chrono::Utc).timestamp_millis())
+        .map(|dt| dt.timestamp_millis())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -203,11 +176,8 @@ mod tests {
 
     fn user_message(text: &str) -> AgentMessage {
         AgentMessage::from_message(Message::User(UserMessage {
-            content: vec![Content::Text(TextContent {
-                text: text.into(),
-                cache_control: None,
-            })],
-            timestamp: None,
+            content: vec![Content::text(text)],
+            timestamp: 0,
         }))
     }
 
@@ -268,5 +238,56 @@ mod tests {
         ];
         let ctx = build_session_context(&entries);
         assert_eq!(ctx.messages.len(), 3); // compaction summary + keep + new
+        match &ctx.messages[0] {
+            AgentMessage::CompactionSummary(c) => {
+                assert_eq!(c.summary, "summary");
+                assert_eq!(c.tokens_before, 100);
+                assert_eq!(c.timestamp, 1767225602000);
+            }
+            other => panic!("expected compaction summary first, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn context_model_from_assistant_and_branch_summary_messages() {
+        let assistant = AgentMessage::Assistant(cortexcode_ai_types::AssistantMessage {
+            provider: "anthropic".into(),
+            model: "claude-x".into(),
+            ..Default::default()
+        });
+        let entries = vec![
+            FileEntry::Message {
+                id: "m1".into(),
+                parent_id: None,
+                timestamp: "2026-01-01T00:00:00.000Z".into(),
+                message: assistant,
+            },
+            FileEntry::BranchSummary {
+                id: "b1".into(),
+                parent_id: Some("m1".into()),
+                timestamp: "2026-01-01T00:00:01.000Z".into(),
+                from_id: "x".into(),
+                summary: "left branch".into(),
+                details: None,
+                from_hook: None,
+            },
+            FileEntry::BranchSummary {
+                id: "b2".into(),
+                parent_id: Some("b1".into()),
+                timestamp: "2026-01-01T00:00:02.000Z".into(),
+                from_id: "y".into(),
+                summary: String::new(),
+                details: None,
+                from_hook: None,
+            },
+        ];
+        let ctx = build_session_context(&entries);
+        let m = ctx.model.expect("model from assistant message");
+        assert_eq!(
+            (m.provider.as_str(), m.model_id.as_str()),
+            ("anthropic", "claude-x")
+        );
+        assert_eq!(ctx.messages.len(), 2, "empty branch summaries are skipped");
+        assert!(matches!(&ctx.messages[1], AgentMessage::BranchSummary(b) if b.from_id == "x"));
     }
 }

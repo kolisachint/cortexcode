@@ -10,8 +10,7 @@ use cortexcode_agent_loop::{
     default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
 };
 use cortexcode_ai_types::{
-    self as ai_types, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
-    TextContent, ThinkingLevel,
+    self as ai_types, AssistantMessageEventStream, Model, SimpleStreamOptions, ThinkingLevel,
 };
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -382,7 +381,7 @@ impl Agent {
 
         // Check last message
         if let Some(last) = context.messages.last() {
-            if let AgentMessageInner::Standard(Message::Assistant(_)) = &last.inner {
+            if let AgentMessage::Assistant(_) = last {
                 // Try steering/follow-up messages first
                 let steering = self.steering_queue.lock().unwrap().drain();
                 if !steering.is_empty() {
@@ -427,14 +426,7 @@ impl Agent {
         match input {
             PromptInput::Messages(msgs) => msgs,
             PromptInput::Text(text) => {
-                vec![AgentMessage::new(AgentMessageInner::Custom {
-                    role: "user".into(),
-                    content: vec![Content::Text(TextContent {
-                        text,
-                        cache_control: None,
-                    })],
-                    timestamp: None,
-                })]
+                vec![AgentMessage::user_text(text)]
             }
         }
     }

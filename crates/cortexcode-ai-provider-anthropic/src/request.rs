@@ -267,10 +267,11 @@ mod tests {
     fn text_user(text: &str) -> Message {
         Message::User(UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: text.to_string(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: 0,
         })
     }
 
@@ -306,24 +307,28 @@ mod tests {
     fn test_convert_messages_merges_adjacent_tool_results() {
         let messages = vec![
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "result 1".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
             Message::ToolResult(ToolResultMessage {
+                details: None,
                 content: vec![Content::Text(TextContent {
+                    text_signature: None,
                     text: "result 2".into(),
                     cache_control: None,
                 })],
                 tool_call_id: "call_2".into(),
                 tool_name: "read_file".into(),
                 is_error: false,
-                timestamp: None,
+                timestamp: 0,
             }),
         ];
         let out = convert_messages(&messages, None);
@@ -341,15 +346,22 @@ mod tests {
     #[test]
     fn test_convert_messages_tool_call_block() {
         let messages = vec![Message::Assistant(cortexcode_ai_types::AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::ToolCall(ToolCallContent {
+                thought_signature: None,
                 id: "call_1".into(),
                 name: "read_file".into(),
                 arguments: serde_json::json!({"path": "a.rs"}),
             })],
-            stop_reason: None,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: cortexcode_ai_types::StopReason::Stop,
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: None,
         })];
         let out = convert_messages(&messages, None);
@@ -367,7 +379,7 @@ mod tests {
                 media_type: "image/png".into(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: 0,
         })];
         let out = convert_messages(&messages, None);
         assert_eq!(out[0]["content"][0]["type"], "image");

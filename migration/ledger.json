@@ -86,14 +86,24 @@
    "id": "7.2",
    "title": "Hoocode-compatible wire types (role/type tags, camelCase, AssistantMessage api/provider/model/usage, custom agent roles, session entry field casing) + v1-v3 session migration",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.1"
    ],
    "crates": [
     "cortexcode-ai-types",
     "cortexcode-agent-types",
-    "cortexcode-code-session"
+    "cortexcode-code-session",
+    "cortexcode-agent-harness",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-azure",
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-util",
+    "cortexcode-code-print"
    ],
    "sources": [
     "packages/ai/src/types.ts",
@@ -108,7 +118,20 @@
    "l1_cmds": [],
    "l2": "n/a: serialization; acceptance = round-trip of hoocode-recorded sessions (harness --keep leaves ~/.hoocode/sessions/*.jsonl) as fixtures under tests/fixtures/hoocode-0.5.89/",
    "notes": "Blocker A1. Every provider crate must be updated for the new AssistantMessage fields.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-24T19:26:47Z",
+     "commit": "5c82d01",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:45:38Z",
+     "commit": "5c82d01",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "10.4a",
@@ -296,7 +319,7 @@
     "print-basic",
     "print-tool-read"
    ],
-   "notes": "Refactor under L2 guard: M1 scenarios must stay green.",
+   "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
    "log": []
   },
   {
@@ -546,7 +569,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "notes": "The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
    "log": []
   },
   {
@@ -850,7 +873,7 @@
    "l2": [
     "print-continue"
    ],
-   "notes": "",
+   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
    "log": []
   },
   {
@@ -1000,7 +1023,7 @@
    "l2": [
     "json-basic"
    ],
-   "notes": "",
+   "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
    "log": []
   },
   {

@@ -50,6 +50,8 @@ pub type FauxResponseFactory =
     Box<dyn Fn(&Context, &SimpleStreamOptions, &Model) -> AssistantMessage + Send + Sync>;
 
 /// A single response step: either a pre-built message or a factory.
+// Queued test responses; not hot enough for boxing to matter.
+#[allow(clippy::large_enum_variant)]
 pub enum FauxResponseStep {
     /// A pre-built assistant message.
     Message(AssistantMessage),
@@ -152,10 +154,14 @@ impl FauxProvider {
                 responses.remove(0)
             };
 
-            let message = match step {
+            let mut message = match step {
                 FauxResponseStep::Message(msg) => msg,
                 FauxResponseStep::Factory(factory) => factory(&context, &options, &model),
             };
+            // cloneMessage() in faux.ts: the response is stamped with the requesting model.
+            message.api = model.api.clone();
+            message.provider = model.provider.clone();
+            message.model = model.id.clone();
 
             let (sender, stream) = AiMessageEventStream::new();
             stream_message(
@@ -183,18 +189,13 @@ fn stream_message(
     min_token_size: usize,
     max_token_size: usize,
 ) {
-    let usage = message
-        .usage
-        .clone()
-        .or_else(|| Some(estimate_usage(message, context)));
+    // withUsageEstimate() in faux.ts always replaces usage with an estimate.
+    let usage = estimate_usage(message, context);
 
     let mut partial = AssistantMessage {
         content: vec![],
-        stop_reason: message.stop_reason.clone(),
-        stop_sequence: message.stop_sequence.clone(),
         usage,
-        timestamp: message.timestamp,
-        error_message: message.error_message.clone(),
+        ..message.clone()
     };
 
     sender.push(AssistantMessageEvent::Start {
@@ -269,7 +270,7 @@ fn stream_message(
     }
 
     match &message.stop_reason {
-        Some(StopReason::Error) | Some(StopReason::Aborted) => {
+        StopReason::Error | StopReason::Aborted => {
             sender.push(AssistantMessageEvent::Error {
                 error: partial.clone(),
             });
@@ -379,6 +380,7 @@ fn split_into_chunks(text: &str, min_token_size: usize, max_token_size: usize) -
 /// Create a `TextContent` block.
 pub fn faux_text(text: &str) -> Content {
     Content::Text(TextContent {
+        text_signature: None,
         text: text.to_string(),
         cache_control: None,
     })
@@ -387,6 +389,7 @@ pub fn faux_text(text: &str) -> Content {
 /// Create a `ThinkingContent` block.
 pub fn faux_thinking(thinking: &str) -> Content {
     Content::Thinking(ThinkingContent {
+        redacted: false,
         thinking: thinking.to_string(),
         signature: None,
     })
@@ -395,6 +398,7 @@ pub fn faux_thinking(thinking: &str) -> Content {
 /// Create a `ToolCallContent` block.
 pub fn faux_tool_call(name: &str, arguments: serde_json::Value, id: Option<String>) -> Content {
     Content::ToolCall(ToolCallContent {
+        thought_signature: None,
         id: id.unwrap_or_else(|| format!("tool:{}", fast_hash(name))),
         name: name.to_string(),
         arguments,
@@ -404,16 +408,16 @@ pub fn faux_tool_call(name: &str, arguments: serde_json::Value, id: Option<Strin
 /// Build an `AssistantMessage` with text content.
 pub fn faux_text_message(text: &str, stop_reason: Option<StopReason>) -> AssistantMessage {
     AssistantMessage {
+        provider: String::new(),
+        response_id: None,
+        response_model: None,
+        api: String::new(),
+        diagnostics: None,
+        model: String::new(),
         content: vec![faux_text(text)],
-        stop_reason,
-        stop_sequence: None,
-        usage: Some(DEFAULT_USAGE),
-        timestamp: Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64,
-        ),
+        stop_reason: stop_reason.unwrap_or_default(),
+        usage: DEFAULT_USAGE,
+        timestamp: cortexcode_ai_types::now_ms(),
         error_message: None,
     }
 }
@@ -425,16 +429,16 @@ pub fn faux_message(
     error_message: Option<String>,
 ) -> AssistantMessage {
     AssistantMessage {
+        provider: String::new(),
+        response_id: None,
+        response_model: None,
+        api: String::new(),
+        diagnostics: None,
+        model: String::new(),
         content,
-        stop_reason,
-        stop_sequence: None,
-        usage: Some(DEFAULT_USAGE),
-        timestamp: Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64,
-        ),
+        stop_reason: stop_reason.unwrap_or_default(),
+        usage: DEFAULT_USAGE,
+        timestamp: cortexcode_ai_types::now_ms(),
         error_message,
     }
 }
@@ -519,23 +523,23 @@ mod tests {
 
     #[test]
     fn test_faux_text_message() {
-        let msg = faux_text_message("hello", Some(StopReason::EndTurn));
+        let msg = faux_text_message("hello", Some(StopReason::Stop));
         assert_eq!(msg.content.len(), 1);
-        assert_eq!(msg.stop_reason, Some(StopReason::EndTurn));
-        assert!(msg.timestamp.is_some());
+        assert_eq!(msg.stop_reason, StopReason::Stop);
+        assert!(msg.timestamp > 0);
     }
 
     #[test]
     fn test_faux_error_message() {
         let msg = faux_error("something went wrong");
-        assert_eq!(msg.stop_reason, Some(StopReason::Error));
+        assert_eq!(msg.stop_reason, StopReason::Error);
         assert_eq!(msg.error_message, Some("something went wrong".to_string()));
     }
 
     #[test]
     fn test_faux_aborted_message() {
         let msg = faux_aborted();
-        assert_eq!(msg.stop_reason, Some(StopReason::Aborted));
+        assert_eq!(msg.stop_reason, StopReason::Aborted);
         assert_eq!(msg.error_message, Some("Request was aborted".to_string()));
     }
 
@@ -546,11 +550,12 @@ mod tests {
         let provider = Arc::new(FauxProvider::new());
         provider.set_responses(vec![FauxResponseStep::Message(faux_text_message(
             "Hello!",
-            Some(StopReason::EndTurn),
+            Some(StopReason::Stop),
         ))]);
 
         let stream_fn = provider.stream_fn();
         let model = default_faux_model();
+        let expected = (model.api.clone(), model.provider.clone(), model.id.clone());
         let context = Context::new("".into(), vec![], vec![]);
         let options = SimpleStreamOptions::default();
 
@@ -578,6 +583,16 @@ mod tests {
         match events.last().unwrap() {
             AssistantMessageEvent::Done { message } => {
                 assert!(!message.content.is_empty());
+                // cloneMessage(): stamped with the requesting model.
+                assert_eq!(
+                    (
+                        message.api.clone(),
+                        message.provider.clone(),
+                        message.model.clone()
+                    ),
+                    expected
+                );
+                assert!(message.usage.total_tokens > 0, "usage is estimated");
             }
             other => panic!("expected Done event, got {:?}", other),
         }
@@ -638,8 +653,8 @@ mod tests {
     fn test_faux_provider_call_count() {
         let provider = Arc::new(FauxProvider::new());
         provider.set_responses(vec![
-            FauxResponseStep::Message(faux_text_message("A", Some(StopReason::EndTurn))),
-            FauxResponseStep::Message(faux_text_message("B", Some(StopReason::EndTurn))),
+            FauxResponseStep::Message(faux_text_message("A", Some(StopReason::Stop))),
+            FauxResponseStep::Message(faux_text_message("B", Some(StopReason::Stop))),
         ]);
 
         assert_eq!(provider.call_count(), 0);
@@ -662,7 +677,7 @@ mod tests {
     fn test_faux_provider_with_factory() {
         let provider = Arc::new(FauxProvider::new());
         provider.set_responses(vec![FauxResponseStep::Factory(Box::new(
-            |_ctx, _opts, _model| faux_text_message("Factory response", Some(StopReason::EndTurn)),
+            |_ctx, _opts, _model| faux_text_message("Factory response", Some(StopReason::Stop)),
         ))]);
 
         let stream_fn = provider.stream_fn();

@@ -93,7 +93,7 @@ pub fn assistant_text(message: &cortexcode_ai_types::AssistantMessage) -> String
 pub fn format_text_output(messages: &[AgentMessage]) -> String {
     match messages.last().and_then(|m| m.extract_message()) {
         Some(Message::Assistant(am)) => match am.stop_reason {
-            Some(StopReason::Error | StopReason::Aborted) => {
+            StopReason::Error | StopReason::Aborted => {
                 format!(
                     "Error: {}",
                     am.error_message.as_deref().unwrap_or("request failed")
@@ -391,14 +391,21 @@ mod tests {
         error_message: Option<&str>,
     ) -> AgentMessage {
         AgentMessage::from_message(Message::Assistant(AssistantMessage {
+            provider: String::new(),
+            response_id: None,
+            response_model: None,
+            api: String::new(),
+            diagnostics: None,
+            model: String::new(),
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: text.to_string(),
                 cache_control: None,
             })],
-            stop_reason: stop,
-            stop_sequence: None,
-            usage: None,
-            timestamp: None,
+            stop_reason: stop.unwrap_or_default(),
+
+            usage: Default::default(),
+            timestamp: 0,
             error_message: error_message.map(|s| s.to_string()),
         }))
     }
@@ -406,10 +413,11 @@ mod tests {
     fn make_user(text: &str) -> AgentMessage {
         AgentMessage::from_message(Message::User(UserMessage {
             content: vec![Content::Text(TextContent {
+                text_signature: None,
                 text: text.to_string(),
                 cache_control: None,
             })],
-            timestamp: None,
+            timestamp: 0,
         }))
     }
 

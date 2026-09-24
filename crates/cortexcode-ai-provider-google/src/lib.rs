@@ -49,7 +49,7 @@ pub fn stream(
         .map(|h| h.into_iter().collect())
         .unwrap_or_default();
 
-    spawn_stream(url, headers, body)
+    spawn_stream(url, headers, body, AssistantMessage::for_model(&model))
 }
 
 /// Stream a completion from Vertex AI.
@@ -78,17 +78,18 @@ pub fn stream_vertex(
         }
     }
 
-    spawn_stream(url, headers, body)
+    spawn_stream(url, headers, body, AssistantMessage::for_model(&model))
 }
 
 fn spawn_stream(
     url: String,
     headers: Vec<(String, String)>,
     body: serde_json::Value,
+    template: AssistantMessage,
 ) -> Result<Box<dyn AssistantMessageEventStream>, BoxError> {
     let (sender, recv_stream) = AiMessageEventStream::new();
     std::thread::spawn(move || {
-        run_stream(url, headers, body, sender);
+        run_stream(url, headers, body, sender, template);
     });
     Ok(Box::new(recv_stream))
 }
@@ -98,11 +99,16 @@ fn run_stream(
     headers: Vec<(String, String)>,
     body: serde_json::Value,
     sender: AiMessageEventSender,
+    template: AssistantMessage,
 ) {
     let client = match reqwest::blocking::Client::builder().build() {
         Ok(c) => c,
         Err(e) => {
-            fail(&sender, format!("failed to build HTTP client: {e}"));
+            fail(
+                &sender,
+                &template,
+                format!("failed to build HTTP client: {e}"),
+            );
             return;
         }
     };
@@ -115,7 +121,11 @@ fn run_stream(
     let response = match request.json(&body).send() {
         Ok(r) => r,
         Err(e) => {
-            fail(&sender, format!("request to Google API failed: {e}"));
+            fail(
+                &sender,
+                &template,
+                format!("request to Google API failed: {e}"),
+            );
             return;
         }
     };
@@ -123,19 +133,27 @@ fn run_stream(
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().unwrap_or_default();
-        fail(&sender, format!("Google API returned {status}: {text}"));
+        fail(
+            &sender,
+            &template,
+            format!("Google API returned {status}: {text}"),
+        );
         return;
     }
 
     let reader = BufReader::new(response);
     let events = sse::SseEvents::new(reader);
 
-    let mut state = StreamState::new();
+    let mut state = StreamState::new(template.clone());
     for frame in events {
         let payload = match frame {
             Ok(p) => p,
             Err(e) => {
-                fail(&sender, format!("error reading response stream: {e}"));
+                fail(
+                    &sender,
+                    &template,
+                    format!("error reading response stream: {e}"),
+                );
                 return;
             }
         };
@@ -152,13 +170,19 @@ fn run_stream(
     state.finish(&sender);
 }
 
-fn fail(sender: &AiMessageEventSender, message: String) {
+fn fail(sender: &AiMessageEventSender, template: &AssistantMessage, message: String) {
     let error = AssistantMessage {
+        provider: template.provider.clone(),
+        response_id: None,
+        response_model: None,
+        api: template.api.clone(),
+        diagnostics: None,
+        model: template.model.clone(),
         content: vec![],
-        stop_reason: Some(StopReason::Error),
-        stop_sequence: None,
-        usage: None,
-        timestamp: None,
+        stop_reason: StopReason::Error,
+
+        usage: Default::default(),
+        timestamp: cortexcode_ai_types::now_ms(),
         error_message: Some(message),
     };
     sender.push(AssistantMessageEvent::Error {
@@ -186,14 +210,20 @@ struct StreamState {
 }
 
 impl StreamState {
-    fn new() -> Self {
+    fn new(template: AssistantMessage) -> Self {
         Self {
             partial: AssistantMessage {
+                provider: template.provider.clone(),
+                response_id: None,
+                response_model: None,
+                api: template.api.clone(),
+                diagnostics: None,
+                model: template.model.clone(),
                 content: vec![],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: None,
-                timestamp: Some(now_millis()),
+                stop_reason: StopReason::Stop,
+
+                usage: Default::default(),
+                timestamp: now_millis(),
                 error_message: None,
             },
             started: false,
@@ -217,6 +247,7 @@ impl StreamState {
             match kind {
                 CurrentKind::Text => {
                     self.partial.content.push(Content::Text(TextContent {
+                        text_signature: None,
                         text,
                         cache_control: None,
                     }));
@@ -229,6 +260,7 @@ impl StreamState {
                     self.partial
                         .content
                         .push(Content::Thinking(ThinkingContent {
+                            redacted: false,
                             thinking: text,
                             signature: None,
                         }));
@@ -246,7 +278,7 @@ impl StreamState {
 
         let Some(candidate) = value["candidates"].get(0) else {
             if let Some(usage) = value.get("usageMetadata") {
-                self.partial.usage = Some(parse_usage(usage));
+                self.partial.usage = parse_usage(usage);
             }
             return;
         };
@@ -328,6 +360,7 @@ impl StreamState {
                     self.partial
                         .content
                         .push(Content::ToolCall(ToolCallContent {
+                            thought_signature: None,
                             id,
                             name,
                             arguments: arguments.clone(),
@@ -359,11 +392,11 @@ impl StreamState {
             {
                 stop_reason = StopReason::ToolUse;
             }
-            self.partial.stop_reason = Some(stop_reason);
+            self.partial.stop_reason = stop_reason;
         }
 
         if let Some(usage) = value.get("usageMetadata") {
-            self.partial.usage = Some(parse_usage(usage));
+            self.partial.usage = parse_usage(usage);
         }
     }
 
@@ -375,12 +408,8 @@ impl StreamState {
         self.ensure_started(sender);
         self.close_current(sender);
 
-        if self.partial.stop_reason.is_none() {
-            self.partial.stop_reason = Some(StopReason::EndTurn);
-        }
-
         match &self.partial.stop_reason {
-            Some(StopReason::Error) => {
+            StopReason::Error => {
                 sender.push(AssistantMessageEvent::Error {
                     error: self.partial.clone(),
                 });
@@ -506,8 +535,8 @@ mod tests {
 
         match events.last().unwrap() {
             AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, Some(StopReason::EndTurn));
-                let usage = message.usage.as_ref().unwrap();
+                assert_eq!(message.stop_reason, StopReason::Stop);
+                let usage = &message.usage;
                 assert_eq!(usage.input, 10);
                 assert_eq!(usage.output, 5);
             }
@@ -562,7 +591,7 @@ mod tests {
         let events = collect(s);
         match events.last().unwrap() {
             AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, Some(StopReason::ToolUse));
+                assert_eq!(message.stop_reason, StopReason::ToolUse);
                 match &message.content[0] {
                     Content::ToolCall(tc) => {
                         assert_eq!(tc.name, "read_file");

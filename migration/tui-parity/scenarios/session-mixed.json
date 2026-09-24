@@ -1,0 +1,116 @@
+{
+  "description": "Two prompts exercising thinking, the bash permission prompt, bash + read (failing) tool calls; records hoocode session fixtures (7.2) and checks the transcript renders the same.",
+  "phase": "10.3",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "files": {
+    "notes.txt": "alpha\nbeta\n"
+  },
+  "models": [
+    {
+      "id": "mock-model",
+      "name": "Mock Model",
+      "reasoning": true,
+      "contextWindow": 128000,
+      "maxTokens": 4096
+    }
+  ],
+  "llm": [
+    {
+      "thinking": "The user wants the file and a listing.",
+      "text": "Checking.",
+      "tool_calls": [
+        {
+          "id": "call_bash_1",
+          "name": "bash",
+          "arguments": {
+            "command": "echo hi"
+          }
+        },
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "missing.txt"
+          }
+        }
+      ]
+    },
+    {
+      "text": "bash printed hi; missing.txt does not exist."
+    },
+    {
+      "text": "Second answer."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "look around"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: \\$ echo hi",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "permission-prompt",
+      "contains": [
+        "Yes (once)",
+        "No (block)"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "does not exist",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "again"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Second answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "transcript",
+      "contains": [
+        "Second answer."
+      ]
+    }
+  ]
+}
