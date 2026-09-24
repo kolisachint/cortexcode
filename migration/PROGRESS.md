@@ -11,6 +11,13 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-24: 7.1 done (MSRV and toolchain)
+- MSRV 1.88; the workspace builds with `cargo +1.88 check`. `rust-toolchain.toml` pins
+  1.94.1 for dev, fmt and clippy. `Cargo.lock` is now committed.
+- CI changes are staged in `migration/ci/` (ledger/firewall checks, MSRV job, parity
+  workflow) because workflows can't be pushed from here. The user needs to apply them.
+- Next: 7.2 (wire types).
+
 ### 2026-09-24: 7.0 done (docs hygiene)
 - Removed 10 stale status/report docs; CHANGELOG has a re-baseline entry.
 - **Security:** an OpenCode API key was committed in 5 files (since 8f5693e). It has

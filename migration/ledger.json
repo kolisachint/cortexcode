@@ -56,7 +56,7 @@
    "id": "7.1",
    "title": "MSRV 1.88, rust-toolchain.toml, commit Cargo.lock (binary app), CI runs dep-firewall + ledger check",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [],
    "sources": [],
@@ -67,7 +67,20 @@
    ],
    "l2": "n/a: build infra",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-24T19:24:52Z",
+     "commit": "f88b868",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:26:38Z",
+     "commit": "f88b868",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "7.2",

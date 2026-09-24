@@ -415,7 +415,7 @@ authors = ["Mario Zechner (original author)", "Sachin Koli (HooCode fork)"]
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/kolisachint/cortexcode"
-rust-version = "1.78"
+rust-version = "1.88"
 
 [workspace.dependencies]
 # All workspace crates declared here with path = "crates/..."
