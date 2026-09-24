@@ -40,6 +40,7 @@ FIELD_DEFAULTS = {
     ("AssistantMessage", "response_id"): "None",
     ("AssistantMessage", "diagnostics"): "None",
     ("Header", "branch"): "None",
+    ("Model", "compat"): "None",
     ("SessionInfo", "color"): "None",
 }
 REMOVED = {"stop_sequence"}

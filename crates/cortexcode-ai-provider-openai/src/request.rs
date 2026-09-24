@@ -265,6 +265,7 @@ mod tests {
 
     fn default_model() -> Model {
         Model {
+            compat: None,
             id: "gpt-test".into(),
             name: "GPT Test".into(),
             api: "openai-completions".into(),

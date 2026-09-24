@@ -29,6 +29,7 @@ fn get_api_key() -> String {
 /// Create a mimo-v2.5-free model configuration
 fn mimo_model() -> Model {
     Model {
+        compat: None,
         id: "mimo-v2.5-free".into(),
         name: "MiMo V2.5 Free".into(),
         api: "openai-completions".into(),

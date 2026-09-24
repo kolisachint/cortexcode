@@ -259,6 +259,7 @@ mod tests {
 
     fn model(id: &str, input: &[&str]) -> Model {
         Model {
+            compat: None,
             id: id.into(),
             name: id.into(),
             api: "google-generative-ai".into(),

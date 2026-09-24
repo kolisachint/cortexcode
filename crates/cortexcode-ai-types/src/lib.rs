@@ -363,6 +363,9 @@ pub struct Model {
     pub context_window: u64,
     pub max_tokens: u64,
     pub headers: Option<HashMap<String, String>>,
+    /// Provider compatibility overrides (TS `compat`: OpenAICompletionsCompat /
+    /// OpenAIResponsesCompat / AnthropicMessagesCompat). Untyped until ledger 8.1.
+    pub compat: Option<serde_json::Value>,
 }
 
 /// Model pricing (per million tokens).
@@ -665,6 +668,7 @@ mod wire_tests {
     #[test]
     fn for_model_stamps_identity() {
         let model = Model {
+            compat: None,
             id: "m".into(),
             name: "M".into(),
             api: "openai-completions".into(),

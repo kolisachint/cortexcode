@@ -137,12 +137,15 @@
    "id": "10.4a",
    "title": "Custom providers via models.json (~/.hoocode|~/.cortexcode), new crate code-models (registry = built-in catalog + custom)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "7.2"
    ],
    "crates": [
-    "cortexcode-code-models"
+    "cortexcode-code-models",
+    "cortexcode-code-main",
+    "cortexcode-ai-types",
+    "cortexcode-ai-models"
    ],
    "sources": [
     "packages/coding-agent/src/core/model-registry.ts",
@@ -156,7 +159,26 @@
     "print-basic"
    ],
    "notes": "M1 slice: needed for any L2 scenario (the mock LLM is a custom provider).",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-24T19:46:46Z",
+     "commit": "8d8ce6f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:50:59Z",
+     "commit": "8d8ce6f",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:51:29Z",
+     "commit": "8d8ce6f",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=fail"
+    }
+   ]
   },
   {
    "id": "8.2a",
@@ -394,7 +416,7 @@
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "Volatile data isolated: regenerated on every pin bump by scripts/convert_models_to_json.py.",
+   "notes": "Volatile data isolated: regenerated on every pin bump by scripts/convert_models_to_json.py. ai-models stores the catalog in a HashMap, so per-provider model order is lost. TS getModels() order matters (parseModels uses builtIn[0] for defaults, and the lists are UI-visible). code-models currently sorts by id as a stopgap. Model.compat is untyped JSON until the compat structs land.",
    "log": []
   },
   {

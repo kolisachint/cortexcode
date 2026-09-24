@@ -5,11 +5,24 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (10.4a at the time of writing).
+- Next task: run `python3 migration/ledger.py next` (8.2a at the time of writing).
 - Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
   pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
 
 ## Log
+
+### 2026-09-24: 10.4a l1_done (models.json custom providers)
+- New crate `cortexcode-code-models`, a port of `model-registry.ts`:
+  - built-ins plus `models.json` (with `//` comments and trailing commas);
+  - provider baseUrl/compat overrides, per-model overrides and custom models (custom wins);
+  - `validateConfig` errors;
+  - request auth via `resolve-config-value` (`!cmd`, env var, literal) and `authHeader`.
+  31 tests, ported from `model-registry.test.ts` with the same titles.
+- `Model.compat` added as untyped JSON (typed in 8.1).
+- `cortex` looks models up through the registry and uses models.json keys/headers.
+- L2 `print-basic`: cortex now finds `mock/mock-model` and fails with "No stream function
+  configured". That is 8.2a (dispatch on `model.api`).
+- Next: 8.2a.
 
 ### 2026-09-24: 7.2 done (hoocode-compatible wire types)
 - `ai-types`: every type now serializes exactly as TS:

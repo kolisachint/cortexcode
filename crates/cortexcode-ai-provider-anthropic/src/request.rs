@@ -484,6 +484,7 @@ mod tests {
 
     fn default_model() -> Model {
         Model {
+            compat: None,
             id: "claude-test".into(),
             name: "Claude Test".into(),
             api: "anthropic-messages".into(),

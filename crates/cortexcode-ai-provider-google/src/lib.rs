@@ -475,6 +475,7 @@ mod tests {
 
     fn test_model(base_url: String) -> Model {
         Model {
+            compat: None,
             id: "gemini-2.0-flash".into(),
             name: "Gemini Test".into(),
             api: "google-generative-ai".into(),

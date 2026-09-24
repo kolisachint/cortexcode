@@ -10,7 +10,6 @@ use cortexcode_agent_core::PromptInput;
 use cortexcode_agent_core::{Agent, AgentOptions};
 use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
-use cortexcode_ai_models::get_model;
 use cortexcode_ai_types::{
     AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
 };
@@ -247,11 +246,28 @@ fn make_stream_fn(provider: &str) -> Option<StreamFn> {
 /// Build an `Agent` from CLI arguments with a configured permission gate.
 fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
-    let model = get_model(&provider, &model_id)
+    // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
+    let registry = match cortexcode_code_models::default_models_json_path() {
+        Some(path) => cortexcode_code_models::ModelRegistry::create(path),
+        None => cortexcode_code_models::ModelRegistry::in_memory(),
+    };
+    let mut model = registry
+        .find(&provider, &model_id)
         .cloned()
         .ok_or_else(|| RuntimeError::Setup(format!("unknown model {}:{}", provider, model_id)))?;
 
-    let api_key = resolve_api_key(&provider, args);
+    // CLI/config/env/OAuth first (existing behavior), then models.json request auth.
+    // Full auth.json precedence arrives with code-auth (ledger 10.4b).
+    let request_auth = registry
+        .get_api_key_and_headers(&model, &cortexcode_code_models::NoAuth)
+        .map_err(RuntimeError::Setup)?;
+    if let Some(headers) = request_auth.headers {
+        model
+            .headers
+            .get_or_insert_with(Default::default)
+            .extend(headers);
+    }
+    let api_key = resolve_api_key(&provider, args).or(request_auth.api_key);
     if api_key.is_none() {
         let supported = ["anthropic", "openai", "opencode", "google", "azure"];
         let is_known = supported.contains(&provider.as_str());

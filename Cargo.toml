@@ -34,6 +34,7 @@ members = [
     "crates/cortexcode-code-config",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
+    "crates/cortexcode-code-models",
     "crates/cortexcode-code-print",
     "crates/cortexcode-code-prompts",
     "crates/cortexcode-code-resources",
@@ -95,6 +96,7 @@ cortexcode-code-config = { path = "crates/cortexcode-code-config" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
 cortexcode-code-print = { path = "crates/cortexcode-code-print" }
+cortexcode-code-models = { path = "crates/cortexcode-code-models" }
 cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }

@@ -733,6 +733,7 @@ mod tests {
 
     fn default_faux_model() -> Model {
         Model {
+            compat: None,
             id: "faux-1".into(),
             name: "Faux Model".into(),
             api: "faux".into(),

@@ -361,6 +361,7 @@ mod tests {
 
     fn model(base_url: &str) -> Model {
         Model {
+            compat: None,
             id: "gpt-5".into(),
             name: "GPT-5".into(),
             api: "azure-openai-responses".into(),

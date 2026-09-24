@@ -92,6 +92,7 @@ impl PendingMessageQueue {
 
 fn default_model() -> Model {
     Model {
+        compat: None,
         id: "unknown".into(),
         name: "unknown".into(),
         api: "unknown".into(),
