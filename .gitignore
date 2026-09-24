@@ -6,3 +6,4 @@ Cargo.lock
 scripts/__pycache__/
 .agents/
 .hoocode/dispatch/
+migration/**/__pycache__/

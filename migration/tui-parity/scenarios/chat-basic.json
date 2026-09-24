@@ -1,0 +1,15 @@
+{
+  "description": "Send one prompt; the mock model streams markdown text; render the answer and usage footer.",
+  "phase": "11.2",
+  "terminal": {"cols": 100, "rows": 30},
+  "llm": [{"text": "Hello from the mock model. **bold** and `code`."}],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "say hello"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Hello from the mock model", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "answer", "contains": ["say hello", "Hello from the mock model. bold and code."]}
+  ]
+}

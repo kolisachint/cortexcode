@@ -1,0 +1,15 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 78b60fc..88d703d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -13,6 +13,10 @@ jobs:
+       - uses: actions/checkout@v4
+       - uses: dtolnay/rust-toolchain@stable
+       - uses: Swatinem/rust-cache@v2
++      - name: migration gates (ledger + dependency firewall)
++        run: |
++          python3 migration/ledger.py check
++          python3 migration/check_dep_firewall.py
+       - name: cargo fmt
+         run: cargo fmt --all -- --check
+       - name: cargo clippy

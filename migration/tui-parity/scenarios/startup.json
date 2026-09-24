@@ -1,0 +1,11 @@
+{
+  "description": "Launch interactive mode and render the idle screen (header, editor box, footer).",
+  "phase": "11.1",
+  "terminal": {"cols": 100, "rows": 30},
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "idle", "contains": ["mock-model"]}
+  ]
+}

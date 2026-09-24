@@ -1,0 +1,17 @@
+{
+  "description": "Print mode with one read tool call: only the final assistant text is printed; exit 0. Also requires identical model requests (tool result content).",
+  "compare_requests": true,
+  "request_fields": ["messages"],
+  "phase": "10.2",
+  "terminal": {"cols": 100, "rows": 12},
+  "files": {"notes.txt": "alpha\nbeta\ngamma\n"},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "read notes.txt"],
+  "llm": [
+    {"text": "Let me read it.", "tool_calls": [{"id": "call_read_1", "name": "read", "arguments": {"path": "notes.txt"}}]},
+    {"text": "The file has three lines: alpha, beta, gamma."}
+  ],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "contains": ["three lines", "<exited status=0>"]}
+  ]
+}

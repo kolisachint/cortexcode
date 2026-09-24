@@ -21,6 +21,8 @@
     - [5.2 Agent Namespace](#52-agent-namespace)
     - [5.3 Code Namespace](#53-code-namespace)
     - [5.4 TUI Namespace](#54-tui-namespace)
+    - [5.5 Revised split: volatility tiers, dependency firewall](#55-revised-split-2026-09-24-churn-driven-crates-volatility-tiers-dependency-firewall)
+    - [5.6 Migration operations: ledger, two-level done, resuming](#56-migration-operations-ledger-two-level-done-resuming)
 6. [Dependency Graph](#6-dependency-graph)
 7. [Key Migration Decisions: TypeScript → Rust](#7-key-migration-decisions-typescript--rust)
 8. [CI / CD Pipeline](#8-ci--cd-pipeline)
@@ -138,6 +140,8 @@ Adapted from the [pycortex migration](https://github.com/kolisachint/pycortex) w
 5. **Executable plan.** The migration plan (Phase sections below) is a machine-readable checklist tracked in this document.
 6. **Automated releases.** GitHub Actions + crates.io token publish tagged crates. No manual uploads.
 7. **Lockstep versioning.** All crates share one workspace-level version (semver). Version bumps happen atomically via `scripts/bump_versions.py`.
+8. **Volatility isolation.** *(Added 2026-09-24.)* Code that churns upstream, or that tracks a fast-moving vendor API or third-party crate, lives in its own small crate behind cortexcode-owned types (§5.5). A dependency firewall enforces this.
+9. **Two-level done.** *(Added 2026-09-24.)* Programmatic tests **and** a rendered-TUI comparison against the pinned hoocode (§5.6).
 
 ---
 
@@ -527,6 +531,8 @@ This allows `use cortexcode_ai::types::*` without specifying the leaf crate dire
 
 ### 5.3 Code Namespace
 
+> **Superseded by §5.5** (finer, churn-driven split). Kept for history.
+
 Coarser leaves — matches the higher churn rate of the TypeScript `packages/coding-agent/src/`.
 
 | Crate | Import path | Owns (from TS) | Stability | Published |
@@ -561,6 +567,120 @@ Coarser leaves — matches the higher churn rate of the TypeScript `packages/cod
 `util` ← `fuzzy`, `keys`, `terminal` ← `render` ← `editing` ← `components` ← `images`
 
 ---
+
+### 5.5 Revised split (2026-09-24): churn-driven crates, volatility tiers, dependency firewall
+
+> Supersedes the §5.3 code-namespace table and extends §5.1/§5.2. The TS package
+> `coding-agent` (95.7K LOC) is too big and changes too unevenly for ~10 crates.
+> Crates are now cut so that **code which changes often, or which follows a
+> fast-moving upstream (vendor APIs, OAuth flows, model lists, volatile third-party
+> crates), lives in its own small crate**. Tracking an upstream change then touches
+> one crate.
+
+**Churn data** (commits touching the file, full hoocode history to the pin, 1,481
+commits). Recompute when moving the pin:
+`git log --name-only --format= -- packages/*/src | sort | uniq -c | sort -rn`.
+
+| Area (TS) | Commits | Tier |
+|---|---|---|
+| `modes/interactive/interactive-mode.ts` | 118 | H |
+| `core/settings-{manager,types,defaults}.ts` | 139 | V |
+| `main.ts` + `cli/args.ts` | 117 | V |
+| `core/tools/subagent.ts` + `core/subagent-pool.ts` | 100 | V |
+| `core/agent-session.ts` (+ `-services`) | 56 | V |
+| `extensions/core/hoo-core.ts` + `core/extensions/**` | 190 | D |
+| `core/search/**`, `core/embsearch/**` | 92 | V / D |
+| `modes/interactive/{components,theme}` | ~390 | H |
+| `core/tools/{read,edit,write,bash}` | ~40 | S |
+| `core/session-manager.ts`, `auth-storage.ts`, `config.ts` paths | low | S |
+| `packages/tui` | 114 across 27 files (~4 each) | S |
+| `packages/ai/src/providers/*` | 69 | V, driven by vendor APIs |
+
+**Tiers.** **S**table: port once, rarely touched. **V**olatile: isolated leaf crates
+with a narrow API. **H**ot UI: the thinnest possible orchestration crates over stable
+widget crates. **D**eferred: Phase 12, created only on a go decision.
+
+#### Code namespace target map
+
+| Crate | Tier | Owns (TS at pin) | Ledger |
+|---|---|---|---|
+| `code-paths` | S | `config.ts` dirs, env overrides, `.hoocode` fallback | 10.1 |
+| `code-settings` | V | `settings-{types,defaults,manager,storage}.ts`. Typed schema plus unknown-key passthrough, so new upstream keys don't break us | 10.1 |
+| `code-session` *(exists)* | S | `session-manager.ts` JSONL tree | 7.2 |
+| `code-auth` | S | `auth-storage.ts`, `auth-guidance.ts` | 10.4b |
+| `code-models` | V | `model-registry.ts` (`models.json`), `model-resolver.ts` | 10.4a/b |
+| `code-tool-api` | S | tool definition wrapper, truncation, path utils, output accumulator, TodoWrite, ask_options | 10.2a/f |
+| `code-tools-fs` | S | `read`, `write`, `edit` + `edit-diff`, read-dedup, mutation queue | 10.2a/c |
+| `code-tool-bash` | S | `bash`, bash-executor, shell resolution | 10.2b |
+| `code-tool-search` | V | `SearchCodebase` (lexical; ripgrep libs) | 10.2d |
+| `code-tool-web` | V | `webfetch`, `websearch` (they follow external sites and services) | 10.2e |
+| `code-prompts` *(exists)* | V | `system-prompt.ts` | 10.4c |
+| `code-modes` | V | ask/plan/build/debug, mode prompts | 10.5b |
+| `code-resources` *(exists)* | V | resource-loader, skills, prompt templates, context files, slash commands, agents | 10.5 |
+| `code-permissions` | V | permission gate policy | 10.6 |
+| `code-mcp` | V | MCP server discovery, deferred MCP, status (over `agent-mcp`) | 10.11 |
+| `code-agent-session` | V | AgentSession orchestrator (+ runtime, services, retry, stats, tree nav) | 10.3 |
+| `code-subagents` *(exists)* | V | pool, Task/TaskOutput, lifeguard, depth | 10.9 |
+| `code-print` *(exists)* | S | print + json mode | 10.8a/b |
+| `code-rpc` *(exists, rewrite)* | S | hoocode RPC protocol + client | 10.8c |
+| `code-cli` | V | `cli/args.ts`, `main.ts` composition | 10.7a/b |
+| `code-media` | V | image resize and convert, clipboard images (`image` crate) | 11.4 |
+| `code-tui-theme` | H | `theme.ts` + JSON themes | 11.1 |
+| `code-tui-keybindings` | H | app keybindings | 11.1 |
+| `code-tui-widgets` | H | message, tool, diff, footer, summary and task-panel components | 11.2, 11.5 |
+| `code-tui-selectors` | H | model, session, tree, settings, theme, login selectors | 11.3 |
+| `code-tui-app` | H | `interactive-mode.ts`, command executor (orchestration only) | 11.1–11.4 |
+| `code-main` *(exists)* | S | the `cortex` bin: calls `code-cli` and nothing else | 10.7a |
+| `code-config` *(exists)* | — | retired by 10.1 (re-exports during transition) | 10.1 |
+| `code-tools` *(exists)* | — | retired by 10.2 (re-exports during transition) | 10.2 |
+| `code-plugins`, `code-packages`, `code-extensions`, `code-capabilities`, `code-scheduler`, `code-extras` | D | Phase 12 | 12.x |
+
+#### AI / agent / TUI additions (volatility isolation)
+
+| Crate | Why separate | Ledger |
+|---|---|---|
+| `ai-models-catalog` | Generated model data changes every pin bump. `ai-models` keeps the logic | 8.1 |
+| `ai-sse` | One SSE decoder (`eventsource-stream`) shared by all providers | 7.3 |
+| `ai-provider-openai-responses` | Responses API shared by openai, azure and codex | 8.3 |
+| `ai-provider-openai-codex`, `ai-provider-google-gemini-cli` | Subscription backends change independently | 8.4a/c |
+| `ai-oauth` → core + `ai-oauth-{anthropic,github-copilot,openai-codex,google}` | Each vendor's OAuth flow changes on its own schedule | 8.7, 8.4 |
+| `tui-highlight` | `syntect`/`two-face` behind our own API | 11.2 |
+
+#### Dependency firewall
+
+Each volatile third-party crate (fast-moving major versions, or a wrapper around a
+vendor service) may be a dependency of **only its adapter crate(s)**, which expose
+cortexcode-owned types. The list is in `migration/dep-firewall.json`, and
+`migration/check_dep_firewall.py` enforces it in CI and in `ledger.py verify`. Current
+exceptions are listed under `pending` with the ledger task that removes them. Examples:
+`rmcp` → `agent-mcp`, `wasmtime` → `code-extensions`, `clap` → `code-cli`,
+`crossterm` → `tui-terminal`, `syntect` → `tui-highlight`, `grep-*` → `code-tool-search`.
+
+### 5.6 Migration operations: ledger, two-level done, resuming
+
+- **`migration/ledger.json`** is the machine-readable task list and the single source
+  of truth for status. Phase 9 of this document is the narrative, and its checkboxes
+  follow the ledger. `python3 migration/ledger.py status|next|show|start|verify`.
+- **Level 1 (programmatic):** `cargo fmt`, `clippy -D warnings` and tests for the
+  task's crates (with ported TS tests), plus the dependency firewall and task-specific
+  commands.
+- **Level 2 (rendered TUI):** `migration/tui-parity/harness.py` runs the *real* pinned
+  hoocode (built by `setup_hoocode.sh` into `target/hoocode-pin`) and the *real*
+  `cortex` in identical fixed-size tmux terminals. It uses throwaway HOME and workspace
+  directories and one scripted mock LLM (`mockllm.py`, OpenAI-compatible SSE, reached via
+  a `models.json` custom provider). It sends identical keystrokes and captures the
+  rendered screen as a (char, style) cell grid. After minimal normalization (temp
+  paths, random session names, durations, branding) it requires identical **text**,
+  identical **style** (colors and attributes), and optionally identical **model
+  requests**, meaning the system prompt, tool schemas and tool results the model saw.
+  Reports: `target/tui-parity/<scenario>/report.{md,html,png}`.
+- A scenario is only trusted after `harness.py selfcheck` shows that hoocode renders it
+  identically twice.
+- **Done** = `ledger.py verify` passes both levels. L1 alone gives `l1_done`, and the
+  task is re-verified once the tasks its scenarios need have landed.
+- **Resuming:** "continue migration" follows `.claude/skills/continue-migration/SKILL.md`:
+  orient (`ledger.py next`, `migration/PROGRESS.md`), port one task, gate, commit, write
+  the handoff note, repeat.
 
 ## 6. Dependency Graph
 
@@ -1111,21 +1231,30 @@ Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with 
 
 ### Phase 13 — Parity verification (runs alongside Phases 7–11)
 
-- [ ] **13.1 Fixture recorder.** A script that checks out hoocode at the pin, runs scripted scenarios with the **faux provider**, and records the session JSONL, `--mode json` event streams and RPC transcripts into `tests/fixtures/hoocode-0.5.89/`, stamped with the pin.
+- [x] **13.1 Fixture recorder.** *(Level-2 harness built: `migration/tui-parity/`; recording of session/json/rpc fixtures for 13.2 uses `harness.py run --keep`.)* A script that checks out hoocode at the pin, runs scripted scenarios with the **faux provider**, and records the session JSONL, `--mode json` event streams and RPC transcripts into `tests/fixtures/hoocode-0.5.89/`, stamped with the pin.
 - [ ] **13.2 Replay harness.** Rust integration tests drive `cortex` with the same faux script and compare normalized output (ids, timestamps and paths masked) using `insta`.
 - [ ] **13.3 Replace `scripts/parity_test.sh`.** Its `--help` grep checks become a smoke test only. CI runs 13.2.
 - [ ] **13.4 TS test port ledger.** A table in this doc listing each of the 400 TS test files as ported, equivalent or not applicable, updated per PR.
 
 ### Recommended execution order
 
-1. **7.0–7.2** (pin, MSRV, wire types). Small, and it unblocks fixtures.
-2. **13.1** (recorder) in parallel, so fixtures exist before behavior work.
-3. **7.3–7.5** (async core, session stack, agent loop).
-4. **8.1–8.2 + 10.1–10.4** (models, API registry, settings, tools, AgentSession): this is headless parity with `cortex -p`.
-5. **9.1–9.2, 10.5–10.10** (MCP, compaction, resources, CLI, RPC, subagents).
-6. **Phase 11** (interactive).
-7. **8.3–8.6** (remaining providers) any time after step 3.
-8. **Phase 12** (triaged).
+`migration/ledger.json` holds the authoritative order, and `ledger.py next` picks the
+first ready task. In summary:
+
+1. **7.0–7.2**: docs hygiene, MSRV/lockfile/CI gates, hoocode-compatible wire types.
+2. **Milestone M1 (first Level-2 green):** a thin vertical slice.
+   - 10.4a (`models.json`), 8.2a (API dispatch), 10.7a (`code-cli`) and 10.8a (print mode)
+     make `print-basic` pass.
+   - 10.2a (`read`) and 10.4c (system prompt) make `print-tool-read` pass, including
+     identical model requests.
+3. **7.3–7.5**: the async core refactor, guarded by the M1 scenarios, then one session
+   stack and agent-loop parity.
+4. **Phase 10 remainder + 8.1/8.2 + 9.x**: headless parity (settings, tools,
+   AgentSession, resources, modes, CLI, json/RPC, subagents, MCP).
+5. **Phase 11**: interactive TUI. The `startup`, `chat-basic` and `tool-read`
+   scenarios already exist.
+6. **8.3–8.7**: remaining providers and OAuth, any time after 7.3.
+7. **Phase 12**: only after a go/no-go from the user.
 
 ---
 
