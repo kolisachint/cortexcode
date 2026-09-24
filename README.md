@@ -71,11 +71,13 @@ cargo test --workspace
 
 ## Migration status
 
-The workspace is being ported from the TypeScript HooCode project.
-See [`docs/design/hoocode-to-cortexcode-migration.md`](docs/design/hoocode-to-cortexcode-migration.md)
-for the detailed phase checklist. Phase 5 (code namespace advanced features) and
-Phase 6 (release, parity, and documentation) are complete; the `cortex` CLI
-now runs the agent loop in print and interactive modes.
+The workspace ports the TypeScript HooCode project, pinned to **hoocode v0.5.89**
+(commit `a6cd96e7`). A 2026-09-24 audit re-baselined progress to roughly 25–30% of
+pinned hoocode behavior. The crate skeleton and TUI library are largely ported, but
+hoocode-compatible wire formats, the async core, AgentSession, the full tool set and
+the interactive TUI are still open. See
+[`docs/design/hoocode-to-cortexcode-migration.md`](docs/design/hoocode-to-cortexcode-migration.md)
+(§0 audit, §9 Phases 7–13), which is the single source of truth for status.
 
 ## Publishing
 

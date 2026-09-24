@@ -115,3 +115,10 @@ cortexcode-tui-util = { path = "crates/cortexcode-tui-util" }
 [workspace.metadata.cortex]
 # Lockstep version bump script uses this as the single source of truth.
 # All crates must share the workspace `version` above.
+
+[workspace.metadata.cortex.source]
+# Pinned hoocode snapshot this migration ports from. Changing the pin is a
+# deliberate PR; see docs/design/hoocode-to-cortexcode-migration.md §0.1.
+repository = "https://github.com/kolisachint/hoocode"
+hoocode-version = "0.5.89"
+hoocode-commit = "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"

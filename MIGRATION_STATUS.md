@@ -1,3 +1,8 @@
+> **⚠ Superseded (2026-09-24).** This file predates the audit against the pinned
+> hoocode v0.5.89 source and overstates completion. See
+> [`docs/design/hoocode-to-cortexcode-migration.md`](docs/design/hoocode-to-cortexcode-migration.md)
+> §0 for current status. Task 7.0 will fold this file into `CHANGELOG.md`.
+
 # CortexCode Migration Status
 
 **Date:** July 23, 2026
