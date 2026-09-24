@@ -281,6 +281,8 @@ fn stream_message(
             });
         }
     }
+    // streamWithDeltas() ends the stream with the final message (outer.end(message)).
+    sender.end(partial);
 }
 
 // ---------------------------------------------------------------------------

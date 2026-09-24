@@ -447,6 +447,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-ai-registry"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-provider-anthropic",
+ "cortexcode-ai-provider-azure",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-provider-google",
+ "cortexcode-ai-provider-openai",
+ "cortexcode-ai-types",
+]
+
+[[package]]
 name = "cortexcode-ai-stream"
 version = "0.0.1"
 dependencies = [
@@ -519,6 +531,7 @@ dependencies = [
  "cortexcode-ai-provider-azure",
  "cortexcode-ai-provider-google",
  "cortexcode-ai-provider-openai",
+ "cortexcode-ai-registry",
  "cortexcode-ai-types",
  "cortexcode-code-config",
  "cortexcode-code-models",

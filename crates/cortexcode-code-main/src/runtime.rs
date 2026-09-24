@@ -232,15 +232,10 @@ fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGa
 }
 
 /// Create the streaming function for a given provider.
-fn make_stream_fn(provider: &str) -> Option<StreamFn> {
-    match provider {
-        "anthropic" => Some(Box::new(cortexcode_ai_provider_anthropic::stream)),
-        "openai" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
-        "opencode" | "opencode-go" => Some(Box::new(cortexcode_ai_provider_openai::stream)),
-        "google" => Some(Box::new(cortexcode_ai_provider_google::stream)),
-        "azure" => Some(Box::new(cortexcode_ai_provider_azure::stream)),
-        _ => None,
-    }
+/// Streams are dispatched on `model.api` through the API registry (ledger 8.2a),
+/// so any provider whose models use a registered API works.
+fn make_stream_fn() -> StreamFn {
+    Box::new(cortexcode_ai_registry::stream_simple)
 }
 
 /// Build an `Agent` from CLI arguments with a configured permission gate.
@@ -310,7 +305,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     };
 
     let permission_gate = Some(build_permission_gate(args, interactive));
-    let stream_fn = make_stream_fn(&provider).map(std::sync::Arc::new);
+    let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
 
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state),

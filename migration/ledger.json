@@ -137,7 +137,7 @@
    "id": "10.4a",
    "title": "Custom providers via models.json (~/.hoocode|~/.cortexcode), new crate code-models (registry = built-in catalog + custom)",
    "phase": 10,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -177,6 +177,12 @@
      "commit": "8d8ce6f",
      "kind": "verify",
      "text": "L1 pass; L2 print-basic=fail"
+    },
+    {
+     "at": "2026-09-24T19:54:15Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
     }
    ]
   },
@@ -184,13 +190,14 @@
    "id": "8.2a",
    "title": "Dispatch streams on model.api (openai-completions, anthropic-messages, google-*, azure-openai-responses); remove hard-coded provider match in code-main",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
    "crates": [
-    "cortexcode-ai",
-    "cortexcode-code-main"
+    "cortexcode-ai-registry",
+    "cortexcode-code-main",
+    "cortexcode-ai-provider-faux"
    ],
    "sources": [
     "packages/ai/src/api-registry.ts",
@@ -202,8 +209,27 @@
    "l2": [
     "print-basic"
    ],
-   "notes": "",
-   "log": []
+   "notes": "API registry lives in its own crate cortexcode-ai-registry (umbrella crates stay code-free).",
+   "log": [
+    {
+     "at": "2026-09-24T19:52:18Z",
+     "commit": "c6e45c5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:54:06Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:54:36Z",
+     "commit": "c6e45c5",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
   },
   {
    "id": "10.7a",

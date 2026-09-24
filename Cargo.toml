@@ -14,6 +14,7 @@ members = [
     "crates/cortexcode-ai-provider-faux",
     "crates/cortexcode-ai-provider-google",
     "crates/cortexcode-ai-provider-openai",
+    "crates/cortexcode-ai-registry",
     "crates/cortexcode-ai-stream",
     "crates/cortexcode-ai-types",
     "crates/cortexcode-ai-util",
@@ -97,6 +98,7 @@ cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
 cortexcode-code-print = { path = "crates/cortexcode-code-print" }
 cortexcode-code-models = { path = "crates/cortexcode-code-models" }
+cortexcode-ai-registry = { path = "crates/cortexcode-ai-registry" }
 cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }

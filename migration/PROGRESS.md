@@ -5,11 +5,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (8.2a at the time of writing).
+- Next task: run `python3 migration/ledger.py next` (10.7a at the time of writing).
 - Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
   pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
 
 ## Log
+
+### 2026-09-24: 8.2a done; 10.4a done (first Level-2 green: `print-basic`)
+- New crate `cortexcode-ai-registry`, a port of `api-registry.ts` + `stream.ts`:
+  - dispatch on `model.api`;
+  - `register_api_provider` / `unregister_api_providers(source_id)`;
+  - TS error texts ("No API provider registered for api: X", "Mismatched api: …").
+  Built-ins: anthropic-messages, openai-completions, azure-openai-responses,
+  google-generative-ai, google-vertex. The hard-coded provider match in code-main is gone.
+- Faux bug fixed: the stream never called `end()`, so `result()` always failed.
+- `print-basic`: hoocode and cortex are byte-identical (text and style) against the mock LLM.
+- Next: 10.7a (`code-cli` on clap with the pinned flag set). Note that `--offline` is
+  currently accepted only because the old parser ignores unknown flags.
 
 ### 2026-09-24: 10.4a l1_done (models.json custom providers)
 - New crate `cortexcode-code-models`, a port of `model-registry.ts`:
