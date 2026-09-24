@@ -77,7 +77,9 @@ pinned hoocode behavior. The crate skeleton and TUI library are largely ported, 
 hoocode-compatible wire formats, the async core, AgentSession, the full tool set and
 the interactive TUI are still open. See
 [`docs/design/hoocode-to-cortexcode-migration.md`](docs/design/hoocode-to-cortexcode-migration.md)
-(§0 audit, §9 Phases 7–13), which is the single source of truth for status.
+(§0 audit, §5.5 crate split, §9 phases). Task status lives in `migration/ledger.json`
+(`python3 migration/ledger.py status`). To resume work, say "continue migration"
+(see `CLAUDE.md`).
 
 ## Publishing
 

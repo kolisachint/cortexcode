@@ -97,11 +97,11 @@ pinned hoocode behavior**, not 100%. Phases 7–13 (§9) are the gap-closure pla
 Phase 7 (wire formats plus the async core) must land first, because every later
 phase builds on those types.
 
-> The following status files predate this audit and overstate completion:
+> The following status files predated this audit and overstated completion:
 > `MIGRATION_STATUS.md`, `MIGRATION_COMPLETE.md`, `MIGRATION_COMPLETE_FINAL.md`,
 > `MIGRATION_FINAL_SESSION_SUMMARY.md`, `MIGRATION_SESSION_SUMMARY.md`,
 > `MIGRATION_VIM_JUMP_COMPLETE.md`. **This document is the single source of truth.**
-> Those files should be deleted or folded into `CHANGELOG.md` (task 7.0).
+> Those files were removed in task 7.0, and their history is summarized in `CHANGELOG.md`.
 
 ---
 

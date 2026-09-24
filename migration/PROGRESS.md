@@ -11,6 +11,16 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-24: 7.0 done (docs hygiene)
+- Removed 10 stale status/report docs; CHANGELOG has a re-baseline entry.
+- **Security:** an OpenCode API key was committed in 5 files (since 8f5693e). It has
+  been removed from the tree, but it is still in git history, so the user must rotate it.
+- The orphan `tests/opencode_e2e_test.rs` (never compiled) moved to
+  `crates/cortexcode-ai-provider-openai/tests/opencode_live.rs`: fixed to compile, all
+  `#[ignore]`d. The live shell scripts moved to `scripts/live/` (key from env).
+- `cargo fmt` was already failing on main; fixed.
+- Next: 7.1.
+
 ### 2026-09-24: migration infrastructure
 - Pinned hoocode v0.5.89 (a6cd96e7). Audit and re-baselined plan in `docs/design/…` §0.
 - Added the churn-driven crate split, volatility tiers and dependency firewall (§5.5,

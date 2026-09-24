@@ -1,3 +1,6 @@
+//! Live end-to-end tests for OpenCode API (ignored by default; run with
+//! `OPENCODE_API_KEY=... cargo test -p cortexcode-ai-provider-openai --test opencode_live -- --ignored`).
+//!
 //! End-to-end tests for OpenCode API with mimo-v2.5-free model.
 //!
 //! This test suite validates the OpenCode provider integration with the
@@ -134,6 +137,7 @@ fn collect_events(
 
 /// Test 1: Basic text completion
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_basic_text_completion() {
     let model = mimo_model();
     let context = simple_text_context("Hello, what is 2+2?");
@@ -147,7 +151,10 @@ fn test_basic_text_completion() {
 
     // Check for Start event
     assert!(
-        matches!(events[0], cortexcode_ai_types::AssistantMessageEvent::Start { .. }),
+        matches!(
+            events[0],
+            cortexcode_ai_types::AssistantMessageEvent::Start { .. }
+        ),
         "First event should be Start"
     );
 
@@ -167,6 +174,7 @@ fn test_basic_text_completion() {
 
 /// Test 2: Streaming text response
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_streaming_text_response() {
     let model = mimo_model();
     let context = simple_text_context("Tell me a short joke");
@@ -197,6 +205,7 @@ fn test_streaming_text_response() {
 
 /// Test 3: Tool call response
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_tool_call_response() {
     let model = mimo_model();
     let context = tool_context("Read the file at /tmp/test.txt");
@@ -209,14 +218,14 @@ fn test_tool_call_response() {
     assert!(!events.is_empty());
 
     // Check if we got a tool call
-    let tool_calls: Vec<&ToolCallContent> = events
+    let _tool_calls: Vec<&ToolCallContent> = events
         .iter()
         .filter_map(|e| match e {
             cortexcode_ai_types::AssistantMessageEvent::Done { message } => {
-                message.content.iter().filter_map(|c| match c {
+                Some(message.content.iter().filter_map(|c| match c {
                     Content::ToolCall(tc) => Some(tc),
                     _ => None,
-                })
+                }))
             }
             _ => None,
         })
@@ -236,6 +245,7 @@ fn test_tool_call_response() {
 
 /// Test 4: Conversation context preservation
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_conversation_context() {
     let model = mimo_model();
 
@@ -268,11 +278,7 @@ fn test_conversation_context() {
         }),
     ];
 
-    let context = Context::new(
-        "You are a helpful assistant.".into(),
-        messages,
-        vec![],
-    );
+    let context = Context::new("You are a helpful assistant.".into(), messages, vec![]);
 
     let options = stream_options();
     let result = openai_provider::stream(model, context, options);
@@ -300,6 +306,7 @@ fn test_conversation_context() {
 
 /// Test 5: System prompt handling
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_system_prompt() {
     let model = mimo_model();
 
@@ -340,6 +347,7 @@ fn test_system_prompt() {
 
 /// Test 6: Error handling - invalid API key
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_invalid_api_key() {
     let model = mimo_model();
     let context = simple_text_context("Test");
@@ -356,18 +364,16 @@ fn test_invalid_api_key() {
     assert!(!events.is_empty());
 
     // Should get an error event
-    let has_error = events.iter().any(|e| {
-        matches!(
-            e,
-            cortexcode_ai_types::AssistantMessageEvent::Error { .. }
-        )
-    });
+    let has_error = events
+        .iter()
+        .any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::Error { .. }));
 
     assert!(has_error, "Should receive error for invalid API key");
 }
 
 /// Test 7: Usage tracking
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_usage_tracking() {
     let model = mimo_model();
     let context = simple_text_context("What is 5 * 5?");
@@ -384,8 +390,6 @@ fn test_usage_tracking() {
             // Usage may or may not be present depending on the API
             if let Some(usage) = &message.usage {
                 assert!(usage.total_tokens > 0, "Total tokens should be positive");
-                assert!(usage.input >= 0, "Input tokens should be non-negative");
-                assert!(usage.output >= 0, "Output tokens should be non-negative");
                 println!("Usage: {:?}", usage);
             }
         }
@@ -395,6 +399,7 @@ fn test_usage_tracking() {
 
 /// Test 8: Multiple sequential requests
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_sequential_requests() {
     let model = mimo_model();
     let options = stream_options();
@@ -409,7 +414,10 @@ fn test_sequential_requests() {
         let events = collect_events(result.unwrap());
         let done_event = events.last().unwrap();
         assert!(
-            matches!(done_event, cortexcode_ai_types::AssistantMessageEvent::Done { .. }),
+            matches!(
+                done_event,
+                cortexcode_ai_types::AssistantMessageEvent::Done { .. }
+            ),
             "Request {} should complete",
             i
         );
@@ -418,6 +426,7 @@ fn test_sequential_requests() {
 
 /// Test 9: Long prompt handling
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_long_prompt() {
     let model = mimo_model();
 
@@ -436,6 +445,7 @@ fn test_long_prompt() {
 
 /// Test 10: Concurrent requests
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_concurrent_requests() {
     use std::sync::{Arc, Mutex};
     use std::thread;
@@ -472,6 +482,7 @@ fn test_concurrent_requests() {
 
 /// Test 11: Stop reason validation
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_stop_reasons() {
     let model = mimo_model();
     let context = simple_text_context("Hello!");
@@ -485,7 +496,7 @@ fn test_stop_reasons() {
 
     match done_event {
         cortexcode_ai_types::AssistantMessageEvent::Done { message } => {
-            match message.stop_reason {
+            match &message.stop_reason {
                 Some(reason) => {
                     // Valid stop reasons
                     assert!(
@@ -508,6 +519,7 @@ fn test_stop_reasons() {
 
 /// Test 12: Message content structure
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_message_content_structure() {
     let model = mimo_model();
     let context = simple_text_context("Tell me about Rust programming language");
@@ -525,7 +537,10 @@ fn test_message_content_structure() {
             assert!(!message.content.is_empty(), "Message should have content");
 
             // Check that we have text content
-            let has_text = message.content.iter().any(|c| matches!(c, Content::Text(_)));
+            let has_text = message
+                .content
+                .iter()
+                .any(|c| matches!(c, Content::Text(_)));
             assert!(has_text, "Message should contain text content");
         }
         other => panic!("Expected Done event, got: {:?}", other),
@@ -534,6 +549,7 @@ fn test_message_content_structure() {
 
 /// Test 13: Response timing
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_response_timing() {
     use std::time::Instant;
 
@@ -552,11 +568,16 @@ fn test_response_timing() {
     assert!(!events.is_empty());
 
     // Response should complete within a reasonable time (60 seconds)
-    assert!(duration.as_secs() < 60, "Response took too long: {:?}", duration);
+    assert!(
+        duration.as_secs() < 60,
+        "Response took too long: {:?}",
+        duration
+    );
 }
 
 /// Test 14: Content completeness
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_content_completeness() {
     let model = mimo_model();
     let context = simple_text_context("Write a haiku about testing");
@@ -568,9 +589,18 @@ fn test_content_completeness() {
     let events = collect_events(result.unwrap());
 
     // Check that we have start, deltas, and done events
-    let has_start = events.iter().any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::Start { .. }));
-    let has_text_delta = events.iter().any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::TextDelta { .. }));
-    let has_done = events.iter().any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::Done { .. }));
+    let has_start = events
+        .iter()
+        .any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::Start { .. }));
+    let has_text_delta = events.iter().any(|e| {
+        matches!(
+            e,
+            cortexcode_ai_types::AssistantMessageEvent::TextDelta { .. }
+        )
+    });
+    let has_done = events
+        .iter()
+        .any(|e| matches!(e, cortexcode_ai_types::AssistantMessageEvent::Done { .. }));
 
     assert!(has_start, "Should have Start event");
     assert!(has_text_delta, "Should have TextDelta events");
@@ -579,6 +609,7 @@ fn test_content_completeness() {
 
 /// Test 15: Tool definitions with multiple tools
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_multiple_tools() {
     let model = mimo_model();
 
@@ -643,6 +674,7 @@ fn test_multiple_tools() {
 
 /// Test 16: Unicode and special characters
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_unicode_and_special_characters() {
     let model = mimo_model();
     let context = simple_text_context("Hello! 🎉 How are you? 你好! مرحبا");
@@ -669,9 +701,11 @@ fn test_unicode_and_special_characters() {
 
 /// Test 17: Code generation request
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_code_generation() {
     let model = mimo_model();
-    let context = simple_text_context("Write a simple Python function to calculate fibonacci numbers");
+    let context =
+        simple_text_context("Write a simple Python function to calculate fibonacci numbers");
     let options = stream_options();
 
     let result = openai_provider::stream(model, context, options);
@@ -695,6 +729,7 @@ fn test_code_generation() {
 
 /// Test 18: Mathematical reasoning
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_mathematical_reasoning() {
     let model = mimo_model();
     let context = simple_text_context("What is the derivative of x^3 + 2x^2 - 5x + 3?");
@@ -721,6 +756,7 @@ fn test_mathematical_reasoning() {
 
 /// Test 19: Creative writing
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_creative_writing() {
     let model = mimo_model();
     let context = simple_text_context("Write a haiku about programming");
@@ -747,11 +783,11 @@ fn test_creative_writing() {
 
 /// Test 20: Instruction following
 #[test]
+#[ignore = "live: needs OPENCODE_API_KEY and network"]
 fn test_instruction_following() {
     let model = mimo_model();
-    let context = simple_text_context(
-        "List exactly 5 programming languages, numbered 1-5, one per line."
-    );
+    let context =
+        simple_text_context("List exactly 5 programming languages, numbered 1-5, one per line.");
     let options = stream_options();
 
     let result = openai_provider::stream(model, context, options);

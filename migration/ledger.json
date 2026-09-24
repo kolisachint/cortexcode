@@ -17,7 +17,7 @@
    "id": "7.0",
    "title": "Docs hygiene: fold stale MIGRATION_*.md/TEST_RECORD/E2E docs into CHANGELOG, README points at plan + ledger",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [],
    "sources": [],
@@ -25,7 +25,32 @@
    "l1_cmds": [],
    "l2": "n/a: docs only",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-24T19:20:22Z",
+     "commit": "d7d1548",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-24T19:21:51Z",
+     "commit": "d7d1548",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-24T19:22:55Z",
+     "commit": "d7d1548",
+     "kind": "note",
+     "text": "cargo fmt was already failing on main (webfetch/websearch code from 8a8bc4e); fixed with cargo fmt --all. Note for 10.2e: webfetch truncates with &text[..100000], which panics on a UTF-8 boundary."
+    },
+    {
+     "at": "2026-09-24T19:22:55Z",
+     "commit": "d7d1548",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "7.1",

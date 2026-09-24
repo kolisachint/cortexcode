@@ -73,6 +73,10 @@ migration/tui-parity/setup_hoocode.sh     # idempotent: builds the pinned hoocod
   `10.3b` with dependencies) and note why.
 - Stuck, or you need a decision (Phase 12 go/no-go, a design choice)? Run
   `ledger.py block <id> "<question>"` or `note`, record it in PROGRESS.md, and ask the user.
+- `.github/workflows/*` can't be pushed from these sessions (the token has no `workflow`
+  scope). Stage workflow changes in `migration/ci/` and tell the user to apply them.
+- Never commit secrets. Live-provider tests read keys from the environment and are
+  `#[ignore]`d.
 - Moving the hoocode pin is a separate, user-approved task (plan §0.1). Never do it as
   a side effect.
 - Before the session ends or context gets long: commit, push, and make sure PROGRESS.md

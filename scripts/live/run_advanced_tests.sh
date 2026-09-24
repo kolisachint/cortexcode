@@ -4,6 +4,7 @@
 # Tests complex scenarios and edge cases
 
 set -e
+cd "$(dirname "$0")/../.."
 
 echo "============================================"
 echo "OpenCode API Advanced Testing Suite"
@@ -12,7 +13,7 @@ echo "============================================"
 echo ""
 
 # Set the API key
-export OPENCODE_API_KEY="sk-YbD8JYT7pQuD1gEd8Gx5f4qR6itxCdqpjlnuLy0nqiU9FUMLQKTJumJmU3ouq62Q"
+: "${OPENCODE_API_KEY:?set OPENCODE_API_KEY to run live tests}"
 
 # Test 1: Multi-turn conversation
 echo "Test 1: Multi-turn conversation test..."
