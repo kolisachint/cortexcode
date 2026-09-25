@@ -11,6 +11,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: fix — tools never executed (agent-loop used a closure-less clone)
+- `prepare_tool_call` handed the loop `tool.clone_via_fields()`. That clone's `execute` always
+  returned "Cloned tool: execute not available", so every foreground tool call failed
+  (print-tool-read showed it as the tool result).
+- `AgentTool.execute` and `prepare_arguments` are now `Arc<dyn Fn + Send + Sync>`
+  (`ToolExecuteFn`, `PrepareArgumentsFn`), and `AgentTool: Clone` keeps the closure.
+  `clone_via_fields` is removed. `AgentTool::new` still takes a `Box` (it now needs `Sync`);
+  no caller had to change.
+- print-tool-read: stdout ✓, and the model requests now differ only in the system prompt
+  (10.4c). The simple read result is already byte-identical, but 10.2a (the full read port:
+  offset/limit, truncation, images, dedup) is still todo.
+
 ### 2026-09-25: 10.8a done (print-mode text parity; M1 part 1 green)
 - `code-cli::runtime::run_print_mode` ports `runPrintMode` (text) plus `prepareInitialMessage`:
   - initial message = piped stdin (trimmed) + `@file` text + first message;
