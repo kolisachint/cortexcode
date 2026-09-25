@@ -131,7 +131,6 @@ pub async fn complete_simple(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cortexcode_ai_provider_faux::{faux_text_message, FauxProvider, FauxResponseStep};
     use cortexcode_ai_types::ModelCost;
 
     fn model_with_api(api: &str) -> Model {
@@ -182,12 +181,20 @@ mod tests {
 
     #[test]
     fn registered_provider_is_dispatched_by_api_and_unregistered_by_source() {
-        let faux = Arc::new(FauxProvider::new());
-        faux.set_responses(vec![FauxResponseStep::Message(faux_text_message(
-            "hi", None,
-        ))]);
-        let f = faux.stream_fn();
-        register_api_provider("test-api-dispatch", Arc::from(f), Some("ext-1"));
+        // The faux provider registers itself through here; see its tests.
+        let f: ApiStreamSimpleFn = Arc::new(|model, _context, _options| {
+            let stream = cortexcode_ai_stream::create_assistant_message_event_stream();
+            let message = AssistantMessage {
+                api: model.api.clone(),
+                ..Default::default()
+            };
+            stream.push(cortexcode_ai_types::AssistantMessageEvent::Done {
+                message: message.clone(),
+            });
+            stream.end(Some(message));
+            Ok(stream)
+        });
+        register_api_provider("test-api-dispatch", f, Some("ext-1"));
         let s = stream_simple(
             model_with_api("test-api-dispatch"),
             Context::new(String::new(), vec![], vec![]),

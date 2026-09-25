@@ -5,19 +5,40 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`. Phase 8 now has 8.1, 8.2, 8.2a, 8.3,
-  8.5a and 8.5b done. Every HTTP provider (openai-completions, openai-responses, azure,
-  anthropic) has SDK-style client retries; still missing: openai-codex (8.4a), Copilot
-  (8.4b), gemini-cli/antigravity (8.4c), the OAuth split (8.7) and the remaining ai tests
-  (8.6, which also owns the claude-5-models request format and the UserMessage
-  string-content decision).
+- Next task: run `python3 migration/ledger.py next`. 8.6 was split (too big: 41 of 68 ai
+  test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, next),
+  8.6c (anthropic tests incl. claude-5 request format), 8.6d (google tests), 8.6e
+  (cross-provider suites, mostly live `#[ignore]`). Codex/Copilot/gemini-cli/OAuth test
+  files stay with 8.4a/8.4b/8.4c/8.7; transform-messages-copilot-openai-to-anthropic was
+  added to 8.4b.
+- Still missing in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity
+  (8.4c), the OAuth split (8.7).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
-  notes for what they wait on. New scenarios this session: `print-retry` (8.5a) and
-  `print-tool-invalid-light` (8.5b).
+  notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.6 split; 8.6a done (faux provider = faux.ts)
+- Ledger: 8.6 -> 8.6a..8.6e (see Resume here). No task depended on 8.6.
+- ai-provider-faux rewritten as a port of faux.ts: `register_faux_provider(options)` registers
+  on ai-registry under a random `faux:<ms>:<id>` api (or `options.api`) and returns a
+  registration (derefs to `FauxProvider`; `unregister()`); `FauxProvider::stream_fn()` for
+  direct injection. Options: models, provider, `tokens_per_second`, `token_size`. Behaviour:
+  empty queue -> `error` event "No more faux responses queued"; factory `Err` -> `error`
+  event; sync + async factories get `(context, options, state, model)`; messages stamped with
+  the registration's api/provider + requested model id; usage estimated from the TS
+  `serializeContext` text (UTF-16 lengths) with prompt-cache simulation per `sessionId`;
+  paced deltas and abort before/mid thinking/text/toolcall.
+- Helpers now follow TS: `faux_text`, `faux_thinking`, `faux_tool_call` (random `tool:` id),
+  `faux_assistant_message(content, FauxMessageOptions)`. Old `faux_text_message`/
+  `faux_message`/`faux_error`/`faux_aborted` removed; agent-core tests updated.
+- ai-registry no longer dev-depends on faux (faux now depends on the registry).
+- Tests: faux-provider.test.ts ported (`tests/faux_provider.rs`, 22 tests).
+- Known gap: `onResponse` isn't modelled in `SimpleStreamOptions` (it's an `Option<String>`
+  placeholder), so faux doesn't call it.
+- Next: 8.6b via `ledger.py next`.
 
 ### 2026-09-25: 8.5b done (validateToolArguments)
 - ai-util `validation`: `validate_tool_arguments(name, schema, args, SchemaOrigin)` =

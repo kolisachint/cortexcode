@@ -3,7 +3,7 @@
 
 use super::*;
 use cortexcode_ai_provider_faux::{
-    faux_message, faux_text_message, faux_tool_call, FauxProvider, FauxResponseStep,
+    faux_assistant_message, faux_tool_call, FauxMessageOptions, FauxProvider,
 };
 use cortexcode_ai_stream::create_assistant_message_event_stream;
 use cortexcode_ai_types::{AssistantMessageEvent, ToolCallContent};
@@ -567,10 +567,10 @@ async fn prepare_next_turn_delivers_a_mid_run_context_change_in_the_same_run() {
 
 #[tokio::test]
 async fn prompt_appends_to_the_transcript() {
-    let faux = Arc::new(FauxProvider::new());
+    let faux = FauxProvider::new();
     faux.set_responses(vec![
-        FauxResponseStep::Message(faux_text_message("one", None)),
-        FauxResponseStep::Message(faux_text_message("two", None)),
+        faux_assistant_message("one", Default::default()).into(),
+        faux_assistant_message("two", Default::default()).into(),
     ]);
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state_with(vec![])),
@@ -587,18 +587,21 @@ async fn prompt_appends_to_the_transcript() {
 
 #[tokio::test]
 async fn tool_results_match_hoocode_messages_and_events() {
-    let faux = Arc::new(FauxProvider::new());
+    let faux = FauxProvider::new();
     faux.set_responses(vec![
-        FauxResponseStep::Message(faux_message(
+        faux_assistant_message(
             vec![
                 faux_tool_call("fails", serde_json::json!({}), Some("c1".into())),
                 faux_tool_call("detailed", serde_json::json!({}), Some("c2".into())),
                 faux_tool_call("missing", serde_json::json!({}), Some("c3".into())),
             ],
-            Some(StopReason::ToolUse),
-            None,
-        )),
-        FauxResponseStep::Message(faux_text_message("done", None)),
+            FauxMessageOptions {
+                stop_reason: Some(StopReason::ToolUse),
+                ..Default::default()
+            },
+        )
+        .into(),
+        faux_assistant_message("done", Default::default()).into(),
     ]);
     let fails = AgentTool::new(
         "fails",

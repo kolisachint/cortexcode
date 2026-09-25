@@ -1,28 +1,43 @@
 //! Faux / test provider for cortex AI.
 //!
-//! Provides a mock LLM provider for testing and development.
-//! Pre-configure responses and the provider streams them back
-//! as if they came from a real model.
+//! Port of hoocode `packages/ai/src/providers/faux.ts` (v0.5.89): queue canned
+//! assistant messages (or factories producing them) and stream them back as
+//! if they came from a model, with estimated usage, simulated prompt caching
+//! per `sessionId`, optional `tokensPerSecond` pacing and abort handling.
 //!
-//! Ported from TypeScript `@kolisachint/hoocode-ai` → `providers/faux.ts`.
+//! [`register_faux_provider`] registers the provider on the API registry like
+//! `registerFauxProvider()`. [`FauxProvider::stream_fn`] exposes the same
+//! stream function for callers that inject a stream function directly.
 
+use std::collections::hash_map::RandomState;
+use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::hash::{BuildHasher, Hasher};
+use std::ops::Deref;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use cortexcode_ai_stream::{create_assistant_message_event_stream, AssistantMessageEventStream};
+use cortexcode_ai_registry::{register_api_provider, unregister_api_providers, BoxError};
+use cortexcode_ai_stream::{
+    create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
+};
 use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model, SimpleStreamOptions,
-    StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+    now_ms, AbortSignal, AssistantMessage, AssistantMessageEvent, CacheRetention, Content, Context,
+    Cost, Message, Model, ModelCost, SimpleStreamOptions, StopReason, TextContent, ThinkingContent,
+    ToolCallContent, ToolResultMessage, Usage,
 };
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
+const DEFAULT_API: &str = "faux";
+const DEFAULT_PROVIDER: &str = "faux";
+const DEFAULT_MODEL_ID: &str = "faux-1";
+const DEFAULT_MODEL_NAME: &str = "Faux Model";
+const DEFAULT_BASE_URL: &str = "http://localhost:0";
 const DEFAULT_MIN_TOKEN_SIZE: usize = 3;
 const DEFAULT_MAX_TOKEN_SIZE: usize = 5;
 
@@ -42,762 +57,862 @@ const DEFAULT_USAGE: Usage = Usage {
 };
 
 // ---------------------------------------------------------------------------
-// FauxResponseStep
+// Options and helpers
 // ---------------------------------------------------------------------------
 
-/// A factory function that produces an `AssistantMessage` for a given context.
-pub type FauxResponseFactory =
-    Box<dyn Fn(&Context, &SimpleStreamOptions, &Model) -> AssistantMessage + Send + Sync>;
+/// `FauxModelDefinition`.
+#[derive(Debug, Clone, Default)]
+pub struct FauxModelDefinition {
+    pub id: String,
+    pub name: Option<String>,
+    pub reasoning: Option<bool>,
+    pub input: Option<Vec<String>>,
+    pub cost: Option<ModelCost>,
+    pub context_window: Option<u64>,
+    pub max_tokens: Option<u64>,
+}
 
-/// A single response step: either a pre-built message or a factory.
+impl FauxModelDefinition {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            ..Default::default()
+        }
+    }
+}
+
+/// `tokenSize` in `RegisterFauxProviderOptions`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FauxTokenSize {
+    pub min: Option<usize>,
+    pub max: Option<usize>,
+}
+
+/// `RegisterFauxProviderOptions`.
+#[derive(Debug, Clone, Default)]
+pub struct RegisterFauxProviderOptions {
+    /// Defaults to a random `faux:<ms>:<id>` api.
+    pub api: Option<String>,
+    pub provider: Option<String>,
+    /// Empty means the single default `faux-1` model.
+    pub models: Vec<FauxModelDefinition>,
+    pub tokens_per_second: Option<f64>,
+    pub token_size: Option<FauxTokenSize>,
+}
+
+/// `fauxText()`.
+pub fn faux_text(text: impl Into<String>) -> Content {
+    Content::Text(TextContent {
+        text: text.into(),
+        text_signature: None,
+    })
+}
+
+/// `fauxThinking()`.
+pub fn faux_thinking(thinking: impl Into<String>) -> Content {
+    Content::Thinking(ThinkingContent {
+        thinking: thinking.into(),
+        signature: None,
+        redacted: false,
+    })
+}
+
+/// `fauxToolCall()`: `id` defaults to a random `tool:<ms>:<id>`.
+pub fn faux_tool_call(
+    name: impl Into<String>,
+    arguments: serde_json::Value,
+    id: Option<String>,
+) -> Content {
+    Content::ToolCall(ToolCallContent {
+        id: id.unwrap_or_else(|| random_id("tool")),
+        name: name.into(),
+        arguments,
+        thought_signature: None,
+    })
+}
+
+/// Content accepted by [`faux_assistant_message`]: a string, one block or a
+/// list of blocks (`string | FauxContentBlock | FauxContentBlock[]`).
+pub enum FauxAssistantContent {
+    Text(String),
+    Blocks(Vec<Content>),
+}
+
+impl From<&str> for FauxAssistantContent {
+    fn from(text: &str) -> Self {
+        Self::Text(text.to_string())
+    }
+}
+
+impl From<String> for FauxAssistantContent {
+    fn from(text: String) -> Self {
+        Self::Text(text)
+    }
+}
+
+impl From<Content> for FauxAssistantContent {
+    fn from(block: Content) -> Self {
+        Self::Blocks(vec![block])
+    }
+}
+
+impl From<Vec<Content>> for FauxAssistantContent {
+    fn from(blocks: Vec<Content>) -> Self {
+        Self::Blocks(blocks)
+    }
+}
+
+/// Options of `fauxAssistantMessage()`.
+#[derive(Debug, Clone, Default)]
+pub struct FauxMessageOptions {
+    pub stop_reason: Option<StopReason>,
+    pub error_message: Option<String>,
+    pub response_id: Option<String>,
+    pub timestamp: Option<i64>,
+}
+
+/// `fauxAssistantMessage()`.
+pub fn faux_assistant_message(
+    content: impl Into<FauxAssistantContent>,
+    options: FauxMessageOptions,
+) -> AssistantMessage {
+    let content = match content.into() {
+        FauxAssistantContent::Text(text) => vec![faux_text(text)],
+        FauxAssistantContent::Blocks(blocks) => blocks,
+    };
+    AssistantMessage {
+        content,
+        api: DEFAULT_API.to_string(),
+        provider: DEFAULT_PROVIDER.to_string(),
+        model: DEFAULT_MODEL_ID.to_string(),
+        response_id: options.response_id,
+        response_model: None,
+        diagnostics: None,
+        usage: DEFAULT_USAGE,
+        stop_reason: options.stop_reason.unwrap_or_default(),
+        error_message: options.error_message,
+        timestamp: options.timestamp.unwrap_or_else(now_ms),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Response steps
+// ---------------------------------------------------------------------------
+
+/// `state` passed to response factories.
+#[derive(Debug, Default)]
+pub struct FauxState {
+    call_count: AtomicUsize,
+}
+
+impl FauxState {
+    /// `state.callCount`.
+    pub fn call_count(&self) -> usize {
+        self.call_count.load(Ordering::SeqCst)
+    }
+}
+
+/// Result of a response factory; an `Err` becomes an `error` event
+/// (a thrown error in TypeScript).
+pub type FauxFactoryResult = Result<AssistantMessage, BoxError>;
+
+/// Future returned by a response factory.
+pub type FauxFactoryFuture = Pin<Box<dyn Future<Output = FauxFactoryResult> + Send>>;
+
+/// `FauxResponseFactory`: `(context, options, state, model) => AssistantMessage | Promise<…>`.
+pub type FauxResponseFactory =
+    Box<dyn FnOnce(&Context, &SimpleStreamOptions, &FauxState, &Model) -> FauxFactoryFuture + Send>;
+
+/// `FauxResponseStep`: a message, or a factory called when the step is used.
 // Queued test responses; not hot enough for boxing to matter.
 #[allow(clippy::large_enum_variant)]
 pub enum FauxResponseStep {
-    /// A pre-built assistant message.
     Message(AssistantMessage),
-    /// A factory function that generates a message based on context/model.
     Factory(FauxResponseFactory),
+}
+
+impl FauxResponseStep {
+    /// A synchronous factory.
+    pub fn factory<F>(f: F) -> Self
+    where
+        F: FnOnce(&Context, &SimpleStreamOptions, &FauxState, &Model) -> FauxFactoryResult
+            + Send
+            + 'static,
+    {
+        Self::Factory(Box::new(move |context, options, state, model| {
+            let result = f(context, options, state, model);
+            Box::pin(async move { result })
+        }))
+    }
+
+    /// An async factory.
+    pub fn async_factory<F, Fut>(f: F) -> Self
+    where
+        F: FnOnce(&Context, &SimpleStreamOptions, &FauxState, &Model) -> Fut + Send + 'static,
+        Fut: Future<Output = FauxFactoryResult> + Send + 'static,
+    {
+        Self::Factory(Box::new(move |context, options, state, model| {
+            Box::pin(f(context, options, state, model))
+        }))
+    }
+}
+
+impl From<AssistantMessage> for FauxResponseStep {
+    fn from(message: AssistantMessage) -> Self {
+        Self::Message(message)
+    }
 }
 
 // ---------------------------------------------------------------------------
 // FauxProvider
 // ---------------------------------------------------------------------------
 
-/// A mock LLM provider for testing.
-///
-/// ## Usage
-///
-/// ```ignore
-/// let provider = Arc::new(FauxProvider::new());
-/// provider.set_responses(vec![
-///     FauxResponseStep::Message(faux_text_message("Hello, world!", None)),
-/// ]);
-/// let stream_fn = provider.stream_fn();
-/// // pass `stream_fn` to an Agent or call it directly
-/// ```
+/// The faux provider: the state behind `registerFauxProvider()`, usable
+/// without registering (see [`FauxProvider::stream_fn`]).
 pub struct FauxProvider {
-    responses: Mutex<Vec<FauxResponseStep>>,
-    call_count: AtomicUsize,
+    api: String,
+    provider: String,
+    models: Vec<Model>,
+    state: Arc<FauxState>,
+    pending: Mutex<VecDeque<FauxResponseStep>>,
+    prompt_cache: Mutex<HashMap<String, String>>,
     min_token_size: usize,
     max_token_size: usize,
+    tokens_per_second: Option<f64>,
 }
 
-impl Default for FauxProvider {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// Stream function shape shared with the API registry and agent configs.
+pub type FauxStreamFn = Box<
+    dyn Fn(Model, Context, SimpleStreamOptions) -> Result<AssistantMessageEventStream, BoxError>
+        + Send
+        + Sync,
+>;
 
 impl FauxProvider {
-    /// Create a new `FauxProvider` with no pre-configured responses.
-    pub fn new() -> Self {
-        Self {
-            responses: Mutex::new(Vec::new()),
-            call_count: AtomicUsize::new(0),
-            min_token_size: DEFAULT_MIN_TOKEN_SIZE,
-            max_token_size: DEFAULT_MAX_TOKEN_SIZE,
-        }
+    /// A provider with default options.
+    pub fn new() -> Arc<Self> {
+        Self::with_options(RegisterFauxProviderOptions::default())
     }
 
-    /// Set the response queue (replaces any existing responses).
-    pub fn set_responses(&self, responses: Vec<FauxResponseStep>) {
-        *self.responses.lock().unwrap() = responses;
-    }
+    pub fn with_options(options: RegisterFauxProviderOptions) -> Arc<Self> {
+        let api = options.api.unwrap_or_else(|| random_id(DEFAULT_API));
+        let provider = options
+            .provider
+            .unwrap_or_else(|| DEFAULT_PROVIDER.to_string());
+        let token_size = options.token_size.unwrap_or_default();
+        let min_token_size = token_size
+            .min
+            .unwrap_or(DEFAULT_MIN_TOKEN_SIZE)
+            .min(token_size.max.unwrap_or(DEFAULT_MAX_TOKEN_SIZE))
+            .max(1);
+        let max_token_size = token_size
+            .max
+            .unwrap_or(DEFAULT_MAX_TOKEN_SIZE)
+            .max(min_token_size);
 
-    /// Append responses to the queue.
-    pub fn append_responses(&self, responses: Vec<FauxResponseStep>) {
-        self.responses.lock().unwrap().extend(responses);
-    }
+        let definitions = if options.models.is_empty() {
+            vec![FauxModelDefinition {
+                id: DEFAULT_MODEL_ID.to_string(),
+                name: Some(DEFAULT_MODEL_NAME.to_string()),
+                reasoning: Some(false),
+                input: Some(vec!["text".into(), "image".into()]),
+                cost: Some(ModelCost::default()),
+                context_window: Some(128_000),
+                max_tokens: Some(16_384),
+            }]
+        } else {
+            options.models
+        };
+        let models = definitions
+            .into_iter()
+            .map(|d| Model {
+                name: d.name.unwrap_or_else(|| d.id.clone()),
+                id: d.id,
+                api: api.clone(),
+                provider: provider.clone(),
+                base_url: DEFAULT_BASE_URL.to_string(),
+                reasoning: d.reasoning.unwrap_or(false),
+                thinking_level_map: None,
+                input: d
+                    .input
+                    .unwrap_or_else(|| vec!["text".into(), "image".into()]),
+                cost: d.cost.unwrap_or_default(),
+                context_window: d.context_window.unwrap_or(128_000),
+                max_tokens: d.max_tokens.unwrap_or(16_384),
+                headers: None,
+                compat: None,
+            })
+            .collect();
 
-    /// Get the number of pending responses.
-    pub fn pending_count(&self) -> usize {
-        self.responses.lock().unwrap().len()
-    }
-
-    /// Get the total number of calls made through this provider.
-    pub fn call_count(&self) -> usize {
-        self.call_count.load(Ordering::Relaxed)
-    }
-
-    /// Reset the call counter.
-    pub fn reset_call_count(&self) {
-        self.call_count.store(0, Ordering::Relaxed);
-    }
-
-    /// Return a closure compatible with `AgentLoopConfig.stream_fn`.
-    ///
-    /// Each invocation pops the next response from the queue and streams it
-    /// through an [`AssistantMessageEventStream`].
-    #[allow(clippy::type_complexity)]
-    pub fn stream_fn(
-        self: &Arc<Self>,
-    ) -> Box<
-        dyn Fn(
-                Model,
-                Context,
-                SimpleStreamOptions,
-            )
-                -> Result<AssistantMessageEventStream, Box<dyn std::error::Error + Send + Sync>>
-            + Send
-            + Sync,
-    > {
-        let this = Arc::clone(self);
-        Box::new(move |model, context, options| {
-            this.call_count.fetch_add(1, Ordering::Relaxed);
-
-            let step = {
-                let mut responses = this.responses.lock().unwrap();
-                if responses.is_empty() {
-                    return Err("No more faux responses queued".into());
-                }
-                responses.remove(0)
-            };
-
-            let mut message = match step {
-                FauxResponseStep::Message(msg) => msg,
-                FauxResponseStep::Factory(factory) => factory(&context, &options, &model),
-            };
-            // cloneMessage() in faux.ts: the response is stamped with the requesting model.
-            message.api = model.api.clone();
-            message.provider = model.provider.clone();
-            message.model = model.id.clone();
-
-            let stream = create_assistant_message_event_stream();
-            stream_message(
-                &stream,
-                &message,
-                &context,
-                options.signal.as_ref(),
-                this.min_token_size,
-                this.max_token_size,
-            );
-            Ok(stream)
+        Arc::new(Self {
+            api,
+            provider,
+            models,
+            state: Arc::new(FauxState::default()),
+            pending: Mutex::new(VecDeque::new()),
+            prompt_cache: Mutex::new(HashMap::new()),
+            min_token_size,
+            max_token_size,
+            tokens_per_second: options.tokens_per_second,
         })
     }
-}
 
-// ---------------------------------------------------------------------------
-// Streaming
-// ---------------------------------------------------------------------------
+    /// `registration.api`.
+    pub fn api(&self) -> &str {
+        &self.api
+    }
 
-/// Stream the given message through the sender, emitting start/delta/end events
-/// for each content block.
-fn stream_message(
-    sender: &AssistantMessageEventStream,
-    message: &AssistantMessage,
-    context: &Context,
-    signal: Option<&cortexcode_ai_types::AbortSignal>,
-    min_token_size: usize,
-    max_token_size: usize,
-) {
-    // withUsageEstimate() in faux.ts always replaces usage with an estimate.
-    let usage = estimate_usage(message, context);
+    /// `registration.models`.
+    pub fn models(&self) -> &[Model] {
+        &self.models
+    }
 
-    let mut partial = AssistantMessage {
-        content: vec![],
-        usage,
-        ..message.clone()
-    };
+    /// `getModel()`: the first model.
+    pub fn get_model(&self) -> Model {
+        self.models[0].clone()
+    }
 
-    // streamWithDeltas(): an already-aborted signal ends the stream before
-    // `start` with createAbortedMessage(partial). Deltas are pushed without
-    // pauses here (no tokensPerSecond yet), so later aborts are not observed.
-    if signal.is_some_and(|s| s.aborted()) {
-        let aborted = AssistantMessage {
-            stop_reason: StopReason::Aborted,
-            error_message: Some("Request was aborted".to_string()),
-            timestamp: cortexcode_ai_types::now_ms(),
-            ..partial
-        };
-        sender.push(AssistantMessageEvent::Error {
-            error: aborted.clone(),
+    /// `getModel(modelId)`.
+    pub fn get_model_by_id(&self, model_id: &str) -> Option<Model> {
+        self.models.iter().find(|m| m.id == model_id).cloned()
+    }
+
+    /// `registration.state`.
+    pub fn state(&self) -> &FauxState {
+        &self.state
+    }
+
+    /// `state.callCount`.
+    pub fn call_count(&self) -> usize {
+        self.state.call_count()
+    }
+
+    /// `setResponses()`.
+    pub fn set_responses(&self, responses: Vec<FauxResponseStep>) {
+        *self.pending.lock().unwrap() = responses.into();
+    }
+
+    /// `appendResponses()`.
+    pub fn append_responses(&self, responses: Vec<FauxResponseStep>) {
+        self.pending.lock().unwrap().extend(responses);
+    }
+
+    /// `getPendingResponseCount()`.
+    pub fn get_pending_response_count(&self) -> usize {
+        self.pending.lock().unwrap().len()
+    }
+
+    /// The provider's stream function (`stream` in faux.ts). Never fails:
+    /// every problem is reported as an `error` event.
+    pub fn stream(
+        self: &Arc<Self>,
+        model: Model,
+        context: Context,
+        options: SimpleStreamOptions,
+    ) -> AssistantMessageEventStream {
+        let outer = create_assistant_message_event_stream();
+        let step = self.pending.lock().unwrap().pop_front();
+        self.state.call_count.fetch_add(1, Ordering::SeqCst);
+
+        let this = Arc::clone(self);
+        let producer_stream = outer.clone();
+        spawn_producer(&outer, async move {
+            this.produce(producer_stream, step, model, context, options)
+                .await;
         });
-        sender.end(Some(aborted));
-        return;
+        outer
     }
 
-    sender.push(AssistantMessageEvent::Start {
-        partial: partial.clone(),
-    });
-
-    for (index, block) in message.content.iter().enumerate() {
-        match block {
-            Content::Text(tc) => {
-                sender.push(AssistantMessageEvent::TextStart {
-                    index,
-                    partial: partial.clone(),
-                });
-                let chunks = split_into_chunks(&tc.text, min_token_size, max_token_size);
-                for chunk in &chunks {
-                    sender.push(AssistantMessageEvent::TextDelta {
-                        index,
-                        delta: chunk.clone(),
-                        partial: partial.clone(),
-                    });
-                }
-                sender.push(AssistantMessageEvent::TextEnd {
-                    index,
-                    partial: partial.clone(),
-                });
-                // Accumulate content into partial
-                partial.content.push(Content::Text(tc.clone()));
-            }
-            Content::Thinking(th) => {
-                sender.push(AssistantMessageEvent::ThinkingStart {
-                    index,
-                    partial: partial.clone(),
-                });
-                let chunks = split_into_chunks(&th.thinking, min_token_size, max_token_size);
-                for chunk in &chunks {
-                    sender.push(AssistantMessageEvent::ThinkingDelta {
-                        index,
-                        delta: chunk.clone(),
-                        partial: partial.clone(),
-                    });
-                }
-                sender.push(AssistantMessageEvent::ThinkingEnd {
-                    index,
-                    partial: partial.clone(),
-                });
-                partial.content.push(Content::Thinking(th.clone()));
-            }
-            Content::ToolCall(tc) => {
-                sender.push(AssistantMessageEvent::ToolCallStart {
-                    index,
-                    partial: partial.clone(),
-                });
-                let args_str = tc.arguments.to_string();
-                let chunks = split_into_chunks(&args_str, min_token_size, max_token_size);
-                for chunk in &chunks {
-                    sender.push(AssistantMessageEvent::ToolCallDelta {
-                        index,
-                        delta: chunk.clone(),
-                        partial: partial.clone(),
-                    });
-                }
-                sender.push(AssistantMessageEvent::ToolCallEnd {
-                    index,
-                    partial: partial.clone(),
-                });
-                partial.content.push(Content::ToolCall(tc.clone()));
-            }
-            Content::Image(img) => {
-                partial.content.push(Content::Image(img.clone()));
-            }
-        }
+    /// [`Self::stream`] as a boxed stream function.
+    pub fn stream_fn(self: &Arc<Self>) -> FauxStreamFn {
+        let this = Arc::clone(self);
+        Box::new(move |model, context, options| Ok(this.stream(model, context, options)))
     }
 
-    match &message.stop_reason {
-        StopReason::Error | StopReason::Aborted => {
-            sender.push(AssistantMessageEvent::Error {
-                error: partial.clone(),
+    async fn produce(
+        &self,
+        outer: AssistantMessageEventStream,
+        step: Option<FauxResponseStep>,
+        model: Model,
+        context: Context,
+        options: SimpleStreamOptions,
+    ) {
+        // `onResponse` is not modelled in SimpleStreamOptions yet.
+        let Some(step) = step else {
+            let mut message = self.error_message("No more faux responses queued", &model);
+            message.usage = self.usage_estimate(&message, &context, &options);
+            outer.push(AssistantMessageEvent::Error {
+                error: message.clone(),
             });
-        }
-        _ => {
-            sender.push(AssistantMessageEvent::Done {
-                message: partial.clone(),
-            });
+            outer.end(Some(message));
+            return;
+        };
+
+        let resolved = match step {
+            FauxResponseStep::Message(message) => Ok(message),
+            FauxResponseStep::Factory(factory) => {
+                factory(&context, &options, &self.state, &model).await
+            }
+        };
+        let mut message = match resolved {
+            Ok(message) => message,
+            Err(error) => {
+                let message = self.error_message(&error.to_string(), &model);
+                outer.push(AssistantMessageEvent::Error {
+                    error: message.clone(),
+                });
+                outer.end(Some(message));
+                return;
+            }
+        };
+        // cloneMessage(): stamped with this provider's api/provider and the requested model.
+        message.api = self.api.clone();
+        message.provider = self.provider.clone();
+        message.model = model.id.clone();
+        message.usage = self.usage_estimate(&message, &context, &options);
+        self.stream_with_deltas(&outer, message, options.signal.as_ref())
+            .await;
+    }
+
+    /// `createErrorMessage()`.
+    fn error_message(&self, error: &str, model: &Model) -> AssistantMessage {
+        AssistantMessage {
+            content: vec![],
+            api: self.api.clone(),
+            provider: self.provider.clone(),
+            model: model.id.clone(),
+            response_id: None,
+            response_model: None,
+            diagnostics: None,
+            usage: DEFAULT_USAGE,
+            stop_reason: StopReason::Error,
+            error_message: Some(error.to_string()),
+            timestamp: now_ms(),
         }
     }
-    // streamWithDeltas() ends the stream with the final message (outer.end(message)).
-    sender.end(Some(partial));
+
+    /// `withUsageEstimate()`: estimate tokens from the serialized context and
+    /// simulate prompt caching per `sessionId` (unless `cacheRetention` is none).
+    fn usage_estimate(
+        &self,
+        message: &AssistantMessage,
+        context: &Context,
+        options: &SimpleStreamOptions,
+    ) -> Usage {
+        let prompt_text = serialize_context(context);
+        let prompt: Vec<u16> = prompt_text.encode_utf16().collect();
+        let prompt_tokens = estimate_units(prompt.len());
+        let output = estimate_tokens(&assistant_content_to_text(&message.content));
+        let mut input = prompt_tokens;
+        let mut cache_read = 0;
+        let mut cache_write = 0;
+
+        if let Some(session_id) = options.session_id.as_deref() {
+            if options.cache_retention != Some(CacheRetention::None) {
+                let mut cache = self.prompt_cache.lock().unwrap();
+                match cache.get(session_id).filter(|p| !p.is_empty()) {
+                    Some(previous) => {
+                        let previous: Vec<u16> = previous.encode_utf16().collect();
+                        let cached = previous
+                            .iter()
+                            .zip(&prompt)
+                            .take_while(|(a, b)| a == b)
+                            .count();
+                        cache_read = estimate_units(cached);
+                        cache_write = estimate_units(prompt.len() - cached);
+                        input = prompt_tokens.saturating_sub(cache_read);
+                    }
+                    None => cache_write = prompt_tokens,
+                }
+                cache.insert(session_id.to_string(), prompt_text);
+            }
+        }
+
+        Usage {
+            input,
+            output,
+            cache_read,
+            cache_write,
+            total_tokens: input + output + cache_read + cache_write,
+            cost: DEFAULT_USAGE.cost,
+        }
+    }
+
+    /// `streamWithDeltas()`.
+    async fn stream_with_deltas(
+        &self,
+        stream: &AssistantMessageEventStream,
+        message: AssistantMessage,
+        signal: Option<&AbortSignal>,
+    ) {
+        let aborted = |partial: &AssistantMessage| {
+            signal
+                .is_some_and(|s| s.aborted())
+                .then(|| AssistantMessage {
+                    stop_reason: StopReason::Aborted,
+                    error_message: Some("Request was aborted".to_string()),
+                    timestamp: now_ms(),
+                    ..partial.clone()
+                })
+        };
+        let fail = |error: AssistantMessage| {
+            stream.push(AssistantMessageEvent::Error {
+                error: error.clone(),
+            });
+            stream.end(Some(error));
+        };
+
+        let mut partial = AssistantMessage {
+            content: vec![],
+            ..message.clone()
+        };
+        if let Some(error) = aborted(&partial) {
+            return fail(error);
+        }
+        stream.push(AssistantMessageEvent::Start {
+            partial: partial.clone(),
+        });
+
+        for (index, block) in message.content.iter().enumerate() {
+            if let Some(error) = aborted(&partial) {
+                return fail(error);
+            }
+            match block {
+                Content::Thinking(thinking) => {
+                    partial.content.push(faux_thinking(""));
+                    stream.push(AssistantMessageEvent::ThinkingStart {
+                        index,
+                        partial: partial.clone(),
+                    });
+                    for chunk in self.split(&thinking.thinking) {
+                        self.schedule_chunk(&chunk).await;
+                        if let Some(error) = aborted(&partial) {
+                            return fail(error);
+                        }
+                        if let Some(Content::Thinking(t)) = partial.content.get_mut(index) {
+                            t.thinking.push_str(&chunk);
+                        }
+                        stream.push(AssistantMessageEvent::ThinkingDelta {
+                            index,
+                            delta: chunk,
+                            partial: partial.clone(),
+                        });
+                    }
+                    stream.push(AssistantMessageEvent::ThinkingEnd {
+                        index,
+                        partial: partial.clone(),
+                    });
+                }
+                Content::Text(text) => {
+                    partial.content.push(faux_text(""));
+                    stream.push(AssistantMessageEvent::TextStart {
+                        index,
+                        partial: partial.clone(),
+                    });
+                    for chunk in self.split(&text.text) {
+                        self.schedule_chunk(&chunk).await;
+                        if let Some(error) = aborted(&partial) {
+                            return fail(error);
+                        }
+                        if let Some(Content::Text(t)) = partial.content.get_mut(index) {
+                            t.text.push_str(&chunk);
+                        }
+                        stream.push(AssistantMessageEvent::TextDelta {
+                            index,
+                            delta: chunk,
+                            partial: partial.clone(),
+                        });
+                    }
+                    stream.push(AssistantMessageEvent::TextEnd {
+                        index,
+                        partial: partial.clone(),
+                    });
+                }
+                Content::ToolCall(call) => {
+                    partial.content.push(Content::ToolCall(ToolCallContent {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        arguments: serde_json::json!({}),
+                        thought_signature: None,
+                    }));
+                    stream.push(AssistantMessageEvent::ToolCallStart {
+                        index,
+                        partial: partial.clone(),
+                    });
+                    for chunk in self.split(&call.arguments.to_string()) {
+                        self.schedule_chunk(&chunk).await;
+                        if let Some(error) = aborted(&partial) {
+                            return fail(error);
+                        }
+                        stream.push(AssistantMessageEvent::ToolCallDelta {
+                            index,
+                            delta: chunk,
+                            partial: partial.clone(),
+                        });
+                    }
+                    if let Some(Content::ToolCall(c)) = partial.content.get_mut(index) {
+                        c.arguments = call.arguments.clone();
+                    }
+                    stream.push(AssistantMessageEvent::ToolCallEnd {
+                        index,
+                        partial: partial.clone(),
+                    });
+                }
+                // Not a FauxContentBlock; carried through without events.
+                Content::Image(_) => partial.content.push(block.clone()),
+            }
+        }
+
+        if matches!(message.stop_reason, StopReason::Error | StopReason::Aborted) {
+            return fail(message);
+        }
+        stream.push(AssistantMessageEvent::Done {
+            message: message.clone(),
+        });
+        stream.end(Some(message));
+    }
+
+    fn split(&self, text: &str) -> Vec<String> {
+        split_string_by_token_size(text, self.min_token_size, self.max_token_size)
+    }
+
+    /// `scheduleChunk()`: yield, or sleep for the chunk's share of
+    /// `tokensPerSecond`.
+    async fn schedule_chunk(&self, chunk: &str) {
+        match self.tokens_per_second.filter(|tps| *tps > 0.0) {
+            None => tokio::task::yield_now().await,
+            Some(tps) => {
+                let secs = estimate_tokens(chunk) as f64 / tps;
+                tokio::time::sleep(Duration::from_secs_f64(secs)).await;
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
-// Usage estimation
+// Registration
 // ---------------------------------------------------------------------------
 
-/// Estimate token usage from a message and its context.
-fn estimate_usage(message: &AssistantMessage, context: &Context) -> Usage {
-    let prompt_text = serialize_context(context);
-    let prompt_tokens = estimate_tokens(&prompt_text);
-    let output_tokens = estimate_tokens(&content_to_text(&message.content));
+/// `FauxProviderRegistration`: derefs to the [`FauxProvider`] for
+/// `getModel`, `setResponses`, `state`, …
+pub struct FauxProviderRegistration {
+    provider: Arc<FauxProvider>,
+    source_id: String,
+}
 
-    Usage {
-        input: prompt_tokens,
-        output: output_tokens,
-        cache_read: 0,
-        cache_write: 0,
-        total_tokens: prompt_tokens + output_tokens,
-        cost: Cost {
-            input: 0.0,
-            output: 0.0,
-            cache_read: 0.0,
-            cache_write: 0.0,
-            total: 0.0,
-        },
+impl FauxProviderRegistration {
+    /// `unregister()`.
+    pub fn unregister(&self) {
+        unregister_api_providers(&self.source_id);
+    }
+
+    /// The registered provider.
+    pub fn provider(&self) -> &Arc<FauxProvider> {
+        &self.provider
     }
 }
 
+impl Deref for FauxProviderRegistration {
+    type Target = Arc<FauxProvider>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.provider
+    }
+}
+
+/// `registerFauxProvider()`: create a faux provider and register it on the
+/// API registry under its api.
+pub fn register_faux_provider(options: RegisterFauxProviderOptions) -> FauxProviderRegistration {
+    let provider = FauxProvider::with_options(options);
+    let source_id = random_id("faux-provider");
+    register_api_provider(
+        provider.api(),
+        Arc::from(provider.stream_fn()),
+        Some(&source_id),
+    );
+    FauxProviderRegistration {
+        provider,
+        source_id,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Serialization and estimates
+// ---------------------------------------------------------------------------
+
+/// `estimateTokens()`: `ceil(text.length / 4)` in UTF-16 code units.
 fn estimate_tokens(text: &str) -> u64 {
-    (text.len() as f64 / 4.0).ceil() as u64
+    estimate_units(text.encode_utf16().count())
 }
 
+fn estimate_units(units: usize) -> u64 {
+    units.div_ceil(4) as u64
+}
+
+/// `randomId()`: `<prefix>:<ms>:<base36 random>`.
+fn random_id(prefix: &str) -> String {
+    format!("{prefix}:{}:{}", now_ms(), to_base36(random_u64()))
+}
+
+fn random_u64() -> u64 {
+    RandomState::new().build_hasher().finish()
+}
+
+fn to_base36(mut n: u64) -> String {
+    const DIGITS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    let mut out = Vec::new();
+    loop {
+        out.push(DIGITS[(n % 36) as usize]);
+        n /= 36;
+        if n == 0 {
+            break;
+        }
+    }
+    out.reverse();
+    String::from_utf8(out).unwrap()
+}
+
+/// `contentToText()` for user and tool-result content.
 fn content_to_text(content: &[Content]) -> String {
     content
         .iter()
-        .map(|c| match c {
-            Content::Text(t) => t.text.clone(),
-            Content::Thinking(th) => th.thinking.clone(),
-            Content::ToolCall(tc) => format!("{}:{}", tc.name, tc.arguments),
-            Content::Image(img) => format!("[image:{}:{}]", img.media_type, img.data.len()),
+        .map(|block| match block {
+            Content::Image(image) => format!(
+                "[image:{}:{}]",
+                image.media_type,
+                image.data.encode_utf16().count()
+            ),
+            other => assistant_content_to_text(std::slice::from_ref(other)),
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
+/// `assistantContentToText()`.
+fn assistant_content_to_text(content: &[Content]) -> String {
+    content
+        .iter()
+        .map(|block| match block {
+            Content::Text(text) => text.text.clone(),
+            Content::Thinking(thinking) => thinking.thinking.clone(),
+            Content::ToolCall(call) => format!("{}:{}", call.name, call.arguments),
+            Content::Image(_) => content_to_text(std::slice::from_ref(block)),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `toolResultToText()`.
+fn tool_result_to_text(message: &ToolResultMessage) -> String {
+    std::iter::once(message.tool_name.clone())
+        .chain(
+            message
+                .content
+                .iter()
+                .map(|block| content_to_text(std::slice::from_ref(block))),
+        )
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `serializeContext()`.
 fn serialize_context(context: &Context) -> String {
     let mut parts = Vec::new();
     if !context.system_prompt.is_empty() {
         parts.push(format!("system:{}", context.system_prompt));
     }
     for message in &context.messages {
-        match message {
-            cortexcode_ai_types::Message::User(m) => {
-                parts.push(format!("user:{}", content_to_text(&m.content)));
-            }
-            cortexcode_ai_types::Message::Assistant(m) => {
-                parts.push(format!("assistant:{}", content_to_text(&m.content)));
-            }
-            cortexcode_ai_types::Message::ToolResult(m) => {
-                parts.push(format!("tool_result:{}", content_to_text(&m.content)));
-            }
-        }
+        parts.push(match message {
+            Message::User(m) => format!("user:{}", content_to_text(&m.content)),
+            Message::Assistant(m) => format!("assistant:{}", assistant_content_to_text(&m.content)),
+            Message::ToolResult(m) => format!("toolResult:{}", tool_result_to_text(m)),
+        });
     }
     if !context.tools.is_empty() {
-        parts.push(format!("tools:{}", context.tools.len()));
+        let tools: Vec<serde_json::Value> = context
+            .tools
+            .iter()
+            .map(|tool| {
+                serde_json::json!({
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                })
+            })
+            .collect();
+        parts.push(format!("tools:{}", serde_json::Value::from(tools)));
     }
     parts.join("\n\n")
 }
 
-// ---------------------------------------------------------------------------
-// Chunking
-// ---------------------------------------------------------------------------
-
-/// Split text into deterministic-size chunks (simulated tokens).
-fn split_into_chunks(text: &str, min_token_size: usize, max_token_size: usize) -> Vec<String> {
-    if text.is_empty() {
-        return vec![String::new()];
-    }
+/// `splitStringByTokenSize()`: chunks of a random `min..=max` tokens (4
+/// UTF-16 units each). Chunks end on char boundaries, so a chunk can be one
+/// unit longer than in TypeScript when it would split a surrogate pair.
+fn split_string_by_token_size(
+    text: &str,
+    min_token_size: usize,
+    max_token_size: usize,
+) -> Vec<String> {
     let mut chunks = Vec::new();
-    let mut index = 0;
-    let range = max_token_size - min_token_size + 1;
-    while index < text.len() {
-        // Deterministic chunk size based on position
-        let token_size = min_token_size + ((index / 4) % range);
-        let char_size = std::cmp::max(1, token_size * 4);
-        let end = std::cmp::min(index + char_size, text.len());
-        chunks.push(text[index..end].to_string());
-        index = end;
+    let mut current = String::new();
+    let mut units = 0;
+    let mut target = 0;
+    for ch in text.chars() {
+        if units == 0 {
+            let span = (max_token_size - min_token_size + 1) as u64;
+            let token_size = min_token_size + (random_u64() % span) as usize;
+            target = (token_size * 4).max(1);
+        }
+        current.push(ch);
+        units += ch.len_utf16();
+        if units >= target {
+            chunks.push(std::mem::take(&mut current));
+            units = 0;
+        }
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    if chunks.is_empty() {
+        chunks.push(String::new());
     }
     chunks
 }
-
-// ---------------------------------------------------------------------------
-// Public helper functions for building faux messages
-// ---------------------------------------------------------------------------
-
-/// Create a `TextContent` block.
-pub fn faux_text(text: &str) -> Content {
-    Content::Text(TextContent {
-        text_signature: None,
-        text: text.to_string(),
-    })
-}
-
-/// Create a `ThinkingContent` block.
-pub fn faux_thinking(thinking: &str) -> Content {
-    Content::Thinking(ThinkingContent {
-        redacted: false,
-        thinking: thinking.to_string(),
-        signature: None,
-    })
-}
-
-/// Create a `ToolCallContent` block.
-pub fn faux_tool_call(name: &str, arguments: serde_json::Value, id: Option<String>) -> Content {
-    Content::ToolCall(ToolCallContent {
-        thought_signature: None,
-        id: id.unwrap_or_else(|| format!("tool:{}", fast_hash(name))),
-        name: name.to_string(),
-        arguments,
-    })
-}
-
-/// Build an `AssistantMessage` with text content.
-pub fn faux_text_message(text: &str, stop_reason: Option<StopReason>) -> AssistantMessage {
-    AssistantMessage {
-        provider: String::new(),
-        response_id: None,
-        response_model: None,
-        api: String::new(),
-        diagnostics: None,
-        model: String::new(),
-        content: vec![faux_text(text)],
-        stop_reason: stop_reason.unwrap_or_default(),
-        usage: DEFAULT_USAGE,
-        timestamp: cortexcode_ai_types::now_ms(),
-        error_message: None,
-    }
-}
-
-/// Build an `AssistantMessage` with multiple content blocks.
-pub fn faux_message(
-    content: Vec<Content>,
-    stop_reason: Option<StopReason>,
-    error_message: Option<String>,
-) -> AssistantMessage {
-    AssistantMessage {
-        provider: String::new(),
-        response_id: None,
-        response_model: None,
-        api: String::new(),
-        diagnostics: None,
-        model: String::new(),
-        content,
-        stop_reason: stop_reason.unwrap_or_default(),
-        usage: DEFAULT_USAGE,
-        timestamp: cortexcode_ai_types::now_ms(),
-        error_message,
-    }
-}
-
-/// Build an error `AssistantMessage`.
-pub fn faux_error(error: &str) -> AssistantMessage {
-    faux_message(vec![], Some(StopReason::Error), Some(error.to_string()))
-}
-
-/// Build an aborted `AssistantMessage`.
-pub fn faux_aborted() -> AssistantMessage {
-    faux_message(
-        vec![],
-        Some(StopReason::Aborted),
-        Some("Request was aborted".to_string()),
-    )
-}
-
-// ---------------------------------------------------------------------------
-// Utility: fast hash
-// ---------------------------------------------------------------------------
-
-fn fast_hash(input: &str) -> String {
-    let mut h1: u32 = 0xdeadbeef;
-    let mut h2: u32 = 0x41c6ce57;
-
-    for byte in input.bytes() {
-        let ch = byte as u32;
-        h1 = h1.wrapping_mul(2654435761) ^ ch;
-        h2 = h2.wrapping_mul(1597334677) ^ ch;
-    }
-
-    h1 = (h1 ^ (h1 >> 16)).wrapping_mul(2246822507) ^ (h2 ^ (h2 >> 13)).wrapping_mul(3266489909);
-    h2 = (h2 ^ (h2 >> 16)).wrapping_mul(2246822507) ^ (h1 ^ (h1 >> 13)).wrapping_mul(3266489909);
-
-    format!("{:x}{:x}", h2, h1)
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // --- helper content builders ---
-
     #[test]
-    fn test_faux_text_content() {
-        let content = faux_text("hello world");
-        match content {
-            Content::Text(t) => assert_eq!(t.text, "hello world"),
-            _ => panic!("expected text content"),
-        }
-    }
-
-    #[test]
-    fn test_faux_thinking_content() {
-        let content = faux_thinking("thinking text");
-        match content {
-            Content::Thinking(t) => assert_eq!(t.thinking, "thinking text"),
-            _ => panic!("expected thinking content"),
-        }
-    }
-
-    #[test]
-    fn test_faux_tool_call_content() {
-        let args = serde_json::json!({"a": 1});
-        let content = faux_tool_call("test_tool", args.clone(), Some("id-1".into()));
-        match content {
-            Content::ToolCall(tc) => {
-                assert_eq!(tc.name, "test_tool");
-                assert_eq!(tc.arguments, args);
-                assert_eq!(tc.id, "id-1");
-            }
-            _ => panic!("expected tool call content"),
-        }
-    }
-
-    // --- message builders ---
-
-    #[test]
-    fn test_faux_text_message() {
-        let msg = faux_text_message("hello", Some(StopReason::Stop));
-        assert_eq!(msg.content.len(), 1);
-        assert_eq!(msg.stop_reason, StopReason::Stop);
-        assert!(msg.timestamp > 0);
-    }
-
-    #[test]
-    fn test_faux_error_message() {
-        let msg = faux_error("something went wrong");
-        assert_eq!(msg.stop_reason, StopReason::Error);
-        assert_eq!(msg.error_message, Some("something went wrong".to_string()));
-    }
-
-    #[test]
-    fn test_faux_aborted_message() {
-        let msg = faux_aborted();
-        assert_eq!(msg.stop_reason, StopReason::Aborted);
-        assert_eq!(msg.error_message, Some("Request was aborted".to_string()));
-    }
-
-    // --- abort ---
-
-    #[test]
-    fn test_faux_provider_immediate_abort() {
-        let provider = Arc::new(FauxProvider::new());
-        provider.set_responses(vec![FauxResponseStep::Message(faux_text_message(
-            "Hello!",
-            Some(StopReason::Stop),
-        ))]);
-        let signal = cortexcode_ai_types::AbortSignal::new();
-        signal.abort();
-        let options = SimpleStreamOptions {
-            signal: Some(signal),
-            ..Default::default()
-        };
-        let mut stream = provider.stream_fn()(
-            default_faux_model(),
-            Context::new("".into(), vec![], vec![]),
-            options,
-        )
-        .unwrap();
-        let first = stream.next_blocking();
-        assert!(matches!(first, Some(AssistantMessageEvent::Error { .. })));
-        let msg = stream.result_blocking();
-        assert_eq!(msg.stop_reason, StopReason::Aborted);
-        assert!(msg.content.is_empty());
-    }
-
-    // --- basic streaming ---
-
-    #[test]
-    fn test_faux_provider_basic_stream() {
-        let provider = Arc::new(FauxProvider::new());
-        provider.set_responses(vec![FauxResponseStep::Message(faux_text_message(
-            "Hello!",
-            Some(StopReason::Stop),
-        ))]);
-
-        let stream_fn = provider.stream_fn();
-        let model = default_faux_model();
-        let expected = (model.api.clone(), model.provider.clone(), model.id.clone());
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions::default();
-
-        let mut stream = stream_fn(model, context, options).unwrap();
-
-        // Collect events
-        let mut events = Vec::new();
-        while let Some(event) = stream.next_blocking() {
-            events.push(event);
-        }
-
-        assert!(!events.is_empty(), "should have at least one event");
-        assert!(
-            events.len() >= 3,
-            "should have start, text events, and done"
-        );
-
-        // First event should be Start
-        match &events[0] {
-            AssistantMessageEvent::Start { partial: _ } => {}
-            _ => panic!("expected Start event"),
-        }
-
-        // Last event should be Done
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert!(!message.content.is_empty());
-                // cloneMessage(): stamped with the requesting model.
-                assert_eq!(
-                    (
-                        message.api.clone(),
-                        message.provider.clone(),
-                        message.model.clone()
-                    ),
-                    expected
-                );
-                assert!(message.usage.total_tokens > 0, "usage is estimated");
-            }
-            other => panic!("expected Done event, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_faux_provider_error_stream() {
-        let provider = Arc::new(FauxProvider::new());
-        provider.set_responses(vec![FauxResponseStep::Message(faux_error("oops"))]);
-
-        let stream_fn = provider.stream_fn();
-        let model = default_faux_model();
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions::default();
-
-        let mut stream = stream_fn(model, context, options).unwrap();
-        let mut events = Vec::new();
-        while let Some(event) = stream.next_blocking() {
-            events.push(event);
-        }
-
-        // Last event should be Error
-        match events.last().unwrap() {
-            AssistantMessageEvent::Error { error } => {
-                assert_eq!(error.error_message, Some("oops".to_string()));
-            }
-            other => panic!("expected Error event, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_faux_provider_no_responses() {
-        let provider = Arc::new(FauxProvider::new());
-        let stream_fn = provider.stream_fn();
-        let model = default_faux_model();
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions::default();
-
-        let result = stream_fn(model, context, options);
-        assert!(result.is_err());
-        // Just check it's an error — the error type doesn't implement Debug
-        // so we can't unwrap_err(). Instead verify via match.
-        match result {
-            Err(msg) => {
-                let msg_str = msg.to_string();
-                assert!(
-                    msg_str.contains("No more faux responses"),
-                    "expected 'No more faux responses', got: {msg_str}"
-                );
-            }
-            Ok(_) => panic!("expected error"),
-        }
-    }
-
-    // --- call count ---
-
-    #[test]
-    fn test_faux_provider_call_count() {
-        let provider = Arc::new(FauxProvider::new());
-        provider.set_responses(vec![
-            FauxResponseStep::Message(faux_text_message("A", Some(StopReason::Stop))),
-            FauxResponseStep::Message(faux_text_message("B", Some(StopReason::Stop))),
-        ]);
-
-        assert_eq!(provider.call_count(), 0);
-
-        let stream_fn = provider.stream_fn();
-        let model = default_faux_model();
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions::default();
-
-        let _ = stream_fn(model.clone(), context.clone(), options.clone());
-        assert_eq!(provider.call_count(), 1);
-
-        let _ = stream_fn(model, context, options);
-        assert_eq!(provider.call_count(), 2);
-    }
-
-    // --- factory responses ---
-
-    #[test]
-    fn test_faux_provider_with_factory() {
-        let provider = Arc::new(FauxProvider::new());
-        provider.set_responses(vec![FauxResponseStep::Factory(Box::new(
-            |_ctx, _opts, _model| faux_text_message("Factory response", Some(StopReason::Stop)),
-        ))]);
-
-        let stream_fn = provider.stream_fn();
-        let model = default_faux_model();
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions::default();
-
-        let mut stream = stream_fn(model, context, options).unwrap();
-        // Collect all events (Start, TextStart, TextDelta*, TextEnd, Done)
-        let mut event_count = 0;
-        while let Some(event) = stream.next_blocking() {
-            event_count += 1;
-            if let AssistantMessageEvent::Done { message } = &event {
-                assert!(message.content.len() == 1, "expected 1 content block");
-            }
-        }
-        assert!(event_count > 1, "factory should produce multiple events");
-    }
-
-    // --- chunking ---
-
-    #[test]
-    fn test_split_into_chunks_empty() {
-        let chunks = split_into_chunks("", 3, 5);
-        assert_eq!(chunks, vec![""]);
-    }
-
-    #[test]
-    fn test_split_into_chunks_short() {
-        let chunks = split_into_chunks("hi", 3, 5);
-        assert_eq!(chunks, vec!["hi"]);
-    }
-
-    #[test]
-    fn test_split_into_chunks_long() {
+    fn split_reassembles_and_respects_fixed_size() {
+        assert_eq!(split_string_by_token_size("", 3, 5), vec![""]);
+        assert_eq!(split_string_by_token_size("hi", 3, 5), vec!["hi"]);
         let text = "hello world this is a test of the chunking function";
-        let chunks = split_into_chunks(text, 3, 5);
-        assert!(chunks.len() > 1);
-        // Verify the chunks reassemble to the original
+        let chunks = split_string_by_token_size(text, 1, 1);
+        assert!(chunks[..chunks.len() - 1].iter().all(|c| c.len() == 4));
+        assert_eq!(chunks.concat(), text);
+        let chunks = split_string_by_token_size(text, 3, 5);
+        assert!(chunks.iter().all(|c| (1..=20).contains(&c.len())));
         assert_eq!(chunks.concat(), text);
     }
 
-    // --- usage estimation ---
-
     #[test]
-    fn test_estimate_tokens() {
-        assert_eq!(estimate_tokens("hello"), 2); // 5/4 = 1.25 → 2
-        assert_eq!(estimate_tokens("a"), 1);
+    fn estimate_tokens_counts_utf16_units() {
         assert_eq!(estimate_tokens(""), 0);
+        assert_eq!(estimate_tokens("a"), 1);
+        assert_eq!(estimate_tokens("hello"), 2);
+        // One astral char is two UTF-16 units, as `"😀".length` in JS.
+        assert_eq!(estimate_tokens("😀😀😀"), 2);
     }
 
-    // --- helpers ---
-
-    fn default_faux_model() -> Model {
-        Model {
-            compat: None,
-            id: "faux-1".into(),
-            name: "Faux Model".into(),
-            api: "faux".into(),
-            provider: "faux".into(),
-            base_url: "http://localhost:0".into(),
-            reasoning: false,
-            thinking_level_map: None,
-            input: vec!["text".into(), "image".into()],
-            cost: cortexcode_ai_types::ModelCost {
-                input: 0.0,
-                output: 0.0,
-                cache_read: 0.0,
-                cache_write: 0.0,
-            },
-            context_window: 128_000,
-            max_tokens: 16_384,
-            headers: None,
-        }
+    #[test]
+    fn random_ids_have_ts_shape() {
+        let id = random_id("tool");
+        let parts: Vec<&str> = id.split(':').collect();
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0], "tool");
+        assert!(parts[1].parse::<i64>().is_ok());
+        assert!(parts[2].chars().all(|c| c.is_ascii_alphanumeric()));
+        assert_ne!(random_id("tool"), random_id("tool"));
     }
 }

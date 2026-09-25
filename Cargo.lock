@@ -448,9 +448,12 @@ dependencies = [
 name = "cortexcode-ai-provider-faux"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "futures-util",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -508,7 +511,6 @@ dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-provider-anthropic",
  "cortexcode-ai-provider-azure",
- "cortexcode-ai-provider-faux",
  "cortexcode-ai-provider-google",
  "cortexcode-ai-provider-openai",
  "cortexcode-ai-provider-openai-responses",
