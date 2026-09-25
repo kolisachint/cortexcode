@@ -1142,7 +1142,7 @@
    "id": "8.6c",
    "title": "Anthropic provider tests: claude-5 request format (adaptive thinking, output_config.effort), eager tool input, SSE parsing, thinking disable, tool-name normalization, tool search; e2e as #[ignore]",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.6b"
    ],
@@ -1179,6 +1179,18 @@
      "commit": "15b9888",
      "kind": "note",
      "text": "8.6b: anthropic request.rs convert_messages is not a faithful port of convertMessages: it merges every same-role turn and maps string user content to one text block (TS sends it as a string, converted to a text block only when it gets the cache marker). Port convertMessages as is."
+    },
+    {
+     "at": "2026-09-25T17:17:37Z",
+     "commit": "041b0e3",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:28:03Z",
+     "commit": "041b0e3",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

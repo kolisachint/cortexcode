@@ -266,6 +266,7 @@ fn providers_outside_the_allowed_set_flatten_pipe_ids() {
 #[test]
 fn tools_are_strict_false_unless_constrained() {
     let tools = vec![Tool {
+        defer_loading: None,
         name: "t".into(),
         description: "d".into(),
         parameters: json!({"type": "object", "properties": {"a": {"type": "string"}}}),

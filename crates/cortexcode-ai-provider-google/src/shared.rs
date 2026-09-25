@@ -503,6 +503,7 @@ mod tests {
     #[test]
     fn test_convert_tools() {
         let tools = vec![Tool {
+            defer_loading: None,
             name: "read_file".into(),
             description: "reads a file".into(),
             parameters: serde_json::json!({"type": "object", "$schema": "x"}),
@@ -515,6 +516,7 @@ mod tests {
     #[test]
     fn test_convert_tools_use_parameters_strips_schema_meta() {
         let tools = vec![Tool {
+            defer_loading: None,
             name: "read_file".into(),
             description: "reads a file".into(),
             parameters: serde_json::json!({"type": "object", "$schema": "x"}),

@@ -88,6 +88,7 @@ fn usage(prompt: u64, completion: u64) -> Value {
 
 fn read_tool(name: &str) -> Tool {
     Tool {
+        defer_loading: None,
         name: name.into(),
         description: format!("{name} tool"),
         parameters: json!({"type": "object", "properties": {"path": {"type": "string"}}}),

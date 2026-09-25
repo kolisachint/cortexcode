@@ -63,6 +63,7 @@ pub(crate) fn user(text: &str) -> Message {
 
 fn tool(name: &str) -> Tool {
     Tool {
+        defer_loading: None,
         name: name.into(),
         description: format!("{name} tool"),
         parameters: json!({
@@ -109,6 +110,7 @@ fn cache_context() -> Context {
         "System prompt".into(),
         vec![user("Hello")],
         vec![Tool {
+            defer_loading: None,
             name: "read".into(),
             description: "Read a file".into(),
             parameters: json!({"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}),

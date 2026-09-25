@@ -339,6 +339,10 @@ pub struct Tool {
     pub name: String,
     pub description: String,
     pub parameters: JsonSchema,
+    /// `deferLoading`: withhold the schema until the model asks for it.
+    /// Providers that cannot defer ignore it (anthropic sends `defer_loading`
+    /// plus the tool-search tool).
+    pub defer_loading: Option<bool>,
 }
 
 // ---------------------------------------------------------------------------

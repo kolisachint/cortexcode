@@ -79,6 +79,7 @@ fn tool_context(prompt: &str) -> Context {
         )],
         vec![
             Tool {
+                defer_loading: None,
                 name: "read_file".into(),
                 description: "Read the contents of a file".into(),
                 parameters: serde_json::json!({
@@ -93,6 +94,7 @@ fn tool_context(prompt: &str) -> Context {
                 }),
             },
             Tool {
+                defer_loading: None,
                 name: "write_file".into(),
                 description: "Write content to a file".into(),
                 parameters: serde_json::json!({
@@ -624,6 +626,7 @@ fn test_multiple_tools() {
 
     let tools = vec![
         Tool {
+            defer_loading: None,
             name: "read_file".into(),
             description: "Read the contents of a file".into(),
             parameters: serde_json::json!({
@@ -635,6 +638,7 @@ fn test_multiple_tools() {
             }),
         },
         Tool {
+            defer_loading: None,
             name: "write_file".into(),
             description: "Write content to a file".into(),
             parameters: serde_json::json!({
@@ -647,6 +651,7 @@ fn test_multiple_tools() {
             }),
         },
         Tool {
+            defer_loading: None,
             name: "search_files".into(),
             description: "Search for files matching a pattern".into(),
             parameters: serde_json::json!({

@@ -7,7 +7,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 - Next task: run `python3 migration/ledger.py next`. 8.6 was split (too big: 41 of 68 ai
   test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, done),
-  8.6c (anthropic tests incl. claude-5 request format; next), 8.6d (google tests), 8.6e
+  8.6c (anthropic, done), 8.6d (google tests; next), 8.6e
   (cross-provider suites, mostly live `#[ignore]`). Codex/Copilot/gemini-cli/OAuth test
   files stay with 8.4a/8.4b/8.4c/8.7; transform-messages-copilot-openai-to-anthropic was
   added to 8.4b.
@@ -19,6 +19,31 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.6c done (anthropic.ts re-port + its tests)
+- ai-provider-anthropic is now a port of anthropic.ts: `stream` = streamSimpleAnthropic
+  (`No API key for provider: …` via getEnvApiKey; buildBaseOptions; adaptive thinking +
+  effort via thinkingLevelMap, or budget thinking via adjustMaxTokensForThinking);
+  `stream_anthropic(model, context, AnthropicOptions)` = streamAnthropic. request.rs:
+  createClient headers (x-api-key / Bearer for Copilot and OAuth `sk-ant-oat`, Claude Code
+  identity + betas, fine-grained tool streaming and interleaved-thinking betas, Copilot
+  dynamic headers), buildParams (OAuth system identity, temperature rule, thinking
+  adaptive/enabled/disabled, always-on models -> `output_config: {effort: low}`, metadata
+  user_id, tool_choice), convertMessages (transformMessages + id normalization, string user
+  content, redacted/unsigned thinking, merged consecutive tool results, cache marker on the
+  last user turn), convertTools (eager_input_streaming, defer_loading + BM25 tool-search tool,
+  breakpoint on the last tool), Claude Code tool-name mapping. sse.rs: iterateSseMessages'
+  line decoder + iterateAnthropicEvents (error events, unknown events skipped,
+  parseJsonWithRepair, "ended before message_stop"). lib.rs: the event loop (contentIndex =
+  position in content, signatures, redacted_thinking, responseId, usage + calculateCost,
+  unknown stop reason / refusal errors).
+- ai-types: `Tool.defer_loading` (TS `deferLoading`); fix_struct_fields knows it; faux
+  serializes it.
+- Tests: claude-5-models request format, thinking-disable payloads, tool-search, sse-parsing,
+  eager-tool-input compat (mock server); live e2e files in `tests/live_e2e.rs` (`#[ignore]`;
+  Copilot cases left to 8.4b). The opus-4.7 smoke TS test expects `thinking: {type:
+  "adaptive"}` without `display`, which the pinned code no longer sends; not asserted.
+- Next: 8.6d via `ledger.py next`.
 
 ### 2026-09-25: 8.6b done (UserMessage string content)
 - Decision: `UserMessage.content` (and `CustomMessage.content`) is now

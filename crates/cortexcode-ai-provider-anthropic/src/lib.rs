@@ -1,122 +1,136 @@
-//! Anthropic provider for cortex AI.
+//! Anthropic provider for cortex AI: port of hoocode
+//! `packages/ai/src/providers/anthropic.ts` (v0.5.89).
 //!
-//! Implements streaming against the Anthropic Messages API
-//! (`POST {base_url}/v1/messages`, `stream: true`), translating the
-//! provider's SSE event stream into [`AssistantMessageEvent`]s.
-//!
-//! Ported from TypeScript `@kolisachint/hoocode-ai` → `providers/anthropic.ts`.
+//! [`stream`] is `streamSimpleAnthropic` (API key, option mapping, thinking
+//! mode); [`stream_anthropic`] is `streamAnthropic`, which reports every
+//! failure as a terminal `error` event.
 
 mod request;
-
-use std::collections::HashMap;
+mod sse;
 
 use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model,
-    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model,
+    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, Tool, ToolCallContent,
 };
 use futures_util::StreamExt;
+use serde_json::Value;
 
-pub use request::Credential;
+pub use request::{
+    build_headers, build_params, convert_messages, convert_tools, from_claude_code_name,
+    is_oauth_token, simple_options, supports_adaptive_thinking, to_claude_code_name,
+    AnthropicOptions,
+};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// Stream a completion from the Anthropic Messages API.
-///
-/// Setup failures (e.g. missing credentials) are returned as `Err` before any
-/// network call is made; everything else (network errors, HTTP error
-/// responses, malformed payloads, abort) is reported as an `Error` event on
-/// the returned stream.
+/// `streamSimpleAnthropic`: fails before streaming only when there is no
+/// API key (`No API key for provider: …`).
 pub fn stream(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
 ) -> Result<AssistantMessageEventStream, BoxError> {
-    let credential = request::resolve_credentials(&options).map_err(BoxError::from)?;
-    let headers = request::build_headers(&model, &credential);
-    let body = request::build_request_body(&model, &context, &options);
-    let url = format!("{}/v1/messages", model.base_url.trim_end_matches('/'));
+    let api_key = options
+        .api_key
+        .clone()
+        .filter(|k| !k.is_empty())
+        .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
+        .ok_or_else(|| format!("No API key for provider: {}", model.provider))?;
+    let options = simple_options(&model, &options, api_key);
+    Ok(stream_anthropic(model, context, options))
+}
 
+/// `streamAnthropic`.
+pub fn stream_anthropic(
+    model: Model,
+    context: Context,
+    options: AnthropicOptions,
+) -> AssistantMessageEventStream {
     let stream = create_assistant_message_event_stream();
     let sender = stream.clone();
-    let template = AssistantMessage::for_model(&model);
-    let retry = RetryOptions {
-        max_retries: options.max_retries.map(|n| n as u32),
-        max_retry_delay_ms: options.max_retry_delay_ms,
-    };
-    spawn_producer(
-        &stream,
-        run_stream(url, headers, body, sender, template, options.signal, retry),
-    );
-    Ok(stream)
+    spawn_producer(&stream, run(model, context, options, sender));
+    stream
 }
 
-/// `maxRetries` / `maxRetryDelayMs` for the SDK-style client retries.
-#[derive(Clone, Copy)]
-struct RetryOptions {
-    max_retries: Option<u32>,
-    max_retry_delay_ms: Option<u64>,
-}
-
-// ---------------------------------------------------------------------------
-// HTTP + SSE driving
-// ---------------------------------------------------------------------------
-
-async fn run_stream(
-    url: String,
-    headers: Vec<(String, String)>,
-    body: serde_json::Value,
+async fn run(
+    model: Model,
+    context: Context,
+    options: AnthropicOptions,
     sender: AssistantMessageEventStream,
-    template: AssistantMessage,
-    signal: Option<AbortSignal>,
-    retry: RetryOptions,
 ) {
-    let mut state = StreamState::new(template);
+    let mut state = StreamState::new(&model);
+    let signal = options.signal.clone();
     let outcome = match &signal {
         Some(signal) => tokio::select! {
             biased;
             _ = signal.cancelled() => Err("Request was aborted".to_string()),
-            r = drive(&url, &headers, &body, &mut state, &sender, retry) => r,
+            r = drive(&model, &context, &options, &mut state, &sender) => r,
         },
-        None => drive(&url, &headers, &body, &mut state, &sender, retry).await,
+        None => drive(&model, &context, &options, &mut state, &sender).await,
     };
-    if let Err(message) = outcome {
-        let aborted = signal.as_ref().is_some_and(AbortSignal::aborted);
-        let error = state.error_output(message, aborted);
-        sender.push(AssistantMessageEvent::Error {
-            error: error.clone(),
-        });
-        sender.end(Some(error));
+    match outcome {
+        Ok(()) => {
+            let message = state.output;
+            sender.push(AssistantMessageEvent::Done {
+                message: message.clone(),
+            });
+            sender.end(Some(message));
+        }
+        Err(message) => {
+            let mut output = state.output;
+            output.stop_reason = if signal.as_ref().is_some_and(AbortSignal::aborted) {
+                StopReason::Aborted
+            } else {
+                StopReason::Error
+            };
+            output.error_message = Some(message);
+            sender.push(AssistantMessageEvent::Error {
+                error: output.clone(),
+            });
+            sender.end(Some(output));
+        }
     }
 }
 
-/// Send the request (with the SDK's client retries) and feed the SSE events
-/// to `state`. `Err` carries the error message for the terminal `error`
-/// event.
+/// The body of `streamAnthropic`'s try block. `Err` is the `errorMessage`
+/// (already through `describeProviderError`).
 async fn drive(
-    url: &str,
-    headers: &[(String, String)],
-    body: &serde_json::Value,
+    model: &Model,
+    context: &Context,
+    options: &AnthropicOptions,
     state: &mut StreamState,
     sender: &AssistantMessageEventStream,
-    retry: RetryOptions,
 ) -> Result<(), String> {
-    let client = reqwest::Client::builder()
+    let api_key = options
+        .api_key
+        .clone()
+        .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
+        .unwrap_or_default();
+    let (headers, is_oauth) = build_headers(model, context, &api_key, options);
+    state.is_oauth = is_oauth;
+    let params = build_params(model, context, is_oauth, options);
+    let url = format!("{}/v1/messages", model.base_url.trim_end_matches('/'));
+
+    let mut builder = reqwest::Client::builder();
+    if let Some(ms) = options.timeout_ms {
+        builder = builder.timeout(std::time::Duration::from_millis(ms));
+    }
+    let client = builder
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
     let response = cortexcode_ai_util::post_json_with_sdk_retries(
         &client,
-        url,
-        headers,
-        body,
-        retry.max_retries,
-        retry.max_retry_delay_ms,
+        &url,
+        &headers,
+        &params,
+        options.max_retries,
+        options.max_retry_delay_ms,
     )
     .await
     .map_err(|failure| failure.message().to_string())?;
-
     if !response.status().is_success() {
         let status = response.status().as_u16();
         let response_headers = cortexcode_ai_util::response_headers(&response);
@@ -124,349 +138,281 @@ async fn drive(
         return Err(cortexcode_ai_util::describe_provider_error(
             &api_error_message(status, &text),
             Some(&response_headers),
-            retry.max_retry_delay_ms,
+            options.max_retry_delay_ms,
         ));
     }
 
-    let mut events = cortexcode_ai_sse::sse_events(response.bytes_stream());
-    while let Some(frame) = events.next().await {
-        let frame = frame.map_err(|e| format!("error reading response stream: {e}"))?;
-        if frame.data.trim().is_empty() {
-            continue;
-        }
-        let value: serde_json::Value = match serde_json::from_str(&frame.data) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        if state.handle_event(&value, sender) {
-            // Terminal event (message_stop or error) — stop reading.
-            return Ok(());
+    sender.push(AssistantMessageEvent::Start {
+        partial: state.output.clone(),
+    });
+
+    let mut decoder = sse::SseDecoder::default();
+    let mut filter = sse::AnthropicEventFilter::default();
+    let mut body = response.bytes_stream();
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(|e| format!("error reading response stream: {e}"))?;
+        for sse in decoder.push(&chunk) {
+            if let Some(event) = filter.accept(&sse)? {
+                state.handle_event(model, &context.tools, &event, sender)?;
+            }
         }
     }
+    for sse in decoder.finish() {
+        if let Some(event) = filter.accept(&sse)? {
+            state.handle_event(model, &context.tools, &event, sender)?;
+        }
+    }
+    filter.finish()?;
 
-    // Connection closed without an explicit terminal event.
-    state.finish(sender);
+    if options.signal.as_ref().is_some_and(AbortSignal::aborted) {
+        return Err("Request was aborted".to_string());
+    }
+    if matches!(
+        state.output.stop_reason,
+        StopReason::Aborted | StopReason::Error
+    ) {
+        return Err("An unknown error occurred".to_string());
+    }
     Ok(())
 }
 
 // ---------------------------------------------------------------------------
-// Streaming state machine
+// Streaming state
 // ---------------------------------------------------------------------------
 
-enum BlockKind {
-    Text,
-    Thinking,
-    ToolUse { id: String, name: String },
-}
-
+/// `output` of `streamAnthropic` plus the per-block scratch fields (`index`,
+/// `partialJson`) that TS keeps on the blocks and strips at the end.
 struct StreamState {
-    partial: AssistantMessage,
-    block_kinds: HashMap<usize, BlockKind>,
-    text_buffers: HashMap<usize, String>,
-    thinking_buffers: HashMap<usize, String>,
-    tool_json_buffers: HashMap<usize, String>,
-    thinking_signatures: HashMap<usize, String>,
-    started: bool,
+    output: AssistantMessage,
+    /// The Anthropic block index of each content block, until it stops.
+    indexes: Vec<Option<u64>>,
+    partial_json: Vec<String>,
+    is_oauth: bool,
 }
 
 impl StreamState {
-    fn new(template: AssistantMessage) -> Self {
+    fn new(model: &Model) -> Self {
         Self {
-            partial: AssistantMessage {
-                provider: template.provider.clone(),
-                response_id: None,
-                response_model: None,
-                api: template.api.clone(),
-                diagnostics: None,
-                model: template.model.clone(),
-                content: vec![],
-                stop_reason: StopReason::Stop,
-
-                usage: Default::default(),
-                timestamp: now_millis(),
-                error_message: None,
-            },
-            block_kinds: HashMap::new(),
-            text_buffers: HashMap::new(),
-            thinking_buffers: HashMap::new(),
-            tool_json_buffers: HashMap::new(),
-            thinking_signatures: HashMap::new(),
-            started: false,
+            output: AssistantMessage::for_model(model),
+            indexes: Vec::new(),
+            partial_json: Vec::new(),
+            is_oauth: false,
         }
     }
 
-    /// Handle one decoded SSE JSON payload. Returns `true` if this was a
-    /// terminal event and the caller should stop reading.
+    /// `blocks.findIndex((b) => b.index === event.index)`.
+    fn position(&self, event: &Value) -> Option<usize> {
+        let index = event["index"].as_u64()?;
+        self.indexes.iter().position(|i| *i == Some(index))
+    }
+
+    fn push_block(&mut self, block: Content, index: Option<u64>) -> usize {
+        self.output.content.push(block);
+        self.indexes.push(index);
+        self.partial_json.push(String::new());
+        self.output.content.len() - 1
+    }
+
+    fn update_cost(&mut self, model: &Model) {
+        let usage = &mut self.output.usage;
+        usage.total_tokens = usage.input + usage.output + usage.cache_read + usage.cache_write;
+        usage.cost = cortexcode_ai_models::calculate_cost(model, usage);
+    }
+
+    /// One event of the `for await` loop. `Err` ends the stream (an unknown
+    /// stop reason throws in TS).
     fn handle_event(
         &mut self,
-        value: &serde_json::Value,
+        model: &Model,
+        tools: &[Tool],
+        event: &Value,
         sender: &AssistantMessageEventStream,
-    ) -> bool {
-        let event_type = value["type"].as_str().unwrap_or("");
-
-        match event_type {
+    ) -> Result<(), String> {
+        match event["type"].as_str().unwrap_or("") {
             "message_start" => {
-                if !self.started {
-                    self.started = true;
-                    if let Some(usage) = value["message"].get("usage") {
-                        self.partial.usage = parse_usage(usage, None);
-                    }
-                    sender.push(AssistantMessageEvent::Start {
-                        partial: self.partial.clone(),
-                    });
+                let message = &event["message"];
+                if let Some(id) = message["id"].as_str() {
+                    self.output.response_id = Some(id.to_string());
                 }
-                false
+                let usage = &message["usage"];
+                let count = |key: &str| usage[key].as_u64().unwrap_or(0);
+                self.output.usage.input = count("input_tokens");
+                self.output.usage.output = count("output_tokens");
+                self.output.usage.cache_read = count("cache_read_input_tokens");
+                self.output.usage.cache_write = count("cache_creation_input_tokens");
+                self.update_cost(model);
             }
             "content_block_start" => {
-                let index = value["index"].as_u64().unwrap_or(0) as usize;
-                let block = &value["content_block"];
-                let kind = match block["type"].as_str().unwrap_or("") {
-                    "thinking" => BlockKind::Thinking,
-                    "tool_use" => BlockKind::ToolUse {
-                        id: block["id"].as_str().unwrap_or_default().to_string(),
-                        name: block["name"].as_str().unwrap_or_default().to_string(),
-                    },
-                    _ => BlockKind::Text,
-                };
-                let start_event = match kind {
-                    BlockKind::Text => AssistantMessageEvent::TextStart {
-                        index,
-                        partial: self.partial.clone(),
-                    },
-                    BlockKind::Thinking => AssistantMessageEvent::ThinkingStart {
-                        index,
-                        partial: self.partial.clone(),
-                    },
-                    BlockKind::ToolUse { .. } => AssistantMessageEvent::ToolCallStart {
-                        index,
-                        partial: self.partial.clone(),
-                    },
-                };
-                self.block_kinds.insert(index, kind);
-                sender.push(start_event);
-                false
-            }
-            "content_block_delta" => {
-                let index = value["index"].as_u64().unwrap_or(0) as usize;
-                let delta = &value["delta"];
-                match delta["type"].as_str().unwrap_or("") {
-                    "text_delta" => {
-                        let text = delta["text"].as_str().unwrap_or_default();
-                        self.text_buffers.entry(index).or_default().push_str(text);
-                        sender.push(AssistantMessageEvent::TextDelta {
-                            index,
-                            delta: text.to_string(),
-                            partial: self.partial.clone(),
+                let index = event["index"].as_u64();
+                let block = &event["content_block"];
+                match block["type"].as_str().unwrap_or("") {
+                    "text" => {
+                        let at = self.push_block(Content::Text(TextContent::new("")), index);
+                        sender.push(AssistantMessageEvent::TextStart {
+                            index: at,
+                            partial: self.output.clone(),
                         });
                     }
-                    "thinking_delta" => {
-                        let text = delta["thinking"].as_str().unwrap_or_default();
-                        self.thinking_buffers
-                            .entry(index)
-                            .or_default()
-                            .push_str(text);
-                        sender.push(AssistantMessageEvent::ThinkingDelta {
+                    "thinking" => {
+                        let at = self.push_block(
+                            Content::Thinking(ThinkingContent {
+                                thinking: String::new(),
+                                signature: Some(String::new()),
+                                redacted: false,
+                            }),
                             index,
-                            delta: text.to_string(),
-                            partial: self.partial.clone(),
+                        );
+                        sender.push(AssistantMessageEvent::ThinkingStart {
+                            index: at,
+                            partial: self.output.clone(),
                         });
                     }
-                    "signature_delta" => {
-                        let sig = delta["signature"].as_str().unwrap_or_default().to_string();
-                        self.thinking_signatures
-                            .entry(index)
-                            .or_default()
-                            .push_str(&sig);
-                    }
-                    "input_json_delta" => {
-                        let chunk = delta["partial_json"].as_str().unwrap_or_default();
-                        let buf = self.tool_json_buffers.entry(index).or_default();
-                        buf.push_str(chunk);
-                        sender.push(AssistantMessageEvent::ToolCallDelta {
+                    "redacted_thinking" => {
+                        let at = self.push_block(
+                            Content::Thinking(ThinkingContent {
+                                thinking: "[Reasoning redacted]".to_string(),
+                                signature: block["data"].as_str().map(str::to_string),
+                                redacted: true,
+                            }),
                             index,
-                            delta: chunk.to_string(),
-                            partial: self.partial.clone(),
+                        );
+                        sender.push(AssistantMessageEvent::ThinkingStart {
+                            index: at,
+                            partial: self.output.clone(),
+                        });
+                    }
+                    "tool_use" => {
+                        let name = block["name"].as_str().unwrap_or_default();
+                        let name = if self.is_oauth {
+                            from_claude_code_name(name, tools)
+                        } else {
+                            name.to_string()
+                        };
+                        let arguments = match &block["input"] {
+                            Value::Null => serde_json::json!({}),
+                            input => input.clone(),
+                        };
+                        let at = self.push_block(
+                            Content::ToolCall(ToolCallContent {
+                                id: block["id"].as_str().unwrap_or_default().to_string(),
+                                name,
+                                arguments,
+                                thought_signature: None,
+                            }),
+                            index,
+                        );
+                        sender.push(AssistantMessageEvent::ToolCallStart {
+                            index: at,
+                            partial: self.output.clone(),
                         });
                     }
                     _ => {}
                 }
-                false
+            }
+            "content_block_delta" => {
+                let Some(at) = self.position(event) else {
+                    return Ok(());
+                };
+                let delta = &event["delta"];
+                let text = |key: &str| delta[key].as_str().unwrap_or_default().to_string();
+                match (
+                    delta["type"].as_str().unwrap_or(""),
+                    &mut self.output.content[at],
+                ) {
+                    ("text_delta", Content::Text(block)) => {
+                        let chunk = text("text");
+                        block.text.push_str(&chunk);
+                        sender.push(AssistantMessageEvent::TextDelta {
+                            index: at,
+                            delta: chunk,
+                            partial: self.output.clone(),
+                        });
+                    }
+                    ("thinking_delta", Content::Thinking(block)) => {
+                        let chunk = text("thinking");
+                        block.thinking.push_str(&chunk);
+                        sender.push(AssistantMessageEvent::ThinkingDelta {
+                            index: at,
+                            delta: chunk,
+                            partial: self.output.clone(),
+                        });
+                    }
+                    ("input_json_delta", Content::ToolCall(block)) => {
+                        let chunk = text("partial_json");
+                        self.partial_json[at].push_str(&chunk);
+                        block.arguments = cortexcode_ai_util::parse_streaming_json::<Value>(Some(
+                            &self.partial_json[at],
+                        ));
+                        sender.push(AssistantMessageEvent::ToolCallDelta {
+                            index: at,
+                            delta: chunk,
+                            partial: self.output.clone(),
+                        });
+                    }
+                    ("signature_delta", Content::Thinking(block)) => {
+                        block
+                            .signature
+                            .get_or_insert_with(String::new)
+                            .push_str(&text("signature"));
+                    }
+                    _ => {}
+                }
             }
             "content_block_stop" => {
-                let index = value["index"].as_u64().unwrap_or(0) as usize;
-                self.finalize_block(index, sender);
-                false
+                let Some(at) = self.position(event) else {
+                    return Ok(());
+                };
+                self.indexes[at] = None;
+                match &mut self.output.content[at] {
+                    Content::Text(_) => sender.push(AssistantMessageEvent::TextEnd {
+                        index: at,
+                        partial: self.output.clone(),
+                    }),
+                    Content::Thinking(_) => sender.push(AssistantMessageEvent::ThinkingEnd {
+                        index: at,
+                        partial: self.output.clone(),
+                    }),
+                    Content::ToolCall(block) => {
+                        block.arguments = cortexcode_ai_util::parse_streaming_json::<Value>(Some(
+                            &std::mem::take(&mut self.partial_json[at]),
+                        ));
+                        sender.push(AssistantMessageEvent::ToolCallEnd {
+                            index: at,
+                            partial: self.output.clone(),
+                        });
+                    }
+                    Content::Image(_) => {}
+                }
             }
             "message_delta" => {
-                if let Some(stop_reason) = value["delta"]["stop_reason"].as_str() {
-                    match map_stop_reason(stop_reason) {
-                        Ok(reason) => self.partial.stop_reason = reason,
-                        Err(message) => {
-                            self.partial.stop_reason = StopReason::Error;
-                            self.partial.error_message = Some(message);
-                        }
+                if let Some(reason) = event["delta"]["stop_reason"]
+                    .as_str()
+                    .filter(|r| !r.is_empty())
+                {
+                    self.output.stop_reason = map_stop_reason(reason)?;
+                }
+                // Only fields present (not null): proxies may omit input_tokens here.
+                let usage = &event["usage"];
+                let usage_out = &mut self.output.usage;
+                for (key, slot) in [
+                    ("input_tokens", &mut usage_out.input),
+                    ("output_tokens", &mut usage_out.output),
+                    ("cache_read_input_tokens", &mut usage_out.cache_read),
+                    ("cache_creation_input_tokens", &mut usage_out.cache_write),
+                ] {
+                    if let Some(n) = usage[key].as_u64() {
+                        *slot = n;
                     }
                 }
-                if let Some(usage) = value.get("usage") {
-                    self.partial.usage = parse_usage(usage, Some(&self.partial.usage));
-                }
-                false
+                self.update_cost(model);
             }
-            "message_stop" => {
-                self.finish(sender);
-                true
-            }
-            "error" => {
-                let message = value["error"]["message"]
-                    .as_str()
-                    .unwrap_or("unknown Anthropic API error")
-                    .to_string();
-                self.partial.stop_reason = StopReason::Error;
-                self.partial.error_message = Some(message);
-                sender.push(AssistantMessageEvent::Error {
-                    error: self.partial.clone(),
-                });
-                sender.end(Some(self.partial.clone()));
-                true
-            }
-            _ => false,
+            _ => {}
         }
-    }
-
-    fn finalize_block(&mut self, index: usize, sender: &AssistantMessageEventStream) {
-        let Some(kind) = self.block_kinds.remove(&index) else {
-            return;
-        };
-        match kind {
-            BlockKind::Text => {
-                let text = self.text_buffers.remove(&index).unwrap_or_default();
-                self.partial.content.push(Content::Text(TextContent {
-                    text_signature: None,
-                    text,
-                }));
-                sender.push(AssistantMessageEvent::TextEnd {
-                    index,
-                    partial: self.partial.clone(),
-                });
-            }
-            BlockKind::Thinking => {
-                let thinking = self.thinking_buffers.remove(&index).unwrap_or_default();
-                let signature = self.thinking_signatures.remove(&index);
-                self.partial
-                    .content
-                    .push(Content::Thinking(ThinkingContent {
-                        redacted: false,
-                        thinking,
-                        signature,
-                    }));
-                sender.push(AssistantMessageEvent::ThinkingEnd {
-                    index,
-                    partial: self.partial.clone(),
-                });
-            }
-            BlockKind::ToolUse { id, name } => {
-                let raw = self.tool_json_buffers.remove(&index).unwrap_or_default();
-                let arguments: serde_json::Value = if raw.trim().is_empty() {
-                    serde_json::json!({})
-                } else {
-                    cortexcode_ai_util::parse_json_with_repair(&raw)
-                        .unwrap_or_else(|_| serde_json::json!({}))
-                };
-                self.partial
-                    .content
-                    .push(Content::ToolCall(ToolCallContent {
-                        thought_signature: None,
-                        id,
-                        name,
-                        arguments,
-                    }));
-                sender.push(AssistantMessageEvent::ToolCallEnd {
-                    index,
-                    partial: self.partial.clone(),
-                });
-            }
-        }
-    }
-
-    /// The message for a terminal `error` event: everything streamed so far,
-    /// including blocks still open (as hoocode's in-place `output`), with
-    /// `stopReason` `aborted` when the signal fired and `error` otherwise.
-    fn error_output(&self, message: String, aborted: bool) -> AssistantMessage {
-        let mut output = self.partial.clone();
-        let mut open: Vec<_> = self.block_kinds.iter().collect();
-        open.sort_by_key(|(index, _)| **index);
-        for (index, kind) in open {
-            output.content.push(match kind {
-                BlockKind::Text => Content::Text(TextContent {
-                    text_signature: None,
-                    text: self.text_buffers.get(index).cloned().unwrap_or_default(),
-                }),
-                BlockKind::Thinking => Content::Thinking(ThinkingContent {
-                    redacted: false,
-                    thinking: self
-                        .thinking_buffers
-                        .get(index)
-                        .cloned()
-                        .unwrap_or_default(),
-                    signature: self.thinking_signatures.get(index).cloned(),
-                }),
-                BlockKind::ToolUse { id, name } => Content::ToolCall(ToolCallContent {
-                    thought_signature: None,
-                    id: id.clone(),
-                    name: name.clone(),
-                    arguments: self
-                        .tool_json_buffers
-                        .get(index)
-                        .filter(|raw| !raw.trim().is_empty())
-                        .and_then(|raw| cortexcode_ai_util::parse_json_with_repair(raw).ok())
-                        .unwrap_or_else(|| serde_json::json!({})),
-                }),
-            });
-        }
-        output.stop_reason = if aborted {
-            StopReason::Aborted
-        } else {
-            StopReason::Error
-        };
-        output.error_message = Some(message);
-        output
-    }
-
-    fn finish(&mut self, sender: &AssistantMessageEventStream) {
-        sender.push(AssistantMessageEvent::Done {
-            message: self.partial.clone(),
-        });
-        sender.end(Some(self.partial.clone()));
+        Ok(())
     }
 }
 
-fn parse_usage(value: &serde_json::Value, previous: Option<&Usage>) -> Usage {
-    let input = value["input_tokens"]
-        .as_u64()
-        .or_else(|| previous.map(|u| u.input))
-        .unwrap_or(0);
-    let cache_read = value["cache_read_input_tokens"]
-        .as_u64()
-        .or_else(|| previous.map(|u| u.cache_read))
-        .unwrap_or(0);
-    let cache_write = value["cache_creation_input_tokens"]
-        .as_u64()
-        .or_else(|| previous.map(|u| u.cache_write))
-        .unwrap_or(0);
-    let output = value["output_tokens"].as_u64().unwrap_or(0);
-
-    Usage {
-        input,
-        output,
-        cache_read,
-        cache_write,
-        total_tokens: input + output + cache_read + cache_write,
-        cost: Cost::default(),
-    }
-}
-
-/// Port of `mapStopReason` in `providers/anthropic.ts`. Unknown values are an
-/// error there (`throw`), which ends the stream with `stopReason: "error"`.
+/// `mapStopReason`: unknown values throw.
 fn map_stop_reason(reason: &str) -> Result<StopReason, String> {
     Ok(match reason {
         "end_turn" => StopReason::Stop,
@@ -481,13 +427,6 @@ fn map_stop_reason(reason: &str) -> Result<StopReason, String> {
         "sensitive" => StopReason::Error,
         other => return Err(format!("Unhandled stop reason: {other}")),
     })
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
 }
 
 /// The message of the `@anthropic-ai/sdk` `APIError` for a non-2xx
@@ -521,303 +460,4 @@ pub fn api_error_message(status: u16, body: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use cortexcode_ai_stream::testing::{serve_error, serve_sse, serve_sse_then_hang};
-    use std::time::Duration;
-
-    fn spawn_mock_server(sse_body: &'static str) -> String {
-        serve_sse(sse_body)
-    }
-
-    fn spawn_mock_error_server(status_line: &'static str, body: &'static str) -> String {
-        serve_error(status_line, body)
-    }
-
-    fn test_model(base_url: String) -> Model {
-        Model {
-            compat: None,
-            id: "claude-test".into(),
-            name: "Claude Test".into(),
-            api: "anthropic-messages".into(),
-            provider: "anthropic".into(),
-            base_url,
-            reasoning: false,
-            thinking_level_map: None,
-            input: vec!["text".into()],
-            cost: cortexcode_ai_types::ModelCost::default(),
-            context_window: 200_000,
-            max_tokens: 4096,
-            headers: None,
-        }
-    }
-
-    fn collect(mut s: AssistantMessageEventStream) -> Vec<AssistantMessageEvent> {
-        let mut events = Vec::new();
-        while let Some(e) = s.next_blocking() {
-            events.push(e);
-        }
-        events
-    }
-
-    #[test]
-    fn test_stream_missing_credentials_errors_immediately() {
-        std::env::remove_var("ANTHROPIC_API_KEY");
-        std::env::remove_var("ANTHROPIC_OAUTH_TOKEN");
-        let model = test_model("http://127.0.0.1:0".into());
-        let context = Context::new("".into(), vec![], vec![]);
-        let result = stream(model, context, SimpleStreamOptions::default());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_stream_text_response() {
-        let sse = concat!(
-            "event: message_start\n",
-            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10}}}\n\n",
-            "event: content_block_start\n",
-            "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\", world\"}}\n\n",
-            "event: content_block_stop\n",
-            "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
-            "event: message_delta\n",
-            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\n",
-            "event: message_stop\n",
-            "data: {\"type\":\"message_stop\"}\n\n",
-        );
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-
-        assert!(matches!(events[0], AssistantMessageEvent::Start { .. }));
-        let deltas: String = events
-            .iter()
-            .filter_map(|e| match e {
-                AssistantMessageEvent::TextDelta { delta, .. } => Some(delta.clone()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(deltas, "Hello, world");
-
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, StopReason::Stop);
-                let usage = &message.usage;
-                assert_eq!(usage.input, 10);
-                assert_eq!(usage.output, 5);
-            }
-            other => panic!("expected Done, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_stream_tool_call_response() {
-        let sse = concat!(
-            "event: message_start\n",
-            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n",
-            "event: content_block_start\n",
-            "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"read_file\",\"input\":{}}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"a.rs\\\"}\"}}\n\n",
-            "event: content_block_stop\n",
-            "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
-            "event: message_delta\n",
-            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},\"usage\":{\"output_tokens\":8}}\n\n",
-            "event: message_stop\n",
-            "data: {\"type\":\"message_stop\"}\n\n",
-        );
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, StopReason::ToolUse);
-                assert_eq!(message.content.len(), 1);
-                match &message.content[0] {
-                    Content::ToolCall(tc) => {
-                        assert_eq!(tc.name, "read_file");
-                        assert_eq!(tc.id, "call_1");
-                        assert_eq!(tc.arguments["path"], "a.rs");
-                    }
-                    other => panic!("expected tool call content, got {other:?}"),
-                }
-            }
-            other => panic!("expected Done, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_stream_http_error_response() {
-        let base_url = spawn_mock_error_server(
-            "HTTP/1.1 429 Too Many Requests",
-            "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"rate limited\"}}",
-        );
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            max_retries: Some(0),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-        match events.last().unwrap() {
-            AssistantMessageEvent::Error { error } => {
-                assert_eq!(error.stop_reason, StopReason::Error);
-                assert_eq!(
-                    error.error_message.as_deref(),
-                    Some(
-                        r#"429 {"type":"error","error":{"type":"rate_limit_error","message":"rate limited"}}"#
-                    )
-                );
-            }
-            other => panic!("expected Error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn api_error_message_matches_the_anthropic_sdk() {
-        assert_eq!(
-            api_error_message(
-                400,
-                r#"{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}"#
-            ),
-            r#"400 {"type":"error","error":{"type":"invalid_request_error","message":"bad"}}"#
-        );
-        assert_eq!(api_error_message(401, r#"{"message":"nope"}"#), "401 nope");
-        assert_eq!(api_error_message(502, "upstream down"), "502 upstream down");
-        assert_eq!(api_error_message(500, ""), "500 status code (no body)");
-    }
-
-    #[test]
-    fn test_stream_api_level_error_event() {
-        let sse = concat!(
-            "event: error\n",
-            "data: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"overloaded\"}}\n\n",
-        );
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-        match events.last().unwrap() {
-            AssistantMessageEvent::Error { error } => {
-                assert_eq!(error.error_message, Some("overloaded".to_string()));
-            }
-            other => panic!("expected Error, got {other:?}"),
-        }
-    }
-
-    /// `testAbortSignal` in `abort.test.ts`, against a server that stalls
-    /// mid-message: aborting ends the stream with `aborted` and keeps what
-    /// was streamed so far.
-    #[test]
-    fn test_abort_mid_stream_keeps_partial_content() {
-        let head = concat!(
-            "event: message_start\n",
-            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10}}}\n\n",
-            "event: content_block_start\n",
-            "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"15 + 27 = 42. \"}}\n\n",
-        );
-        let base_url = serve_sse_then_hang(head, Duration::from_secs(30));
-        let signal = AbortSignal::new();
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            signal: Some(signal.clone()),
-            ..Default::default()
-        };
-        let mut s = stream(
-            test_model(base_url),
-            Context::new("".into(), vec![], vec![]),
-            options,
-        )
-        .unwrap();
-
-        let started = std::time::Instant::now();
-        let mut text = String::new();
-        while let Some(event) = s.next_blocking() {
-            if let AssistantMessageEvent::TextDelta { delta, .. } = &event {
-                text.push_str(delta);
-                if text.len() >= 10 {
-                    signal.abort();
-                }
-            }
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "abort must not wait for the server"
-        );
-
-        let msg = s.result_blocking();
-        assert_eq!(msg.stop_reason, StopReason::Aborted);
-        assert_eq!(msg.error_message.as_deref(), Some("Request was aborted"));
-        assert_eq!(msg.usage.input, 10);
-        match msg.content.as_slice() {
-            [Content::Text(t)] => assert_eq!(t.text, "15 + 27 = 42. "),
-            other => panic!("expected the partial text block, got {other:?}"),
-        }
-    }
-
-    /// `testImmediateAbort` in `abort.test.ts`.
-    #[test]
-    fn test_immediate_abort() {
-        let signal = AbortSignal::new();
-        signal.abort();
-        let options = SimpleStreamOptions {
-            api_key: Some("sk-test".into()),
-            signal: Some(signal),
-            ..Default::default()
-        };
-        let s = stream(
-            test_model("http://127.0.0.1:9".into()),
-            Context::new("".into(), vec![], vec![]),
-            options,
-        )
-        .unwrap();
-        let msg = s.result_blocking();
-        assert_eq!(msg.stop_reason, StopReason::Aborted);
-        assert!(msg.content.is_empty());
-    }
-
-    #[test]
-    fn test_map_stop_reason() {
-        assert_eq!(map_stop_reason("end_turn"), Ok(StopReason::Stop));
-        assert_eq!(map_stop_reason("tool_use"), Ok(StopReason::ToolUse));
-        assert_eq!(map_stop_reason("max_tokens"), Ok(StopReason::Length));
-        assert_eq!(map_stop_reason("refusal"), Ok(StopReason::Error));
-        assert_eq!(map_stop_reason("pause_turn"), Ok(StopReason::Stop));
-        assert_eq!(map_stop_reason("sensitive"), Ok(StopReason::Error));
-        assert_eq!(
-            map_stop_reason("weird"),
-            Err("Unhandled stop reason: weird".to_string())
-        );
-    }
-}
+mod tests;

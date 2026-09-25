@@ -333,6 +333,7 @@ async fn estimates_prompt_and_output_tokens_from_serialized_context() {
     registration.set_responses(vec![msg("done")]);
 
     let tool = Tool {
+        defer_loading: None,
         name: "echo".into(),
         description: "Echo back text".into(),
         parameters: json!({

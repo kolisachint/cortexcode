@@ -833,11 +833,15 @@ fn serialize_context(context: &Context) -> String {
             .tools
             .iter()
             .map(|tool| {
-                serde_json::json!({
+                let mut value = serde_json::json!({
                     "name": tool.name,
                     "description": tool.description,
                     "parameters": tool.parameters,
-                })
+                });
+                if let Some(defer) = tool.defer_loading {
+                    value["deferLoading"] = defer.into();
+                }
+                value
             })
             .collect();
         parts.push(format!("tools:{}", serde_json::Value::from(tools)));

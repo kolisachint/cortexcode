@@ -422,7 +422,8 @@ dependencies = [
 name = "cortexcode-ai-provider-anthropic"
 version = "0.0.1"
 dependencies = [
- "cortexcode-ai-sse",
+ "cortexcode-ai-env",
+ "cortexcode-ai-models",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "cortexcode-ai-util",

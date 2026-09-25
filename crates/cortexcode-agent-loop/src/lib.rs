@@ -340,6 +340,7 @@ async fn stream_assistant_response(
             .tools
             .iter()
             .map(|t| ai_types::Tool {
+                defer_loading: None,
                 name: t.name.clone(),
                 description: t.description.clone(),
                 parameters: t.parameters.clone(),
