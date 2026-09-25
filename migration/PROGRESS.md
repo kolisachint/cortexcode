@@ -14,6 +14,33 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 7.5 split; 7.5a done (agent-loop.ts parity)
+- Ledger: 7.5 split into 7.5a (agent-loop.ts + agent-loop.test.ts) and 7.5b (agent.ts +
+  agent.test.ts + prepare-next-turn-refresh.test.ts).
+- `agent-loop` is a rewrite following `agent-loop.ts`: `agent_loop` / `agent_loop_continue`
+  return an `EventStream<AgentEvent, Vec<AgentMessage>>` (run spawned on tokio);
+  `run_agent_loop(prompts, context, &config, emit)`, `run_agent_loop_continue(&mut context, ..)`.
+  Turn order, pending/steering/follow-up handling, `prepareNextTurn` (context, model, thinking
+  level; `off` clears reasoning) before `shouldStopAfterTurn`, error/aborted early exit, no
+  turn-start abort check (as in TS). Hook errors propagate like TS throws.
+- Tools: `prepareToolCall` (not found, `prepareArguments`, validation hook, cortex permission
+  gate, `beforeToolCall` which may rewrite `args` in place, block reason), parallel batches run
+  concurrently with `tool_execution_end` in completion order and result messages in source
+  order, sequential when the config or any tool says so, `tool_execution_update` from tool
+  `onUpdate` via a channel, terminate only when every result terminates, `afterToolCall`
+  overrides incl. `details`. Background tools: placeholder result now, detached run, follow-up
+  message later (default or `createBackgroundResultMessage`), loop stays alive while in flight.
+- agent-types: `MessageUpdate` carries the provider `AssistantMessageEvent` (boxed);
+  `AssistantMessagePartialEvent` removed; new `ToolExecutionUpdate`; `ToolExecutionEnd` has no
+  `args` (as TS); `TurnEnd`/stop-context `tool_results: Vec<ToolResultMessage>`; config hooks are
+  `Send + Sync`; `AgentLoopConfig::new(model)`. code-print json mapping updated (10.8b owns parity).
+- Known deviations (documented in the crate): hooks are sync; tools keep sync `execute` on
+  `spawn_blocking`; a background tool's `afterToolCall` runs at collection time;
+  `validateToolArguments` is a pass-through until 8.5 (noted on 8.5).
+- 26 tests (all 22 of agent-loop.test.ts plus model/thinking switch, tool updates, blocked /
+  unknown tools, assistant-tail continue). M1 scenarios still pass.
+- Next: **7.5b** (agent.ts). Use `AgentLoopConfig::new` in agent-core's `build_loop_config`.
+
 ### 2026-09-25: 7.4 done (one session stack)
 - `agent-session` is now the port of hoocode `packages/agent/src/harness/session/`:
   - `entry` + `context` moved here from code-session (hoocode keeps `SessionTreeEntry` and

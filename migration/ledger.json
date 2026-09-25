@@ -658,30 +658,79 @@
    ]
   },
   {
-   "id": "7.5",
-   "title": "Agent + loop parity: steering/follow-up queues, prepareNextTurn, transformContext, parallel tools, abort, full event sequence; port agent tests on faux",
+   "id": "7.5a",
+   "title": "Loop parity: port agent-loop.ts (agentLoop/agentLoopContinue event streams, prepareToolCall with validation, parallel tools in completion order, background tools, tool updates, prepareNextTurn model/thinking, shouldStopAfterTurn, terminate batches); port agent-loop.test.ts on faux",
+   "phase": 7,
+   "status": "done",
+   "depends": [
+    "7.3b"
+   ],
+   "crates": [
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core"
+   ],
+   "sources": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/agent-loop.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Hooks stay synchronous closures (Send + Sync) for now; tools keep sync execute on spawn_blocking.",
+   "log": [
+    {
+     "at": "2026-09-25T11:47:30Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "split from 7.5 (~1.6K source + 2.2K test lines): 7.5a agent-loop.ts, 7.5b agent.ts"
+    },
+    {
+     "at": "2026-09-25T11:47:31Z",
+     "commit": "632ecfe",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:01:05Z",
+     "commit": "632ecfe",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "7.5b",
+   "title": "Agent parity: port agent.ts (state mutators, listeners with abort signal, waitForIdle, run failure lifecycle, streaming guards, queue modes, continue() semantics, sessionId); port agent.test.ts + prepare-next-turn-refresh.test.ts",
    "phase": 7,
    "status": "todo",
    "depends": [
-    "7.3b"
+    "7.5a"
    ],
    "crates": [
     "cortexcode-agent-core",
     "cortexcode-agent-loop"
    ],
    "sources": [
-    "packages/agent/src/agent.ts",
-    "packages/agent/src/agent-loop.ts"
+    "packages/agent/src/agent.ts"
    ],
    "ts_tests": [
     "packages/agent/test/agent.test.ts",
-    "packages/agent/test/agent-loop.test.ts",
     "packages/agent/test/prepare-next-turn-refresh.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T11:47:30Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "split from 7.5 (~1.6K source + 2.2K test lines): 7.5a agent-loop.ts, 7.5b agent.ts"
+    }
+   ]
   },
   {
    "id": "8.1",
@@ -861,7 +910,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:02:10Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "7.5a: agent-loop calls validate_tool_arguments() (crates/cortexcode-agent-loop), currently a pass-through; port validateToolArguments (TypeBox Convert + JSON-schema coercion, TS error format) and wire it there."
+    }
+   ]
   },
   {
    "id": "8.6",
@@ -942,7 +998,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5"
+    "7.5b"
    ],
    "crates": [
     "cortexcode-agent-compaction"
@@ -988,7 +1044,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5"
+    "7.5b"
    ],
    "crates": [
     "cortexcode-agent-harness"
@@ -1190,7 +1246,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "7.5",
+    "7.5b",
     "7.4",
     "10.1"
    ],

@@ -364,7 +364,7 @@ impl Agent {
         // Build the event sink
         let mut emit = self.event_sink();
 
-        let result = run_agent_loop(messages, context, config, &mut emit).await;
+        let result = run_agent_loop(messages, context, &config, &mut emit).await;
         self.end_run();
         let result = result?;
 
@@ -470,7 +470,7 @@ impl Agent {
         }
 
         let mut emit = self.event_sink();
-        let result = run_agent_loop(messages, context, config, &mut emit).await;
+        let result = run_agent_loop(messages, context, &config, &mut emit).await;
         self.end_run();
         let result = result?;
 

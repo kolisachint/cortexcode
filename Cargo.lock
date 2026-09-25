@@ -294,6 +294,7 @@ name = "cortexcode-agent-loop"
 version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
+ "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "futures-util",
  "serde",
