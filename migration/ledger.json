@@ -417,6 +417,46 @@
    ]
   },
   {
+   "id": "10.4d",
+   "title": "Light mode (--light): LIGHT_SYSTEM_PROMPT, the four light tools (short descriptions, stripped schemas), no skills/context files/subagents/TodoWrite/mode appendix",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.4c"
+   ],
+   "crates": [
+    "cortexcode-code-tools",
+    "cortexcode-code-prompts",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/light.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/light*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-read-light"
+   ],
+   "notes": "User decision 2026-09-25: M1 is reached through light mode, whose prompt is portable (fixed text + date/cwd). The default-bundle scenarios (print-tool-read etc.) stay as 10.4c's later gates. The 'light' setting needs settings (10.1); the flag works now. light edit shims to the placeholder edit until 10.2c.",
+   "log": [
+    {
+     "at": "2026-09-25T05:05:14Z",
+     "commit": "0138c18",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:08:32Z",
+     "commit": "0138c18",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read-light=pass"
+    }
+   ]
+  },
+  {
    "id": "7.3",
    "title": "Async core: async reqwest + shared SSE decoder crate ai-sse (eventsource-stream), futures Stream events, CancellationToken abort; drop reqwest::blocking",
    "phase": 7,

@@ -103,7 +103,7 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 42] = [
+    let checks: [(bool, &'static str); 41] = [
         (a.thinking.is_some(), "--thinking"),
         (a.continue_.is_some(), "--continue"),
         (a.resume.is_some(), "--resume"),
@@ -126,7 +126,6 @@ pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
         (a.enable_web_tools.is_some(), "--enable-webtools"),
         (a.enable_plugin_tools.is_some(), "--enable-plugintools"),
         (a.enable_semantic_index.is_some(), "--enable-semantic-index"),
-        (a.light.is_some(), "--light"),
         (a.print_token_surface.is_some(), "--print-token-surface"),
         (a.platform.is_some(), "--platform"),
         (a.ca_cert.is_some(), "--ca-cert"),

@@ -1,0 +1,61 @@
+{
+  "description": "Light mode (--light) print run with one read tool call: only the final assistant text is printed; exit 0. Model requests must be identical: the terse light system prompt + date/cwd, the tool result, and the four light tool schemas.",
+  "compare_requests": true,
+  "request_fields": [
+    "messages",
+    "tools"
+  ],
+  "phase": "10.4d",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\nbeta\ngamma\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "-p",
+    "read notes.txt"
+  ],
+  "llm": [
+    {
+      "text": "Let me read it.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt",
+            "limit": 2
+          }
+        }
+      ]
+    },
+    {
+      "text": "The file starts with alpha and beta."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "alpha and beta",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

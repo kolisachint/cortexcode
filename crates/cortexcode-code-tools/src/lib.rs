@@ -14,6 +14,7 @@ use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
 use serde_json::json;
 use std::path::Path;
 
+pub mod light;
 pub mod permissions;
 
 pub use permissions::*;
@@ -374,7 +375,7 @@ pub fn default_tool_definitions(
 }
 
 /// The tools that still await their 10.2 ports.
-fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
+pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
     let cwd_bash = cwd.clone();
     let cwd_write = cwd.clone();
     let cwd_edit = cwd.clone();

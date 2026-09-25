@@ -6,10 +6,28 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 ## Resume here
 
 - Next task: run `python3 migration/ledger.py next`.
-- Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
-  pass; 10.2a (l1_done) + 10.4c make `print-tool-read` pass, including identical model requests.
+- Milestone M1 (first Level-2 green with identical model requests) is **reached** through
+  light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
+  (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
+  as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 10.4d done (light mode); M1 reached
+- User decision: reach M1 through hoocode's `--light` preset, which has a portable prompt.
+- `code-prompts::LIGHT_SYSTEM_PROMPT`. `code-tools::light` has `create_light_tools` (read,
+  write, edit, bash with hoocode's short descriptions and stripped schemas, in TypeBox key order)
+  and `measure_prompt_surface`. The light read gets default options and no context, as
+  `baseToolsOverride` does in hoocode. Light edit maps `oldText/newText` onto the placeholder
+  edit until 10.2c.
+- Runtime: `--light` picks the light tools and `--system-prompt ?? LIGHT_SYSTEM_PROMPT` (custom
+  prompt path: date + cwd only). `--light` is no longer an unsupported flag. The `light`
+  setting waits for 10.1.
+- openai provider: tools carry `"strict": false` (`convertTools`), omitted for
+  Moonshot/Together or `compat.supportsStrictMode: false`.
+- New L2 scenario `print-tool-read-light` (selfcheck stable, compares messages + tools):
+  **pass**. The done tasks' `print-basic`/`print-error` still pass.
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 10.4c l1_done (buildSystemPrompt port); M1 needs a decision
 - `code-prompts::system_prompt` ports `buildSystemPrompt` exactly (app name `cortex`, which

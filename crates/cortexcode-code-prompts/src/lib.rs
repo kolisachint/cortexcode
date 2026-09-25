@@ -11,7 +11,7 @@ pub mod system_prompt;
 pub use system_prompt::{
     build_system_prompt, format_agents_for_prompt, format_self_docs_for_prompt,
     format_skills_for_prompt, list_self_docs, BuildSystemPromptOptions, ContextFile, PromptAgent,
-    PromptSkill, SelfDoc, APP_NAME,
+    PromptSkill, SelfDoc, APP_NAME, LIGHT_SYSTEM_PROMPT,
 };
 
 /// Render a prompt template with variables.

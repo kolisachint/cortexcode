@@ -214,7 +214,17 @@ fn resolve_prompt_input(input: Option<&str>, description: &str) -> Option<String
 /// `AgentSession._rebuildSystemPrompt`: the built-in prompt (or `--system-prompt`)
 /// over the active tools' snippets and guidelines. Skills and context files
 /// (10.5), agents (10.9) and shipped docs are not loaded yet.
-fn build_system_prompt(args: &Args, cwd: &std::path::Path, tools: &[ToolDefinition]) -> String {
+fn build_system_prompt(
+    args: &Args,
+    cwd: &std::path::Path,
+    tools: &[ToolDefinition],
+    light: bool,
+) -> String {
+    // main.ts: `systemPrompt: parsed.systemPrompt ?? (lightMode ? LIGHT_SYSTEM_PROMPT : undefined)`
+    let system_prompt_source = args
+        .system_prompt
+        .as_deref()
+        .or(light.then_some(cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT));
     let mut tool_snippets = Vec::new();
     let mut prompt_guidelines = Vec::new();
     for tool in tools {
@@ -224,7 +234,7 @@ fn build_system_prompt(args: &Args, cwd: &std::path::Path, tools: &[ToolDefiniti
         prompt_guidelines.extend(tool.prompt_guidelines.iter().cloned());
     }
     cortexcode_code_prompts::build_system_prompt(&BuildSystemPromptOptions {
-        custom_prompt: resolve_prompt_input(args.system_prompt.as_deref(), "system prompt"),
+        custom_prompt: resolve_prompt_input(system_prompt_source, "system prompt"),
         selected_tools: Some(tools.iter().map(|t| t.name.clone()).collect()),
         tool_snippets,
         prompt_guidelines,
@@ -376,8 +386,15 @@ fn build_agent_with_gate(
     }
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let definitions = build_tool_definitions(&cwd);
-    let system_prompt = build_system_prompt(args, &cwd, &definitions);
+    // Light preset (--light): the four light tools and the terse prompt. The
+    // "light" setting needs settings (10.1).
+    let light = args.light == Some(true);
+    let definitions = if light {
+        cortexcode_code_tools::light::light_tool_definitions(cwd.clone())
+    } else {
+        build_tool_definitions(&cwd)
+    };
+    let system_prompt = build_system_prompt(args, &cwd, &definitions, light);
     let transcript = Arc::new(LiveTranscript::default());
     let tools = wrap_tools(definitions, &model, transcript.clone());
 
@@ -584,6 +601,40 @@ pub fn run_interactive_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn light_mode_uses_the_terse_prompt_and_the_four_light_tools() {
+        let args = crate::args::parse_args(&["--light".to_string()]);
+        let cwd = std::path::Path::new("/w");
+        let tools = cortexcode_code_tools::light::light_tool_definitions(cwd.to_path_buf());
+        let prompt = build_system_prompt(&args, cwd, &tools, true);
+        let date = chrono::Local::now().format("%Y-%m-%d");
+        assert_eq!(
+            prompt,
+            format!(
+                "{}\n\nCurrent date: {date}\nCurrent working directory: /w",
+                cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT
+            )
+        );
+        // --system-prompt still wins over the preset.
+        let args = crate::args::parse_args(&[
+            "--light".to_string(),
+            "--system-prompt".to_string(),
+            "Custom.".to_string(),
+        ]);
+        assert!(
+            build_system_prompt(&args, cwd, &tools, true).starts_with("Custom.\n\nCurrent date: ")
+        );
+    }
+
+    #[test]
+    fn default_prompt_lists_tools_with_snippets() {
+        let args = crate::args::parse_args(&[]);
+        let cwd = std::path::Path::new("/w");
+        let prompt = build_system_prompt(&args, cwd, &build_tool_definitions(cwd), false);
+        assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
+        assert!(prompt.contains("Available tools:\n- read: Read file contents\n\nGuidelines:"));
+    }
 
     #[test]
     fn test_default_model_for_provider() {

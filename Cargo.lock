@@ -528,6 +528,7 @@ dependencies = [
 name = "cortexcode-code-cli"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-agent-core",
  "cortexcode-agent-types",
  "cortexcode-ai-env",
@@ -677,6 +678,7 @@ dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
  "cortexcode-code-config",
+ "cortexcode-code-prompts",
  "cortexcode-code-tool-api",
  "cortexcode-code-tools-fs",
  "glob",

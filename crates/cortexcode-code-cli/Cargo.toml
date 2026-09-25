@@ -31,3 +31,6 @@ cortexcode-agent-types = { workspace = true }
 crossterm = "0.28"
 serde_json = "1"
 url = "2"
+
+[dev-dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }

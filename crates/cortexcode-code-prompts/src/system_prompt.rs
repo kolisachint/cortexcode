@@ -18,6 +18,11 @@ pub const TASK_TOOL_NAME: &str = "Task";
 /// Kept verbatim until the self-knowledge extension is ported.
 pub const SELF_SEARCH_TOOL_NAME: &str = "SearchHooCode";
 
+/// Terse replacement for the default system prompt in light mode
+/// (`LIGHT_SYSTEM_PROMPT` in `core/light.ts`). `build_system_prompt` appends the
+/// date and working directory; light mode disables everything else.
+pub const LIGHT_SYSTEM_PROMPT: &str = "You are a coding agent. Use the tools to read, edit, and write files and run shell commands.\nSearch with bash (rg/find/ls). Prefer edit for changes; write for new files.\nBe concise. No preamble.";
+
 /// A project context file (`AGENTS.md`/`CLAUDE.md`) already loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextFile {
