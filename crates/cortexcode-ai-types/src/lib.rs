@@ -541,52 +541,41 @@ pub enum AssistantMessageEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Abort signal (simplified)
+// Abort signal
 // ---------------------------------------------------------------------------
 
-/// A simple cancellation token.
-#[derive(Debug, Clone)]
-pub struct AbortSignal {
-    aborted: bool,
-}
+/// `AbortSignal`: a cancellation token shared by every clone.
+///
+/// Wraps `tokio_util::sync::CancellationToken`. Aborting any clone aborts all
+/// of them, and async code can wait for it with [`AbortSignal::cancelled`].
+#[derive(Debug, Clone, Default)]
+pub struct AbortSignal(tokio_util::sync::CancellationToken);
 
 impl AbortSignal {
     pub fn new() -> Self {
-        Self { aborted: false }
+        Self::default()
     }
 
+    /// `signal.aborted`.
     pub fn aborted(&self) -> bool {
-        self.aborted
+        self.0.is_cancelled()
     }
 
-    pub fn abort(&mut self) {
-        self.aborted = true;
+    /// `controller.abort()`.
+    pub fn abort(&self) {
+        self.0.cancel();
+    }
+
+    /// Resolves once the signal is aborted.
+    pub fn cancelled(&self) -> tokio_util::sync::WaitForCancellationFuture<'_> {
+        self.0.cancelled()
+    }
+
+    /// The underlying token, e.g. for `tokio::select!` or child tokens.
+    pub fn token(&self) -> &tokio_util::sync::CancellationToken {
+        &self.0
     }
 }
-
-impl Default for AbortSignal {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Provider trait
-// ---------------------------------------------------------------------------
-
-/// A stream of assistant message events.
-///
-/// Provides both event-by-event iteration and a final result promise.
-pub trait AssistantMessageEventStream: Send {
-    /// Return the next event from the stream, blocking until one is available.
-    /// Returns `None` when the stream is exhausted.
-    fn next_event(&mut self) -> Option<AssistantMessageEvent>;
-    /// Wait for the stream to finish and return the final result.
-    fn result(&mut self) -> AssistantMessage;
-}
-
-/// Result of a provider stream call.
-pub type ProviderStreamResult = Box<dyn AssistantMessageEventStream>;
 
 #[cfg(test)]
 mod wire_tests {
@@ -650,6 +639,16 @@ mod wire_tests {
                 timestamp: 1
             })
         );
+    }
+
+    #[test]
+    fn abort_reaches_every_clone() {
+        let signal = AbortSignal::new();
+        let seen_by_tool = signal.clone();
+        assert!(!seen_by_tool.aborted());
+        signal.abort();
+        assert!(seen_by_tool.aborted());
+        assert!(!AbortSignal::default().token().is_cancelled());
     }
 
     #[test]

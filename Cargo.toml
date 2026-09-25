@@ -15,6 +15,7 @@ members = [
     "crates/cortexcode-ai-provider-google",
     "crates/cortexcode-ai-provider-openai",
     "crates/cortexcode-ai-registry",
+    "crates/cortexcode-ai-sse",
     "crates/cortexcode-ai-stream",
     "crates/cortexcode-ai-types",
     "crates/cortexcode-ai-util",
@@ -82,6 +83,7 @@ cortexcode-ai-provider-azure = { path = "crates/cortexcode-ai-provider-azure" }
 cortexcode-ai-provider-faux = { path = "crates/cortexcode-ai-provider-faux" }
 cortexcode-ai-provider-google = { path = "crates/cortexcode-ai-provider-google" }
 cortexcode-ai-provider-openai = { path = "crates/cortexcode-ai-provider-openai" }
+cortexcode-ai-sse = { path = "crates/cortexcode-ai-sse" }
 cortexcode-ai-stream = { path = "crates/cortexcode-ai-stream" }
 cortexcode-ai-types = { path = "crates/cortexcode-ai-types" }
 cortexcode-ai-util = { path = "crates/cortexcode-ai-util" }

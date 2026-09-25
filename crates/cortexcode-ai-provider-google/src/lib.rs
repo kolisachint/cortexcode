@@ -15,15 +15,15 @@
 
 mod request;
 mod shared;
-mod sse;
 
-use std::io::BufReader;
-
-use cortexcode_ai_stream::{AiMessageEventSender, AiMessageEventStream};
-use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Content, Context, Cost,
-    Model, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+use cortexcode_ai_stream::{
+    create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
+use cortexcode_ai_types::{
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model,
+    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+};
+use futures_util::StreamExt;
 
 pub use request::{resolve_gemini_credentials, resolve_vertex_credentials, VertexCredentials};
 
@@ -34,7 +34,7 @@ pub fn stream(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
-) -> Result<Box<dyn AssistantMessageEventStream>, BoxError> {
+) -> Result<AssistantMessageEventStream, BoxError> {
     let api_key = request::resolve_gemini_credentials(&options).map_err(BoxError::from)?;
     let body = request::build_request_body(&model, &context, &options);
     let url = format!(
@@ -49,146 +49,135 @@ pub fn stream(
         .map(|h| h.into_iter().collect())
         .unwrap_or_default();
 
-    spawn_stream(url, headers, body, AssistantMessage::for_model(&model))
+    let template = AssistantMessage::for_model(&model);
+    let signal = options.signal.clone();
+    let stream = create_assistant_message_event_stream();
+    let sender = stream.clone();
+    spawn_producer(
+        &stream,
+        run_stream(url, headers, body, sender, template, signal),
+    );
+    Ok(stream)
 }
 
 /// Stream a completion from Vertex AI.
+///
+/// Credentials are resolved on the producer task (a service-account token
+/// exchange or the metadata server may need the network), so a missing
+/// credential is reported as an `error` event, as in hoocode.
 pub fn stream_vertex(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
-) -> Result<Box<dyn AssistantMessageEventStream>, BoxError> {
-    let creds = request::resolve_vertex_credentials(&options).map_err(BoxError::from)?;
+) -> Result<AssistantMessageEventStream, BoxError> {
     let body = request::build_request_body(&model, &context, &options);
-    let base_url = model.base_url.replace("{location}", &creds.location);
-    let url = format!(
-        "{}/v1/projects/{}/locations/{}/publishers/google/models/{}:streamGenerateContent?alt=sse",
-        base_url.trim_end_matches('/'),
-        creds.project,
-        creds.location,
-        model.id,
-    );
-    let mut headers = vec![(
-        "authorization".to_string(),
-        format!("Bearer {}", creds.access_token),
-    )];
-    if let Some(extra) = &model.headers {
-        for (k, v) in extra {
-            headers.push((k.clone(), v.clone()));
-        }
-    }
-
-    spawn_stream(url, headers, body, AssistantMessage::for_model(&model))
-}
-
-fn spawn_stream(
-    url: String,
-    headers: Vec<(String, String)>,
-    body: serde_json::Value,
-    template: AssistantMessage,
-) -> Result<Box<dyn AssistantMessageEventStream>, BoxError> {
-    let (sender, recv_stream) = AiMessageEventStream::new();
-    std::thread::spawn(move || {
-        run_stream(url, headers, body, sender, template);
-    });
-    Ok(Box::new(recv_stream))
-}
-
-fn run_stream(
-    url: String,
-    headers: Vec<(String, String)>,
-    body: serde_json::Value,
-    sender: AiMessageEventSender,
-    template: AssistantMessage,
-) {
-    let client = match reqwest::blocking::Client::builder().build() {
-        Ok(c) => c,
-        Err(e) => {
-            fail(
-                &sender,
-                &template,
-                format!("failed to build HTTP client: {e}"),
-            );
-            return;
-        }
-    };
-
-    let mut request = client.post(&url).header("content-type", "application/json");
-    for (k, v) in &headers {
-        request = request.header(k, v);
-    }
-
-    let response = match request.json(&body).send() {
-        Ok(r) => r,
-        Err(e) => {
-            fail(
-                &sender,
-                &template,
-                format!("request to Google API failed: {e}"),
-            );
-            return;
-        }
-    };
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().unwrap_or_default();
-        fail(
-            &sender,
-            &template,
-            format!("Google API returned {status}: {text}"),
-        );
-        return;
-    }
-
-    let reader = BufReader::new(response);
-    let events = sse::SseEvents::new(reader);
-
-    let mut state = StreamState::new(template.clone());
-    for frame in events {
-        let payload = match frame {
-            Ok(p) => p,
-            Err(e) => {
-                fail(
-                    &sender,
-                    &template,
-                    format!("error reading response stream: {e}"),
-                );
+    let template = AssistantMessage::for_model(&model);
+    let stream = create_assistant_message_event_stream();
+    let sender = stream.clone();
+    spawn_producer(&stream, async move {
+        let creds = match request::resolve_vertex_credentials(&options).await {
+            Ok(c) => c,
+            Err(message) => {
+                let error = StreamState::new(template).error_output(message, false);
+                sender.push(AssistantMessageEvent::Error {
+                    error: error.clone(),
+                });
+                sender.end(Some(error));
                 return;
             }
         };
-        if payload.trim().is_empty() {
+        let base_url = model.base_url.replace("{location}", &creds.location);
+        let url = format!(
+            "{}/v1/projects/{}/locations/{}/publishers/google/models/{}:streamGenerateContent?alt=sse",
+            base_url.trim_end_matches('/'),
+            creds.project,
+            creds.location,
+            model.id,
+        );
+        let mut headers = vec![(
+            "authorization".to_string(),
+            format!("Bearer {}", creds.access_token),
+        )];
+        if let Some(extra) = &model.headers {
+            for (k, v) in extra {
+                headers.push((k.clone(), v.clone()));
+            }
+        }
+        run_stream(url, headers, body, sender, template, options.signal).await;
+    });
+    Ok(stream)
+}
+
+async fn run_stream(
+    url: String,
+    headers: Vec<(String, String)>,
+    body: serde_json::Value,
+    sender: AssistantMessageEventStream,
+    template: AssistantMessage,
+    signal: Option<AbortSignal>,
+) {
+    let mut state = StreamState::new(template);
+    let outcome = match &signal {
+        Some(signal) => tokio::select! {
+            biased;
+            _ = signal.cancelled() => Err("Request was aborted".to_string()),
+            r = drive(&url, &headers, &body, &mut state, &sender) => r,
+        },
+        None => drive(&url, &headers, &body, &mut state, &sender).await,
+    };
+    if let Err(message) = outcome {
+        let aborted = signal.as_ref().is_some_and(AbortSignal::aborted);
+        let error = state.error_output(message, aborted);
+        sender.push(AssistantMessageEvent::Error {
+            error: error.clone(),
+        });
+        sender.end(Some(error));
+    }
+}
+
+/// Send the request and feed the SSE events to `state`. `Err` carries the
+/// error message for the terminal `error` event.
+async fn drive(
+    url: &str,
+    headers: &[(String, String)],
+    body: &serde_json::Value,
+    state: &mut StreamState,
+    sender: &AssistantMessageEventStream,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let mut request = client.post(url).header("content-type", "application/json");
+    for (k, v) in headers {
+        request = request.header(k, v);
+    }
+    let response = request
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| format!("request to Google API failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("Google API returned {status}: {text}"));
+    }
+
+    let mut events = cortexcode_ai_sse::sse_events(response.bytes_stream());
+    while let Some(frame) = events.next().await {
+        let frame = frame.map_err(|e| format!("error reading response stream: {e}"))?;
+        if frame.data.trim().is_empty() {
             continue;
         }
-        let value: serde_json::Value = match serde_json::from_str(&payload) {
+        let value: serde_json::Value = match serde_json::from_str(&frame.data) {
             Ok(v) => v,
             Err(_) => continue,
         };
-        state.handle_chunk(&value, &sender);
+        state.handle_chunk(&value, sender);
     }
 
-    state.finish(&sender);
-}
-
-fn fail(sender: &AiMessageEventSender, template: &AssistantMessage, message: String) {
-    let error = AssistantMessage {
-        provider: template.provider.clone(),
-        response_id: None,
-        response_model: None,
-        api: template.api.clone(),
-        diagnostics: None,
-        model: template.model.clone(),
-        content: vec![],
-        stop_reason: StopReason::Error,
-
-        usage: Default::default(),
-        timestamp: cortexcode_ai_types::now_ms(),
-        error_message: Some(message),
-    };
-    sender.push(AssistantMessageEvent::Error {
-        error: error.clone(),
-    });
-    sender.end(error);
+    state.finish(sender);
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +222,7 @@ impl StreamState {
         }
     }
 
-    fn ensure_started(&mut self, sender: &AiMessageEventSender) {
+    fn ensure_started(&mut self, sender: &AssistantMessageEventStream) {
         if !self.started {
             self.started = true;
             sender.push(AssistantMessageEvent::Start {
@@ -242,7 +231,7 @@ impl StreamState {
         }
     }
 
-    fn close_current(&mut self, sender: &AiMessageEventSender) {
+    fn close_current(&mut self, sender: &AssistantMessageEventStream) {
         if let Some((kind, index, text)) = self.current.take() {
             match kind {
                 CurrentKind::Text => {
@@ -273,7 +262,7 @@ impl StreamState {
         }
     }
 
-    fn handle_chunk(&mut self, value: &serde_json::Value, sender: &AiMessageEventSender) {
+    fn handle_chunk(&mut self, value: &serde_json::Value, sender: &AssistantMessageEventStream) {
         self.ensure_started(sender);
 
         let Some(candidate) = value["candidates"].get(0) else {
@@ -400,7 +389,35 @@ impl StreamState {
         }
     }
 
-    fn finish(&mut self, sender: &AiMessageEventSender) {
+    /// The message for a terminal `error` event: everything streamed so far,
+    /// including the open text/thinking block, with `stopReason` `aborted`
+    /// when the signal fired and `error` otherwise.
+    fn error_output(&self, message: String, aborted: bool) -> AssistantMessage {
+        let mut output = self.partial.clone();
+        if let Some((kind, _, text)) = &self.current {
+            output.content.push(match kind {
+                CurrentKind::Text => Content::Text(TextContent {
+                    text_signature: None,
+                    text: text.clone(),
+                    cache_control: None,
+                }),
+                CurrentKind::Thinking => Content::Thinking(ThinkingContent {
+                    redacted: false,
+                    thinking: text.clone(),
+                    signature: None,
+                }),
+            });
+        }
+        output.stop_reason = if aborted {
+            StopReason::Aborted
+        } else {
+            StopReason::Error
+        };
+        output.error_message = Some(message);
+        output
+    }
+
+    fn finish(&mut self, sender: &AssistantMessageEventStream) {
         if self.finished {
             return;
         }
@@ -420,7 +437,7 @@ impl StreamState {
                 });
             }
         }
-        sender.end(self.partial.clone());
+        sender.end(Some(self.partial.clone()));
     }
 }
 
@@ -451,26 +468,17 @@ fn now_millis() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
+    use cortexcode_ai_stream::testing::{serve_error, serve_sse, serve_sse_then_hang};
+    use cortexcode_ai_types::AbortSignal;
+    use std::time::Duration;
 
     fn spawn_mock_server(sse_body: &'static str) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
-        let addr = listener.local_addr().unwrap();
-        std::thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = [0u8; 4096];
-                let _ = stream.read(&mut buf);
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                    sse_body.len(),
-                    sse_body
-                );
-                let _ = stream.write_all(response.as_bytes());
-                let _ = stream.flush();
-            }
-        });
-        format!("http://{addr}")
+        serve_sse(sse_body)
+    }
+
+    #[allow(dead_code)]
+    fn spawn_mock_error_server(status_line: &'static str, body: &'static str) -> String {
+        serve_error(status_line, body)
     }
 
     fn test_model(base_url: String) -> Model {
@@ -491,9 +499,9 @@ mod tests {
         }
     }
 
-    fn collect(mut s: Box<dyn AssistantMessageEventStream>) -> Vec<AssistantMessageEvent> {
+    fn collect(mut s: AssistantMessageEventStream) -> Vec<AssistantMessageEvent> {
         let mut events = Vec::new();
-        while let Some(e) = s.next_event() {
+        while let Some(e) = s.next_blocking() {
             events.push(e);
         }
         events
@@ -605,11 +613,74 @@ mod tests {
         }
     }
 
+    /// `testAbortSignal` in `abort.test.ts`, against a server that stalls
+    /// mid-message.
+    #[test]
+    fn test_abort_mid_stream_keeps_partial_content() {
+        let head = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"15 + 27 = 42. \"}]}}]}\n\n";
+        let base_url = serve_sse_then_hang(head, Duration::from_secs(30));
+        let signal = AbortSignal::new();
+        let options = SimpleStreamOptions {
+            api_key: Some("gkey".into()),
+            signal: Some(signal.clone()),
+            ..Default::default()
+        };
+        let mut s = stream(
+            test_model(base_url),
+            Context::new("".into(), vec![], vec![]),
+            options,
+        )
+        .unwrap();
+
+        let started = std::time::Instant::now();
+        while let Some(event) = s.next_blocking() {
+            if let AssistantMessageEvent::TextDelta { .. } = &event {
+                signal.abort();
+            }
+        }
+        assert!(started.elapsed() < Duration::from_secs(10));
+
+        let msg = s.result_blocking();
+        assert_eq!(msg.stop_reason, StopReason::Aborted);
+        match msg.content.as_slice() {
+            [Content::Text(t)] => assert_eq!(t.text, "15 + 27 = 42. "),
+            other => panic!("expected the partial text block, got {other:?}"),
+        }
+    }
+
+    /// `testImmediateAbort` in `abort.test.ts`.
+    #[test]
+    fn test_immediate_abort() {
+        let signal = AbortSignal::new();
+        signal.abort();
+        let options = SimpleStreamOptions {
+            api_key: Some("gkey".into()),
+            signal: Some(signal),
+            ..Default::default()
+        };
+        let s = stream(
+            test_model("http://127.0.0.1:9".into()),
+            Context::new("".into(), vec![], vec![]),
+            options,
+        )
+        .unwrap();
+        assert_eq!(s.result_blocking().stop_reason, StopReason::Aborted);
+    }
+
     #[test]
     fn test_stream_vertex_missing_credentials() {
-        std::env::remove_var("GOOGLE_VERTEX_ACCESS_TOKEN");
+        for var in [
+            "GOOGLE_VERTEX_ACCESS_TOKEN",
+            "GOOGLE_ACCESS_TOKEN",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+        ] {
+            std::env::remove_var(var);
+        }
         let model = test_model("http://127.0.0.1:0".into());
         let context = Context::new("".into(), vec![], vec![]);
-        assert!(stream_vertex(model, context, SimpleStreamOptions::default()).is_err());
+        let s = stream_vertex(model, context, SimpleStreamOptions::default()).unwrap();
+        let msg = s.result_blocking();
+        assert_eq!(msg.stop_reason, StopReason::Error);
+        assert!(msg.error_message.unwrap().contains("credentials"));
     }
 }

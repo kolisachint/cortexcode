@@ -13,6 +13,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+cortexcode-ai-stream = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-ai-provider-anthropic = { workspace = true }
 cortexcode-ai-provider-openai = { workspace = true }
@@ -21,3 +22,7 @@ cortexcode-ai-provider-azure = { workspace = true }
 
 [dev-dependencies]
 cortexcode-ai-provider-faux = { workspace = true }
+cortexcode-ai-models = { workspace = true }
+futures-util = { version = "0.3", default-features = false }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

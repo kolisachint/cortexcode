@@ -215,7 +215,7 @@ fn stream_assistant_response(
     let mut final_message: Option<AssistantMessage> = None;
 
     loop {
-        match event_stream.next_event() {
+        match event_stream.next_blocking() {
             Some(AssistantMessageEvent::Start { partial }) => {
                 partial_message = Some(partial.clone());
                 context

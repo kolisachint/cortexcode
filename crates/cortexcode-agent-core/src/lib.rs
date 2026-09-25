@@ -9,9 +9,8 @@ pub mod types;
 use cortexcode_agent_loop::{
     default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
 };
-use cortexcode_ai_types::{
-    self as ai_types, AssistantMessageEventStream, Model, SimpleStreamOptions, ThinkingLevel,
-};
+use cortexcode_ai_stream::AssistantMessageEventStream;
+use cortexcode_ai_types::{self as ai_types, Model, SimpleStreamOptions, ThinkingLevel};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -27,8 +26,7 @@ pub type StreamFn = Box<
             Model,
             ai_types::Context,
             SimpleStreamOptions,
-        )
-            -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>>
+        ) -> Result<AssistantMessageEventStream, Box<dyn std::error::Error + Send + Sync>>
         + Send
         + Sync,
 >;

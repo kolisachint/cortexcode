@@ -458,6 +458,11 @@ def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: 
             if time.time() > deadline:
                 raise StepError(f"app did not exit within {timeout}s")
             time.sleep(0.1)
+        # tmux flips #{pane_dead} before it draws the "Pane is dead (status N, ...)"
+        # line, so a snapshot taken right away can miss the exit status. Wait for it.
+        marker_deadline = time.time() + 5
+        while "Pane is dead" not in tmux.capture(history=True) and time.time() < marker_deadline:
+            time.sleep(0.05)
     elif "sleep" in step:
         time.sleep(float(step["sleep"]))
     elif "snapshot" in step:

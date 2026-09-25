@@ -11,16 +11,17 @@
 //! non-goal of full parity in the initial pass.
 
 mod request;
-mod sse;
 
 use std::collections::HashMap;
-use std::io::BufReader;
 
-use cortexcode_ai_stream::{AiMessageEventSender, AiMessageEventStream};
-use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Content, Context, Cost,
-    Model, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+use cortexcode_ai_stream::{
+    create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
+use cortexcode_ai_types::{
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model,
+    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+};
+use futures_util::StreamExt;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -34,124 +35,98 @@ pub fn stream(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
-) -> Result<Box<dyn AssistantMessageEventStream>, BoxError> {
+) -> Result<AssistantMessageEventStream, BoxError> {
     let api_key = request::resolve_credentials(&options).map_err(BoxError::from)?;
     let headers = request::build_headers(&model, &api_key);
     let body = request::build_request_body(&model, &context, &options);
     let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
 
-    let (sender, recv_stream) = AiMessageEventStream::new();
-
-    std::thread::spawn(move || {
-        run_stream(
-            url,
-            headers,
-            body,
-            sender,
-            AssistantMessage::for_model(&model),
-        );
-    });
-
-    Ok(Box::new(recv_stream))
+    let stream = create_assistant_message_event_stream();
+    let sender = stream.clone();
+    let template = AssistantMessage::for_model(&model);
+    spawn_producer(
+        &stream,
+        run_stream(url, headers, body, sender, template, options.signal),
+    );
+    Ok(stream)
 }
 
-fn run_stream(
+async fn run_stream(
     url: String,
     headers: Vec<(String, String)>,
     body: serde_json::Value,
-    sender: AiMessageEventSender,
+    sender: AssistantMessageEventStream,
     template: AssistantMessage,
+    signal: Option<AbortSignal>,
 ) {
-    let client = match reqwest::blocking::Client::builder().build() {
-        Ok(c) => c,
-        Err(e) => {
-            fail(
-                &sender,
-                &template,
-                format!("failed to build HTTP client: {e}"),
-            );
-            return;
-        }
+    let mut state = StreamState::new(template);
+    let outcome = match &signal {
+        Some(signal) => tokio::select! {
+            biased;
+            _ = signal.cancelled() => Err("Request was aborted".to_string()),
+            r = drive(&url, &headers, &body, &mut state, &sender) => r,
+        },
+        None => drive(&url, &headers, &body, &mut state, &sender).await,
     };
+    if let Err(message) = outcome {
+        let aborted = signal.as_ref().is_some_and(AbortSignal::aborted);
+        let error = state.error_output(message, aborted);
+        sender.push(AssistantMessageEvent::Error {
+            error: error.clone(),
+        });
+        sender.end(Some(error));
+    }
+}
 
-    let mut request = client.post(&url);
-    for (k, v) in &headers {
+/// Send the request and feed the SSE chunks to `state`. `Err` carries the
+/// error message for the terminal `error` event.
+async fn drive(
+    url: &str,
+    headers: &[(String, String)],
+    body: &serde_json::Value,
+    state: &mut StreamState,
+    sender: &AssistantMessageEventStream,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let mut request = client.post(url);
+    for (k, v) in headers {
         request = request.header(k, v);
     }
-
-    let response = match request.json(&body).send() {
-        Ok(r) => r,
-        Err(e) => {
-            fail(
-                &sender,
-                &template,
-                format!("request to OpenAI API failed: {e}"),
-            );
-            return;
-        }
-    };
+    let response = request
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| format!("request to OpenAI API failed: {e}"))?;
 
     if !response.status().is_success() {
         let status = response.status().as_u16();
-        let text = response.text().unwrap_or_default();
-        fail(&sender, &template, api_error_message(status, &text));
-        return;
+        let text = response.text().await.unwrap_or_default();
+        return Err(api_error_message(status, &text));
     }
 
-    let reader = BufReader::new(response);
-    let events = sse::SseEvents::new(reader);
-
-    let mut state = StreamState::new(template.clone());
-    for frame in events {
-        let payload = match frame {
-            Ok(p) => p,
-            Err(e) => {
-                fail(
-                    &sender,
-                    &template,
-                    format!("error reading response stream: {e}"),
-                );
-                return;
-            }
-        };
-        let payload = payload.trim();
+    let mut events = cortexcode_ai_sse::sse_events(response.bytes_stream());
+    while let Some(frame) = events.next().await {
+        let frame = frame.map_err(|e| format!("error reading response stream: {e}"))?;
+        let payload = frame.data.trim();
         if payload.is_empty() {
             continue;
         }
         if payload == "[DONE]" {
-            state.finish(&sender);
-            return;
+            state.finish(sender);
+            return Ok(());
         }
         let value: serde_json::Value = match serde_json::from_str(payload) {
             Ok(v) => v,
             Err(_) => continue,
         };
-        state.handle_chunk(&value, &sender);
+        state.handle_chunk(&value, sender);
     }
 
     // Connection closed without an explicit [DONE] sentinel.
-    state.finish(&sender);
-}
-
-fn fail(sender: &AiMessageEventSender, template: &AssistantMessage, message: String) {
-    let error = AssistantMessage {
-        provider: template.provider.clone(),
-        response_id: None,
-        response_model: None,
-        api: template.api.clone(),
-        diagnostics: None,
-        model: template.model.clone(),
-        content: vec![],
-        stop_reason: StopReason::Error,
-
-        usage: Default::default(),
-        timestamp: cortexcode_ai_types::now_ms(),
-        error_message: Some(message),
-    };
-    sender.push(AssistantMessageEvent::Error {
-        error: error.clone(),
-    });
-    sender.end(error);
+    state.finish(sender);
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +184,7 @@ impl StreamState {
         }
     }
 
-    fn ensure_started(&mut self, sender: &AiMessageEventSender) {
+    fn ensure_started(&mut self, sender: &AssistantMessageEventStream) {
         if !self.started {
             self.started = true;
             sender.push(AssistantMessageEvent::Start {
@@ -218,7 +193,7 @@ impl StreamState {
         }
     }
 
-    fn ensure_block(&mut self, block: BlockRef, sender: &AiMessageEventSender) -> usize {
+    fn ensure_block(&mut self, block: BlockRef, sender: &AssistantMessageEventStream) -> usize {
         if let Some(&idx) = self.content_index.get(&block) {
             return idx;
         }
@@ -243,7 +218,7 @@ impl StreamState {
         idx
     }
 
-    fn handle_chunk(&mut self, value: &serde_json::Value, sender: &AiMessageEventSender) {
+    fn handle_chunk(&mut self, value: &serde_json::Value, sender: &AssistantMessageEventStream) {
         self.ensure_started(sender);
 
         if let Some(usage) = value.get("usage") {
@@ -331,7 +306,50 @@ impl StreamState {
         }
     }
 
-    fn finish(&mut self, sender: &AiMessageEventSender) {
+    /// The message for a terminal `error` event: everything streamed so far
+    /// (blocks are only materialized at `finish`, so all open blocks are
+    /// added here in stream order), with `stopReason` `aborted` when the
+    /// signal fired and `error` otherwise.
+    fn error_output(&self, message: String, aborted: bool) -> AssistantMessage {
+        let mut output = self.partial.clone();
+        for block in &self.order {
+            output.content.push(match block {
+                BlockRef::Text => Content::Text(TextContent {
+                    text_signature: None,
+                    text: self.text_buf.clone(),
+                    cache_control: None,
+                }),
+                BlockRef::Thinking => Content::Thinking(ThinkingContent {
+                    redacted: false,
+                    thinking: self.thinking_buf.clone(),
+                    signature: None,
+                }),
+                BlockRef::ToolCall(stream_index) => {
+                    let Some(buf) = self.tool_calls.get(stream_index) else {
+                        continue;
+                    };
+                    Content::ToolCall(ToolCallContent {
+                        thought_signature: None,
+                        id: buf.id.clone(),
+                        name: buf.name.clone(),
+                        arguments: Some(&buf.args)
+                            .filter(|raw| !raw.trim().is_empty())
+                            .and_then(|raw| cortexcode_ai_util::parse_json_with_repair(raw).ok())
+                            .unwrap_or_else(|| serde_json::json!({})),
+                    })
+                }
+            });
+        }
+        output.stop_reason = if aborted {
+            StopReason::Aborted
+        } else {
+            StopReason::Error
+        };
+        output.error_message = Some(message);
+        output
+    }
+
+    fn finish(&mut self, sender: &AssistantMessageEventStream) {
         if self.finished {
             return;
         }
@@ -402,7 +420,7 @@ impl StreamState {
                 });
             }
         }
-        sender.end(self.partial.clone());
+        sender.end(Some(self.partial.clone()));
     }
 }
 
@@ -514,46 +532,16 @@ mod tests {
         );
         assert_eq!(api_error_message(429, ""), "429 status code (no body)");
     }
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
+    use cortexcode_ai_stream::testing::{serve_error, serve_sse, serve_sse_then_hang};
+    use cortexcode_ai_types::AbortSignal;
+    use std::time::Duration;
 
     fn spawn_mock_server(sse_body: &'static str) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
-        let addr = listener.local_addr().unwrap();
-        std::thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = [0u8; 4096];
-                let _ = stream.read(&mut buf);
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                    sse_body.len(),
-                    sse_body
-                );
-                let _ = stream.write_all(response.as_bytes());
-                let _ = stream.flush();
-            }
-        });
-        format!("http://{addr}")
+        serve_sse(sse_body)
     }
 
     fn spawn_mock_error_server(status_line: &'static str, body: &'static str) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
-        let addr = listener.local_addr().unwrap();
-        std::thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = [0u8; 4096];
-                let _ = stream.read(&mut buf);
-                let response = format!(
-                    "{}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                    status_line,
-                    body.len(),
-                    body
-                );
-                let _ = stream.write_all(response.as_bytes());
-                let _ = stream.flush();
-            }
-        });
-        format!("http://{addr}")
+        serve_error(status_line, body)
     }
 
     fn test_model(base_url: String) -> Model {
@@ -574,9 +562,9 @@ mod tests {
         }
     }
 
-    fn collect(mut s: Box<dyn AssistantMessageEventStream>) -> Vec<AssistantMessageEvent> {
+    fn collect(mut s: AssistantMessageEventStream) -> Vec<AssistantMessageEvent> {
         let mut events = Vec::new();
-        while let Some(e) = s.next_event() {
+        while let Some(e) = s.next_blocking() {
             events.push(e);
         }
         events
@@ -689,6 +677,67 @@ mod tests {
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    /// `testAbortSignal` in `abort.test.ts`, against a server that stalls
+    /// mid-message.
+    #[test]
+    fn test_abort_mid_stream_keeps_partial_content() {
+        let head = concat!(
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"15 + 27 = 42. \"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Names: Ann\"},\"finish_reason\":null}]}\n\n",
+        );
+        let base_url = serve_sse_then_hang(head, Duration::from_secs(30));
+        let signal = AbortSignal::new();
+        let options = SimpleStreamOptions {
+            api_key: Some("sk-test".into()),
+            signal: Some(signal.clone()),
+            ..Default::default()
+        };
+        let mut s = stream(
+            test_model(base_url),
+            Context::new("".into(), vec![], vec![]),
+            options,
+        )
+        .unwrap();
+
+        let started = std::time::Instant::now();
+        let mut text = String::new();
+        while let Some(event) = s.next_blocking() {
+            if let AssistantMessageEvent::TextDelta { delta, .. } = &event {
+                text.push_str(delta);
+                if text.len() >= 20 {
+                    signal.abort();
+                }
+            }
+        }
+        assert!(started.elapsed() < Duration::from_secs(10));
+
+        let msg = s.result_blocking();
+        assert_eq!(msg.stop_reason, StopReason::Aborted);
+        match msg.content.as_slice() {
+            [Content::Text(t)] => assert_eq!(t.text, "15 + 27 = 42. Names: Ann"),
+            other => panic!("expected the partial text block, got {other:?}"),
+        }
+    }
+
+    /// `testImmediateAbort` in `abort.test.ts`.
+    #[test]
+    fn test_immediate_abort() {
+        let signal = AbortSignal::new();
+        signal.abort();
+        let options = SimpleStreamOptions {
+            api_key: Some("sk-test".into()),
+            signal: Some(signal),
+            ..Default::default()
+        };
+        let s = stream(
+            test_model("http://127.0.0.1:9".into()),
+            Context::new("".into(), vec![], vec![]),
+            options,
+        )
+        .unwrap();
+        assert_eq!(s.result_blocking().stop_reason, StopReason::Aborted);
     }
 
     #[test]

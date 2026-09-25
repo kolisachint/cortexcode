@@ -5,13 +5,46 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`.
+- Next task: run `python3 migration/ledger.py next` (expected: **7.3b**, async agent loop/core).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
   (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
   as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 7.3 split; 7.3a done (async provider streams)
+- Ledger: 7.3 split into 7.3a (streams + providers), 7.3b (async agent loop/core + consumers,
+  remove the blocking bridge), 7.3c (remaining `reqwest::blocking` in ai-oauth/ai-images/
+  code-tools, and `cache_control` into request building). Dependents re-pointed. Also fixed a
+  hand-written 7.3 log entry that was a string (broke `ledger.py next`).
+- New crate `ai-sse` (only owner of `eventsource-stream`): `sse_events(bytes_stream)`. Keeps
+  hoocode's flush of a trailing event without a blank line. The four `sse.rs` copies are gone.
+- `ai-stream` ports `event-stream.ts`: `EventStream<T, R>` (futures `Stream` + `final_result()`
+  future, clones share the queue), `AssistantMessageEventStream` alias,
+  `create_assistant_message_event_stream()`. `spawn_producer` runs a provider on the current
+  tokio runtime, or a shared 2-thread runtime for sync callers, and ends the stream if the
+  producer panics. `next_blocking`/`result_blocking` bridge the still-sync agent loop (7.3b
+  removes their non-test uses). `testing` feature: one-shot mock HTTP server.
+- ai-types: the sync `AssistantMessageEventStream` trait is removed; `AbortSignal` wraps a
+  `CancellationToken` (clones share it; before, each clone had its own bool, so abort never
+  reached anything).
+- anthropic/openai/azure/google: async reqwest (`stream` feature, no `blocking`), abort via
+  `select!` on `signal.cancelled()`. Errors and aborts now carry the partial content (open blocks
+  included) and usage, with `stopReason: aborted` + "Request was aborted" when the signal fired,
+  as in hoocode. Vertex credentials resolve on the producer task (async token exchange /
+  metadata server), so missing creds are an `error` event, as in TS.
+- faux: honors an already-aborted signal (TS `streamWithDeltas`); no `tokensPerSecond` yet.
+- registry: `complete_simple()`; `tests/live_e2e.rs` ports abort.test.ts + the basic
+  stream.test.ts cases (text, streaming, tool call) as `#[ignore]` live tests for anthropic,
+  openai-completions and google. The rest of stream.test.ts is 8.6.
+- Harness fix: `wait_exit` now also waits for tmux's "Pane is dead" line. tmux sets
+  `pane_dead` before drawing it, so `print-tool-read-light` failed once on a missing
+  `<exited status=0>` (a sync race, not an app difference; 15/15 passes after).
+- Next: **7.3b**. Make `agent-loop`/`agent-core` async (tokio), consume `EventStream` with
+  `.next().await`, pass `AbortSignal` from `Agent::abort` into `SimpleStreamOptions`, make
+  code-cli main a tokio runtime, then drop `next_blocking`/`result_blocking` from non-test code.
+  Keep `print-basic`, `print-error`, `print-tool-read-light` green.
 
 ### 2026-09-25: 10.4d done (light mode); M1 reached
 - User decision: reach M1 through hoocode's `--light` preset, which has a portable prompt.

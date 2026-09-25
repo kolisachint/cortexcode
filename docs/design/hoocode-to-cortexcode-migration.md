@@ -753,22 +753,17 @@ This is exactly the order `cargo build --workspace` resolves automatically.
 TypeScript exports a `stream()` function returning an async generator of events. Rust uses a trait-based approach:
 
 ```rust
-// cortexcode-ai-types defines the stream interface
-pub trait AssistantMessageEventStream: Send {
-    fn next_event(&mut self) -> Option<AssistantMessageEvent>;
-    fn result(&mut self) -> AssistantMessage;
-}
+// cortexcode-ai-stream ports utils/event-stream.ts: EventStream<T, R> is a
+// futures::Stream plus a final-result future; clones share one queue.
+pub type AssistantMessageEventStream = EventStream<AssistantMessageEvent, AssistantMessage>;
 
-// cortexcode-ai-stream provides a channel-backed implementation
-pub struct AiMessageEventStream { /* mpsc channel */ }
-
-// Each provider crate exports a stream() function
-// cortexcode-ai-provider-anthropic:
-pub async fn stream(
-    model: &Model,
-    context: &Context,
-    options: &SimpleStreamOptions,
-) -> Result<Box<dyn AssistantMessageEventStream>>;
+// Each provider crate exports a stream() function that returns at once and
+// runs the HTTP work on tokio (spawn_producer):
+pub fn stream(
+    model: Model,
+    context: Context,
+    options: SimpleStreamOptions, // options.signal: AbortSignal (CancellationToken)
+) -> Result<AssistantMessageEventStream, BoxError>;
 ```
 
 Provider registration is lazy (via `OnceCell`), mirroring `register-builtins.ts`:
@@ -1089,7 +1084,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 
 ### Phase 1 — AI Namespace (T0/T1)
 
-- [x] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE** ⚠ sync `std::mpsc` → 7.3
+- [x] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE** (async `EventStream` port since 7.3a)
 - [x] **1.2 cortexcode-ai-env** — API key detection from environment variables — **DONE**
 - [x] **1.3 cortexcode-ai-models** — Model registry + generated model lists — **DONE** ⚠ 907 of 1224 models, no `compat` → 8.1
 - [x] **1.4 cortexcode-ai-util** — JSON repair, validation, hash, header utilities — **DONE**

@@ -124,11 +124,11 @@ fn stream_options() -> SimpleStreamOptions {
 
 /// Collect all events from a stream
 fn collect_events(
-    stream: Box<dyn cortexcode_ai_types::AssistantMessageEventStream>,
+    stream: cortexcode_ai_stream::AssistantMessageEventStream,
 ) -> Vec<cortexcode_ai_types::AssistantMessageEvent> {
     let mut events = Vec::new();
     let mut stream = stream;
-    while let Some(event) = stream.next_event() {
+    while let Some(event) = stream.next_blocking() {
         events.push(event);
     }
     events

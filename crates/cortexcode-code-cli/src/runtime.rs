@@ -10,10 +10,8 @@ use cortexcode_agent_core::PromptInput;
 use cortexcode_agent_core::{Agent, AgentOptions, Subscription};
 use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
-use cortexcode_ai_types::{
-    AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
-};
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
+use cortexcode_ai_types::{Context, Model as AiModel, SimpleStreamOptions};
 
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
@@ -34,9 +32,10 @@ type StreamFn = Box<
             AiModel,
             Context,
             SimpleStreamOptions,
-        )
-            -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>>
-        + Send
+        ) -> Result<
+            cortexcode_ai_stream::AssistantMessageEventStream,
+            Box<dyn std::error::Error + Send + Sync>,
+        > + Send
         + Sync,
 >;
 use std::io::Write;

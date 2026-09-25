@@ -4,8 +4,8 @@
 //! are used by the agent runtime, harness, and tool crates.
 
 use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
-    ThinkingLevel, ToolResultMessage, UserMessage,
+    AssistantMessage, Content, Message, Model, SimpleStreamOptions, ThinkingLevel,
+    ToolResultMessage, UserMessage,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -609,7 +609,7 @@ pub struct AgentLoopConfig {
                     cortexcode_ai_types::Context,
                     SimpleStreamOptions,
                 ) -> Result<
-                    Box<dyn AssistantMessageEventStream>,
+                    cortexcode_ai_stream::AssistantMessageEventStream,
                     Box<dyn std::error::Error + Send + Sync>,
                 > + Send
                 + Sync,

@@ -1,25 +1,20 @@
 [package]
-name = "cortexcode-ai-stream"
+name = "cortexcode-ai-sse"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Streaming response utilities for cortex AI"
+description = "Server-Sent Events decoder shared by the cortex AI providers"
 readme = "README.md"
 
 [package.metadata.cortex]
-publish = true
+publish = false
 
 [dependencies]
-cortexcode-ai-types = { workspace = true }
-futures-executor = "0.3"
+eventsource-stream = "0.2"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
-tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-
-[features]
-testing = []
+futures-executor = "0.3"

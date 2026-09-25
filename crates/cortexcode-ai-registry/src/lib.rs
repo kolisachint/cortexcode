@@ -2,12 +2,13 @@
 //!
 //! Port of hoocode `api-registry.ts` + `stream.ts` + `register-builtins.ts` (v0.5.89).
 
-use cortexcode_ai_types::{AssistantMessageEventStream, Context, Model, SimpleStreamOptions};
+use cortexcode_ai_stream::AssistantMessageEventStream;
+use cortexcode_ai_types::{AssistantMessage, Context, Model, SimpleStreamOptions};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
-pub type StreamResult = Result<Box<dyn AssistantMessageEventStream>, BoxError>;
+pub type StreamResult = Result<AssistantMessageEventStream, BoxError>;
 
 /// A provider's `streamSimple` implementation.
 pub type ApiStreamSimpleFn =
@@ -114,6 +115,15 @@ pub fn stream_simple(model: Model, context: Context, options: SimpleStreamOption
     provider(model, context, options)
 }
 
+/// `completeSimple()`: stream and wait for the final message.
+pub async fn complete_simple(
+    model: Model,
+    context: Context,
+    options: SimpleStreamOptions,
+) -> Result<AssistantMessage, BoxError> {
+    Ok(stream_simple(model, context, options)?.result().await)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,13 +184,13 @@ mod tests {
         ))]);
         let f = faux.stream_fn();
         register_api_provider("test-api-dispatch", Arc::from(f), Some("ext-1"));
-        let mut s = stream_simple(
+        let s = stream_simple(
             model_with_api("test-api-dispatch"),
             Context::new(String::new(), vec![], vec![]),
             SimpleStreamOptions::default(),
         )
         .unwrap();
-        assert_eq!(s.result().api, "test-api-dispatch");
+        assert_eq!(s.result_blocking().api, "test-api-dispatch");
 
         unregister_api_providers("ext-1");
         assert!(get_api_provider("test-api-dispatch").is_none());

@@ -460,7 +460,7 @@
    "id": "7.3a",
    "title": "Async streams: ai-sse crate (eventsource-stream), EventStream port (futures Stream + result future), AbortSignal on CancellationToken, the four providers on async reqwest (drop their sse.rs + reqwest::blocking); abort keeps partial content with stopReason aborted",
    "phase": 7,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "10.8a"
    ],
@@ -507,6 +507,18 @@
      "commit": "9ea58f3",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:42:12Z",
+     "commit": "1ca5d8d",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=fail"
+    },
+    {
+     "at": "2026-09-25T05:44:14Z",
+     "commit": "1ca5d8d",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
     }
    ]
   },
