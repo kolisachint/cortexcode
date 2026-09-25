@@ -792,7 +792,7 @@ static PROVIDER_REGISTRY: Lazy<Mutex<HashMap<String, Box<dyn ProviderFactory>>>>
 |---|---|---|
 | TUI framework | **Ported hoocode renderer** (`tui-render` + `tui-components`) on `crossterm`. *Revised 2026-09-24: was `ratatui`* | hoocode's renderer draws inline into scrollback with differential line updates, which is not ratatui's full-frame buffer model. The port already exists with 340 tests, so switching to ratatui would mean a rewrite plus behavior drift. Use codex-rs as the reference for tokio/crossterm event-loop integration only |
 | Native search (fd/rg) | **ripgrep as a library** (`grep-searcher`, `grep-regex`, `ignore`, `globset`) | No binary downloads, `.gitignore`-aware, same engine as `rg` |
-| Async runtime | **`tokio`** (multi-threaded) end to end: providers, agent loop, tools, MCP. *Status: not yet true (audit A3). Task 7.3* | Needed for abort (`CancellationToken`), steering/follow-up queues, parallel tool execution, streaming TUI and `rmcp` (tokio-only). Library crates stay runtime-agnostic where practical (futures `Stream`) |
+| Async runtime | **`tokio`** (multi-threaded) end to end: providers, agent loop, tools, MCP. *Status: providers, agent loop/core and OAuth are async since 7.3 (2026-09-25); tools still run their sync bodies on the blocking pool (7.5, 10.2)* | Needed for abort (`CancellationToken`), steering/follow-up queues, parallel tool execution, streaming TUI and `rmcp` (tokio-only). Library crates stay runtime-agnostic where practical (futures `Stream`) |
 | Wire formats | **Byte-compatible with hoocode JSON** (messages, session JSONL v3, RPC protocol, `--mode json` events, `settings.json`, `auth.json`, `models.json`). *Added 2026-09-24* | Users can resume hoocode sessions, RPC clients and IDE integrations keep working, and golden fixtures from hoocode can be replayed |
 | Config directory | Read `~/.hoocode/` and `.hoocode/` (project) as a fallback source. Write `~/.cortexcode/` and `.cortexcode/` | Matches §10.6. Project-level `.hoocode/` (modes, skills, prompts) must be discovered too, not only the global `settings.json` |
 | MSRV | **1.88** (was 1.78) | Needed by `rmcp` 3.x. `similar` 3.x needs 1.85 |
@@ -1161,7 +1161,7 @@ Everything later serializes these types or runs on this runtime, so this phase i
   - `AgentMessage` becomes a flat `#[serde(untagged)]`/`tag="role"` enum covering the custom roles (`bashExecution`, `custom`, `branchSummary`, `compactionSummary`) instead of `{inner:{Standard:…}}`.
   - `code-session::FileEntry` uses `rename_all_fields = "camelCase"`.
   - Acceptance: round-trip real JSONL files recorded with hoocode at the pin (`tests/fixtures/hoocode-0.5.89/sessions/*.jsonl`), including v1→v2→v3 migration.
-- [ ] **7.3 Async core.** Move providers to async `reqwest` plus one shared SSE decoder (`eventsource-stream`), and delete the four `sse.rs` copies. `AssistantMessageEventStream` becomes a `futures::Stream`. `AbortSignal` becomes `tokio_util::sync::CancellationToken`. Drop the `blocking` feature everywhere. Keep a thin `block_on` helper for tests. *Split 2026-09-25:* 7.3a (ai-sse, EventStream, abort, the four providers), 7.3b (async agent loop/core and consumers), 7.3c (remaining `reqwest::blocking`, `cache_control` into request building).
+- [x] **7.3 Async core.** Move providers to async `reqwest` plus one shared SSE decoder (`eventsource-stream`), and delete the four `sse.rs` copies. `AssistantMessageEventStream` becomes a `futures::Stream`. `AbortSignal` becomes `tokio_util::sync::CancellationToken`. Drop the `blocking` feature everywhere. Keep a thin `block_on` helper for tests. *Split 2026-09-25:* 7.3a (ai-sse, EventStream, abort, the four providers), 7.3b (async agent loop/core and consumers), 7.3c (remaining `reqwest::blocking`, `cache_control` into request building).
 - [ ] **7.4 One session stack.** Keep `code-session` (the JSONL tree) as the implementation. Reduce `agent-session` to the storage trait hoocode has in `agent/src/harness/session/{repo,storage}` (memory + JSONL). Delete the duplicate `FileSessionStore`.
 - [ ] **7.5 Agent loop parity.** Port `agent.ts` and `agent-loop.ts` from the pin: steering and follow-up queues, `prepareNextTurn`, `transformContext`, `convertToLlm`, parallel/sequential tool execution, abort mid-stream and mid-tool, and the full event sequence (`agent_start … turn_end … agent_end`). Port `agent.test.ts`, `agent-loop.test.ts` and `prepare-next-turn-refresh.test.ts` onto the faux provider (these crates have 0 tests today).
 
@@ -1328,7 +1328,7 @@ has been replaced. Its details are preserved in git history and in the Phase 1�
 | Capability | Status | Task |
 |---|---|---|
 | hoocode-compatible message/content JSON | ⬜ | 7.2 |
-| Async streaming + abort | ⬜ (sync) | 7.3 |
+| Async streaming + abort | ✅ | 7.3 |
 | Model registry (1224 models, compat) | 🟡 907 models, no compat | 8.1 |
 | API-based dispatch, 31 providers | 🟡 4 hard-coded providers | 8.2 |
 | anthropic-messages | 🟡 | 7.3, 8.5 |
