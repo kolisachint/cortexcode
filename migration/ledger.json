@@ -457,10 +457,10 @@
    ]
   },
   {
-   "id": "7.3",
-   "title": "Async core: async reqwest + shared SSE decoder crate ai-sse (eventsource-stream), futures Stream events, CancellationToken abort; drop reqwest::blocking",
+   "id": "7.3a",
+   "title": "Async streams: ai-sse crate (eventsource-stream), EventStream port (futures Stream + result future), AbortSignal on CancellationToken, the four providers on async reqwest (drop their sse.rs + reqwest::blocking); abort keeps partial content with stopReason aborted",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8a"
    ],
@@ -472,8 +472,8 @@
     "cortexcode-ai-provider-openai",
     "cortexcode-ai-provider-google",
     "cortexcode-ai-provider-azure",
-    "cortexcode-agent-loop",
-    "cortexcode-agent-core"
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-registry"
    ],
    "sources": [
     "packages/ai/src/utils/event-stream.ts",
@@ -488,16 +488,144 @@
     "print-basic",
     "print-tool-read-light"
    ],
-   "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
+   "notes": "Refactor under L2 guard: M1 scenarios must stay green. The sync agent loop may bridge with a block_on until 7.3b. abort.test.ts/stream.test.ts are live-key e2e: port as #[ignore] live tests plus local mock-server tests of the same assertions.",
    "log": [
-    "2026-09-25: L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+    {
+     "at": "2026-09-25",
+     "commit": "c6d1ff8",
+     "kind": "note",
+     "text": "L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+    },
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    },
+    {
+     "at": "2026-09-25T05:26:48Z",
+     "commit": "9ea58f3",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:42:12Z",
+     "commit": "1ca5d8d",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=fail"
+    },
+    {
+     "at": "2026-09-25T05:44:14Z",
+     "commit": "1ca5d8d",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
+    }
+   ]
+  },
+  {
+   "id": "7.3b",
+   "title": "Async agent loop + agent core on tokio (stream consumption, tool execution, CancellationToken abort reaching the provider stream); async consumers (code-cli runtime/print/rpc, subagents); remove the block_on bridge",
+   "phase": 7,
+   "status": "done",
+   "depends": [
+    "7.3a"
+   ],
+   "crates": [
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core",
+    "cortexcode-code-cli",
+    "cortexcode-code-print",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/agent.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic",
+    "print-tool-read-light"
+   ],
+   "notes": "Mechanics only (async + abort plumbing); full loop parity (steering/follow-ups/parallel tools/event sequence) stays in 7.5.",
+   "log": [
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    },
+    {
+     "at": "2026-09-25T05:44:48Z",
+     "commit": "f11bae9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:48:25Z",
+     "commit": "f11bae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
+    }
+   ]
+  },
+  {
+   "id": "7.3c",
+   "title": "Drop remaining reqwest::blocking (ai-oauth, ai-images, code-tools) and move prompt-caching decisions into request building (delete TextContent/ImageContent.cache_control)",
+   "phase": 7,
+   "status": "done",
+   "depends": [
+    "7.3b"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-ai-oauth",
+    "cortexcode-ai-images",
+    "cortexcode-code-tools",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-util",
+    "cortexcode-code-cli",
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop"
+   ],
+   "sources": [
+    "packages/ai/src/providers/anthropic.ts",
+    "packages/ai/src/providers/cache-retention.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic",
+    "print-tool-read-light"
+   ],
+   "notes": "7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
+   "log": [
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    },
+    {
+     "at": "2026-09-25T05:49:14Z",
+     "commit": "2f9e1de",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:55:33Z",
+     "commit": "2f9e1de",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
+    }
    ]
   },
   {
    "id": "7.4",
    "title": "One session stack: code-session is the implementation; agent-session reduced to the storage trait (memory + JSONL repo)",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -514,46 +642,122 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T05:56:49Z",
+     "commit": "e1cec3f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T06:02:24Z",
+     "commit": "e1cec3f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
-   "id": "7.5",
-   "title": "Agent + loop parity: steering/follow-up queues, prepareNextTurn, transformContext, parallel tools, abort, full event sequence; port agent tests on faux",
+   "id": "7.5a",
+   "title": "Loop parity: port agent-loop.ts (agentLoop/agentLoopContinue event streams, prepareToolCall with validation, parallel tools in completion order, background tools, tool updates, prepareNextTurn model/thinking, shouldStopAfterTurn, terminate batches); port agent-loop.test.ts on faux",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "7.3"
+    "7.3b"
+   ],
+   "crates": [
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core"
+   ],
+   "sources": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/agent-loop.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Hooks stay synchronous closures (Send + Sync) for now; tools keep sync execute on spawn_blocking.",
+   "log": [
+    {
+     "at": "2026-09-25T11:47:30Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "split from 7.5 (~1.6K source + 2.2K test lines): 7.5a agent-loop.ts, 7.5b agent.ts"
+    },
+    {
+     "at": "2026-09-25T11:47:31Z",
+     "commit": "632ecfe",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:01:05Z",
+     "commit": "632ecfe",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "7.5b",
+   "title": "Agent parity: port agent.ts (state mutators, listeners with abort signal, waitForIdle, run failure lifecycle, streaming guards, queue modes, continue() semantics, sessionId); port agent.test.ts + prepare-next-turn-refresh.test.ts",
+   "phase": 7,
+   "status": "done",
+   "depends": [
+    "7.5a"
    ],
    "crates": [
     "cortexcode-agent-core",
     "cortexcode-agent-loop"
    ],
    "sources": [
-    "packages/agent/src/agent.ts",
-    "packages/agent/src/agent-loop.ts"
+    "packages/agent/src/agent.ts"
    ],
    "ts_tests": [
     "packages/agent/test/agent.test.ts",
-    "packages/agent/test/agent-loop.test.ts",
     "packages/agent/test/prepare-next-turn-refresh.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T11:47:30Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "split from 7.5 (~1.6K source + 2.2K test lines): 7.5a agent-loop.ts, 7.5b agent.ts"
+    },
+    {
+     "at": "2026-09-25T12:02:18Z",
+     "commit": "c3e5e41",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:08:09Z",
+     "commit": "c3e5e41",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.1",
    "title": "Model catalog at pin in new data crate ai-models-catalog (1224 models + image models, compat structs); ai-models keeps lookup logic",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
    "crates": [
     "cortexcode-ai-models-catalog",
     "cortexcode-ai-models",
-    "cortexcode-ai-types"
+    "cortexcode-ai-types",
+    "cortexcode-ai-images",
+    "cortexcode-code-models"
    ],
    "sources": [
     "packages/ai/src/models.generated.ts",
@@ -566,7 +770,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Volatile data isolated: regenerated on every pin bump by scripts/convert_models_to_json.py. ai-models stores the catalog in a HashMap, so per-provider model order is lost. TS getModels() order matters (parseModels uses builtIn[0] for defaults, and the lists are UI-visible). code-models currently sorts by id as a stopgap. Model.compat is untyped JSON until the compat structs land.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:10:16Z",
+     "commit": "7b349fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:15:05Z",
+     "commit": "7b349fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.2",
@@ -593,7 +810,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:14:48Z",
+     "commit": "7b349fa",
+     "kind": "note",
+     "text": "8.1: port the env-key halves of fireworks-models.test.ts and together-models.test.ts (findEnvKeys/getEnvApiKey for FIREWORKS_API_KEY, TOGETHER_API_KEY)."
+    }
+   ]
   },
   {
    "id": "8.3",
@@ -601,7 +825,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3a"
    ],
    "crates": [
     "cortexcode-ai-provider-openai-responses",
@@ -675,7 +899,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3",
+    "7.3a",
     "8.7"
    ],
    "crates": [
@@ -701,7 +925,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3a"
    ],
    "crates": [
     "cortexcode-ai-util",
@@ -720,7 +944,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:02:10Z",
+     "commit": "632ecfe",
+     "kind": "note",
+     "text": "7.5a: agent-loop calls validate_tool_arguments() (crates/cortexcode-agent-loop), currently a pass-through; port validateToolArguments (TypeBox Convert + JSON-schema coercion, TS error format) and wire it there."
+    },
+    {
+     "at": "2026-09-25T12:14:48Z",
+     "commit": "7b349fa",
+     "kind": "note",
+     "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+    }
+   ]
   },
   {
    "id": "8.6",
@@ -749,7 +986,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3c"
    ],
    "crates": [
     "cortexcode-ai-oauth",
@@ -774,7 +1011,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.3",
+    "7.3b",
     "7.1"
    ],
    "crates": [
@@ -801,7 +1038,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5"
+    "7.5b"
    ],
    "crates": [
     "cortexcode-agent-compaction"
@@ -847,7 +1084,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5"
+    "7.5b"
    ],
    "crates": [
     "cortexcode-agent-harness"
@@ -899,7 +1136,7 @@
    "status": "todo",
    "depends": [
     "10.2a",
-    "7.3"
+    "7.3b"
    ],
    "crates": [
     "cortexcode-code-tool-bash"
@@ -1049,7 +1286,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "7.5",
+    "7.5b",
     "7.4",
     "10.1"
    ],

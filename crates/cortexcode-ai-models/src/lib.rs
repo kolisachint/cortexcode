@@ -1,137 +1,85 @@
-//! LLM model registry and discovery for cortex AI.
+//! LLM model registry for cortex AI.
 //!
-//! Provides a registry of known LLM models with their capabilities, pricing,
-//! and provider metadata. Ported from TypeScript `@kolisachint/hoocode-ai` →
-//! `models.ts` + `models.generated.ts`.
-//!
-//! Models are loaded lazily from an embedded data file (`data/models.json`)
-//! on first access.
+//! Port of hoocode `packages/ai/src/models.ts`. The catalog itself is data in
+//! `cortexcode-ai-models-catalog` (`models.generated.ts` at the pin); this
+//! crate keeps the lookup logic. Providers and each provider's models keep
+//! hoocode's order (`getProviders()` / `getModels()` iterate insertion order).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 pub use cortexcode_ai_types::Model;
 
-// ---------------------------------------------------------------------------
-// Registry type: provider -> (model_id -> Model)
-// ---------------------------------------------------------------------------
-
-type Registry = HashMap<String, HashMap<String, Model>>;
+/// provider -> models, in catalog order, plus an index for lookups.
+struct Registry {
+    providers: Vec<(String, Vec<Model>)>,
+    index: HashMap<(String, String), (usize, usize)>,
+}
 
 fn registry() -> &'static Registry {
     static REGISTRY: OnceLock<Registry> = OnceLock::new();
     REGISTRY.get_or_init(|| {
-        // Start with built-in models from embedded JSON.
-        let data = include_str!("../data/models.json");
-        let model_list: Vec<serde_json::Value> =
-            serde_json::from_str(data).expect("embedded data/models.json is valid JSON");
-        build_registry_from_json(&model_list)
+        let models: Vec<Model> = serde_json::from_str(cortexcode_ai_models_catalog::MODELS_JSON)
+            .expect("the embedded model catalog matches the Model shape");
+        build_registry(models)
     })
 }
 
-fn build_registry_from_json(model_list: &[serde_json::Value]) -> Registry {
-    let mut registry: Registry = HashMap::new();
-
-    for entry in model_list {
-        let provider = entry["provider"]
-            .as_str()
-            .expect("model entry must have 'provider'")
-            .to_string();
-
-        let model = Model {
-            id: entry["id"].as_str().unwrap_or_default().to_string(),
-            name: entry["name"].as_str().unwrap_or_default().to_string(),
-            api: entry["api"].as_str().unwrap_or("unknown").to_string(),
-            provider: provider.clone(),
-            base_url: entry["baseUrl"].as_str().unwrap_or_default().to_string(),
-            reasoning: entry["reasoning"].as_bool().unwrap_or(false),
-            thinking_level_map: parse_thinking_level_map(entry),
-            input: parse_input_modalities(entry),
-            cost: cortexcode_ai_types::ModelCost {
-                input: entry["cost"]["input"].as_f64().unwrap_or(0.0),
-                output: entry["cost"]["output"].as_f64().unwrap_or(0.0),
-                cache_read: entry["cost"]["cacheRead"].as_f64().unwrap_or(0.0),
-                cache_write: entry["cost"]["cacheWrite"].as_f64().unwrap_or(0.0),
-            },
-            context_window: entry["contextWindow"].as_u64().unwrap_or(4096),
-            max_tokens: entry["maxTokens"].as_u64().unwrap_or(4096),
-            headers: parse_headers(entry),
-            compat: entry.get("compat").cloned(),
+fn build_registry(models: Vec<Model>) -> Registry {
+    let mut providers: Vec<(String, Vec<Model>)> = Vec::new();
+    let mut index = HashMap::new();
+    for model in models {
+        let p = match providers
+            .iter()
+            .position(|(name, _)| *name == model.provider)
+        {
+            Some(p) => p,
+            None => {
+                providers.push((model.provider.clone(), Vec::new()));
+                providers.len() - 1
+            }
         };
-
-        registry
-            .entry(provider)
-            .or_default()
-            .insert(model.id.clone(), model);
-    }
-
-    registry
-}
-
-fn parse_thinking_level_map(
-    entry: &serde_json::Value,
-) -> Option<HashMap<String, serde_json::Value>> {
-    let map = entry.get("thinkingLevelMap")?;
-    if map.is_null() {
-        return None;
-    }
-    let map_obj = map.as_object()?;
-    let mut result = HashMap::new();
-    for (k, v) in map_obj {
-        result.insert(k.clone(), v.clone());
-    }
-    Some(result)
-}
-
-fn parse_input_modalities(entry: &serde_json::Value) -> Vec<String> {
-    entry["input"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_else(|| vec!["text".to_string()])
-}
-
-fn parse_headers(entry: &serde_json::Value) -> Option<HashMap<String, String>> {
-    let headers = entry.get("headers")?;
-    if headers.is_null() {
-        return None;
-    }
-    let obj = headers.as_object()?;
-    let mut result = HashMap::new();
-    for (k, v) in obj {
-        if let Some(val) = v.as_str() {
-            result.insert(k.clone(), val.to_string());
+        let key = (model.provider.clone(), model.id.clone());
+        let list = &mut providers[p].1;
+        match index.get(&key) {
+            // A repeated id replaces the earlier entry in place (Map.set).
+            Some(&(_, m)) => list[m] = model,
+            None => {
+                index.insert(key, (p, list.len()));
+                list.push(model);
+            }
         }
     }
-    if result.is_empty() {
-        None
-    } else {
-        Some(result)
-    }
+    Registry { providers, index }
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Get a specific model by provider and model ID.
+/// `getModel(provider, modelId)`.
 pub fn get_model(provider: &str, model_id: &str) -> Option<&'static Model> {
-    registry().get(provider)?.get(model_id)
+    let r = registry();
+    let &(p, m) = r.index.get(&(provider.to_string(), model_id.to_string()))?;
+    Some(&r.providers[p].1[m])
 }
 
-/// List all known provider names.
+/// `getProviders()`, in catalog order.
 pub fn get_providers() -> Vec<&'static str> {
-    registry().keys().map(|s| s.as_str()).collect()
+    registry()
+        .providers
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect()
 }
 
-/// List all models for a given provider.
+/// `getModels(provider)`, in catalog order.
 pub fn get_models(provider: &str) -> Vec<&'static Model> {
     registry()
-        .get(provider)
-        .map(|models| models.values().collect())
+        .providers
+        .iter()
+        .find(|(name, _)| name == provider)
+        .map(|(_, models)| models.iter().collect())
         .unwrap_or_default()
 }
 

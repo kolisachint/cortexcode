@@ -255,16 +255,21 @@ enum JsonEventPayload {
         tool_name: String,
         args: serde_json::Value,
     },
-    ToolExecutionEnd {
+    ToolExecutionUpdate {
         tool_call_id: String,
         tool_name: String,
         args: serde_json::Value,
+        partial_result: JsonToolResult,
+    },
+    ToolExecutionEnd {
+        tool_call_id: String,
+        tool_name: String,
         result: JsonToolResult,
         is_error: bool,
     },
     TurnEnd {
         message: cortexcode_ai_types::AssistantMessage,
-        tool_results: Vec<Message>,
+        tool_results: Vec<cortexcode_ai_types::ToolResultMessage>,
     },
     AgentEnd {
         messages: Vec<AgentMessage>,
@@ -274,6 +279,9 @@ enum JsonEventPayload {
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind")]
 enum JsonAssistantMessageEvent {
+    Start,
+    Done,
+    Error,
     TextStart { index: usize },
     TextDelta { index: usize, delta: String },
     TextEnd { index: usize },
@@ -285,32 +293,39 @@ enum JsonAssistantMessageEvent {
     ToolCallEnd { index: usize },
 }
 
-impl From<&cortexcode_agent_types::AssistantMessagePartialEvent> for JsonAssistantMessageEvent {
-    fn from(event: &cortexcode_agent_types::AssistantMessagePartialEvent) -> Self {
-        use cortexcode_agent_types::AssistantMessagePartialEvent as E;
+impl From<&cortexcode_ai_types::AssistantMessageEvent> for JsonAssistantMessageEvent {
+    fn from(event: &cortexcode_ai_types::AssistantMessageEvent) -> Self {
+        use cortexcode_ai_types::AssistantMessageEvent as E;
         match event {
-            E::TextStart { index } => JsonAssistantMessageEvent::TextStart { index: *index },
-            E::TextDelta { index, delta } => JsonAssistantMessageEvent::TextDelta {
+            E::Start { .. } => JsonAssistantMessageEvent::Start,
+            E::Done { .. } => JsonAssistantMessageEvent::Done,
+            E::Error { .. } => JsonAssistantMessageEvent::Error,
+            E::TextStart { index, .. } => JsonAssistantMessageEvent::TextStart { index: *index },
+            E::TextDelta { index, delta, .. } => JsonAssistantMessageEvent::TextDelta {
                 index: *index,
                 delta: delta.clone(),
             },
-            E::TextEnd { index } => JsonAssistantMessageEvent::TextEnd { index: *index },
-            E::ThinkingStart { index } => {
+            E::TextEnd { index, .. } => JsonAssistantMessageEvent::TextEnd { index: *index },
+            E::ThinkingStart { index, .. } => {
                 JsonAssistantMessageEvent::ThinkingStart { index: *index }
             }
-            E::ThinkingDelta { index, delta } => JsonAssistantMessageEvent::ThinkingDelta {
+            E::ThinkingDelta { index, delta, .. } => JsonAssistantMessageEvent::ThinkingDelta {
                 index: *index,
                 delta: delta.clone(),
             },
-            E::ThinkingEnd { index } => JsonAssistantMessageEvent::ThinkingEnd { index: *index },
-            E::ToolCallStart { index } => {
+            E::ThinkingEnd { index, .. } => {
+                JsonAssistantMessageEvent::ThinkingEnd { index: *index }
+            }
+            E::ToolCallStart { index, .. } => {
                 JsonAssistantMessageEvent::ToolCallStart { index: *index }
             }
-            E::ToolCallDelta { index, delta } => JsonAssistantMessageEvent::ToolCallDelta {
+            E::ToolCallDelta { index, delta, .. } => JsonAssistantMessageEvent::ToolCallDelta {
                 index: *index,
                 delta: delta.clone(),
             },
-            E::ToolCallEnd { index } => JsonAssistantMessageEvent::ToolCallEnd { index: *index },
+            E::ToolCallEnd { index, .. } => {
+                JsonAssistantMessageEvent::ToolCallEnd { index: *index }
+            }
         }
     }
 }
@@ -328,7 +343,9 @@ impl From<&AgentEvent> for JsonEvent {
                 assistant_message_event,
                 message,
             } => JsonEventPayload::MessageUpdate {
-                assistant_message_event: JsonAssistantMessageEvent::from(assistant_message_event),
+                assistant_message_event: JsonAssistantMessageEvent::from(
+                    &**assistant_message_event,
+                ),
                 message: message.clone(),
             },
             E::MessageEnd { message } => JsonEventPayload::MessageEnd {
@@ -343,16 +360,25 @@ impl From<&AgentEvent> for JsonEvent {
                 tool_name: tool_name.clone(),
                 args: args.clone(),
             },
-            E::ToolExecutionEnd {
+            E::ToolExecutionUpdate {
                 tool_call_id,
                 tool_name,
                 args,
+                partial_result,
+            } => JsonEventPayload::ToolExecutionUpdate {
+                tool_call_id: tool_call_id.clone(),
+                tool_name: tool_name.clone(),
+                args: args.clone(),
+                partial_result: JsonToolResult::from(partial_result),
+            },
+            E::ToolExecutionEnd {
+                tool_call_id,
+                tool_name,
                 result,
                 is_error,
             } => JsonEventPayload::ToolExecutionEnd {
                 tool_call_id: tool_call_id.clone(),
                 tool_name: tool_name.clone(),
-                args: args.clone(),
                 result: JsonToolResult::from(result),
                 is_error: *is_error,
             },
@@ -443,7 +469,6 @@ mod tests {
         Content::Text(TextContent {
             text: t.into(),
             text_signature: None,
-            cache_control: None,
         })
     }
 
@@ -506,7 +531,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-                cache_control: None,
             })],
             stop_reason: stop.unwrap_or_default(),
 
@@ -521,7 +545,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-                cache_control: None,
             })],
             timestamp: 0,
         }))

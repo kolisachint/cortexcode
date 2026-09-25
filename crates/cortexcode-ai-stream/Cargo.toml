@@ -14,3 +14,12 @@ publish = true
 
 [dependencies]
 cortexcode-ai-types = { workspace = true }
+futures-executor = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[features]
+testing = []

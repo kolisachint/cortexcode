@@ -8,6 +8,7 @@ members = [
     "crates/cortexcode-ai-env",
     "crates/cortexcode-ai-images",
     "crates/cortexcode-ai-models",
+    "crates/cortexcode-ai-models-catalog",
     "crates/cortexcode-ai-oauth",
     "crates/cortexcode-ai-provider-anthropic",
     "crates/cortexcode-ai-provider-azure",
@@ -15,6 +16,7 @@ members = [
     "crates/cortexcode-ai-provider-google",
     "crates/cortexcode-ai-provider-openai",
     "crates/cortexcode-ai-registry",
+    "crates/cortexcode-ai-sse",
     "crates/cortexcode-ai-stream",
     "crates/cortexcode-ai-types",
     "crates/cortexcode-ai-util",
@@ -76,12 +78,14 @@ cortexcode-ai = { path = "crates/cortexcode-ai" }
 cortexcode-ai-env = { path = "crates/cortexcode-ai-env" }
 cortexcode-ai-images = { path = "crates/cortexcode-ai-images" }
 cortexcode-ai-models = { path = "crates/cortexcode-ai-models" }
+cortexcode-ai-models-catalog = { path = "crates/cortexcode-ai-models-catalog" }
 cortexcode-ai-oauth = { path = "crates/cortexcode-ai-oauth" }
 cortexcode-ai-provider-anthropic = { path = "crates/cortexcode-ai-provider-anthropic" }
 cortexcode-ai-provider-azure = { path = "crates/cortexcode-ai-provider-azure" }
 cortexcode-ai-provider-faux = { path = "crates/cortexcode-ai-provider-faux" }
 cortexcode-ai-provider-google = { path = "crates/cortexcode-ai-provider-google" }
 cortexcode-ai-provider-openai = { path = "crates/cortexcode-ai-provider-openai" }
+cortexcode-ai-sse = { path = "crates/cortexcode-ai-sse" }
 cortexcode-ai-stream = { path = "crates/cortexcode-ai-stream" }
 cortexcode-ai-types = { path = "crates/cortexcode-ai-types" }
 cortexcode-ai-util = { path = "crates/cortexcode-ai-util" }

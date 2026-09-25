@@ -298,7 +298,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "hi".into(),
-                    cache_control: None,
                 })],
                 timestamp: 0,
             })],
@@ -381,7 +380,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "result 1".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
@@ -393,7 +391,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "result 2".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_2".into(),
                 tool_name: "read_file".into(),
@@ -415,7 +412,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "boom".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -438,7 +434,6 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "abc".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -463,7 +458,6 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "abc".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),

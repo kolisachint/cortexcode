@@ -88,13 +88,13 @@ pub struct DeviceAuth {
     pub user_code: String,
 }
 
-fn http_client() -> Result<reqwest::blocking::Client, String> {
-    reqwest::blocking::Client::builder()
+fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))
 }
 
-fn start_device_flow(domain: &str) -> Result<DeviceCodeResponse, String> {
+async fn start_device_flow(domain: &str) -> Result<DeviceCodeResponse, String> {
     let urls = get_urls(domain);
     let client = http_client()?;
     let response = client
@@ -103,10 +103,11 @@ fn start_device_flow(domain: &str) -> Result<DeviceCodeResponse, String> {
         .header("user-agent", USER_AGENT)
         .form(&[("client_id", CLIENT_ID), ("scope", "read:user")])
         .send()
+        .await
         .map_err(|e| format!("device code request failed: {e}"))?;
 
     let status = response.status();
-    let text = response.text().unwrap_or_default();
+    let text = response.text().await.unwrap_or_default();
     if !status.is_success() {
         return Err(format!("{status}: {text}"));
     }
@@ -123,7 +124,7 @@ struct DeviceTokenResponse {
 }
 
 /// Poll GitHub's device-flow token endpoint until the user completes login.
-fn poll_for_access_token(
+async fn poll_for_access_token(
     domain: &str,
     device_code: &str,
     interval_seconds: f64,
@@ -139,7 +140,7 @@ fn poll_for_access_token(
     while Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(Instant::now());
         let wait_ms = (interval_ms * interval_multiplier).min(remaining.as_millis() as f64);
-        std::thread::sleep(Duration::from_millis(wait_ms.max(0.0) as u64));
+        tokio::time::sleep(Duration::from_millis(wait_ms.max(0.0) as u64)).await;
 
         let response = client
             .post(&urls.access_token_url)
@@ -151,9 +152,10 @@ fn poll_for_access_token(
                 ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ])
             .send()
+            .await
             .map_err(|e| format!("device token request failed: {e}"))?;
 
-        let text = response.text().unwrap_or_default();
+        let text = response.text().await.unwrap_or_default();
         let parsed: DeviceTokenResponse =
             serde_json::from_str(&text).unwrap_or(DeviceTokenResponse {
                 access_token: None,
@@ -204,8 +206,8 @@ fn poll_for_access_token(
 ///
 /// Mirrors the TS `loginGitHubCopilot` two-phase shape without forcing a
 /// blocking prompt callback into this crate's API.
-pub fn start_login(domain: &str) -> Result<(DeviceAuth, DeviceCodeResponse), String> {
-    let device = start_device_flow(domain)?;
+pub async fn start_login(domain: &str) -> Result<(DeviceAuth, DeviceCodeResponse), String> {
+    let device = start_device_flow(domain).await?;
     let auth = DeviceAuth {
         verification_uri: device.verification_uri.clone(),
         user_code: device.user_code.clone(),
@@ -213,10 +215,10 @@ pub fn start_login(domain: &str) -> Result<(DeviceAuth, DeviceCodeResponse), Str
     Ok((auth, device))
 }
 
-/// Complete a device-flow login started with [`start_login`]: blocks polling
+/// Complete a device-flow login started with [`start_login`]: polls
 /// until the user finishes authorizing in their browser, then exchanges the
 /// resulting GitHub access token for a Copilot token.
-pub fn complete_login(
+pub async fn complete_login(
     domain: &str,
     device: &DeviceCodeResponse,
     enterprise_domain: Option<&str>,
@@ -226,14 +228,15 @@ pub fn complete_login(
         &device.device_code,
         device.interval,
         device.expires_in,
-    )?;
-    refresh_token(&github_token, enterprise_domain)
+    )
+    .await?;
+    refresh_token(&github_token, enterprise_domain).await
 }
 
 /// Exchange a GitHub access token (or a previously-issued one) for a fresh
 /// Copilot token. GitHub Copilot tokens are short-lived; this is both the
 /// initial exchange and the subsequent refresh path.
-pub fn refresh_token(
+pub async fn refresh_token(
     github_token: &str,
     enterprise_domain: Option<&str>,
 ) -> Result<OAuthCredentials, String> {
@@ -250,10 +253,11 @@ pub fn refresh_token(
         .header("editor-plugin-version", "copilot-chat/0.35.0")
         .header("copilot-integration-id", "vscode-chat")
         .send()
+        .await
         .map_err(|e| format!("copilot token request failed: {e}"))?;
 
     let status = response.status();
-    let text = response.text().unwrap_or_default();
+    let text = response.text().await.unwrap_or_default();
     if !status.is_success() {
         return Err(format!("{status}: {text}"));
     }

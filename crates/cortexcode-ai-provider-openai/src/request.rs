@@ -238,14 +238,10 @@ fn convert_messages(messages: &[Message]) -> Vec<serde_json::Value> {
 
 /// `compat.supportsStrictMode`: an explicit override, else detected from the
 /// provider/base URL (Moonshot and Together reject the field). Part of
-/// `detectCompat`; the full compat port is 8.1/8.5.
+/// `detectCompat`; the rest of the compat detection is 8.5.
 fn supports_strict_mode(model: &Model) -> bool {
-    if let Some(explicit) = model
-        .compat
-        .as_ref()
-        .and_then(|c| c.get("supportsStrictMode"))
-        .and_then(serde_json::Value::as_bool)
-    {
+    let compat: cortexcode_ai_types::OpenAICompletionsCompat = model.compat_as();
+    if let Some(explicit) = compat.supports_strict_mode {
         return explicit;
     }
     let provider = model.provider.as_str();
@@ -330,7 +326,6 @@ mod tests {
         let content = vec![Content::Text(TextContent {
             text_signature: None,
             text: "hi".into(),
-            cache_control: None,
         })];
         let v = user_message(&content).unwrap();
         assert_eq!(v["role"], "user");
@@ -352,12 +347,10 @@ mod tests {
             Content::Text(TextContent {
                 text_signature: None,
                 text: "look".into(),
-                cache_control: None,
             }),
             Content::Image(ImageContent {
                 data: "abc123".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             }),
         ];
         let v = user_message(&content).unwrap();
@@ -398,7 +391,6 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "xyz".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -420,7 +412,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "output here".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -442,7 +433,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "hi".into(),
-                    cache_control: None,
                 })],
                 timestamp: 0,
             })],
@@ -543,7 +533,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "hello".into(),
-                cache_control: None,
             })],
             stop_reason: cortexcode_ai_types::StopReason::Stop,
 

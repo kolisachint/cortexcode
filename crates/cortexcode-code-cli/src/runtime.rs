@@ -10,10 +10,8 @@ use cortexcode_agent_core::PromptInput;
 use cortexcode_agent_core::{Agent, AgentOptions, Subscription};
 use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
-use cortexcode_ai_types::{
-    AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
-};
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
+use cortexcode_ai_types::{Context, Model as AiModel, SimpleStreamOptions};
 
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
@@ -34,9 +32,10 @@ type StreamFn = Box<
             AiModel,
             Context,
             SimpleStreamOptions,
-        )
-            -> Result<Box<dyn AssistantMessageEventStream>, Box<dyn std::error::Error + Send + Sync>>
-        + Send
+        ) -> Result<
+            cortexcode_ai_stream::AssistantMessageEventStream,
+            Box<dyn std::error::Error + Send + Sync>,
+        > + Send
         + Sync,
 >;
 use std::io::Write;
@@ -173,13 +172,21 @@ fn oauth_api_key(provider: &str) -> Option<String> {
 
     // Expired: attempt a refresh, persisting the new tokens on success.
     let refreshed = match store_key {
-        "anthropic" => cortexcode_ai_oauth::anthropic::refresh_token(&credentials.refresh).ok(),
+        "anthropic" => async_runtime()
+            .block_on(cortexcode_ai_oauth::anthropic::refresh_token(
+                &credentials.refresh,
+            ))
+            .ok(),
         "github-copilot" => {
             let enterprise = credentials
                 .extra
                 .get("enterprise_url")
                 .and_then(|v| v.as_str());
-            cortexcode_ai_oauth::github_copilot::refresh_token(&credentials.refresh, enterprise)
+            async_runtime()
+                .block_on(cortexcode_ai_oauth::github_copilot::refresh_token(
+                    &credentials.refresh,
+                    enterprise,
+                ))
                 .ok()
         }
         _ => None,
@@ -253,9 +260,9 @@ impl LiveTranscript {
     /// Record every message the agent ends. Keep the returned handle alive.
     fn follow(self: &Arc<Self>, agent: &Agent) -> Subscription {
         let transcript = self.clone();
-        agent.subscribe(move |event| {
+        agent.subscribe(move |event, _signal| {
             if let AgentEvent::MessageEnd { message } = event {
-                if let Ok(value) = serde_json::to_value(&message) {
+                if let Ok(value) = serde_json::to_value(message) {
                     transcript
                         .0
                         .lock()
@@ -425,13 +432,24 @@ fn build_agent_with_gate(
     Ok((agent, subscription))
 }
 
+/// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider
+/// streams spawn onto it (`spawn_producer` uses the current runtime).
+pub(crate) fn async_runtime() -> &'static tokio::runtime::Runtime {
+    static RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to start the tokio runtime")
+    })
+}
+
 /// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.to_string(),
-            cache_control: None,
         })],
         timestamp: cortexcode_ai_types::now_ms(),
     }))
@@ -479,15 +497,16 @@ pub fn run_print_mode(
 
     let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
     let formatter_for_sub = formatter.clone();
-    let _sub = agent.subscribe(Box::new(move |event| {
+    let _sub = agent.subscribe(move |event, _signal| {
         if let Ok(mut fmt) = formatter_for_sub.lock() {
-            fmt.record(event);
+            fmt.record(event.clone());
         }
-    }));
+    });
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
-        if let Err(e) = agent.prompt(PromptInput::Messages(vec![text_message(prompt)])) {
+        let run = agent.prompt(PromptInput::Messages(vec![text_message(prompt)]));
+        if let Err(e) = async_runtime().block_on(run) {
             writeln!(err, "{e}")?;
             return Ok(1);
         }
@@ -564,9 +583,12 @@ pub fn run_interactive_mode(
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
                             let user_msg = text_message(line);
-                            match agent.prompt(PromptInput::Messages(vec![user_msg])) {
-                                Ok(messages) => {
-                                    let text = format_text_output(&messages);
+                            let before = agent.state().messages.len();
+                            let run = agent.prompt(PromptInput::Messages(vec![user_msg]));
+                            match async_runtime().block_on(run) {
+                                Ok(()) => {
+                                    let messages = agent.state().messages;
+                                    let text = format_text_output(&messages[before..]);
                                     if !text.is_empty() {
                                         writeln!(output, "Cortex: {}\n", text)?;
                                     } else {

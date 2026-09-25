@@ -753,22 +753,17 @@ This is exactly the order `cargo build --workspace` resolves automatically.
 TypeScript exports a `stream()` function returning an async generator of events. Rust uses a trait-based approach:
 
 ```rust
-// cortexcode-ai-types defines the stream interface
-pub trait AssistantMessageEventStream: Send {
-    fn next_event(&mut self) -> Option<AssistantMessageEvent>;
-    fn result(&mut self) -> AssistantMessage;
-}
+// cortexcode-ai-stream ports utils/event-stream.ts: EventStream<T, R> is a
+// futures::Stream plus a final-result future; clones share one queue.
+pub type AssistantMessageEventStream = EventStream<AssistantMessageEvent, AssistantMessage>;
 
-// cortexcode-ai-stream provides a channel-backed implementation
-pub struct AiMessageEventStream { /* mpsc channel */ }
-
-// Each provider crate exports a stream() function
-// cortexcode-ai-provider-anthropic:
-pub async fn stream(
-    model: &Model,
-    context: &Context,
-    options: &SimpleStreamOptions,
-) -> Result<Box<dyn AssistantMessageEventStream>>;
+// Each provider crate exports a stream() function that returns at once and
+// runs the HTTP work on tokio (spawn_producer):
+pub fn stream(
+    model: Model,
+    context: Context,
+    options: SimpleStreamOptions, // options.signal: AbortSignal (CancellationToken)
+) -> Result<AssistantMessageEventStream, BoxError>;
 ```
 
 Provider registration is lazy (via `OnceCell`), mirroring `register-builtins.ts`:
@@ -797,7 +792,7 @@ static PROVIDER_REGISTRY: Lazy<Mutex<HashMap<String, Box<dyn ProviderFactory>>>>
 |---|---|---|
 | TUI framework | **Ported hoocode renderer** (`tui-render` + `tui-components`) on `crossterm`. *Revised 2026-09-24: was `ratatui`* | hoocode's renderer draws inline into scrollback with differential line updates, which is not ratatui's full-frame buffer model. The port already exists with 340 tests, so switching to ratatui would mean a rewrite plus behavior drift. Use codex-rs as the reference for tokio/crossterm event-loop integration only |
 | Native search (fd/rg) | **ripgrep as a library** (`grep-searcher`, `grep-regex`, `ignore`, `globset`) | No binary downloads, `.gitignore`-aware, same engine as `rg` |
-| Async runtime | **`tokio`** (multi-threaded) end to end: providers, agent loop, tools, MCP. *Status: not yet true (audit A3). Task 7.3* | Needed for abort (`CancellationToken`), steering/follow-up queues, parallel tool execution, streaming TUI and `rmcp` (tokio-only). Library crates stay runtime-agnostic where practical (futures `Stream`) |
+| Async runtime | **`tokio`** (multi-threaded) end to end: providers, agent loop, tools, MCP. *Status: providers, agent loop/core and OAuth are async since 7.3 (2026-09-25); tools still run their sync bodies on the blocking pool (7.5, 10.2)* | Needed for abort (`CancellationToken`), steering/follow-up queues, parallel tool execution, streaming TUI and `rmcp` (tokio-only). Library crates stay runtime-agnostic where practical (futures `Stream`) |
 | Wire formats | **Byte-compatible with hoocode JSON** (messages, session JSONL v3, RPC protocol, `--mode json` events, `settings.json`, `auth.json`, `models.json`). *Added 2026-09-24* | Users can resume hoocode sessions, RPC clients and IDE integrations keep working, and golden fixtures from hoocode can be replayed |
 | Config directory | Read `~/.hoocode/` and `.hoocode/` (project) as a fallback source. Write `~/.cortexcode/` and `.cortexcode/` | Matches §10.6. Project-level `.hoocode/` (modes, skills, prompts) must be discovered too, not only the global `settings.json` |
 | MSRV | **1.88** (was 1.78) | Needed by `rmcp` 3.x. `similar` 3.x needs 1.85 |
@@ -1089,7 +1084,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 
 ### Phase 1 — AI Namespace (T0/T1)
 
-- [x] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE** ⚠ sync `std::mpsc` → 7.3
+- [x] **1.1 cortexcode-ai-stream** — Channel-backed `AssistantMessageEventStream` — **DONE** (async `EventStream` port since 7.3a)
 - [x] **1.2 cortexcode-ai-env** — API key detection from environment variables — **DONE**
 - [x] **1.3 cortexcode-ai-models** — Model registry + generated model lists — **DONE** ⚠ 907 of 1224 models, no `compat` → 8.1
 - [x] **1.4 cortexcode-ai-util** — JSON repair, validation, hash, header utilities — **DONE**
@@ -1119,7 +1114,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **3.1 cortexcode-agent-core** — Agent struct, orchestration, state management — **DONE** (`Agent`, `build_loop_config`, orchestration)
 - [x] **3.2 cortexcode-agent-loop** — Turn loop, tool dispatch, background tools — **DONE** (loop moved from agent-core into standalone crate; sequential/parallel dispatch, background tasks, hooks) ⚠ 0 tests, no steering/follow-up → 7.5
 - [x] **3.3 cortexcode-agent-harness** — Message conversion, system prompt, prompt templates — **DONE** (message helpers, system-prompt builder, prompt templates)
-- [x] **3.4 cortexcode-agent-session** — Session persistence, file management — **DONE** (SessionData, FileSessionStore, MemorySessionStore)
+- [x] **3.4 cortexcode-agent-session** — Session persistence, file management — **DONE**; since 7.4 the port of `harness/session` (entry format, `buildSessionContext`, storage trait + memory/JSONL backends, `Session`, repos); the old `FileSessionStore` is gone
 - [x] **3.5 cortexcode-agent-compaction** — Context window compaction, summarization — **DONE** (token estimation, KeepRecentStrategy, SummaryStrategy) ⚠ 171 LOC vs 1.4K TS (no branch summarization) → 9.2
 - [x] **3.6 cortexcode-agent-tools** — Tool registry / factory pattern — **DONE** (ToolRegistry, factory helpers, result constructors)
 - [x] **3.7 cortexcode-agent-mcp** — MCP transport, tool discovery — **DONE** (stdio and HTTP/SSE transports, `mcp.json` loader, tool discovery, Streamable HTTP with SSE fallback; OAuth deferred) ⚠ replace transport with `rmcp`, add OAuth → 9.1
@@ -1166,13 +1161,13 @@ Everything later serializes these types or runs on this runtime, so this phase i
   - `AgentMessage` becomes a flat `#[serde(untagged)]`/`tag="role"` enum covering the custom roles (`bashExecution`, `custom`, `branchSummary`, `compactionSummary`) instead of `{inner:{Standard:…}}`.
   - `code-session::FileEntry` uses `rename_all_fields = "camelCase"`.
   - Acceptance: round-trip real JSONL files recorded with hoocode at the pin (`tests/fixtures/hoocode-0.5.89/sessions/*.jsonl`), including v1→v2→v3 migration.
-- [ ] **7.3 Async core.** Move providers to async `reqwest` plus one shared SSE decoder (`eventsource-stream`), and delete the four `sse.rs` copies. `AssistantMessageEventStream` becomes a `futures::Stream`. `AbortSignal` becomes `tokio_util::sync::CancellationToken`. Drop the `blocking` feature everywhere. Keep a thin `block_on` helper for tests.
-- [ ] **7.4 One session stack.** Keep `code-session` (the JSONL tree) as the implementation. Reduce `agent-session` to the storage trait hoocode has in `agent/src/harness/session/{repo,storage}` (memory + JSONL). Delete the duplicate `FileSessionStore`.
-- [ ] **7.5 Agent loop parity.** Port `agent.ts` and `agent-loop.ts` from the pin: steering and follow-up queues, `prepareNextTurn`, `transformContext`, `convertToLlm`, parallel/sequential tool execution, abort mid-stream and mid-tool, and the full event sequence (`agent_start … turn_end … agent_end`). Port `agent.test.ts`, `agent-loop.test.ts` and `prepare-next-turn-refresh.test.ts` onto the faux provider (these crates have 0 tests today).
+- [x] **7.3 Async core.** Move providers to async `reqwest` plus one shared SSE decoder (`eventsource-stream`), and delete the four `sse.rs` copies. `AssistantMessageEventStream` becomes a `futures::Stream`. `AbortSignal` becomes `tokio_util::sync::CancellationToken`. Drop the `blocking` feature everywhere. Keep a thin `block_on` helper for tests. *Split 2026-09-25:* 7.3a (ai-sse, EventStream, abort, the four providers), 7.3b (async agent loop/core and consumers), 7.3c (remaining `reqwest::blocking`, `cache_control` into request building).
+- [x] **7.4 One session stack.** Keep `code-session` (the JSONL tree) as the implementation. Reduce `agent-session` to the storage trait hoocode has in `agent/src/harness/session/{repo,storage}` (memory + JSONL). Delete the duplicate `FileSessionStore`.
+- [x] **7.5 Agent loop parity.** Port `agent.ts` and `agent-loop.ts` from the pin: steering and follow-up queues, `prepareNextTurn`, `transformContext`, `convertToLlm`, parallel/sequential tool execution, abort mid-stream and mid-tool, and the full event sequence (`agent_start … turn_end … agent_end`). Port `agent.test.ts`, `agent-loop.test.ts` and `prepare-next-turn-refresh.test.ts` onto the faux provider (these crates have 0 tests today).
 
 ### Phase 8 — AI namespace parity
 
-- [ ] **8.1 Model registry at the pin.** Regenerate `models.json` from `packages/ai/src/models.generated.ts` at the pin (1224 models) using `scripts/convert_models_to_json.py`, and record the pin in the file. Add the `compat` structs (`OpenAICompletionsCompat`, `OpenAIResponsesCompat`, `AnthropicMessagesCompat`, OpenRouter/Vercel routing). Regenerate `image-models` too.
+- [x] **8.1 Model registry at the pin.** Regenerate `models.json` from `packages/ai/src/models.generated.ts` at the pin (1224 models) using `scripts/convert_models_to_json.py`, and record the pin in the file. Add the `compat` structs (`OpenAICompletionsCompat`, `OpenAIResponsesCompat`, `AnthropicMessagesCompat`, OpenRouter/Vercel routing). Regenerate `image-models` too.
 - [ ] **8.2 API registry.** Dispatch on `model.api` (8 APIs), not on the provider name, mirroring `api-registry.ts` and `register-builtins.ts`. That routes all 31 known providers (groq, xai, openrouter, deepseek, cerebras, zai, …) through `openai-completions` with compat, and removes the hard-coded match in `code-main::runtime`. Extend the `env-api-keys.ts` parity test to cover every provider.
 - [ ] **8.3 `openai-responses`.** Extract the Responses request/stream code already in `ai-provider-azure` into a shared module, then add the `openai-responses` API (reasoning replay, foreign tool-call ids, partial-JSON cleanup, image tool results).
 - [ ] **8.4 Subscription providers.** `openai-codex-responses` (+ ChatGPT OAuth, SSE and WebSocket transport), `github-copilot` routing (Anthropic and OpenAI backends), `google-gemini-cli` and `google-antigravity` (+ OAuth). Lower priority: behind the core, but needed by users who log in with subscriptions.
@@ -1333,7 +1328,7 @@ has been replaced. Its details are preserved in git history and in the Phase 1�
 | Capability | Status | Task |
 |---|---|---|
 | hoocode-compatible message/content JSON | ⬜ | 7.2 |
-| Async streaming + abort | ⬜ (sync) | 7.3 |
+| Async streaming + abort | ✅ | 7.3 |
 | Model registry (1224 models, compat) | 🟡 907 models, no compat | 8.1 |
 | API-based dispatch, 31 providers | 🟡 4 hard-coded providers | 8.2 |
 | anthropic-messages | 🟡 | 7.3, 8.5 |

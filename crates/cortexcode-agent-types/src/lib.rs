@@ -4,7 +4,7 @@
 //! are used by the agent runtime, harness, and tool crates.
 
 use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEventStream, Content, Message, Model, SimpleStreamOptions,
+    AssistantMessage, AssistantMessageEvent, Content, Message, Model, SimpleStreamOptions,
     ThinkingLevel, ToolResultMessage, UserMessage,
 };
 use serde::{Deserialize, Serialize};
@@ -70,7 +70,9 @@ pub struct BackgroundToolResult {
 // Tool lifecycle hooks
 // ---------------------------------------------------------------------------
 
-/// Context passed to `before_tool_call`.
+/// Context passed to `before_tool_call`. `args` are the validated arguments
+/// the tool will run with; the hook may change them in place (as the
+/// TypeScript hook mutates its `args` object).
 #[derive(Debug, Clone)]
 pub struct BeforeToolCallContext {
     pub assistant_message: AssistantMessage,
@@ -98,9 +100,10 @@ pub struct AfterToolCallContext {
 }
 
 /// Partial override returned from `after_tool_call`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AfterToolCallResult {
     pub content: Option<Vec<Content>>,
+    pub details: Option<serde_json::Value>,
     pub is_error: Option<bool>,
     pub terminate: Option<bool>,
 }
@@ -117,8 +120,10 @@ pub enum AgentEvent {
     MessageStart {
         message: AgentMessage,
     },
+    /// A streaming update of the assistant message; carries the provider event.
     MessageUpdate {
-        assistant_message_event: AssistantMessagePartialEvent,
+        /// Boxed: it carries a whole partial message.
+        assistant_message_event: Box<AssistantMessageEvent>,
         message: AgentMessage,
     },
     MessageEnd {
@@ -129,34 +134,26 @@ pub enum AgentEvent {
         tool_name: String,
         args: serde_json::Value,
     },
-    ToolExecutionEnd {
+    /// A partial result streamed by a running tool (`onUpdate`).
+    ToolExecutionUpdate {
         tool_call_id: String,
         tool_name: String,
         args: serde_json::Value,
+        partial_result: AgentToolResult,
+    },
+    ToolExecutionEnd {
+        tool_call_id: String,
+        tool_name: String,
         result: AgentToolResult,
         is_error: bool,
     },
     TurnEnd {
         message: AssistantMessage,
-        tool_results: Vec<Message>,
+        tool_results: Vec<ToolResultMessage>,
     },
     AgentEnd {
         messages: Vec<AgentMessage>,
     },
-}
-
-/// Assistant message partial events (mapped from streaming events).
-#[derive(Debug, Clone)]
-pub enum AssistantMessagePartialEvent {
-    TextStart { index: usize },
-    TextDelta { index: usize, delta: String },
-    TextEnd { index: usize },
-    ThinkingStart { index: usize },
-    ThinkingDelta { index: usize, delta: String },
-    ThinkingEnd { index: usize },
-    ToolCallStart { index: usize },
-    ToolCallDelta { index: usize, delta: String },
-    ToolCallEnd { index: usize },
 }
 
 // ---------------------------------------------------------------------------
@@ -532,7 +529,8 @@ pub struct AgentLoopConfig {
                     Vec<AgentMessage>,
                 )
                     -> Result<Vec<Message>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub transform_context: Option<
@@ -542,13 +540,15 @@ pub struct AgentLoopConfig {
                     Option<cortexcode_ai_types::AbortSignal>,
                 )
                     -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub get_api_key: Option<
         Box<
             dyn Fn(String) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub should_stop_after_turn: Option<
@@ -556,7 +556,8 @@ pub struct AgentLoopConfig {
             dyn Fn(
                     ShouldStopAfterTurnContext,
                 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub prepare_next_turn: Option<
@@ -565,27 +566,39 @@ pub struct AgentLoopConfig {
                     PrepareNextTurnContext,
                 )
                     -> Result<Option<AgentLoopTurnUpdate>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub get_steering_messages: Option<
-        Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>,
+        Box<
+            dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>>
+                + Send
+                + Sync,
+        >,
     >,
     pub get_follow_up_messages: Option<
-        Box<dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> + Send>,
+        Box<
+            dyn Fn() -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>>
+                + Send
+                + Sync,
+        >,
     >,
     pub create_background_result_message:
-        Option<Box<dyn Fn(BackgroundToolResult) -> AgentMessage + Send>>,
-    pub create_background_placeholder: Option<Box<dyn Fn(AgentToolCall) -> Option<String> + Send>>,
-    pub on_background_task_count_change: Option<Box<dyn Fn(usize) + Send>>,
+        Option<Box<dyn Fn(BackgroundToolResult) -> AgentMessage + Send + Sync>>,
+    pub create_background_placeholder:
+        Option<Box<dyn Fn(AgentToolCall) -> Option<String> + Send + Sync>>,
+    /// Shared so detached background tasks can report when they settle.
+    pub on_background_task_count_change: Option<std::sync::Arc<dyn Fn(usize) + Send + Sync>>,
     pub before_tool_call: Option<
         Box<
             dyn Fn(
-                    BeforeToolCallContext,
+                    &mut BeforeToolCallContext,
                     Option<cortexcode_ai_types::AbortSignal>,
                 )
                     -> Result<Option<BeforeToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     pub after_tool_call: Option<
@@ -595,7 +608,8 @@ pub struct AgentLoopConfig {
                     Option<cortexcode_ai_types::AbortSignal>,
                 )
                     -> Result<Option<AfterToolCallResult>, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     >,
     /// Gate that approves or denies tool calls before execution.
@@ -609,7 +623,7 @@ pub struct AgentLoopConfig {
                     cortexcode_ai_types::Context,
                     SimpleStreamOptions,
                 ) -> Result<
-                    Box<dyn AssistantMessageEventStream>,
+                    cortexcode_ai_stream::AssistantMessageEventStream,
                     Box<dyn std::error::Error + Send + Sync>,
                 > + Send
                 + Sync,
@@ -622,12 +636,48 @@ pub struct AgentLoopConfig {
     pub thinking_budgets: Option<cortexcode_ai_types::ThinkingBudgets>,
     pub thinking_display: Option<cortexcode_ai_types::ThinkingDisplay>,
     pub transport: Option<cortexcode_ai_types::Transport>,
-    pub on_payload: Option<Box<dyn Fn(String) + Send>>,
-    pub on_response: Option<Box<dyn Fn(String) + Send>>,
-    pub cache_control_format: Option<cortexcode_ai_types::CacheControlFormat>,
+    pub on_payload: Option<Box<dyn Fn(String) + Send + Sync>>,
+    pub on_response: Option<Box<dyn Fn(String) + Send + Sync>>,
+    pub cache_retention: Option<cortexcode_ai_types::CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
-    pub supports_long_cache_retention: Option<bool>,
     pub prompt_suffix: Option<String>,
+}
+
+impl AgentLoopConfig {
+    /// A config with no hooks, parallel tool execution and no stream function.
+    pub fn new(model: Model) -> Self {
+        Self {
+            model,
+            reasoning: None,
+            convert_to_llm: None,
+            transform_context: None,
+            get_api_key: None,
+            should_stop_after_turn: None,
+            prepare_next_turn: None,
+            get_steering_messages: None,
+            get_follow_up_messages: None,
+            create_background_result_message: None,
+            create_background_placeholder: None,
+            on_background_task_count_change: None,
+            before_tool_call: None,
+            after_tool_call: None,
+            permission_gate: None,
+            tool_execution: ToolExecutionMode::Parallel,
+            stream_fn: None,
+            signal: None,
+            api_key: None,
+            session_id: None,
+            max_retry_delay_ms: None,
+            thinking_budgets: None,
+            thinking_display: None,
+            transport: None,
+            on_payload: None,
+            on_response: None,
+            cache_retention: None,
+            send_session_affinity_headers: None,
+            prompt_suffix: None,
+        }
+    }
 }
 
 impl std::fmt::Debug for AgentLoopConfig {
@@ -646,10 +696,7 @@ impl std::fmt::Debug for AgentLoopConfig {
                 "send_session_affinity_headers",
                 &self.send_session_affinity_headers,
             )
-            .field(
-                "supports_long_cache_retention",
-                &self.supports_long_cache_retention,
-            )
+            .field("cache_retention", &self.cache_retention)
             .field("prompt_suffix", &self.prompt_suffix)
             .finish()
     }
@@ -663,7 +710,7 @@ impl std::fmt::Debug for AgentLoopConfig {
 #[derive(Debug, Clone)]
 pub struct ShouldStopAfterTurnContext {
     pub message: AssistantMessage,
-    pub tool_results: Vec<Message>,
+    pub tool_results: Vec<ToolResultMessage>,
     pub context: AgentContext,
     pub new_messages: Vec<AgentMessage>,
 }

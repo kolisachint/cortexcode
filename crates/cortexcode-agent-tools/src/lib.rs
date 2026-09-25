@@ -101,7 +101,6 @@ pub fn text_result(text: impl Into<String>) -> AgentToolResult {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.into(),
-            cache_control: None,
         })],
         details: serde_json::Value::Null,
         terminate: false,
@@ -120,7 +119,6 @@ pub fn terminate_result(text: impl Into<String>) -> AgentToolResult {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.into(),
-            cache_control: None,
         })],
         details: serde_json::Value::Null,
         terminate: true,

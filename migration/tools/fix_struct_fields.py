@@ -42,8 +42,9 @@ FIELD_DEFAULTS = {
     ("Header", "branch"): "None",
     ("Model", "compat"): "None",
     ("SessionInfo", "color"): "None",
+    ("*", "cache_retention"): "None",
 }
-REMOVED = {"stop_sequence"}
+REMOVED = {"stop_sequence", "cache_control", "cache_control_format", "supports_long_cache_retention"}
 # expected type (as rustc prints it) -> replacement for a bare `None`
 NONE_REPLACEMENTS = {
     "i64": "{now}",

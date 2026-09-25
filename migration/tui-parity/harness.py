@@ -70,10 +70,13 @@ def hoocode_cmd() -> list[str]:
 
 
 def cortex_cmd() -> list[str]:
-    exe = Path(os.environ.get("CORTEX_BIN", ROOT / "target" / "debug" / "cortex"))
-    if not exe.exists():
-        subprocess.run(["cargo", "build", "-q", "-p", "cortexcode-code-main", "--bin", "cortex"], cwd=ROOT, check=True)
-    return [str(exe)]
+    if "CORTEX_BIN" in os.environ:
+        return [os.environ["CORTEX_BIN"]]
+    # Always build (a no-op when up to date): `ledger.py verify` runs `cargo test`
+    # for the task's crates only, which does not rebuild the binary, and L2 must
+    # never run against a stale one.
+    subprocess.run(["cargo", "build", "-q", "-p", "cortexcode-code-main", "--bin", "cortex"], cwd=ROOT, check=True)
+    return [str(ROOT / "target" / "debug" / "cortex")]
 
 
 def app_cmd(app: str) -> list[str]:
@@ -458,6 +461,11 @@ def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: 
             if time.time() > deadline:
                 raise StepError(f"app did not exit within {timeout}s")
             time.sleep(0.1)
+        # tmux flips #{pane_dead} before it draws the "Pane is dead (status N, ...)"
+        # line, so a snapshot taken right away can miss the exit status. Wait for it.
+        marker_deadline = time.time() + 5
+        while "Pane is dead" not in tmux.capture(history=True) and time.time() < marker_deadline:
+            time.sleep(0.05)
     elif "sleep" in step:
         time.sleep(float(step["sleep"]))
     elif "snapshot" in step:

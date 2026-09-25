@@ -25,7 +25,6 @@ pub fn text_result(text: impl Into<String>) -> AgentToolResult {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.into(),
-            cache_control: None,
         })],
         details: serde_json::Value::Null,
         terminate: false,
@@ -38,7 +37,6 @@ pub fn error_result(text: impl Into<String>) -> AgentToolResult {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.into(),
-            cache_control: None,
         })],
         details: serde_json::Value::Null,
         terminate: false,
@@ -208,13 +206,27 @@ pub fn ls(dir: impl AsRef<Path>) -> Result<Vec<std::path::PathBuf>, std::io::Err
     Ok(entries)
 }
 
+/// Run an async HTTP call from a synchronous tool body. Tools execute on
+/// tokio's blocking pool (agent-loop `run_tool`); outside a runtime (unit
+/// tests) a throwaway one is used.
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
+        Err(_) => tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("failed to start a tokio runtime")
+            .block_on(future),
+    }
+}
+
 /// Fetch content from a URL.
-pub fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let client = reqwest::blocking::Client::builder()
+pub async fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
-    let response = client.get(url).send()?;
-    let text = response.text()?;
+    let response = client.get(url).send().await?;
+    let text = response.text().await?;
     // Truncate very long responses
     if text.len() > 100000 {
         Ok(format!(
@@ -228,15 +240,15 @@ pub fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
 }
 
 /// Search the web using DuckDuckGo.
-pub fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
     let encoded_query = urlencoding::encode(query);
     let search_url = format!("https://html.duckduckgo.com/html/?q={}", encoded_query);
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .user_agent("Mozilla/5.0")
         .build()?;
-    let response = client.get(&search_url).send()?;
-    let html = response.text()?;
+    let response = client.get(&search_url).send().await?;
+    let html = response.text().await?;
 
     // Simple HTML parsing to extract results
     let mut results = Vec::new();
@@ -546,7 +558,7 @@ pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
             }),
             Box::new(move |_id, args, _signal, _update| {
                 let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                match webfetch(url) {
+                match block_on(webfetch(url)) {
                     Ok(text) => Ok(text_result(text)),
                     Err(e) => Ok(error_result(format!("Error fetching URL: {}", e))),
                 }
@@ -564,7 +576,7 @@ pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
             }),
             Box::new(move |_id, args, _signal, _update| {
                 let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                match websearch(query) {
+                match block_on(websearch(query)) {
                     Ok(text) => Ok(text_result(text)),
                     Err(e) => Ok(error_result(format!("Error searching web: {}", e))),
                 }
@@ -699,13 +711,13 @@ mod tests {
 
     #[test]
     fn test_webfetch_invalid_url() {
-        let result = webfetch("not-a-valid-url");
+        let result = block_on(webfetch("not-a-valid-url"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_websearch_empty_query() {
-        let result = websearch("");
+        let result = block_on(websearch(""));
         // Should return some result or error, not panic
         assert!(result.is_ok() || result.is_err());
     }

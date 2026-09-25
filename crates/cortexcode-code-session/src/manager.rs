@@ -12,7 +12,6 @@ use cortexcode_ai_types::{Content, Message, UserMessage};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use uuid::Uuid;
 
 /// Error type for session manager operations.
 #[derive(Debug)]
@@ -58,35 +57,16 @@ impl From<serde_json::Error> for SessionError {
 
 /// Generate a new session id (UUIDv7).
 pub fn create_session_id() -> String {
-    Uuid::now_v7().to_string()
+    cortexcode_agent_session::create_session_id()
 }
 
 /// Generate a short, collision-checked entry id.
 pub fn generate_id(existing: &std::collections::HashSet<String>) -> String {
-    for _ in 0..100 {
-        let id = Uuid::new_v4().to_string()[..8].to_string();
-        if !existing.contains(&id) {
-            return id;
-        }
-    }
-    Uuid::new_v4().to_string()
+    cortexcode_agent_session::generate_entry_id(|id| existing.contains(id))
 }
 
-/// Encode a working directory into a safe directory name.
-pub fn encode_cwd(cwd: &str) -> String {
-    let trimmed = cwd.trim_start_matches(['/', '\\']);
-    let safe: String = trimmed
-        .chars()
-        .map(|c| {
-            if c == '/' || c == '\\' || c == ':' {
-                '-'
-            } else {
-                c
-            }
-        })
-        .collect();
-    format!("--{safe}--")
-}
+/// Encode a working directory into a safe directory name (`getSessionDirPath`).
+pub use cortexcode_agent_session::encode_cwd;
 
 /// Default session directory for a project.
 pub fn default_session_dir(cwd: &str) -> PathBuf {
@@ -102,7 +82,7 @@ pub fn default_sessions_root() -> PathBuf {
 
 /// Make an ISO 8601 timestamp suitable for file names.
 fn iso_timestamp() -> String {
-    Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    cortexcode_agent_session::create_timestamp()
 }
 
 /// Replace `:` and `.` in a timestamp so it can be used in file names.
@@ -1357,7 +1337,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-                cache_control: None,
             })],
             timestamp: 0,
         }))
@@ -1374,7 +1353,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-                cache_control: None,
             })],
             stop_reason: cortexcode_ai_types::StopReason::Stop,
 

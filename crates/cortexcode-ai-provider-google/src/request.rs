@@ -43,7 +43,7 @@ pub struct VertexCredentials {
 /// 2. `GOOGLE_VERTEX_ACCESS_TOKEN` or `GOOGLE_ACCESS_TOKEN` env var
 /// 3. Service account JSON key via `GOOGLE_APPLICATION_CREDENTIALS`
 /// 4. GCE/GKE metadata server
-pub fn resolve_vertex_credentials(
+pub async fn resolve_vertex_credentials(
     options: &SimpleStreamOptions,
 ) -> Result<VertexCredentials, String> {
     // 1. Check explicit config
@@ -67,12 +67,12 @@ pub fn resolve_vertex_credentials(
     }
 
     // 3. Try service account authentication
-    if let Ok(creds) = resolve_service_account_credentials() {
+    if let Ok(creds) = resolve_service_account_credentials().await {
         return Ok(creds);
     }
 
     // 4. Try GCE metadata server
-    if let Ok(creds) = resolve_gce_metadata_credentials() {
+    if let Ok(creds) = resolve_gce_metadata_credentials().await {
         return Ok(creds);
     }
 
@@ -131,7 +131,7 @@ struct JwtClaims {
 }
 
 /// Resolve credentials from service account JSON key file.
-fn resolve_service_account_credentials() -> Result<VertexCredentials, String> {
+async fn resolve_service_account_credentials() -> Result<VertexCredentials, String> {
     // Check GOOGLE_APPLICATION_CREDENTIALS environment variable
     let sa_path = match std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
         Ok(p) => p,
@@ -154,7 +154,7 @@ fn resolve_service_account_credentials() -> Result<VertexCredentials, String> {
     }
 
     // Exchange service account credentials for access token
-    let access_token = exchange_service_account_token(&sa_key)?;
+    let access_token = exchange_service_account_token(&sa_key).await?;
 
     // Get project and location
     let project = std::env::var("GOOGLE_VERTEX_PROJECT")
@@ -173,7 +173,7 @@ fn resolve_service_account_credentials() -> Result<VertexCredentials, String> {
 }
 
 /// Exchange service account credentials for an access token using JWT.
-fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, String> {
+async fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, String> {
     use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 
     let now = std::time::SystemTime::now()
@@ -201,7 +201,7 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
     let jwt = encode(&header, &claims, &key).map_err(|e| format!("Failed to create JWT: {e}"))?;
 
     // Exchange JWT for access token
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     let params = [
         ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
         ("assertion", jwt.as_str()),
@@ -211,11 +211,12 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
         .post(token_uri)
         .form(&params)
         .send()
+        .await
         .map_err(|e| format!("Failed to send token request: {e}"))?;
 
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().unwrap_or_default();
+        let body = response.text().await.unwrap_or_default();
         return Err(format!(
             "Token exchange failed with status {status}: {body}"
         ));
@@ -223,6 +224,7 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
 
     let token_response: serde_json::Value = response
         .json()
+        .await
         .map_err(|e| format!("Failed to parse token response: {e}"))?;
 
     token_response["access_token"]
@@ -236,12 +238,12 @@ fn exchange_service_account_token(sa_key: &ServiceAccountKey) -> Result<String, 
 // ---------------------------------------------------------------------------
 
 /// Resolve credentials from the GCE/GKE metadata server.
-fn resolve_gce_metadata_credentials() -> Result<VertexCredentials, String> {
+async fn resolve_gce_metadata_credentials() -> Result<VertexCredentials, String> {
     let metadata_url =
         "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
     let project_url = "http://metadata.google.internal/computeMetadata/v1/project/project-id";
 
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
@@ -251,6 +253,7 @@ fn resolve_gce_metadata_credentials() -> Result<VertexCredentials, String> {
         .get(metadata_url)
         .header("Metadata-Flavor", "Google")
         .send()
+        .await
         .map_err(|_| "Metadata server not available".to_string())?;
 
     if !token_response.status().is_success() {
@@ -259,6 +262,7 @@ fn resolve_gce_metadata_credentials() -> Result<VertexCredentials, String> {
 
     let token_json: serde_json::Value = token_response
         .json()
+        .await
         .map_err(|e| format!("Failed to parse token response: {e}"))?;
 
     let access_token = token_json["access_token"]
@@ -267,18 +271,21 @@ fn resolve_gce_metadata_credentials() -> Result<VertexCredentials, String> {
         .to_string();
 
     // Get project ID from env or metadata server
-    let project = std::env::var("GOOGLE_VERTEX_PROJECT")
+    let project = match std::env::var("GOOGLE_VERTEX_PROJECT")
         .or_else(|_| std::env::var("GOOGLE_CLOUD_PROJECT"))
-        .or_else(|_| {
-            client
-                .get(project_url)
-                .header("Metadata-Flavor", "Google")
-                .send()
-                .ok()
-                .and_then(|r| r.text().ok())
-                .ok_or(std::env::VarError::NotPresent)
-        })
-        .map_err(|_| "Could not determine project ID".to_string())?;
+    {
+        Ok(p) => Ok(p),
+        Err(_) => match client
+            .get(project_url)
+            .header("Metadata-Flavor", "Google")
+            .send()
+            .await
+        {
+            Ok(r) => r.text().await.map_err(|_| ()),
+            Err(_) => Err(()),
+        },
+    }
+    .map_err(|_| "Could not determine project ID".to_string())?;
 
     let location = std::env::var("GOOGLE_VERTEX_LOCATION")
         .or_else(|_| std::env::var("GOOGLE_CLOUD_LOCATION"))
@@ -386,13 +393,13 @@ mod tests {
         assert_eq!(resolve_gemini_credentials(&opts).unwrap(), "test-key");
     }
 
-    #[test]
-    fn test_resolve_vertex_credentials_missing() {
+    #[tokio::test]
+    async fn test_resolve_vertex_credentials_missing() {
         std::env::remove_var("GOOGLE_VERTEX_ACCESS_TOKEN");
         std::env::remove_var("GOOGLE_ACCESS_TOKEN");
         std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
         let opts = SimpleStreamOptions::default();
-        assert!(resolve_vertex_credentials(&opts).is_err());
+        assert!(resolve_vertex_credentials(&opts).await.is_err());
     }
 
     #[test]

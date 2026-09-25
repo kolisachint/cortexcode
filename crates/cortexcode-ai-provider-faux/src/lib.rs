@@ -9,10 +9,10 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use cortexcode_ai_stream::{AiMessageEventSender, AiMessageEventStream};
+use cortexcode_ai_stream::{create_assistant_message_event_stream, AssistantMessageEventStream};
 use cortexcode_ai_types::{
-    AssistantMessage, AssistantMessageEvent, AssistantMessageEventStream, Content, Context, Cost,
-    Model, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+    AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model, SimpleStreamOptions,
+    StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
 };
 
 // ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ impl FauxProvider {
     /// Return a closure compatible with `AgentLoopConfig.stream_fn`.
     ///
     /// Each invocation pops the next response from the queue and streams it
-    /// through an [`AiMessageEventStream`].
+    /// through an [`AssistantMessageEventStream`].
     #[allow(clippy::type_complexity)]
     pub fn stream_fn(
         self: &Arc<Self>,
@@ -136,10 +136,9 @@ impl FauxProvider {
                 Model,
                 Context,
                 SimpleStreamOptions,
-            ) -> Result<
-                Box<dyn AssistantMessageEventStream>,
-                Box<dyn std::error::Error + Send + Sync>,
-            > + Send
+            )
+                -> Result<AssistantMessageEventStream, Box<dyn std::error::Error + Send + Sync>>
+            + Send
             + Sync,
     > {
         let this = Arc::clone(self);
@@ -163,15 +162,16 @@ impl FauxProvider {
             message.provider = model.provider.clone();
             message.model = model.id.clone();
 
-            let (sender, stream) = AiMessageEventStream::new();
+            let stream = create_assistant_message_event_stream();
             stream_message(
-                sender,
+                &stream,
                 &message,
                 &context,
+                options.signal.as_ref(),
                 this.min_token_size,
                 this.max_token_size,
             );
-            Ok(Box::new(stream) as Box<dyn AssistantMessageEventStream>)
+            Ok(stream)
         })
     }
 }
@@ -183,9 +183,10 @@ impl FauxProvider {
 /// Stream the given message through the sender, emitting start/delta/end events
 /// for each content block.
 fn stream_message(
-    sender: AiMessageEventSender,
+    sender: &AssistantMessageEventStream,
     message: &AssistantMessage,
     context: &Context,
+    signal: Option<&cortexcode_ai_types::AbortSignal>,
     min_token_size: usize,
     max_token_size: usize,
 ) {
@@ -197,6 +198,23 @@ fn stream_message(
         usage,
         ..message.clone()
     };
+
+    // streamWithDeltas(): an already-aborted signal ends the stream before
+    // `start` with createAbortedMessage(partial). Deltas are pushed without
+    // pauses here (no tokensPerSecond yet), so later aborts are not observed.
+    if signal.is_some_and(|s| s.aborted()) {
+        let aborted = AssistantMessage {
+            stop_reason: StopReason::Aborted,
+            error_message: Some("Request was aborted".to_string()),
+            timestamp: cortexcode_ai_types::now_ms(),
+            ..partial
+        };
+        sender.push(AssistantMessageEvent::Error {
+            error: aborted.clone(),
+        });
+        sender.end(Some(aborted));
+        return;
+    }
 
     sender.push(AssistantMessageEvent::Start {
         partial: partial.clone(),
@@ -282,7 +300,7 @@ fn stream_message(
         }
     }
     // streamWithDeltas() ends the stream with the final message (outer.end(message)).
-    sender.end(partial);
+    sender.end(Some(partial));
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +402,6 @@ pub fn faux_text(text: &str) -> Content {
     Content::Text(TextContent {
         text_signature: None,
         text: text.to_string(),
-        cache_control: None,
     })
 }
 
@@ -545,6 +562,34 @@ mod tests {
         assert_eq!(msg.error_message, Some("Request was aborted".to_string()));
     }
 
+    // --- abort ---
+
+    #[test]
+    fn test_faux_provider_immediate_abort() {
+        let provider = Arc::new(FauxProvider::new());
+        provider.set_responses(vec![FauxResponseStep::Message(faux_text_message(
+            "Hello!",
+            Some(StopReason::Stop),
+        ))]);
+        let signal = cortexcode_ai_types::AbortSignal::new();
+        signal.abort();
+        let options = SimpleStreamOptions {
+            signal: Some(signal),
+            ..Default::default()
+        };
+        let mut stream = provider.stream_fn()(
+            default_faux_model(),
+            Context::new("".into(), vec![], vec![]),
+            options,
+        )
+        .unwrap();
+        let first = stream.next_blocking();
+        assert!(matches!(first, Some(AssistantMessageEvent::Error { .. })));
+        let msg = stream.result_blocking();
+        assert_eq!(msg.stop_reason, StopReason::Aborted);
+        assert!(msg.content.is_empty());
+    }
+
     // --- basic streaming ---
 
     #[test]
@@ -565,7 +610,7 @@ mod tests {
 
         // Collect events
         let mut events = Vec::new();
-        while let Some(event) = stream.next_event() {
+        while let Some(event) = stream.next_blocking() {
             events.push(event);
         }
 
@@ -612,7 +657,7 @@ mod tests {
 
         let mut stream = stream_fn(model, context, options).unwrap();
         let mut events = Vec::new();
-        while let Some(event) = stream.next_event() {
+        while let Some(event) = stream.next_blocking() {
             events.push(event);
         }
 
@@ -690,7 +735,7 @@ mod tests {
         let mut stream = stream_fn(model, context, options).unwrap();
         // Collect all events (Start, TextStart, TextDelta*, TextEnd, Done)
         let mut event_count = 0;
-        while let Some(event) = stream.next_event() {
+        while let Some(event) = stream.next_blocking() {
             event_count += 1;
             if let AssistantMessageEvent::Done { message } = &event {
                 assert!(message.content.len() == 1, "expected 1 content block");

@@ -5,13 +5,170 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`.
+- Next task: run `python3 migration/ledger.py next`. 7.3 (async core) is complete; 7.5
+  (agent + loop parity), 8.3, 8.5, 8.7, 9.1 and 10.2b are unblocked by it.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
   (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
   as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.1 done (model catalog at the pin)
+- New data crate `ai-models-catalog`: `data/models.json` (1224 models), `data/image-models.json`
+  (57), `data/pin.json`, exposed as `MODELS_JSON` / `IMAGE_MODELS_JSON` / `PIN_JSON`. A test
+  fails when `pin.json` differs from the workspace pin (regenerate on every pin bump).
+- `scripts/convert_models_to_json.py` now loads the pin's own built
+  `dist/models.generated.js` / `image-models.generated.js` with node (the old TS parser broke
+  on escaped quotes) and keeps hoocode's order. Run after `setup_hoocode.sh`.
+- ai-types: `Model`/`ModelCost` serde in hoocode's JSON shape; typed compat views
+  `OpenAICompletionsCompat`, `OpenAIResponsesCompat`, `AnthropicMessagesCompat` via
+  `Model::compat_as()` (compat stays JSON on `Model` so models.json overrides deep-merge).
+  anthropic/openai request builders read compat through them.
+- ai-models: order-preserving registry (`get_providers`/`get_models` in catalog order, id
+  index); code-models dropped its sort-by-id stopgap (built-in defaults = first catalog model).
+- ai-images: `ImagesModel` gets `name`/`input` + serde; `get_image_model`/`get_image_models`/
+  `get_image_providers` (image-models.ts).
+- Ported the catalog cases of claude-5-models / fireworks-models / together-models tests
+  (8 tests). Env-key halves noted on 8.2, request-format cases on 8.5.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 7.5b done (agent.ts parity); phase 7 complete except 7.1 bookkeeping
+- `Agent` follows agent.ts: state is reduced from loop events (`message_end` appends,
+  streaming message, pending tool calls, `turn_end` error message); one run at a time with
+  hoocode's busy errors for `prompt`/`continue`; a fresh `AbortSignal` per run passed to
+  listeners (`subscribe(|event, signal|)`) and exposed as `signal()`; `wait_for_idle()`;
+  thrown run failures become the error assistant message + `message_start/end`, `turn_end`,
+  `agent_end` (`handleRunFailure`); `continue()` from an assistant tail drains steering
+  (skipping the initial steering poll) then follow-ups; queue modes settable; settings
+  (`session_id`, tool execution, budgets, retry cap) and hooks settable after construction,
+  with `prepareNextTurn` always wired so a late assignment reaches the running prompt.
+- API: `prompt(impl Into<PromptInput>) -> Result<(), AgentError>` (text + images or messages);
+  run output is read from `state()`. State setters replace property assignment. code-cli
+  adapted (listeners take `(event, signal)`; interactive mode reads the new messages from state).
+- Ported agent.test.ts (16) and prepare-next-turn-refresh.test.ts; async-subscriber tests
+  become blocking listeners (a run can't finish before they return). 20 agent-core tests.
+- agent-loop tests: the parallel gate waits up to 10s (it opens as soon as the second tool
+  runs), fixing a flake under full-workspace load.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 7.5 split; 7.5a done (agent-loop.ts parity)
+- Ledger: 7.5 split into 7.5a (agent-loop.ts + agent-loop.test.ts) and 7.5b (agent.ts +
+  agent.test.ts + prepare-next-turn-refresh.test.ts).
+- `agent-loop` is a rewrite following `agent-loop.ts`: `agent_loop` / `agent_loop_continue`
+  return an `EventStream<AgentEvent, Vec<AgentMessage>>` (run spawned on tokio);
+  `run_agent_loop(prompts, context, &config, emit)`, `run_agent_loop_continue(&mut context, ..)`.
+  Turn order, pending/steering/follow-up handling, `prepareNextTurn` (context, model, thinking
+  level; `off` clears reasoning) before `shouldStopAfterTurn`, error/aborted early exit, no
+  turn-start abort check (as in TS). Hook errors propagate like TS throws.
+- Tools: `prepareToolCall` (not found, `prepareArguments`, validation hook, cortex permission
+  gate, `beforeToolCall` which may rewrite `args` in place, block reason), parallel batches run
+  concurrently with `tool_execution_end` in completion order and result messages in source
+  order, sequential when the config or any tool says so, `tool_execution_update` from tool
+  `onUpdate` via a channel, terminate only when every result terminates, `afterToolCall`
+  overrides incl. `details`. Background tools: placeholder result now, detached run, follow-up
+  message later (default or `createBackgroundResultMessage`), loop stays alive while in flight.
+- agent-types: `MessageUpdate` carries the provider `AssistantMessageEvent` (boxed);
+  `AssistantMessagePartialEvent` removed; new `ToolExecutionUpdate`; `ToolExecutionEnd` has no
+  `args` (as TS); `TurnEnd`/stop-context `tool_results: Vec<ToolResultMessage>`; config hooks are
+  `Send + Sync`; `AgentLoopConfig::new(model)`. code-print json mapping updated (10.8b owns parity).
+- Known deviations (documented in the crate): hooks are sync; tools keep sync `execute` on
+  `spawn_blocking`; a background tool's `afterToolCall` runs at collection time;
+  `validateToolArguments` is a pass-through until 8.5 (noted on 8.5).
+- 26 tests (all 22 of agent-loop.test.ts plus model/thinking switch, tool updates, blocked /
+  unknown tools, assistant-tail continue). M1 scenarios still pass.
+- Next: **7.5b** (agent.ts). Use `AgentLoopConfig::new` in agent-core's `build_loop_config`.
+
+### 2026-09-25: 7.4 done (one session stack)
+- `agent-session` is now the port of hoocode `packages/agent/src/harness/session/`:
+  - `entry` + `context` moved here from code-session (hoocode keeps `SessionTreeEntry` and
+    `buildSessionContext` in the agent harness; coding-agent's session-manager imports them).
+    code-session re-exports both modules, so its API is unchanged.
+  - `storage`: `SessionStorage` trait (sync; the TS promises wrap in-process state and local
+    appends), `InMemorySessionStorage`, `JsonlSessionStorage` (v3 header in hoocode key order,
+    malformed entry lines skipped, leaf = last line), `load_jsonl_session_metadata`.
+  - `session::Session<S>` (all `append*`, `moveTo` with branch summary, `getSessionName`,
+    `buildContext`); `repo`: `InMemorySessionRepo` (sessions shared as `Arc<Mutex<Session>>`,
+    so `open` returns the same one), `JsonlSessionRepo`, `get_entries_to_fork`.
+  - Shared helpers: `create_session_id` (v7), `generate_entry_id`, `create_timestamp`,
+    `encode_cwd`. code-session's own copies now call these. Behavior fix: `encode_cwd` drops
+    only one leading separator, as hoocode's `/^[/\\]/` does (it used to trim all).
+  - The old `SessionData` / `FileSessionStore` / `MemorySessionStore` are deleted (no users).
+- Ported `storage.test.ts`, `session.test.ts` (both backends) and `repo.test.ts`: 29 tests.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 7.3c done (no reqwest::blocking left; cache_control in request building)
+- ai-oauth (anthropic token exchange/refresh, GitHub Copilot device flow + refresh), ai-images
+  (`generate_images`) and code-tools (`webfetch`/`websearch` placeholders) are async; nothing in
+  the workspace enables reqwest's `blocking` feature. code-cli runs the OAuth calls through its
+  `async_runtime()`. Placeholder tools bridge with a `block_on` helper (block_in_place on the
+  runtime, or a throwaway runtime in unit tests) until 10.2e replaces them. code-tools' reqwest
+  now uses rustls like the rest.
+- ai-types: `TextContent`/`ImageContent.cache_control` and `CacheControl` are gone, as are the
+  cortex-invented `cache_control_format` / `supports_long_cache_retention` stream options (in
+  TS those are openai-completions `compat` fields: 8.2/8.5). New `CacheRetention`
+  (none/short/long) + `cache_retention` on the stream options and `AgentLoopConfig`, forwarded
+  by the loop.
+- ai-util `resolve_cache_retention` (cache-retention.ts): explicit, else
+  `CORTEXCODE_CACHE_RETENTION` / `HOOCODE_CACHE_RETENTION`, else long.
+- anthropic request building follows `buildParams`/`convertTools`/`convertMessages`: the
+  system prompt is always a text-block array; `cache_control` (`{"type":"ephemeral","ttl":"1h"}`
+  for long unless `compat.supportsLongCacheRetention` is false; no ttl for short; none for
+  none) goes on the system block, the last tool and the last block of a final user turn. Other
+  anthropic request gaps (OAuth identity block, tool schema shape, adaptive thinking) are 8.5.
+- `fix_struct_fields.py` learned the removed fields (59 edits).
+- Next: `ledger.py next`.
+
+### 2026-09-25: 7.3b done (async agent loop + core)
+- agent-loop: `run_agent_loop`/`run_agent_loop_continue` and the turn/tool helpers are async.
+  The provider stream is consumed with `.next().await`. Tools (still sync `execute`) run on
+  `spawn_blocking` with the run's signal. Background-task waits use `tokio::sync::Notify`
+  instead of a Condvar.
+- agent-core: `prompt`/`continue` are async. Each run gets a fresh `AbortSignal`
+  (agent.ts `abortController`) in `AgentLoopConfig.signal`, so it reaches the provider stream
+  and the tools. `abort()` aborts it; the old `stop_requested` flag (which nothing read) is
+  gone. New test: `abort()` mid-stream against a stalling mock server ends the run with the
+  partial assistant message, `stopReason: aborted`.
+- code-cli drives the agent from one multi-thread tokio runtime (`async_runtime().block_on`);
+  providers spawn onto it. `next_blocking`/`result_blocking` are now test-only.
+- Harness: `cortex_cmd` always runs `cargo build` for the binary (a no-op when fresh).
+  Before, it only built when the binary was missing, so `verify` could compare a stale binary.
+- Next: **7.3c**: async `ai-oauth`/`ai-images`/`code-tools` HTTP (drop the last
+  `reqwest::blocking`), then move `cache_control` hints into anthropic request building
+  (TS `cache-retention.ts` + anthropic.ts) and delete the field.
+
+### 2026-09-25: 7.3 split; 7.3a done (async provider streams)
+- Ledger: 7.3 split into 7.3a (streams + providers), 7.3b (async agent loop/core + consumers,
+  remove the blocking bridge), 7.3c (remaining `reqwest::blocking` in ai-oauth/ai-images/
+  code-tools, and `cache_control` into request building). Dependents re-pointed. Also fixed a
+  hand-written 7.3 log entry that was a string (broke `ledger.py next`).
+- New crate `ai-sse` (only owner of `eventsource-stream`): `sse_events(bytes_stream)`. Keeps
+  hoocode's flush of a trailing event without a blank line. The four `sse.rs` copies are gone.
+- `ai-stream` ports `event-stream.ts`: `EventStream<T, R>` (futures `Stream` + `final_result()`
+  future, clones share the queue), `AssistantMessageEventStream` alias,
+  `create_assistant_message_event_stream()`. `spawn_producer` runs a provider on the current
+  tokio runtime, or a shared 2-thread runtime for sync callers, and ends the stream if the
+  producer panics. `next_blocking`/`result_blocking` bridge the still-sync agent loop (7.3b
+  removes their non-test uses). `testing` feature: one-shot mock HTTP server.
+- ai-types: the sync `AssistantMessageEventStream` trait is removed; `AbortSignal` wraps a
+  `CancellationToken` (clones share it; before, each clone had its own bool, so abort never
+  reached anything).
+- anthropic/openai/azure/google: async reqwest (`stream` feature, no `blocking`), abort via
+  `select!` on `signal.cancelled()`. Errors and aborts now carry the partial content (open blocks
+  included) and usage, with `stopReason: aborted` + "Request was aborted" when the signal fired,
+  as in hoocode. Vertex credentials resolve on the producer task (async token exchange /
+  metadata server), so missing creds are an `error` event, as in TS.
+- faux: honors an already-aborted signal (TS `streamWithDeltas`); no `tokensPerSecond` yet.
+- registry: `complete_simple()`; `tests/live_e2e.rs` ports abort.test.ts + the basic
+  stream.test.ts cases (text, streaming, tool call) as `#[ignore]` live tests for anthropic,
+  openai-completions and google. The rest of stream.test.ts is 8.6.
+- Harness fix: `wait_exit` now also waits for tmux's "Pane is dead" line. tmux sets
+  `pane_dead` before drawing it, so `print-tool-read-light` failed once on a missing
+  `<exited status=0>` (a sync race, not an app difference; 15/15 passes after).
+- Next: **7.3b**. Make `agent-loop`/`agent-core` async (tokio), consume `EventStream` with
+  `.next().await`, pass `AbortSignal` from `Agent::abort` into `SimpleStreamOptions`, make
+  code-cli main a tokio runtime, then drop `next_blocking`/`result_blocking` from non-test code.
+  Keep `print-basic`, `print-error`, `print-tool-read-light` green.
 
 ### 2026-09-25: 10.4d done (light mode); M1 reached
 - User decision: reach M1 through hoocode's `--light` preset, which has a portable prompt.
