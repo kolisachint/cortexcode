@@ -4,6 +4,21 @@
 //! detection functions ported from TypeScript `@kolisachint/hoocode-ai` →
 //! `utils/`.
 
+mod copilot_headers;
+mod param_fallback;
+mod tool_constraints;
+mod transform_messages;
+
+pub use copilot_headers::{
+    build_copilot_dynamic_headers, has_copilot_vision_input, infer_copilot_initiator,
+};
+pub use param_fallback::{
+    droppable_params_named_by, note_rejected_params, rejected_params_for, reset_rejected_params,
+    DROPPABLE_PARAMS,
+};
+pub use tool_constraints::to_strict_json_schema;
+pub use transform_messages::{transform_messages, NormalizeToolCallId};
+
 // ---------------------------------------------------------------------------
 // hash
 // ---------------------------------------------------------------------------

@@ -14,6 +14,37 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 8.2 done (openai-completions parity; env-api-keys parity; routing)
+- provider-openai is a port of openai-completions.ts: `getCompat`/`detectCompat`
+  (`request::ResolvedCompat`), `buildParams` (prompt_cache_key/retention, store,
+  stream_options, max_tokens field, tools/`tools: []` on tool history, tool_choice,
+  tool_stream, every thinking format, OpenRouter/Vercel routing), Anthropic-style cache
+  markers, promptSuffix, `convertMessages` (transformMessages, developer role, thinking
+  replay incl. signature field / thinking-as-text, reasoning_details, bridging assistant,
+  tool result names, batched tool-result images), strict tools via `to_strict_json_schema`,
+  client headers (model, Copilot dynamic, session affinity, caller overrides).
+  Streaming keeps content live in `partial` (as TS), coalesces tool calls by index then id,
+  responseId/responseModel, choice-usage fallback, cost via ai-models, param-fallback retry
+  loop, OpenRouter `metadata.raw` suffix. `stream()` resolves the key via ai-env and fails
+  with `No API key for provider: X`.
+- ai-util gains transform_messages, to_strict_json_schema, param_fallback, copilot headers
+  (8.5 still owns their TS tests). `SimpleStreamOptions` gains temperature, max_tokens,
+  headers, timeout_ms, metadata, constrain_tool_calls, tool_choice.
+- ai-env: dropped `mistral` (not in hoocode), empty values count as unset, GAC path does not
+  fall back to the default ADC file, OnceLock cache.
+- ai-stream testing: `serve_script` (scripted multi-response server that records requests).
+- Tests: all 9 openai-completions-*.test.ts files + env-api-keys.test.ts + fireworks/together
+  env halves (59 + 9 tests); `cortexcode-ai/tests/routing.rs` checks every catalog
+  (provider, api) pair dispatches through the registry, with openai-responses (8.3),
+  openai-codex-responses (8.4a), google-gemini-cli (8.4c) listed as pending.
+- Harness requests now match hoocode on every non-message field except `prompt_cache_key`
+  (`prompt_cache_retention: "24h"` and `store: false` were missing before). The key needs the
+  agent's session id, which code-cli doesn't set yet (noted on 10.3). Scenario results are
+  unchanged: everything owned by a done task passes.
+- Left: SDK client retries + retry-after suffix (noted on 8.5); UserMessage string content
+  (noted on 8.6).
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 8.1 done (model catalog at the pin)
 - New data crate `ai-models-catalog`: `data/models.json` (1224 models), `data/image-models.json`
   (57), `data/pin.json`, exposed as `MODELS_JSON` / `IMAGE_MODELS_JSON` / `PIN_JSON`. A test

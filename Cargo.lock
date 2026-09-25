@@ -361,9 +361,11 @@ dependencies = [
  "cortexcode-ai-provider-faux",
  "cortexcode-ai-provider-google",
  "cortexcode-ai-provider-openai",
+ "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "cortexcode-ai-util",
+ "serde_json",
 ]
 
 [[package]]
@@ -470,6 +472,8 @@ dependencies = [
 name = "cortexcode-ai-provider-openai"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-env",
+ "cortexcode-ai-models",
  "cortexcode-ai-sse",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
@@ -513,6 +517,7 @@ dependencies = [
  "cortexcode-ai-types",
  "futures-executor",
  "futures-util",
+ "serde_json",
  "tokio",
 ]
 

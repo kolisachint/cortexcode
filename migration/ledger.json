@@ -789,7 +789,7 @@
    "id": "8.2",
    "title": "All 31 known providers routed via api + compat; env-api-keys parity for every provider",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.1",
     "8.2a"
@@ -816,6 +816,18 @@
      "commit": "7b349fa",
      "kind": "note",
      "text": "8.1: port the env-key halves of fireworks-models.test.ts and together-models.test.ts (findEnvKeys/getEnvApiKey for FIREWORKS_API_KEY, TOGETHER_API_KEY)."
+    },
+    {
+     "at": "2026-09-25T14:54:27Z",
+     "commit": "912521f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:16:14Z",
+     "commit": "912521f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -956,6 +968,12 @@
      "commit": "7b349fa",
      "kind": "note",
      "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+    },
+    {
+     "at": "2026-09-25T15:14:45Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: transform_messages, to_strict_json_schema, param_fallback (DROPPABLE_PARAMS, rejected_params_for, droppable_params_named_by) and copilot headers are already in ai-util (ported for openai-completions); port their TS tests here (cross-provider-handoff etc.). openai-completions still lacks the openai SDK's client retries (maxRetries 2, retryDelayCapFetch) and describeProviderError's retry-after suffix: wire both into crates/cortexcode-ai-provider-openai create_with_param_fallback once retry-delay lands."
     }
    ]
   },
@@ -978,7 +996,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:14:45Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: UserMessage.content is always blocks; TS keeps string content as a string (openai-completions sends it as a string, cache-control-format.test.ts asserts it; sessions store it). Needs a representation decision (enum or flag in ai-types) before the remaining provider/session tests can match byte-for-byte."
+    }
+   ]
   },
   {
    "id": "8.7",
@@ -1310,7 +1335,14 @@
     "print-continue"
    ],
    "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:16:00Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: hoocode passes sessionId: sessionManager.getSessionId() into the agent (sdk.ts:423), so openai-completions sends prompt_cache_key; cortex code-cli build_agent (runtime.rs) sets no session id, so the key is missing from harness requests (all other non-message fields now match). Wire the session id into AgentOptions here."
+    }
+   ]
   },
   {
    "id": "10.4b",

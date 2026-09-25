@@ -35,7 +35,6 @@ fn get_api_key_env_vars(provider: &str) -> Option<&'static [&'static str]> {
         "openrouter" => Some(&["OPENROUTER_API_KEY"]),
         "vercel-ai-gateway" => Some(&["AI_GATEWAY_API_KEY"]),
         "zai" => Some(&["ZAI_API_KEY"]),
-        "mistral" => Some(&["MISTRAL_API_KEY"]),
         "minimax" => Some(&["MINIMAX_API_KEY"]),
         "minimax-cn" => Some(&["MINIMAX_CN_API_KEY"]),
         "moonshotai" | "moonshotai-cn" => Some(&["MOONSHOT_API_KEY"]),
@@ -58,110 +57,69 @@ fn get_api_key_env_vars(provider: &str) -> Option<&'static [&'static str]> {
 // Cached ADC check
 // ---------------------------------------------------------------------------
 
-static mut VERTEX_ADC_CACHE: Option<bool> = None;
+/// A non-empty environment variable (JS truthiness of `process.env[name]`).
+fn env_value(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.is_empty())
+}
 
-/// Check whether Vertex AI Application Default Credentials are available.
-///
-/// Checks `GOOGLE_APPLICATION_CREDENTIALS` env var first (standard gcloud
-/// auth file), then falls back to the default ADC path
-/// `~/.config/gcloud/application_default_credentials.json`.
+/// Whether Vertex AI Application Default Credentials exist: the file named by
+/// `GOOGLE_APPLICATION_CREDENTIALS` when set, else the default
+/// `~/.config/gcloud/application_default_credentials.json`. Cached for the
+/// process, as in TS.
 fn has_vertex_adc_credentials() -> bool {
-    // SAFETY: single-threaded idempotent write — safe in practice.
-    unsafe {
-        if let Some(cached) = VERTEX_ADC_CACHE {
-            return cached;
-        }
-    }
-
-    let result = check_vertex_adc_credentials();
-
-    unsafe {
-        VERTEX_ADC_CACHE = Some(result);
-    }
-
-    result
+    static CACHE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *CACHE.get_or_init(check_vertex_adc_credentials)
 }
 
 fn check_vertex_adc_credentials() -> bool {
-    // Check GOOGLE_APPLICATION_CREDENTIALS env var first.
-    if let Ok(gac_path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
-        if std::path::Path::new(&gac_path).exists() {
-            return true;
-        }
+    if let Some(gac_path) = env_value("GOOGLE_APPLICATION_CREDENTIALS") {
+        return std::path::Path::new(&gac_path).exists();
     }
-
-    // Fall back to default ADC path.
-    let home = dirs::home_dir();
-    if let Some(home) = home {
-        let default_adc = home
-            .join(".config")
+    dirs::home_dir().is_some_and(|home| {
+        home.join(".config")
             .join("gcloud")
-            .join("application_default_credentials.json");
-        if default_adc.exists() {
-            return true;
-        }
-    }
-
-    false
+            .join("application_default_credentials.json")
+            .exists()
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Find which environment variables are set for the given provider's API key.
+/// `findEnvKeys`: the configured environment variables that can provide an
+/// API key for `provider`, in precedence order; `None` when none is set (an
+/// empty value counts as unset) or the provider has no key variable.
 ///
-/// Returns `Some(vec)` of env-var names that are currently set in the
-/// environment, or `None` when no recognized env vars are set for this
-/// provider or the provider is unknown.
-///
-/// This only reports actual API key variables. It intentionally excludes
-/// ambient credential sources such as AWS profiles, AWS IAM credentials,
-/// and Google Application Default Credentials.
+/// Only actual API key variables are reported, never ambient credential
+/// sources such as Google Application Default Credentials.
 pub fn find_env_keys(provider: &str) -> Option<Vec<String>> {
-    let env_vars = get_api_key_env_vars(provider)?;
-
-    let found: Vec<String> = env_vars
+    let found: Vec<String> = get_api_key_env_vars(provider)?
         .iter()
-        .filter(|var| std::env::var(var).is_ok())
+        .filter(|var| env_value(var).is_some())
         .map(|s| s.to_string())
         .collect();
-
-    if found.is_empty() {
-        None
-    } else {
-        Some(found)
-    }
+    (!found.is_empty()).then_some(found)
 }
 
-/// Get the API key for a provider from known environment variables.
+/// `getEnvApiKey`: the API key for `provider` from its environment variable
+/// (e.g. `OPENAI_API_KEY`).
 ///
-/// Returns `Some(key)` if a matching env var is found, or `None` otherwise.
-///
-/// Special cases:
-/// - For `"google-vertex"`, returns `Some("<authenticated>")` when ADC
-///   credentials are available AND both `GOOGLE_CLOUD_PROJECT` (or
-///   `GCLOUD_PROJECT`) and `GOOGLE_CLOUD_LOCATION` env vars are set.
+/// For `google-vertex` without `GOOGLE_CLOUD_API_KEY`, returns
+/// `"<authenticated>"` when Application Default Credentials exist and
+/// `GOOGLE_CLOUD_PROJECT` (or `GCLOUD_PROJECT`) and `GOOGLE_CLOUD_LOCATION`
+/// are set.
 pub fn get_env_api_key(provider: &str) -> Option<String> {
-    // Try direct env-var lookup first.
-    let env_vars = get_api_key_env_vars(provider);
-    if let Some(vars) = env_vars {
-        for var in vars {
-            if let Ok(val) = std::env::var(var) {
-                return Some(val);
-            }
-        }
+    if let Some(keys) = find_env_keys(provider) {
+        return env_value(&keys[0]);
     }
 
-    // Vertex AI: support Application Default Credentials.
     if provider == "google-vertex" {
-        let has_creds = has_vertex_adc_credentials();
-        let has_project = std::env::var("GOOGLE_CLOUD_PROJECT")
-            .or_else(|_| std::env::var("GCLOUD_PROJECT"))
-            .is_ok();
-        let has_location = std::env::var("GOOGLE_CLOUD_LOCATION").is_ok();
-
-        if has_creds && has_project && has_location {
+        let has_credentials = has_vertex_adc_credentials();
+        let has_project =
+            env_value("GOOGLE_CLOUD_PROJECT").is_some() || env_value("GCLOUD_PROJECT").is_some();
+        let has_location = env_value("GOOGLE_CLOUD_LOCATION").is_some();
+        if has_credentials && has_project && has_location {
             return Some("<authenticated>".into());
         }
     }
@@ -172,187 +130,218 @@ pub fn get_env_api_key(provider: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
+    use std::sync::{Mutex, MutexGuard};
 
-    /// Serializes tests that modify environment variables to prevent races.
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    /// Serializes tests that modify environment variables.
+    fn env_lock() -> MutexGuard<'static, ()> {
+        static LOCK: Mutex<()> = Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Run `f` with `vars` set (`None` = removed), restoring them afterwards.
+    fn with_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
+        let _lock = env_lock();
+        let saved: Vec<(String, Option<String>)> = vars
+            .iter()
+            .map(|(k, _)| (k.to_string(), std::env::var(k).ok()))
+            .collect();
+        for (k, v) in vars {
+            match v {
+                Some(v) => std::env::set_var(k, v),
+                None => std::env::remove_var(k),
+            }
+        }
+        let out = f();
+        for (k, v) in saved {
+            match v {
+                Some(v) => std::env::set_var(&k, v),
+                None => std::env::remove_var(&k),
+            }
+        }
+        out
+    }
+
+    const COPILOT_CLEAR: [(&str, Option<&str>); 3] = [
+        ("COPILOT_GITHUB_TOKEN", None),
+        ("GH_TOKEN", None),
+        ("GITHUB_TOKEN", None),
+    ];
+
+    // --- env-api-keys.test.ts ---
 
     #[test]
-    fn test_anthropic_keys() {
-        assert_eq!(
-            get_api_key_env_vars("anthropic"),
-            Some(&["ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"][..])
-        );
+    fn does_not_detect_copilot_from_gh_token_alone() {
+        let mut vars = COPILOT_CLEAR.to_vec();
+        vars.push(("GH_TOKEN", Some("gh-repo-token")));
+        with_vars(&vars, || {
+            assert_eq!(find_env_keys("github-copilot"), None);
+            assert_eq!(get_env_api_key("github-copilot"), None);
+        });
     }
 
     #[test]
-    fn test_openai_key() {
-        assert_eq!(
-            get_api_key_env_vars("openai"),
-            Some(&["OPENAI_API_KEY"][..])
-        );
+    fn does_not_detect_copilot_from_github_token_alone() {
+        let mut vars = COPILOT_CLEAR.to_vec();
+        vars.push(("GITHUB_TOKEN", Some("ci-token")));
+        with_vars(&vars, || assert_eq!(find_env_keys("github-copilot"), None));
     }
 
     #[test]
-    fn test_unknown_provider() {
+    fn detects_copilot_from_explicit_copilot_github_token() {
+        let mut vars = COPILOT_CLEAR.to_vec();
+        vars.push(("COPILOT_GITHUB_TOKEN", Some("copilot-token")));
+        with_vars(&vars, || {
+            assert_eq!(
+                find_env_keys("github-copilot"),
+                Some(vec!["COPILOT_GITHUB_TOKEN".to_string()])
+            );
+            assert_eq!(
+                get_env_api_key("github-copilot").as_deref(),
+                Some("copilot-token")
+            );
+        });
+    }
+
+    // --- fireworks-models.test.ts / together-models.test.ts (env halves) ---
+
+    #[test]
+    fn resolves_fireworks_and_together_keys() {
+        with_vars(
+            &[
+                ("FIREWORKS_API_KEY", Some("test-fireworks-key")),
+                ("TOGETHER_API_KEY", Some("test-together-key")),
+            ],
+            || {
+                assert_eq!(
+                    find_env_keys("fireworks"),
+                    Some(vec!["FIREWORKS_API_KEY".to_string()])
+                );
+                assert_eq!(
+                    get_env_api_key("fireworks").as_deref(),
+                    Some("test-fireworks-key")
+                );
+                assert_eq!(
+                    find_env_keys("together"),
+                    Some(vec!["TOGETHER_API_KEY".to_string()])
+                );
+                assert_eq!(
+                    get_env_api_key("together").as_deref(),
+                    Some("test-together-key")
+                );
+            },
+        );
+    }
+
+    // --- env-api-keys.ts behaviour ---
+
+    /// Every `KnownProvider` and its key variables, as in `getApiKeyEnvVars`.
+    /// OAuth-only providers have none.
+    #[test]
+    fn every_known_provider_maps_like_hoocode() {
+        let table: &[(&str, &[&str])] = &[
+            ("anthropic", &["ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]),
+            ("google", &["GEMINI_API_KEY"]),
+            ("google-gemini-cli", &[]),
+            ("google-antigravity", &[]),
+            ("google-vertex", &["GOOGLE_CLOUD_API_KEY"]),
+            ("openai", &["OPENAI_API_KEY"]),
+            ("azure-openai-responses", &["AZURE_OPENAI_API_KEY"]),
+            ("openai-codex", &[]),
+            ("deepseek", &["DEEPSEEK_API_KEY"]),
+            ("github-copilot", &["COPILOT_GITHUB_TOKEN"]),
+            ("xai", &["XAI_API_KEY"]),
+            ("groq", &["GROQ_API_KEY"]),
+            ("cerebras", &["CEREBRAS_API_KEY"]),
+            ("openrouter", &["OPENROUTER_API_KEY"]),
+            ("vercel-ai-gateway", &["AI_GATEWAY_API_KEY"]),
+            ("zai", &["ZAI_API_KEY"]),
+            ("minimax", &["MINIMAX_API_KEY"]),
+            ("minimax-cn", &["MINIMAX_CN_API_KEY"]),
+            ("moonshotai", &["MOONSHOT_API_KEY"]),
+            ("moonshotai-cn", &["MOONSHOT_API_KEY"]),
+            ("huggingface", &["HF_TOKEN"]),
+            ("fireworks", &["FIREWORKS_API_KEY"]),
+            ("together", &["TOGETHER_API_KEY"]),
+            ("opencode", &["OPENCODE_API_KEY"]),
+            ("opencode-go", &["OPENCODE_API_KEY"]),
+            ("kimi-coding", &["KIMI_API_KEY"]),
+            ("xiaomi", &["XIAOMI_API_KEY"]),
+            ("xiaomi-token-plan-cn", &["XIAOMI_TOKEN_PLAN_CN_API_KEY"]),
+            ("xiaomi-token-plan-ams", &["XIAOMI_TOKEN_PLAN_AMS_API_KEY"]),
+            ("xiaomi-token-plan-sgp", &["XIAOMI_TOKEN_PLAN_SGP_API_KEY"]),
+            ("nvidia", &["NVIDIA_API_KEY"]),
+        ];
+        assert_eq!(table.len(), 31);
+        for (provider, vars) in table {
+            let expected = (!vars.is_empty()).then_some(*vars);
+            assert_eq!(get_api_key_env_vars(provider), expected, "{provider}");
+        }
+        assert_eq!(get_api_key_env_vars("mistral"), None);
         assert_eq!(get_api_key_env_vars("nonexistent-provider"), None);
     }
 
     #[test]
-    fn test_find_env_keys_none_set() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        // Temporarily remove any known key for openai
-        let saved = std::env::var("OPENAI_API_KEY");
-        std::env::remove_var("OPENAI_API_KEY");
-        assert_eq!(find_env_keys("openai"), None);
-        if let Ok(val) = saved {
-            std::env::set_var("OPENAI_API_KEY", val);
-        }
-    }
-
-    #[test]
-    fn test_find_env_keys_found() {
-        let saved = std::env::var("OPENAI_API_KEY");
-        std::env::set_var("OPENAI_API_KEY", "sk-test123");
-        let keys = find_env_keys("openai");
-        assert_eq!(keys, Some(vec!["OPENAI_API_KEY".to_string()]));
-        // Restore
-        match saved {
-            Ok(val) => std::env::set_var("OPENAI_API_KEY", val),
-            Err(_) => std::env::remove_var("OPENAI_API_KEY"),
-        }
-    }
-
-    #[test]
-    fn test_get_env_api_key() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        let saved = std::env::var("OPENAI_API_KEY");
-        std::env::set_var("OPENAI_API_KEY", "sk-test456");
-        assert_eq!(get_env_api_key("openai"), Some("sk-test456".into()));
-        match saved {
-            Ok(val) => std::env::set_var("OPENAI_API_KEY", val),
-            Err(_) => std::env::remove_var("OPENAI_API_KEY"),
-        }
-    }
-
-    #[test]
-    fn test_get_env_api_key_unknown() {
-        assert_eq!(get_env_api_key("nonexistent"), None);
-    }
-
-    #[test]
-    fn test_copilot_not_from_gh_token() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        // GH_TOKEN alone must NOT detect Copilot
-        let saved_gh = std::env::var("GH_TOKEN");
-        let saved_copilot = std::env::var("COPILOT_GITHUB_TOKEN");
-        std::env::remove_var("COPILOT_GITHUB_TOKEN");
-        std::env::set_var("GH_TOKEN", "gh-repo-token");
-
-        assert_eq!(find_env_keys("github-copilot"), None);
-        assert_eq!(get_env_api_key("github-copilot"), None);
-
-        // Restore
-        match saved_copilot {
-            Ok(v) => std::env::set_var("COPILOT_GITHUB_TOKEN", v),
-            Err(_) => std::env::remove_var("COPILOT_GITHUB_TOKEN"),
-        }
-        match saved_gh {
-            Ok(v) => std::env::set_var("GH_TOKEN", v),
-            Err(_) => std::env::remove_var("GH_TOKEN"),
-        }
-    }
-
-    #[test]
-    fn test_copilot_from_explicit_var() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        let saved = std::env::var("COPILOT_GITHUB_TOKEN");
-        std::env::set_var("COPILOT_GITHUB_TOKEN", "copilot-token");
-
-        let keys = find_env_keys("github-copilot");
-        assert_eq!(keys, Some(vec!["COPILOT_GITHUB_TOKEN".to_string()]));
-        assert_eq!(
-            get_env_api_key("github-copilot"),
-            Some("copilot-token".into())
+    fn anthropic_oauth_token_takes_precedence() {
+        with_vars(
+            &[
+                ("ANTHROPIC_OAUTH_TOKEN", Some("oauth")),
+                ("ANTHROPIC_API_KEY", Some("key")),
+            ],
+            || {
+                assert_eq!(
+                    find_env_keys("anthropic"),
+                    Some(vec![
+                        "ANTHROPIC_OAUTH_TOKEN".to_string(),
+                        "ANTHROPIC_API_KEY".to_string()
+                    ])
+                );
+                assert_eq!(get_env_api_key("anthropic").as_deref(), Some("oauth"));
+            },
         );
-
-        match saved {
-            Ok(v) => std::env::set_var("COPILOT_GITHUB_TOKEN", v),
-            Err(_) => std::env::remove_var("COPILOT_GITHUB_TOKEN"),
-        }
     }
 
     #[test]
-    fn test_google_vertex_no_creds() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        // Without ADC or env vars, should return None
-        let saved_project = std::env::var("GOOGLE_CLOUD_PROJECT");
-        let saved_location = std::env::var("GOOGLE_CLOUD_LOCATION");
-        std::env::remove_var("GOOGLE_CLOUD_PROJECT");
-        std::env::remove_var("GOOGLE_CLOUD_LOCATION");
-
-        // get_env_api_key won't find GOOGLE_CLOUD_API_KEY either
-        assert_eq!(get_env_api_key("google-vertex"), None);
-
-        match saved_project {
-            Ok(v) => std::env::set_var("GOOGLE_CLOUD_PROJECT", v),
-            Err(_) => std::env::remove_var("GOOGLE_CLOUD_PROJECT"),
-        }
-        match saved_location {
-            Ok(v) => std::env::set_var("GOOGLE_CLOUD_LOCATION", v),
-            Err(_) => std::env::remove_var("GOOGLE_CLOUD_LOCATION"),
-        }
+    fn empty_values_count_as_unset() {
+        with_vars(
+            &[
+                ("ANTHROPIC_OAUTH_TOKEN", Some("")),
+                ("ANTHROPIC_API_KEY", Some("key")),
+                ("OPENAI_API_KEY", Some("")),
+            ],
+            || {
+                assert_eq!(
+                    find_env_keys("anthropic"),
+                    Some(vec!["ANTHROPIC_API_KEY".to_string()])
+                );
+                assert_eq!(get_env_api_key("anthropic").as_deref(), Some("key"));
+                assert_eq!(find_env_keys("openai"), None);
+                assert_eq!(get_env_api_key("openai"), None);
+            },
+        );
     }
 
     #[test]
-    fn test_github_tokens_not_copilot() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        // Regression: GITHUB_TOKEN alone must NOT detect Copilot
-        let saved_gh = std::env::var("GITHUB_TOKEN");
-        let saved_copilot = std::env::var("COPILOT_GITHUB_TOKEN");
-        std::env::remove_var("COPILOT_GITHUB_TOKEN");
-        std::env::set_var("GITHUB_TOKEN", "ci-token");
-
-        assert_eq!(find_env_keys("github-copilot"), None);
-
-        match saved_copilot {
-            Ok(v) => std::env::set_var("COPILOT_GITHUB_TOKEN", v),
-            Err(_) => std::env::remove_var("COPILOT_GITHUB_TOKEN"),
-        }
-        match saved_gh {
-            Ok(v) => std::env::set_var("GITHUB_TOKEN", v),
-            Err(_) => std::env::remove_var("GITHUB_TOKEN"),
-        }
+    fn google_vertex_needs_project_and_location_for_adc() {
+        with_vars(
+            &[
+                ("GOOGLE_CLOUD_API_KEY", None),
+                ("GOOGLE_CLOUD_PROJECT", None),
+                ("GCLOUD_PROJECT", None),
+                ("GOOGLE_CLOUD_LOCATION", None),
+            ],
+            || assert_eq!(get_env_api_key("google-vertex"), None),
+        );
+        with_vars(&[("GOOGLE_CLOUD_API_KEY", Some("vertex-key"))], || {
+            assert_eq!(
+                get_env_api_key("google-vertex").as_deref(),
+                Some("vertex-key")
+            )
+        });
     }
 
     #[test]
-    fn test_provider_coverage() {
-        // Verify all known providers have an env-var mapping (spot-check a few)
-        let providers = [
-            "anthropic",
-            "openai",
-            "google",
-            "google-vertex",
-            "deepseek",
-            "groq",
-            "cerebras",
-            "xai",
-            "openrouter",
-            "fireworks",
-            "together",
-            "huggingface",
-            "nvidia",
-            "mistral",
-            "minimax",
-            "moonshotai",
-            "kimi-coding",
-            "github-copilot",
-        ];
-        for p in providers {
-            assert!(
-                get_api_key_env_vars(p).is_some(),
-                "provider '{p}' missing env-var mapping"
-            );
-        }
+    fn unknown_provider_has_no_key() {
+        assert_eq!(find_env_keys("nonexistent"), None);
+        assert_eq!(get_env_api_key("nonexistent"), None);
     }
 }

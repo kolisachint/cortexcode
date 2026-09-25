@@ -17,9 +17,10 @@ cortexcode-ai-types = { workspace = true }
 futures-executor = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [features]
-testing = []
+testing = ["dep:serde_json"]

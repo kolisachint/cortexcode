@@ -491,6 +491,19 @@ pub struct StreamOptions {
 /// Simple stream options used by the `streamSimple` function.
 #[derive(Debug, Clone, Default)]
 pub struct SimpleStreamOptions {
+    pub temperature: Option<f64>,
+    /// `maxTokens`; providers default it from the model (`buildBaseOptions`).
+    pub max_tokens: Option<u64>,
+    /// Extra HTTP headers, merged last over provider defaults.
+    pub headers: Option<HashMap<String, String>>,
+    pub timeout_ms: Option<u64>,
+    /// Request metadata; providers pick the fields they understand.
+    pub metadata: Option<serde_json::Value>,
+    /// `constrainToolCalls`: ask for schema-constrained tool-call decoding.
+    pub constrain_tool_calls: Option<bool>,
+    /// OpenAI-completions `toolChoice` (`"auto"`, `"none"`, `"required"` or
+    /// `{type: "function", function: {name}}`), read from simple options.
+    pub tool_choice: Option<serde_json::Value>,
     pub signal: Option<AbortSignal>,
     pub api_key: Option<String>,
     pub session_id: Option<String>,
