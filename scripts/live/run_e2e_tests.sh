@@ -20,7 +20,7 @@ echo ""
 
 # Test 1: Verify provider exists in models.json
 echo "Test 1: Checking if mimo-v2.5-free model exists in models.json..."
-if grep -q '"mimo-v2.5-free"' crates/cortexcode-ai-models/data/models.json; then
+if grep -q '"mimo-v2.5-free"' crates/cortexcode-ai-models-catalog/data/models.json; then
     echo "  ✓ Model found in models.json"
 else
     echo "  ✗ Model not found in models.json"
@@ -30,7 +30,7 @@ fi
 # Test 2: Verify OpenCode provider is configured
 echo ""
 echo "Test 2: Checking OpenCode provider configuration..."
-if grep -q '"provider": "opencode"' crates/cortexcode-ai-models/data/models.json; then
+if grep -q '"provider": "opencode"' crates/cortexcode-ai-models-catalog/data/models.json; then
     echo "  ✓ OpenCode provider configured"
 else
     echo "  ✗ OpenCode provider not configured"

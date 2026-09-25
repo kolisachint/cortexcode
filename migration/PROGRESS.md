@@ -14,6 +14,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 8.1 done (model catalog at the pin)
+- New data crate `ai-models-catalog`: `data/models.json` (1224 models), `data/image-models.json`
+  (57), `data/pin.json`, exposed as `MODELS_JSON` / `IMAGE_MODELS_JSON` / `PIN_JSON`. A test
+  fails when `pin.json` differs from the workspace pin (regenerate on every pin bump).
+- `scripts/convert_models_to_json.py` now loads the pin's own built
+  `dist/models.generated.js` / `image-models.generated.js` with node (the old TS parser broke
+  on escaped quotes) and keeps hoocode's order. Run after `setup_hoocode.sh`.
+- ai-types: `Model`/`ModelCost` serde in hoocode's JSON shape; typed compat views
+  `OpenAICompletionsCompat`, `OpenAIResponsesCompat`, `AnthropicMessagesCompat` via
+  `Model::compat_as()` (compat stays JSON on `Model` so models.json overrides deep-merge).
+  anthropic/openai request builders read compat through them.
+- ai-models: order-preserving registry (`get_providers`/`get_models` in catalog order, id
+  index); code-models dropped its sort-by-id stopgap (built-in defaults = first catalog model).
+- ai-images: `ImagesModel` gets `name`/`input` + serde; `get_image_model`/`get_image_models`/
+  `get_image_providers` (image-models.ts).
+- Ported the catalog cases of claude-5-models / fireworks-models / together-models tests
+  (8 tests). Env-key halves noted on 8.2, request-format cases on 8.5.
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 7.5b done (agent.ts parity); phase 7 complete except 7.1 bookkeeping
 - `Agent` follows agent.ts: state is reduced from loop events (`message_end` appends,
   streaming message, pending tool calls, `turn_end` error message); one run at a time with

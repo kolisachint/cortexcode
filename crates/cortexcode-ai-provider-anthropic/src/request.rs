@@ -127,12 +127,8 @@ fn get_cache_control(
         CacheRetention::None => None,
         CacheRetention::Short => Some(serde_json::json!({"type": "ephemeral"})),
         CacheRetention::Long => {
-            let supports_long = model
-                .compat
-                .as_ref()
-                .and_then(|c| c.get("supportsLongCacheRetention"))
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(true);
+            let compat: cortexcode_ai_types::AnthropicMessagesCompat = model.compat_as();
+            let supports_long = compat.supports_long_cache_retention.unwrap_or(true);
             Some(if supports_long {
                 serde_json::json!({"type": "ephemeral", "ttl": "1h"})
             } else {

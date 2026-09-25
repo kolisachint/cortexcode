@@ -748,14 +748,16 @@
    "id": "8.1",
    "title": "Model catalog at pin in new data crate ai-models-catalog (1224 models + image models, compat structs); ai-models keeps lookup logic",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
    "crates": [
     "cortexcode-ai-models-catalog",
     "cortexcode-ai-models",
-    "cortexcode-ai-types"
+    "cortexcode-ai-types",
+    "cortexcode-ai-images",
+    "cortexcode-code-models"
    ],
    "sources": [
     "packages/ai/src/models.generated.ts",
@@ -768,7 +770,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Volatile data isolated: regenerated on every pin bump by scripts/convert_models_to_json.py. ai-models stores the catalog in a HashMap, so per-provider model order is lost. TS getModels() order matters (parseModels uses builtIn[0] for defaults, and the lists are UI-visible). code-models currently sorts by id as a stopgap. Model.compat is untyped JSON until the compat structs land.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:10:16Z",
+     "commit": "7b349fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:15:05Z",
+     "commit": "7b349fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.2",
@@ -795,7 +810,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T12:14:48Z",
+     "commit": "7b349fa",
+     "kind": "note",
+     "text": "8.1: port the env-key halves of fireworks-models.test.ts and together-models.test.ts (findEnvKeys/getEnvApiKey for FIREWORKS_API_KEY, TOGETHER_API_KEY)."
+    }
+   ]
   },
   {
    "id": "8.3",
@@ -928,6 +950,12 @@
      "commit": "632ecfe",
      "kind": "note",
      "text": "7.5a: agent-loop calls validate_tool_arguments() (crates/cortexcode-agent-loop), currently a pass-through; port validateToolArguments (TypeBox Convert + JSON-schema coercion, TS error format) and wire it there."
+    },
+    {
+     "at": "2026-09-25T12:14:48Z",
+     "commit": "7b349fa",
+     "kind": "note",
+     "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
     }
    ]
   },

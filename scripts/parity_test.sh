@@ -75,7 +75,7 @@ echo ""
 
 # Feature Tests
 echo "=== Feature Tests ==="
-test_feature "Models configured" "python3 -c \"import json; m=json.load(open('crates/cortexcode-ai-models/data/models.json')); print(len(m))\" 2>&1" "907"
+test_feature "Models configured" "python3 -c \"import json; m=json.load(open('crates/cortexcode-ai-models-catalog/data/models.json')); print(len(m))\" 2>&1" "1224"
 test_feature "Tools exist" "ls crates/cortexcode-code-tools/src/*.rs 2>&1 | wc -l" "2"
 test_feature "Agent core exists" "ls crates/cortexcode-agent-core/src/*.rs 2>&1 | wc -l" "2"
 test_feature "TUI exists" "ls crates/cortexcode-tui/src/*.rs 2>&1 | wc -l" "1"

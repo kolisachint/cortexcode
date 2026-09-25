@@ -343,33 +343,103 @@ pub enum Transport {
     StreamableHttp,
 }
 
-/// Model definition.
-#[derive(Debug, Clone)]
+/// Model definition (hoocode `Model`; same JSON shape as the catalog and
+/// `models.json`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
     pub id: String,
     pub name: String,
     pub api: Api,
     pub provider: Provider,
     pub base_url: String,
+    #[serde(default)]
     pub reasoning: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thinking_level_map: Option<ThinkingLevelMap>,
+    #[serde(default)]
     pub input: Vec<String>,
+    #[serde(default)]
     pub cost: ModelCost,
     pub context_window: u64,
     pub max_tokens: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
-    /// Provider compatibility overrides (TS `compat`: OpenAICompletionsCompat /
-    /// OpenAIResponsesCompat / AnthropicMessagesCompat). Untyped until ledger 8.1.
+    /// Provider compatibility overrides, kept as JSON so `models.json` overrides
+    /// can deep-merge them. Read typed views with [`Model::compat_as`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compat: Option<serde_json::Value>,
 }
 
+impl Model {
+    /// The `compat` object read as one of the compat structs
+    /// ([`OpenAICompletionsCompat`], [`OpenAIResponsesCompat`],
+    /// [`AnthropicMessagesCompat`]); every field unset when absent or malformed.
+    pub fn compat_as<T: serde::de::DeserializeOwned + Default>(&self) -> T {
+        self.compat
+            .as_ref()
+            .and_then(|c| serde_json::from_value(c.clone()).ok())
+            .unwrap_or_default()
+    }
+}
+
 /// Model pricing (per million tokens).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelCost {
     pub input: f64,
     pub output: f64,
     pub cache_read: f64,
     pub cache_write: f64,
+}
+
+/// `OpenAICompletionsCompat`: overrides for OpenAI-compatible chat
+/// completions endpoints. Unset fields are auto-detected from the base URL.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OpenAICompletionsCompat {
+    pub supports_store: Option<bool>,
+    pub supports_developer_role: Option<bool>,
+    pub supports_reasoning_effort: Option<bool>,
+    pub supports_usage_in_streaming: Option<bool>,
+    /// `"max_completion_tokens"` or `"max_tokens"`.
+    pub max_tokens_field: Option<String>,
+    pub requires_tool_result_name: Option<bool>,
+    pub requires_assistant_after_tool_result: Option<bool>,
+    pub requires_thinking_as_text: Option<bool>,
+    pub requires_reasoning_content_on_assistant_messages: Option<bool>,
+    /// `openai`, `openrouter`, `deepseek`, `together`, `zai`, `qwen`, `qwen-chat-template`.
+    pub thinking_format: Option<String>,
+    /// `OpenRouterRouting`, sent as the request's `provider` field.
+    pub open_router_routing: Option<serde_json::Value>,
+    /// `VercelGatewayRouting`.
+    pub vercel_gateway_routing: Option<serde_json::Value>,
+    pub zai_tool_stream: Option<bool>,
+    pub supports_strict_mode: Option<bool>,
+    /// `"strict"` or `"none"`.
+    pub tool_call_constraint: Option<String>,
+    /// `"anthropic"`.
+    pub cache_control_format: Option<String>,
+    pub send_session_affinity_headers: Option<bool>,
+    pub supports_long_cache_retention: Option<bool>,
+    pub prompt_suffix: Option<String>,
+}
+
+/// `OpenAIResponsesCompat`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OpenAIResponsesCompat {
+    pub send_session_id_header: Option<bool>,
+    pub supports_long_cache_retention: Option<bool>,
+}
+
+/// `AnthropicMessagesCompat`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AnthropicMessagesCompat {
+    pub supports_eager_tool_input_streaming: Option<bool>,
+    pub supports_long_cache_retention: Option<bool>,
+    pub supports_tool_search: Option<bool>,
 }
 
 // ---------------------------------------------------------------------------

@@ -595,10 +595,9 @@ fn validate_config(config: &ModelsConfig) -> Result<(), String> {
 
 /// Built-in (api, baseUrl) defaults for a provider, from its first model.
 fn built_in_defaults(provider: &str) -> Option<(String, String)> {
-    let mut models = cortexcode_ai_models::get_models(provider);
-    // The catalog is unordered until ledger 8.1; pick deterministically.
-    models.sort_by(|a, b| a.id.cmp(&b.id));
-    models.first().map(|m| (m.api.clone(), m.base_url.clone()))
+    cortexcode_ai_models::get_models(provider)
+        .first()
+        .map(|m| (m.api.clone(), m.base_url.clone()))
 }
 
 /// `loadBuiltInModels()`: built-ins with provider and per-model overrides applied.
@@ -606,13 +605,10 @@ fn load_built_in_models(
     overrides: &HashMap<String, ProviderOverride>,
     model_overrides: &HashMap<String, HashMap<String, ModelOverride>>,
 ) -> Vec<Model> {
-    let mut providers = cortexcode_ai_models::get_providers();
-    providers.sort();
+    // Catalog order, as `getProviders()` / `getModels()` iterate it.
     let mut out = Vec::new();
-    for provider in providers {
-        let mut models = cortexcode_ai_models::get_models(provider);
-        models.sort_by(|a, b| a.id.cmp(&b.id));
-        for m in models {
+    for provider in cortexcode_ai_models::get_providers() {
+        for m in cortexcode_ai_models::get_models(provider) {
             let mut model = m.clone();
             if let Some(o) = overrides.get(provider) {
                 if let Some(url) = &o.base_url {

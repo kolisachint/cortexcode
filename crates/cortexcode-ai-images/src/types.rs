@@ -7,16 +7,24 @@ use std::collections::HashMap;
 
 use cortexcode_ai_types::{Content, Cost, ModelCost, StopReason, Usage};
 
-/// An image-generation model definition.
-#[derive(Debug, Clone)]
+/// An image-generation model definition (hoocode `ImagesModel`, same JSON shape).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImagesModel {
     pub id: String,
+    #[serde(default)]
+    pub name: String,
     pub api: String,
     pub provider: String,
     pub base_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
+    /// Input modalities (`"text"`, optionally `"image"`).
+    #[serde(default)]
+    pub input: Vec<String>,
     /// Output modalities this model can produce (`"image"`, optionally `"text"`).
     pub output: Vec<String>,
+    #[serde(default)]
     pub cost: ModelCost,
 }
 

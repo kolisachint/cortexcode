@@ -377,8 +377,10 @@ dependencies = [
 name = "cortexcode-ai-images"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-models-catalog",
  "cortexcode-ai-types",
  "reqwest",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -387,10 +389,15 @@ dependencies = [
 name = "cortexcode-ai-models"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-models-catalog",
  "cortexcode-ai-types",
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "cortexcode-ai-models-catalog"
+version = "0.0.1"
 
 [[package]]
 name = "cortexcode-ai-oauth"

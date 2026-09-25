@@ -238,14 +238,10 @@ fn convert_messages(messages: &[Message]) -> Vec<serde_json::Value> {
 
 /// `compat.supportsStrictMode`: an explicit override, else detected from the
 /// provider/base URL (Moonshot and Together reject the field). Part of
-/// `detectCompat`; the full compat port is 8.1/8.5.
+/// `detectCompat`; the rest of the compat detection is 8.5.
 fn supports_strict_mode(model: &Model) -> bool {
-    if let Some(explicit) = model
-        .compat
-        .as_ref()
-        .and_then(|c| c.get("supportsStrictMode"))
-        .and_then(serde_json::Value::as_bool)
-    {
+    let compat: cortexcode_ai_types::OpenAICompletionsCompat = model.compat_as();
+    if let Some(explicit) = compat.supports_strict_mode {
         return explicit;
     }
     let provider = model.provider.as_str();

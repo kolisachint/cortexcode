@@ -218,6 +218,8 @@ mod tests {
     fn test_model(base_url: String) -> ImagesModel {
         ImagesModel {
             id: "openrouter/some-image-model".into(),
+            name: "Some Image Model".into(),
+            input: vec!["text".into()],
             api: "openrouter-images".into(),
             provider: "openrouter".into(),
             base_url,
