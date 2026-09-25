@@ -323,7 +323,6 @@ impl StreamState {
                 self.partial.content.push(Content::Text(TextContent {
                     text_signature: None,
                     text,
-                    cache_control: None,
                 }));
                 sender.push(AssistantMessageEvent::TextEnd {
                     index,
@@ -381,7 +380,6 @@ impl StreamState {
                 BlockKind::Text => Content::Text(TextContent {
                     text_signature: None,
                     text: self.text_buffers.get(index).cloned().unwrap_or_default(),
-                    cache_control: None,
                 }),
                 BlockKind::Thinking => Content::Thinking(ThinkingContent {
                     redacted: false,

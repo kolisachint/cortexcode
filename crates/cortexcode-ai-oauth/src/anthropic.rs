@@ -119,8 +119,8 @@ fn credentials_from_token_response(data: TokenResponse) -> OAuthCredentials {
     }
 }
 
-fn post_token_request(body: &HashMap<&str, &str>) -> Result<TokenResponse, String> {
-    let client = reqwest::blocking::Client::builder()
+async fn post_token_request(body: &HashMap<&str, &str>) -> Result<TokenResponse, String> {
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
@@ -131,10 +131,11 @@ fn post_token_request(body: &HashMap<&str, &str>) -> Result<TokenResponse, Strin
         .header("accept", "application/json")
         .json(body)
         .send()
+        .await
         .map_err(|e| format!("token request failed. url={TOKEN_URL}; details={e}"))?;
 
     let status = response.status();
-    let text = response.text().unwrap_or_default();
+    let text = response.text().await.unwrap_or_default();
     if !status.is_success() {
         return Err(format!(
             "HTTP request failed. status={status}; url={TOKEN_URL}; body={text}"
@@ -146,7 +147,7 @@ fn post_token_request(body: &HashMap<&str, &str>) -> Result<TokenResponse, Strin
 }
 
 /// Exchange an authorization code (from the redirect / manual paste) for tokens.
-pub fn exchange_authorization_code(
+pub async fn exchange_authorization_code(
     code: &str,
     state: &str,
     verifier: &str,
@@ -160,17 +161,21 @@ pub fn exchange_authorization_code(
     body.insert("redirect_uri", redirect_uri);
     body.insert("code_verifier", verifier);
 
-    post_token_request(&body).map(credentials_from_token_response)
+    post_token_request(&body)
+        .await
+        .map(credentials_from_token_response)
 }
 
 /// Refresh an Anthropic OAuth access token.
-pub fn refresh_token(refresh_token: &str) -> Result<OAuthCredentials, String> {
+pub async fn refresh_token(refresh_token: &str) -> Result<OAuthCredentials, String> {
     let mut body = HashMap::new();
     body.insert("grant_type", "refresh_token");
     body.insert("client_id", CLIENT_ID);
     body.insert("refresh_token", refresh_token);
 
-    post_token_request(&body).map(credentials_from_token_response)
+    post_token_request(&body)
+        .await
+        .map(credentials_from_token_response)
 }
 
 /// Convert credentials into the bearer token used as the provider API key.

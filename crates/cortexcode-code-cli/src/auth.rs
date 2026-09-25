@@ -279,13 +279,14 @@ fn login_anthropic(
     let callback = run_callback_server(&addr, Duration::from_secs(300))?;
     let state = callback.state.unwrap_or_else(|| pkce.verifier.clone());
 
-    let credentials = anthropic::exchange_authorization_code(
-        &callback.code,
-        &state,
-        &pkce.verifier,
-        &redirect_uri,
-    )
-    .map_err(AuthError::Flow)?;
+    let credentials = crate::runtime::async_runtime()
+        .block_on(anthropic::exchange_authorization_code(
+            &callback.code,
+            &state,
+            &pkce.verifier,
+            &redirect_uri,
+        ))
+        .map_err(AuthError::Flow)?;
 
     store.save("anthropic", &credentials)?;
     writeln!(
@@ -304,7 +305,9 @@ fn login_github_copilot(
     output: &mut dyn Write,
 ) -> Result<OAuthCredentials, AuthError> {
     let domain = "github.com";
-    let (auth, device) = github_copilot::start_login(domain).map_err(AuthError::Flow)?;
+    let (auth, device) = crate::runtime::async_runtime()
+        .block_on(github_copilot::start_login(domain))
+        .map_err(AuthError::Flow)?;
 
     writeln!(
         output,
@@ -314,8 +317,9 @@ fn login_github_copilot(
     let _ = open_browser(&auth.verification_uri);
     writeln!(output, "Waiting for you to authorize…")?;
 
-    let credentials =
-        github_copilot::complete_login(domain, &device, None).map_err(AuthError::Flow)?;
+    let credentials = crate::runtime::async_runtime()
+        .block_on(github_copilot::complete_login(domain, &device, None))
+        .map_err(AuthError::Flow)?;
 
     store.save("github-copilot", &credentials)?;
     writeln!(

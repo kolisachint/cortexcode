@@ -277,7 +277,6 @@ impl ReadCall<'_> {
             Content::Image(ImageContent {
                 data,
                 media_type: mime,
-                cache_control: None,
             })
         };
         if !self.options.auto_resize_images {

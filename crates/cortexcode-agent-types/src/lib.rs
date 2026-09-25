@@ -624,9 +624,8 @@ pub struct AgentLoopConfig {
     pub transport: Option<cortexcode_ai_types::Transport>,
     pub on_payload: Option<Box<dyn Fn(String) + Send>>,
     pub on_response: Option<Box<dyn Fn(String) + Send>>,
-    pub cache_control_format: Option<cortexcode_ai_types::CacheControlFormat>,
+    pub cache_retention: Option<cortexcode_ai_types::CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
-    pub supports_long_cache_retention: Option<bool>,
     pub prompt_suffix: Option<String>,
 }
 
@@ -646,10 +645,7 @@ impl std::fmt::Debug for AgentLoopConfig {
                 "send_session_affinity_headers",
                 &self.send_session_affinity_headers,
             )
-            .field(
-                "supports_long_cache_retention",
-                &self.supports_long_cache_retention,
-            )
+            .field("cache_retention", &self.cache_retention)
             .field("prompt_suffix", &self.prompt_suffix)
             .finish()
     }

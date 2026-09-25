@@ -491,7 +491,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "contents".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
@@ -540,7 +539,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "contents".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_abc|fc_xyz789".into(),
                 tool_name: "read_file".into(),
@@ -672,7 +670,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "hi".into(),
-                    cache_control: None,
                 })],
                 timestamp: 0,
             })],

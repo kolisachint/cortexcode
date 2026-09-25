@@ -40,9 +40,6 @@ pub struct TextContent {
     /// Provider message metadata, e.g. OpenAI Responses item id or `TextSignatureV1` JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_signature: Option<String>,
-    /// Prompt-caching hint for request building (not on the wire).
-    #[serde(skip)]
-    pub cache_control: Option<CacheControl>,
 }
 
 impl TextContent {
@@ -62,9 +59,6 @@ pub struct ImageContent {
     /// MIME type, e.g. `image/png` (`mimeType` on the wire).
     #[serde(rename = "mimeType")]
     pub media_type: String,
-    /// Prompt-caching hint for request building (not on the wire).
-    #[serde(skip)]
-    pub cache_control: Option<CacheControl>,
 }
 
 /// Thinking/reasoning content block (`{"type":"thinking"}`).
@@ -118,16 +112,17 @@ impl Content {
 }
 
 // ---------------------------------------------------------------------------
-// Cache control
+// Cache retention
 // ---------------------------------------------------------------------------
 
-/// Cache-control marker for prompt caching support (request building only).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum CacheControl {
-    /// Anthropic-style `cache_control` with optional TTL.
-    Ephemeral,
-    /// Long cache retention (e.g. "24h").
-    Ttl(String),
+/// Prompt cache retention preference (TS `CacheRetention`). Providers map it
+/// to their own markers; see `cortexcode_ai_util::resolve_cache_retention`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CacheRetention {
+    None,
+    Short,
+    Long,
 }
 
 // ---------------------------------------------------------------------------
@@ -417,9 +412,9 @@ pub struct StreamOptions {
     pub on_payload: Option<String>,
     pub on_response: Option<String>,
     pub headers: Option<HashMap<String, String>>,
-    pub cache_control_format: Option<CacheControlFormat>,
+    /// `cacheRetention`: prompt cache retention preference (default: long).
+    pub cache_retention: Option<CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
-    pub supports_long_cache_retention: Option<bool>,
     pub prompt_suffix: Option<String>,
 }
 
@@ -437,16 +432,10 @@ pub struct SimpleStreamOptions {
     pub transport: Option<Transport>,
     pub on_payload: Option<String>,
     pub on_response: Option<String>,
-    pub cache_control_format: Option<CacheControlFormat>,
+    /// `cacheRetention`: prompt cache retention preference (default: long).
+    pub cache_retention: Option<CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
-    pub supports_long_cache_retention: Option<bool>,
     pub prompt_suffix: Option<String>,
-}
-
-/// Cache control format for prompt caching.
-#[derive(Debug, Clone, PartialEq)]
-pub enum CacheControlFormat {
-    Anthropic,
 }
 
 /// Thinking display mode for adaptive-thinking models.
@@ -469,9 +458,9 @@ pub struct ProviderStreamOptions {
     pub thinking_display: Option<ThinkingDisplay>,
     pub transport: Option<Transport>,
     pub headers: Option<HashMap<String, String>>,
-    pub cache_control_format: Option<CacheControlFormat>,
+    /// `cacheRetention`: prompt cache retention preference (default: long).
+    pub cache_retention: Option<CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
-    pub supports_long_cache_retention: Option<bool>,
     pub prompt_suffix: Option<String>,
     pub on_payload: Option<String>,
     pub on_response: Option<String>,
@@ -589,7 +578,6 @@ mod wire_tests {
             Content::Image(ImageContent {
                 data: "AA==".into(),
                 media_type: "image/png".into(),
-                cache_control: Some(CacheControl::Ephemeral),
             }),
             Content::Thinking(ThinkingContent {
                 thinking: "t".into(),

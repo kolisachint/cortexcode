@@ -330,7 +330,6 @@ mod tests {
         let content = vec![Content::Text(TextContent {
             text_signature: None,
             text: "hi".into(),
-            cache_control: None,
         })];
         let v = user_message(&content).unwrap();
         assert_eq!(v["role"], "user");
@@ -352,12 +351,10 @@ mod tests {
             Content::Text(TextContent {
                 text_signature: None,
                 text: "look".into(),
-                cache_control: None,
             }),
             Content::Image(ImageContent {
                 data: "abc123".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             }),
         ];
         let v = user_message(&content).unwrap();
@@ -398,7 +395,6 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "xyz".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -420,7 +416,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "output here".into(),
-                cache_control: None,
             })],
             tool_call_id: "call_1".into(),
             tool_name: "read_file".into(),
@@ -442,7 +437,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "hi".into(),
-                    cache_control: None,
                 })],
                 timestamp: 0,
             })],
@@ -543,7 +537,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "hello".into(),
-                cache_control: None,
             })],
             stop_reason: cortexcode_ai_types::StopReason::Stop,
 

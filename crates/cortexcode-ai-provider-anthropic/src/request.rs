@@ -4,8 +4,8 @@
 //! (request-building portion).
 
 use cortexcode_ai_types::{
-    CacheControl, CacheControlFormat, Content, Context, Message, Model, SimpleStreamOptions,
-    ThinkingBudgets, ThinkingLevel, Tool,
+    CacheRetention, Content, Context, Message, Model, SimpleStreamOptions, ThinkingBudgets,
+    ThinkingLevel, Tool,
 };
 
 /// Resolved credential used to authenticate against the Anthropic API.
@@ -67,22 +67,21 @@ pub fn build_request_body(
     context: &Context,
     options: &SimpleStreamOptions,
 ) -> serde_json::Value {
+    let cache_control = get_cache_control(model, options.cache_retention);
     let mut body = serde_json::json!({
         "model": model.id,
         "max_tokens": model.max_tokens,
-        "messages": convert_messages(&context.messages, options.cache_control_format.as_ref()),
+        "messages": convert_messages(&context.messages, cache_control.as_ref()),
         "stream": true,
     });
 
-    if let Some(system) = build_system(
-        &context.system_prompt,
-        options.cache_control_format.as_ref(),
-    ) {
+    if let Some(system) = build_system(&context.system_prompt, cache_control.as_ref()) {
         body["system"] = system;
     }
 
     if !context.tools.is_empty() {
-        body["tools"] = serde_json::Value::Array(convert_tools(&context.tools));
+        body["tools"] =
+            serde_json::Value::Array(convert_tools(&context.tools, cache_control.as_ref()));
     }
 
     if model.reasoning {
@@ -117,28 +116,46 @@ fn resolve_thinking_budget(
     }
 }
 
+/// `getCacheControl`: the `cache_control` marker for the resolved retention,
+/// or none when caching is off. Long retention asks for a 1h TTL unless the
+/// model's `compat.supportsLongCacheRetention` is false.
+fn get_cache_control(
+    model: &Model,
+    cache_retention: Option<CacheRetention>,
+) -> Option<serde_json::Value> {
+    match cortexcode_ai_util::resolve_cache_retention(cache_retention) {
+        CacheRetention::None => None,
+        CacheRetention::Short => Some(serde_json::json!({"type": "ephemeral"})),
+        CacheRetention::Long => {
+            let supports_long = model
+                .compat
+                .as_ref()
+                .and_then(|c| c.get("supportsLongCacheRetention"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
+            Some(if supports_long {
+                serde_json::json!({"type": "ephemeral", "ttl": "1h"})
+            } else {
+                serde_json::json!({"type": "ephemeral"})
+            })
+        }
+    }
+}
+
+/// The system prompt as one text block, carrying the cache marker (the
+/// non-OAuth branch of `buildParams`).
 fn build_system(
     system_prompt: &str,
-    cache_format: Option<&CacheControlFormat>,
+    cache_control: Option<&serde_json::Value>,
 ) -> Option<serde_json::Value> {
     if system_prompt.is_empty() {
         return None;
     }
-    match cache_format {
-        Some(CacheControlFormat::Anthropic) => Some(serde_json::json!([{
-            "type": "text",
-            "text": system_prompt,
-            "cache_control": {"type": "ephemeral"},
-        }])),
-        None => Some(serde_json::json!(system_prompt)),
+    let mut block = serde_json::json!({"type": "text", "text": system_prompt});
+    if let Some(cc) = cache_control {
+        block["cache_control"] = cc.clone();
     }
-}
-
-fn cache_control_json(cc: &CacheControl) -> serde_json::Value {
-    match cc {
-        CacheControl::Ephemeral => serde_json::json!({"type": "ephemeral"}),
-        CacheControl::Ttl(ttl) => serde_json::json!({"type": "ephemeral", "ttl": ttl}),
-    }
+    Some(serde_json::json!([block]))
 }
 
 /// Convert user/tool-result content blocks (text + image only).
@@ -146,23 +163,11 @@ fn content_blocks(content: &[Content]) -> Vec<serde_json::Value> {
     content
         .iter()
         .filter_map(|c| match c {
-            Content::Text(t) => {
-                let mut v = serde_json::json!({"type": "text", "text": t.text});
-                if let Some(cc) = &t.cache_control {
-                    v["cache_control"] = cache_control_json(cc);
-                }
-                Some(v)
-            }
-            Content::Image(img) => {
-                let mut v = serde_json::json!({
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": img.media_type, "data": img.data},
-                });
-                if let Some(cc) = &img.cache_control {
-                    v["cache_control"] = cache_control_json(cc);
-                }
-                Some(v)
-            }
+            Content::Text(t) => Some(serde_json::json!({"type": "text", "text": t.text})),
+            Content::Image(img) => Some(serde_json::json!({
+                "type": "image",
+                "source": {"type": "base64", "media_type": img.media_type, "data": img.data},
+            })),
             // Thinking/tool-call blocks never appear in user or tool-result content.
             Content::Thinking(_) | Content::ToolCall(_) => None,
         })
@@ -174,13 +179,7 @@ fn assistant_content_blocks(content: &[Content]) -> Vec<serde_json::Value> {
     content
         .iter()
         .map(|c| match c {
-            Content::Text(t) => {
-                let mut v = serde_json::json!({"type": "text", "text": t.text});
-                if let Some(cc) = &t.cache_control {
-                    v["cache_control"] = cache_control_json(cc);
-                }
-                v
-            }
+            Content::Text(t) => serde_json::json!({"type": "text", "text": t.text}),
             Content::Thinking(th) => {
                 let mut v = serde_json::json!({"type": "thinking", "thinking": th.thinking});
                 if let Some(sig) = &th.signature {
@@ -202,8 +201,12 @@ fn assistant_content_blocks(content: &[Content]) -> Vec<serde_json::Value> {
         .collect()
 }
 
-fn convert_tools(tools: &[Tool]) -> Vec<serde_json::Value> {
-    tools
+/// Convert tools; the cache marker goes on the last one (`convertTools`).
+fn convert_tools(
+    tools: &[Tool],
+    cache_control: Option<&serde_json::Value>,
+) -> Vec<serde_json::Value> {
+    let mut converted: Vec<serde_json::Value> = tools
         .iter()
         .map(|t| {
             serde_json::json!({
@@ -212,7 +215,11 @@ fn convert_tools(tools: &[Tool]) -> Vec<serde_json::Value> {
                 "input_schema": t.parameters,
             })
         })
-        .collect()
+        .collect();
+    if let (Some(cc), Some(last)) = (cache_control, converted.last_mut()) {
+        last["cache_control"] = cc.clone();
+    }
+    converted
 }
 
 /// Convert the context's message list into Anthropic API messages, merging
@@ -220,7 +227,7 @@ fn convert_tools(tools: &[Tool]) -> Vec<serde_json::Value> {
 /// alternating `user`/`assistant` turns; tool-result messages map to `user`).
 fn convert_messages(
     messages: &[Message],
-    _cache_format: Option<&CacheControlFormat>,
+    cache_control: Option<&serde_json::Value>,
 ) -> Vec<serde_json::Value> {
     let mut raw: Vec<(&'static str, Vec<serde_json::Value>)> = Vec::new();
 
@@ -251,6 +258,20 @@ fn convert_messages(
         merged.push((role, blocks));
     }
 
+    // Cache the conversation history: the marker goes on the last block of
+    // the final message when it is a user turn ending in text, image or a
+    // tool result.
+    if let (Some(cc), Some(("user", blocks))) = (cache_control, merged.last_mut()) {
+        if let Some(last) = blocks.last_mut() {
+            if matches!(
+                last["type"].as_str(),
+                Some("text" | "image" | "tool_result")
+            ) {
+                last["cache_control"] = cc.clone();
+            }
+        }
+    }
+
     merged
         .into_iter()
         .map(|(role, content)| serde_json::json!({"role": role, "content": content}))
@@ -269,7 +290,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-                cache_control: None,
             })],
             timestamp: 0,
         })
@@ -278,7 +298,10 @@ mod tests {
     #[test]
     fn test_build_system_plain() {
         let v = build_system("be helpful", None).unwrap();
-        assert_eq!(v, serde_json::json!("be helpful"));
+        assert_eq!(
+            v,
+            serde_json::json!([{"type": "text", "text": "be helpful"}])
+        );
     }
 
     #[test]
@@ -288,9 +311,81 @@ mod tests {
 
     #[test]
     fn test_build_system_cache_control() {
-        let v = build_system("be helpful", Some(&CacheControlFormat::Anthropic)).unwrap();
+        let cc = serde_json::json!({"type": "ephemeral"});
+        let v = build_system("be helpful", Some(&cc)).unwrap();
         assert_eq!(v[0]["cache_control"]["type"], "ephemeral");
         assert_eq!(v[0]["text"], "be helpful");
+    }
+
+    #[test]
+    fn test_get_cache_control_by_retention() {
+        let mut model = default_model();
+        assert_eq!(
+            get_cache_control(&model, Some(CacheRetention::Long)),
+            Some(serde_json::json!({"type": "ephemeral", "ttl": "1h"}))
+        );
+        assert_eq!(
+            get_cache_control(&model, Some(CacheRetention::Short)),
+            Some(serde_json::json!({"type": "ephemeral"}))
+        );
+        assert_eq!(get_cache_control(&model, Some(CacheRetention::None)), None);
+        model.compat = Some(serde_json::json!({"supportsLongCacheRetention": false}));
+        assert_eq!(
+            get_cache_control(&model, Some(CacheRetention::Long)),
+            Some(serde_json::json!({"type": "ephemeral"}))
+        );
+    }
+
+    /// Default (long) retention marks the system prompt, the last tool and the
+    /// last user block, as `buildParams` does.
+    #[test]
+    fn test_request_body_cache_breakpoints() {
+        let model = default_model();
+        let tool = |name: &str| Tool {
+            name: name.into(),
+            description: String::new(),
+            parameters: serde_json::json!({"type": "object"}),
+        };
+        let context = Context::new(
+            "sys".into(),
+            vec![text_user("first"), text_user("second")],
+            vec![tool("a"), tool("b")],
+        );
+        let options = SimpleStreamOptions {
+            cache_retention: Some(CacheRetention::Long),
+            ..Default::default()
+        };
+        let body = build_request_body(&model, &context, &options);
+        let cc = serde_json::json!({"type": "ephemeral", "ttl": "1h"});
+        assert_eq!(body["system"][0]["cache_control"], cc);
+        assert!(body["tools"][0].get("cache_control").is_none());
+        assert_eq!(body["tools"][1]["cache_control"], cc);
+        let content = &body["messages"][0]["content"];
+        assert!(content[0].get("cache_control").is_none());
+        assert_eq!(content[1]["cache_control"], cc);
+
+        let options = SimpleStreamOptions {
+            cache_retention: Some(CacheRetention::None),
+            ..Default::default()
+        };
+        let body = build_request_body(&model, &context, &options);
+        assert!(!body.to_string().contains("cache_control"));
+    }
+
+    #[test]
+    fn test_no_cache_marker_after_an_assistant_turn() {
+        let messages = vec![
+            text_user("hi"),
+            Message::Assistant(cortexcode_ai_types::AssistantMessage {
+                content: vec![Content::text("hello")],
+                ..Default::default()
+            }),
+        ];
+        let cc = serde_json::json!({"type": "ephemeral"});
+        let out = convert_messages(&messages, Some(&cc));
+        assert!(!serde_json::Value::Array(out)
+            .to_string()
+            .contains("cache_control"));
     }
 
     #[test]
@@ -311,7 +406,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "result 1".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_1".into(),
                 tool_name: "read_file".into(),
@@ -323,7 +417,6 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "result 2".into(),
-                    cache_control: None,
                 })],
                 tool_call_id: "call_2".into(),
                 tool_name: "read_file".into(),
@@ -377,7 +470,6 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "base64data".into(),
                 media_type: "image/png".into(),
-                cache_control: None,
             })],
             timestamp: 0,
         })];

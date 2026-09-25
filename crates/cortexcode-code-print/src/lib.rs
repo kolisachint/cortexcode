@@ -443,7 +443,6 @@ mod tests {
         Content::Text(TextContent {
             text: t.into(),
             text_signature: None,
-            cache_control: None,
         })
     }
 
@@ -506,7 +505,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-                cache_control: None,
             })],
             stop_reason: stop.unwrap_or_default(),
 
@@ -521,7 +519,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-                cache_control: None,
             })],
             timestamp: 0,
         }))

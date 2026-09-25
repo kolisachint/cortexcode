@@ -91,7 +91,7 @@ fn parse_usage(usage: &serde_json::Value, model: &ImagesModel) -> Usage {
 }
 
 /// Generate images via OpenRouter's Chat Completions API.
-pub fn generate_images(
+pub async fn generate_images(
     model: &ImagesModel,
     context: &ImagesContext,
     options: &ImagesOptions,
@@ -116,8 +116,8 @@ pub fn generate_images(
         }
     };
 
-    let result = (|| -> Result<(), String> {
-        let client = reqwest::blocking::Client::builder()
+    let result: Result<(), String> = async {
+        let client = reqwest::Client::builder()
             .build()
             .map_err(|e| format!("failed to build HTTP client: {e}"))?;
 
@@ -141,16 +141,18 @@ pub fn generate_images(
         let response = request
             .json(&body)
             .send()
+            .await
             .map_err(|e| format!("request to OpenRouter API failed: {e}"))?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().unwrap_or_default();
+            let text = response.text().await.unwrap_or_default();
             return Err(format!("OpenRouter API returned {status}: {text}"));
         }
 
         let text = response
             .text()
+            .await
             .map_err(|e| format!("failed to read response body: {e}"))?;
         let value: serde_json::Value = serde_json::from_str(&text)
             .map_err(|e| format!("invalid JSON response: {e}; body={text}"))?;
@@ -169,7 +171,6 @@ pub fn generate_images(
                 output.output.push(Content::Text(TextContent {
                     text_signature: None,
                     text: text.to_string(),
-                    cache_control: None,
                 }));
             }
         }
@@ -183,16 +184,15 @@ pub fn generate_images(
                 let Some((media_type, data)) = parse_data_uri(image_url) else {
                     continue;
                 };
-                output.output.push(Content::Image(ImageContent {
-                    media_type,
-                    data,
-                    cache_control: None,
-                }));
+                output
+                    .output
+                    .push(Content::Image(ImageContent { media_type, data }));
             }
         }
 
         Ok(())
-    })();
+    }
+    .await;
 
     if let Err(e) = result {
         output.stop_reason = StopReason::Error;
@@ -267,12 +267,10 @@ mod tests {
                 Content::Text(TextContent {
                     text_signature: None,
                     text: "a cat".into(),
-                    cache_control: None,
                 }),
                 Content::Image(ImageContent {
                     data: "ref123".into(),
                     media_type: "image/png".into(),
-                    cache_control: None,
                 }),
             ],
         };
@@ -282,17 +280,17 @@ mod tests {
         assert_eq!(body["messages"][0]["content"][1]["type"], "image_url");
     }
 
-    #[test]
-    fn test_generate_images_missing_credentials() {
+    #[tokio::test]
+    async fn test_generate_images_missing_credentials() {
         std::env::remove_var("OPENROUTER_API_KEY");
         let model = test_model("http://127.0.0.1:0".into());
         let context = ImagesContext { input: vec![] };
-        let result = generate_images(&model, &context, &ImagesOptions::default());
+        let result = generate_images(&model, &context, &ImagesOptions::default()).await;
         assert_eq!(result.stop_reason, StopReason::Error);
     }
 
-    #[test]
-    fn test_generate_images_success() {
+    #[tokio::test]
+    async fn test_generate_images_success() {
         let body = "{\"choices\":[{\"message\":{\"content\":\"here is a cat\",\"images\":[{\"image_url\":\"data:image/png;base64,abc123\"}]}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}";
         let base_url = spawn_mock_server("HTTP/1.1 200 OK", body);
         let model = test_model(base_url);
@@ -300,7 +298,6 @@ mod tests {
             input: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "a cat".into(),
-                cache_control: None,
             })],
         };
         let options = ImagesOptions {
@@ -308,7 +305,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_images(&model, &context, &options);
+        let result = generate_images(&model, &context, &options).await;
         assert_eq!(result.stop_reason, StopReason::Stop);
         assert_eq!(result.output.len(), 2);
         match &result.output[0] {
@@ -327,8 +324,8 @@ mod tests {
         assert_eq!(usage.output, 5);
     }
 
-    #[test]
-    fn test_generate_images_http_error() {
+    #[tokio::test]
+    async fn test_generate_images_http_error() {
         let base_url = spawn_mock_server(
             "HTTP/1.1 429 Too Many Requests",
             "{\"error\":\"rate limited\"}",
@@ -340,7 +337,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = generate_images(&model, &context, &options);
+        let result = generate_images(&model, &context, &options).await;
         assert_eq!(result.stop_reason, StopReason::Error);
         assert!(result.error_message.unwrap().contains("429"));
     }

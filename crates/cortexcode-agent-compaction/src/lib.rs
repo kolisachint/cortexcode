@@ -90,7 +90,6 @@ impl CompactionStrategy for SummaryStrategy {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: format!("[Summary of earlier conversation]\n{}", summary_text),
-                cache_control: None,
             })],
             timestamp: cortexcode_ai_types::now_ms(),
         }));
@@ -126,7 +125,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-                cache_control: None,
             })],
             timestamp: 0,
         }))

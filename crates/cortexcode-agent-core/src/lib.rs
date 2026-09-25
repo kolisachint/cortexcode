@@ -490,6 +490,7 @@ impl Agent {
         let inner = self.inner.lock().unwrap();
 
         Ok(AgentLoopConfig {
+            cache_retention: None,
             model: inner.model.clone(),
             reasoning: if inner.thinking_level == ThinkingLevel::Off {
                 None
@@ -529,9 +530,9 @@ impl Agent {
             transport: None,
             on_payload: None,
             on_response: None,
-            cache_control_format: None,
+
             send_session_affinity_headers: None,
-            supports_long_cache_retention: None,
+
             prompt_suffix: None,
         })
     }

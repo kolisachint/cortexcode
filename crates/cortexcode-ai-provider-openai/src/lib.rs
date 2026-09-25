@@ -317,7 +317,6 @@ impl StreamState {
                 BlockRef::Text => Content::Text(TextContent {
                     text_signature: None,
                     text: self.text_buf.clone(),
-                    cache_control: None,
                 }),
                 BlockRef::Thinking => Content::Thinking(ThinkingContent {
                     redacted: false,
@@ -363,7 +362,6 @@ impl StreamState {
                     self.partial.content.push(Content::Text(TextContent {
                         text_signature: None,
                         text: std::mem::take(&mut self.text_buf),
-                        cache_control: None,
                     }));
                     sender.push(AssistantMessageEvent::TextEnd {
                         index: idx,

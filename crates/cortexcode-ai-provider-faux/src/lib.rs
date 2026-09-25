@@ -402,7 +402,6 @@ pub fn faux_text(text: &str) -> Content {
     Content::Text(TextContent {
         text_signature: None,
         text: text.to_string(),
-        cache_control: None,
     })
 }
 

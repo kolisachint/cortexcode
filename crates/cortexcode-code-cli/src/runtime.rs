@@ -172,13 +172,21 @@ fn oauth_api_key(provider: &str) -> Option<String> {
 
     // Expired: attempt a refresh, persisting the new tokens on success.
     let refreshed = match store_key {
-        "anthropic" => cortexcode_ai_oauth::anthropic::refresh_token(&credentials.refresh).ok(),
+        "anthropic" => async_runtime()
+            .block_on(cortexcode_ai_oauth::anthropic::refresh_token(
+                &credentials.refresh,
+            ))
+            .ok(),
         "github-copilot" => {
             let enterprise = credentials
                 .extra
                 .get("enterprise_url")
                 .and_then(|v| v.as_str());
-            cortexcode_ai_oauth::github_copilot::refresh_token(&credentials.refresh, enterprise)
+            async_runtime()
+                .block_on(cortexcode_ai_oauth::github_copilot::refresh_token(
+                    &credentials.refresh,
+                    enterprise,
+                ))
                 .ok()
         }
         _ => None,
@@ -424,9 +432,9 @@ fn build_agent_with_gate(
     Ok((agent, subscription))
 }
 
-/// The tokio runtime the CLI drives the agent on. Provider streams spawn
-/// onto it (`spawn_producer` uses the current runtime).
-fn async_runtime() -> &'static tokio::runtime::Runtime {
+/// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider
+/// streams spawn onto it (`spawn_producer` uses the current runtime).
+pub(crate) fn async_runtime() -> &'static tokio::runtime::Runtime {
     static RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
     RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -442,7 +450,6 @@ fn text_message(text: &str) -> AgentMessage {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.to_string(),
-            cache_control: None,
         })],
         timestamp: cortexcode_ai_types::now_ms(),
     }))

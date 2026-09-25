@@ -334,6 +334,38 @@ fn is_non_overflow(msg: &str) -> bool {
     })
 }
 
+// ---------------------------------------------------------------------------
+// Cache retention (providers/cache-retention.ts)
+// ---------------------------------------------------------------------------
+
+/// `resolveCacheRetention`: the explicit preference, else the
+/// `CORTEXCODE_CACHE_RETENTION` / `HOOCODE_CACHE_RETENTION` environment
+/// variable (`short`, `long` or `none`), else `long`.
+pub fn resolve_cache_retention(
+    cache_retention: Option<cortexcode_ai_types::CacheRetention>,
+) -> cortexcode_ai_types::CacheRetention {
+    resolve_cache_retention_with(cache_retention, |var| std::env::var(var).ok())
+}
+
+fn resolve_cache_retention_with(
+    cache_retention: Option<cortexcode_ai_types::CacheRetention>,
+    env: impl Fn(&str) -> Option<String>,
+) -> cortexcode_ai_types::CacheRetention {
+    use cortexcode_ai_types::CacheRetention;
+    if let Some(retention) = cache_retention {
+        return retention;
+    }
+    for var in ["CORTEXCODE_CACHE_RETENTION", "HOOCODE_CACHE_RETENTION"] {
+        match env(var).as_deref() {
+            Some("short") => return CacheRetention::Short,
+            Some("long") => return CacheRetention::Long,
+            Some("none") => return CacheRetention::None,
+            _ => {}
+        }
+    }
+    CacheRetention::Long
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,5 +545,43 @@ mod tests {
         };
         assert!(is_context_overflow(&msg, Some(100_000)));
         assert!(!is_context_overflow(&msg, Some(200_000)));
+    }
+
+    #[test]
+    fn cache_retention_prefers_explicit_then_env_then_long() {
+        use cortexcode_ai_types::CacheRetention;
+        let no_env = |_: &str| None;
+        assert_eq!(
+            resolve_cache_retention_with(None, no_env),
+            CacheRetention::Long
+        );
+        assert_eq!(
+            resolve_cache_retention_with(Some(CacheRetention::None), |_| Some("long".into())),
+            CacheRetention::None
+        );
+        let hoocode_short = |v: &str| (v == "HOOCODE_CACHE_RETENTION").then(|| "short".into());
+        assert_eq!(
+            resolve_cache_retention_with(None, hoocode_short),
+            CacheRetention::Short
+        );
+        let both = |v: &str| {
+            Some(
+                if v == "CORTEXCODE_CACHE_RETENTION" {
+                    "none"
+                } else {
+                    "short"
+                }
+                .to_string(),
+            )
+        };
+        assert_eq!(
+            resolve_cache_retention_with(None, both),
+            CacheRetention::None
+        );
+        // Unknown values are ignored.
+        assert_eq!(
+            resolve_cache_retention_with(None, |_| Some("forever".into())),
+            CacheRetention::Long
+        );
     }
 }

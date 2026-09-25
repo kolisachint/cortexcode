@@ -5,13 +5,36 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (expected: **7.3c**).
+- Next task: run `python3 migration/ledger.py next`. 7.3 (async core) is complete; 7.5
+  (agent + loop parity), 8.3, 8.5, 8.7, 9.1 and 10.2b are unblocked by it.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
   (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
   as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 7.3c done (no reqwest::blocking left; cache_control in request building)
+- ai-oauth (anthropic token exchange/refresh, GitHub Copilot device flow + refresh), ai-images
+  (`generate_images`) and code-tools (`webfetch`/`websearch` placeholders) are async; nothing in
+  the workspace enables reqwest's `blocking` feature. code-cli runs the OAuth calls through its
+  `async_runtime()`. Placeholder tools bridge with a `block_on` helper (block_in_place on the
+  runtime, or a throwaway runtime in unit tests) until 10.2e replaces them. code-tools' reqwest
+  now uses rustls like the rest.
+- ai-types: `TextContent`/`ImageContent.cache_control` and `CacheControl` are gone, as are the
+  cortex-invented `cache_control_format` / `supports_long_cache_retention` stream options (in
+  TS those are openai-completions `compat` fields: 8.2/8.5). New `CacheRetention`
+  (none/short/long) + `cache_retention` on the stream options and `AgentLoopConfig`, forwarded
+  by the loop.
+- ai-util `resolve_cache_retention` (cache-retention.ts): explicit, else
+  `CORTEXCODE_CACHE_RETENTION` / `HOOCODE_CACHE_RETENTION`, else long.
+- anthropic request building follows `buildParams`/`convertTools`/`convertMessages`: the
+  system prompt is always a text-block array; `cache_control` (`{"type":"ephemeral","ttl":"1h"}`
+  for long unless `compat.supportsLongCacheRetention` is false; no ttl for short; none for
+  none) goes on the system block, the last tool and the last block of a final user turn. Other
+  anthropic request gaps (OAuth identity block, tool schema shape, adaptive thinking) are 8.5.
+- `fix_struct_fields.py` learned the removed fields (59 edits).
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 7.3b done (async agent loop + core)
 - agent-loop: `run_agent_loop`/`run_agent_loop_continue` and the turn/tool helpers are async.

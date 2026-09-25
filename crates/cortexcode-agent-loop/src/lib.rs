@@ -190,6 +190,7 @@ async fn stream_assistant_response(
         reasoning: config.reasoning.clone(),
         thinking_budgets: config.thinking_budgets.clone(),
         thinking_display: config.thinking_display.clone(),
+        cache_retention: config.cache_retention,
         ..Default::default()
     };
 
@@ -597,7 +598,6 @@ fn create_error_tool_result(message: String) -> AgentToolResult {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: message,
-            cache_control: None,
         })],
         details: serde_json::json!({}),
         terminate: false,

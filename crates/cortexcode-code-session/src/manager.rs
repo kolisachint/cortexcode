@@ -1357,7 +1357,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-                cache_control: None,
             })],
             timestamp: 0,
         }))
@@ -1374,7 +1373,6 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-                cache_control: None,
             })],
             stop_reason: cortexcode_ai_types::StopReason::Stop,
 

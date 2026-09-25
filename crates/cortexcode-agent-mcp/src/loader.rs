@@ -110,7 +110,6 @@ fn create_agent_tool(server_name: &str, conn: &McpConnectionRef, tool: &McpToolD
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text,
-                    cache_control: None,
                 })],
                 details: result,
                 terminate: false,
