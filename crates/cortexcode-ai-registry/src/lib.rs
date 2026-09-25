@@ -48,6 +48,10 @@ fn builtins() -> Vec<(&'static str, ApiStreamSimpleFn)> {
             Arc::new(cortexcode_ai_provider_openai::stream),
         ),
         (
+            "openai-responses",
+            Arc::new(cortexcode_ai_provider_openai_responses::stream),
+        ),
+        (
             "azure-openai-responses",
             Arc::new(cortexcode_ai_provider_azure::stream),
         ),

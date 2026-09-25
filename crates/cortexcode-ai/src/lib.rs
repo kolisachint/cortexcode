@@ -12,6 +12,7 @@ pub use cortexcode_ai_provider_azure as provider_azure;
 pub use cortexcode_ai_provider_faux as provider_faux;
 pub use cortexcode_ai_provider_google as provider_google;
 pub use cortexcode_ai_provider_openai as provider_openai;
+pub use cortexcode_ai_provider_openai_responses as provider_openai_responses;
 pub use cortexcode_ai_registry as registry;
 pub use cortexcode_ai_stream as stream;
 pub use cortexcode_ai_types as types;

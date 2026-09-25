@@ -381,6 +381,45 @@ fn resolve_cache_retention_with(
     CacheRetention::Long
 }
 
+// ---------------------------------------------------------------------------
+// OpenAI SDK errors
+// ---------------------------------------------------------------------------
+
+/// The message of the `openai` SDK's `APIError` for a non-2xx response
+/// (`APIError.makeMessage` with the body parsed by `safeJSON`), which hoocode
+/// reports as the assistant `errorMessage`. The retry-after suffix of
+/// `describeProviderError` arrives with the retry utilities (8.5).
+pub fn openai_api_error_message(status: u16, body: &str) -> String {
+    fn truthy(v: &serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => false,
+            serde_json::Value::Bool(b) => *b,
+            serde_json::Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+            serde_json::Value::String(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+    let parsed: Option<serde_json::Value> = serde_json::from_str(body).ok();
+    let error = parsed
+        .as_ref()
+        .and_then(|v| v.get("error"))
+        .filter(|e| truthy(e));
+    let msg = match error {
+        Some(e) => match e.get("message").filter(|m| truthy(m)) {
+            Some(serde_json::Value::String(m)) => m.clone(),
+            Some(m) => m.to_string(),
+            None => e.to_string(),
+        },
+        None if parsed.is_none() => body.to_string(),
+        None => String::new(),
+    };
+    if msg.is_empty() {
+        format!("{status} status code (no body)")
+    } else {
+        format!("{status} {msg}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

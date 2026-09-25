@@ -17,6 +17,7 @@ cortexcode-ai-stream = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-ai-provider-anthropic = { workspace = true }
 cortexcode-ai-provider-openai = { workspace = true }
+cortexcode-ai-provider-openai-responses = { workspace = true }
 cortexcode-ai-provider-google = { workspace = true }
 cortexcode-ai-provider-azure = { workspace = true }
 

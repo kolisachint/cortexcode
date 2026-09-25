@@ -14,6 +14,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 8.3 done (openai-responses crate; azure on top of it)
+- New crate `ai-provider-openai-responses`: `shared` = openai-responses-shared.ts
+  (`convert_responses_messages` incl. foreign `fc_<hash>` item ids, different-model fc id
+  drop, TextSignatureV1 ids/phase, reasoning-item replay, image tool outputs;
+  `convert_responses_tools`; `ResponsesStreamState` = processResponsesStream with summary /
+  content-part tracking, refusals, arguments.done deltas, usage + cost, service-tier hook,
+  error/failed events; `run_responses_stream` HTTP driver). lib = openai-responses.ts
+  (`stream`, `stream_responses(ResponsesOptions)`, cache-affinity headers + compat,
+  reasoning off/none defaults, Copilot exception, service-tier pricing).
+- ai-provider-azure rewritten on the shared crate (request.rs gone): option/env/model base
+  URL resolution + normalization via `reqwest::Url`, deployment-name map, `api-key` header,
+  `{base}/responses?api-version=` with the query replaced (as the SDK's buildURL), config
+  errors surface as stream `error` events.
+- `openai-responses` registered in ai-registry; routing test no longer lists it as pending.
+  `openai_api_error_message` moved to ai-util (openai crate re-exports it).
+- Tests: copilot-provider, foreign-toolcall-id, partial-json-cleanup, tool-result-images
+  (conversion), azure-openai-base-url ported; the two live e2e files are `#[ignore]`d.
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 8.2 done (openai-completions parity; env-api-keys parity; routing)
 - provider-openai is a port of openai-completions.ts: `getCompat`/`detectCompat`
   (`request::ResolvedCompat`), `buildParams` (prompt_cache_key/retention, store,

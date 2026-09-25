@@ -835,7 +835,7 @@
    "id": "8.3",
    "title": "New crate ai-provider-openai-responses (extracted from azure); openai-responses API; azure depends on it",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a"
    ],
@@ -854,7 +854,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:16:35Z",
+     "commit": "eae3620",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:24:25Z",
+     "commit": "eae3620",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.4a",

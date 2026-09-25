@@ -16,7 +16,6 @@ use std::collections::BTreeMap;
 /// APIs in the catalog whose providers are not ported yet, with the ledger
 /// task that ports them. Remove an entry when its task registers the API.
 const PENDING_APIS: &[(&str, &str)] = &[
-    ("openai-responses", "8.3"),
     ("openai-codex-responses", "8.4a"),
     ("google-gemini-cli", "8.4c"),
 ];
@@ -106,7 +105,7 @@ fn every_registered_provider_streams_through_its_api() {
             "openai-completions" => "/chat/completions",
             "anthropic-messages" => "/messages",
             "google-generative-ai" | "google-vertex" => ":streamGenerateContent",
-            "azure-openai-responses" => "/responses",
+            "openai-responses" | "azure-openai-responses" => "/responses",
             other => panic!("{label}: no expected path for {other}"),
         };
         assert!(path.contains(expected), "{label}: {path}");
