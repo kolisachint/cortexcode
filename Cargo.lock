@@ -461,10 +461,11 @@ dependencies = [
 name = "cortexcode-ai-provider-google"
 version = "0.0.1"
 dependencies = [
- "base64 0.21.7",
- "cortexcode-ai-sse",
+ "cortexcode-ai-env",
+ "cortexcode-ai-models",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "futures-util",
  "jsonwebtoken",
  "reqwest",

@@ -1198,7 +1198,7 @@
    "id": "8.6d",
    "title": "Google provider tests: convert-tools, gemini3 unsigned tool call, image tool-result routing, thinking signature/disable, vertex API-key resolution",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.6b"
    ],
@@ -1221,7 +1221,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T17:28:39Z",
+     "commit": "1854935",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:39:12Z",
+     "commit": "1854935",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.6e",

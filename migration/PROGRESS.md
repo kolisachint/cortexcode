@@ -7,7 +7,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 - Next task: run `python3 migration/ledger.py next`. 8.6 was split (too big: 41 of 68 ai
   test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, done),
-  8.6c (anthropic, done), 8.6d (google tests; next), 8.6e
+  8.6c (anthropic, done), 8.6d (google, done), 8.6e (next)
   (cross-provider suites, mostly live `#[ignore]`). Codex/Copilot/gemini-cli/OAuth test
   files stay with 8.4a/8.4b/8.4c/8.7; transform-messages-copilot-openai-to-anthropic was
   added to 8.4b.
@@ -19,6 +19,31 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.6d done (google.ts / google-vertex.ts / google-shared.ts re-port)
+- ai-provider-google rebuilt: shared.rs = google-shared.ts (convertMessages with
+  transformMessages + id normalization for claude-/gpt-oss-, base64 thought-signature
+  validation for same provider/model only, merged function responses, Gemini 3 nested vs
+  Gemini <3 separate image turn; convertTools with sanitizeForOpenApi; isThinkingPart,
+  retainThoughtSignature, mapToolChoice, mapStopReason(+String)). request.rs =
+  `GoogleOptions`/`GoogleThinking`, both streamSimple mappings (levels for Gemini 3 / Gemma 4,
+  budgets for 2.5, disabled configs), buildParams (`{model, contents, config}`), and the
+  @google/genai 1.52 pieces: `sdk_body` (REST mapping incl. part key order),
+  `ClientConfig` (= `new GoogleGenAI({...})` options; vertex API-key vs ADC choice, custom
+  base URL with COLLECTION scope, api version) and `ClientConfig::endpoint` (= ApiClient URL:
+  regional / global / multi-region hosts, project path, `x-goog-api-key` or ADC Bearer).
+  adc.rs: GOOGLE_APPLICATION_CREDENTIALS (service_account, authorized_user), gcloud
+  well-known file, metadata server (external_account not supported). lib.rs: the stream loop
+  (SDK chunk decoder with its three delimiters and error-chunk check, ApiError messages,
+  block switching, retained signatures, `<name>_<ms>_<n>` ids for missing/duplicate ids,
+  usage + cost, finishReason errors, `Request aborted` when pre-aborted).
+- Behaviour changes vs the old crate: Vertex no longer reads GOOGLE_VERTEX_ACCESS_TOKEN /
+  GOOGLE_ACCESS_TOKEN or defaults the location to us-central1 (hoocode does neither).
+  The SDK's `gl-node/<version>` user-agent part is `gl-rust/cortexcode`.
+- Tests: vertex-api-key-resolution (as ClientConfig), thinking-signature, convert-tools,
+  gemini3-unsigned-tool-call, image-tool-result-routing, thinking payloads, stream/SDK
+  tests; live thinking-disable E2E in `tests/live_e2e.rs` (`#[ignore]`).
+- Next: 8.6e via `ledger.py next`.
 
 ### 2026-09-25: 8.6c done (anthropic.ts re-port + its tests)
 - ai-provider-anthropic is now a port of anthropic.ts: `stream` = streamSimpleAnthropic
