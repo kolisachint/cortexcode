@@ -457,10 +457,10 @@
    ]
   },
   {
-   "id": "7.3",
-   "title": "Async core: async reqwest + shared SSE decoder crate ai-sse (eventsource-stream), futures Stream events, CancellationToken abort; drop reqwest::blocking",
+   "id": "7.3a",
+   "title": "Async streams: ai-sse crate (eventsource-stream), EventStream port (futures Stream + result future), AbortSignal on CancellationToken, the four providers on async reqwest (drop their sse.rs + reqwest::blocking); abort keeps partial content with stopReason aborted",
    "phase": 7,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "10.8a"
    ],
@@ -472,8 +472,8 @@
     "cortexcode-ai-provider-openai",
     "cortexcode-ai-provider-google",
     "cortexcode-ai-provider-azure",
-    "cortexcode-agent-loop",
-    "cortexcode-agent-core"
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-registry"
    ],
    "sources": [
     "packages/ai/src/utils/event-stream.ts",
@@ -488,9 +488,97 @@
     "print-basic",
     "print-tool-read-light"
    ],
-   "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
+   "notes": "Refactor under L2 guard: M1 scenarios must stay green. The sync agent loop may bridge with a block_on until 7.3b. abort.test.ts/stream.test.ts are live-key e2e: port as #[ignore] live tests plus local mock-server tests of the same assertions.",
    "log": [
-    "2026-09-25: L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+    {
+     "at": "2026-09-25",
+     "commit": "c6d1ff8",
+     "kind": "note",
+     "text": "L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+    },
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    },
+    {
+     "at": "2026-09-25T05:26:48Z",
+     "commit": "9ea58f3",
+     "kind": "start",
+     "text": "started"
+    }
+   ]
+  },
+  {
+   "id": "7.3b",
+   "title": "Async agent loop + agent core on tokio (stream consumption, tool execution, CancellationToken abort reaching the provider stream); async consumers (code-cli runtime/print/rpc, subagents); remove the block_on bridge",
+   "phase": 7,
+   "status": "todo",
+   "depends": [
+    "7.3a"
+   ],
+   "crates": [
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-core",
+    "cortexcode-code-cli",
+    "cortexcode-code-print",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/agent.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic",
+    "print-tool-read-light"
+   ],
+   "notes": "Mechanics only (async + abort plumbing); full loop parity (steering/follow-ups/parallel tools/event sequence) stays in 7.5.",
+   "log": [
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    }
+   ]
+  },
+  {
+   "id": "7.3c",
+   "title": "Drop remaining reqwest::blocking (ai-oauth, ai-images, code-tools) and move prompt-caching decisions into request building (delete TextContent/ImageContent.cache_control)",
+   "phase": 7,
+   "status": "todo",
+   "depends": [
+    "7.3b"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-ai-oauth",
+    "cortexcode-ai-images",
+    "cortexcode-code-tools",
+    "cortexcode-ai-provider-anthropic"
+   ],
+   "sources": [
+    "packages/ai/src/providers/anthropic.ts",
+    "packages/ai/src/providers/cache-retention.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "print-basic",
+    "print-tool-read-light"
+   ],
+   "notes": "7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
+   "log": [
+    {
+     "at": "2026-09-25T05:26:43Z",
+     "commit": "9ea58f3",
+     "kind": "note",
+     "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    }
    ]
   },
   {
@@ -522,7 +610,7 @@
    "phase": 7,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3b"
    ],
    "crates": [
     "cortexcode-agent-core",
@@ -601,7 +689,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3a"
    ],
    "crates": [
     "cortexcode-ai-provider-openai-responses",
@@ -675,7 +763,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3",
+    "7.3a",
     "8.7"
    ],
    "crates": [
@@ -701,7 +789,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3a"
    ],
    "crates": [
     "cortexcode-ai-util",
@@ -749,7 +837,7 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "7.3"
+    "7.3c"
    ],
    "crates": [
     "cortexcode-ai-oauth",
@@ -774,7 +862,7 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.3",
+    "7.3b",
     "7.1"
    ],
    "crates": [
@@ -899,7 +987,7 @@
    "status": "todo",
    "depends": [
     "10.2a",
-    "7.3"
+    "7.3b"
    ],
    "crates": [
     "cortexcode-code-tool-bash"
