@@ -95,6 +95,7 @@ pub fn wrap_tool_definition(
 ) -> AgentTool {
     let execute = definition.execute.clone();
     AgentTool {
+        plain_json_schema: false,
         name: definition.name,
         label: definition.label,
         description: definition.description,

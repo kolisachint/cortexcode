@@ -10,6 +10,7 @@ mod partial_json;
 mod retry_delay;
 mod tool_constraints;
 mod transform_messages;
+mod validation;
 
 pub use copilot_headers::{
     build_copilot_dynamic_headers, has_copilot_vision_input, infer_copilot_initiator,
@@ -27,6 +28,10 @@ pub use retry_delay::{
 };
 pub use tool_constraints::to_strict_json_schema;
 pub use transform_messages::{transform_messages, NormalizeToolCallId};
+pub use validation::{
+    check_schema, coerce_with_json_schema, schema_validation_errors, typebox_convert,
+    validate_tool_arguments, SchemaOrigin, ValidationError,
+};
 
 // ---------------------------------------------------------------------------
 // hash

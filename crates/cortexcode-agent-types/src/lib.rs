@@ -328,6 +328,10 @@ pub struct AgentTool {
     pub execute: ToolExecuteFn,
     pub background: bool,
     pub execution_mode: Option<ToolExecutionMode>,
+    /// The parameters are a plain JSON schema (MCP tools) rather than one
+    /// hoocode builds with TypeBox: validation then applies
+    /// `coerceWithJsonSchema` instead of TypeBox `Value.Convert`.
+    pub plain_json_schema: bool,
 }
 
 impl std::fmt::Debug for AgentTool {
@@ -409,6 +413,7 @@ impl AgentTool {
             execute: std::sync::Arc::from(execute),
             background: false,
             execution_mode: None,
+            plain_json_schema: false,
         }
     }
 }
@@ -424,6 +429,7 @@ impl Clone for AgentTool {
             execute: std::sync::Arc::clone(&self.execute),
             background: self.background,
             execution_mode: self.execution_mode.clone(),
+            plain_json_schema: self.plain_json_schema,
         }
     }
 }

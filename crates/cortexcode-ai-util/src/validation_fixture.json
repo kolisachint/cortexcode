@@ -1,0 +1,167 @@
+{
+ "schema": {
+  "type": "object",
+  "required": [
+   "path"
+  ],
+  "properties": {
+   "path": {
+    "type": "string",
+    "description": "Path to the file to read"
+   },
+   "offset": {
+    "type": "number",
+    "description": "Line number to start from"
+   },
+   "limit": {
+    "type": "integer",
+    "minimum": 1
+   },
+   "mode": {
+    "anyOf": [
+     {
+      "type": "string",
+      "const": "a"
+     },
+     {
+      "type": "string",
+      "const": "b"
+     }
+    ]
+   },
+   "tags": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "flag": {
+    "type": "boolean"
+   }
+  },
+  "additionalProperties": false
+ },
+ "typebox": [
+  {
+   "args": {
+    "path": "a.txt",
+    "offset": "5",
+    "limit": "2.7",
+    "flag": "true",
+    "tags": "x"
+   },
+   "ok": {
+    "path": "a.txt",
+    "offset": 5,
+    "limit": 2,
+    "flag": true,
+    "tags": [
+     "x"
+    ]
+   }
+  },
+  {
+   "args": {
+    "path": 12,
+    "offset": null,
+    "flag": 1
+   },
+   "ok": {
+    "path": "12",
+    "offset": 0,
+    "flag": true
+   }
+  },
+  {
+   "args": {
+    "offset": "abc"
+   },
+   "err": "Validation failed for tool \"read\":\n  - path: must have required properties path\n  - offset: must be number\n\nReceived arguments:\n{\n  \"offset\": \"abc\"\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "extra": 1,
+    "limit": 0
+   },
+   "err": "Validation failed for tool \"read\":\n  - root: must not have additional properties\n  - limit: must be >= 1\n\nReceived arguments:\n{\n  \"path\": \"a\",\n  \"extra\": 1,\n  \"limit\": 0\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "mode": "c",
+    "tags": [
+     1,
+     "b"
+    ]
+   },
+   "err": "Validation failed for tool \"read\":\n  - mode: must be equal to constant\n  - mode: must be equal to constant\n  - mode: must match a schema in anyOf\n\nReceived arguments:\n{\n  \"path\": \"a\",\n  \"mode\": \"c\",\n  \"tags\": [\n    1,\n    \"b\"\n  ]\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "limit": 1.5
+   },
+   "ok": {
+    "path": "a",
+    "limit": 1
+   }
+  }
+ ],
+ "plain": [
+  {
+   "args": {
+    "path": "a.txt",
+    "offset": "5",
+    "limit": "2.7",
+    "flag": "true",
+    "tags": "x"
+   },
+   "err": "Validation failed for tool \"read\":\n  - limit: must be integer\n  - tags: must be array\n\nReceived arguments:\n{\n  \"path\": \"a.txt\",\n  \"offset\": \"5\",\n  \"limit\": \"2.7\",\n  \"flag\": \"true\",\n  \"tags\": \"x\"\n}"
+  },
+  {
+   "args": {
+    "path": 12,
+    "offset": null,
+    "flag": 1
+   },
+   "ok": {
+    "path": "12",
+    "offset": 0,
+    "flag": true
+   }
+  },
+  {
+   "args": {
+    "offset": "abc"
+   },
+   "err": "Validation failed for tool \"read\":\n  - path: must have required properties path\n  - offset: must be number\n\nReceived arguments:\n{\n  \"offset\": \"abc\"\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "extra": 1,
+    "limit": 0
+   },
+   "err": "Validation failed for tool \"read\":\n  - root: must not have additional properties\n  - limit: must be >= 1\n\nReceived arguments:\n{\n  \"path\": \"a\",\n  \"extra\": 1,\n  \"limit\": 0\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "mode": "c",
+    "tags": [
+     1,
+     "b"
+    ]
+   },
+   "err": "Validation failed for tool \"read\":\n  - mode: must be equal to constant\n  - mode: must be equal to constant\n  - mode: must match a schema in anyOf\n\nReceived arguments:\n{\n  \"path\": \"a\",\n  \"mode\": \"c\",\n  \"tags\": [\n    1,\n    \"b\"\n  ]\n}"
+  },
+  {
+   "args": {
+    "path": "a",
+    "limit": 1.5
+   },
+   "err": "Validation failed for tool \"read\":\n  - limit: must be integer\n\nReceived arguments:\n{\n  \"path\": \"a\",\n  \"limit\": 1.5\n}"
+  }
+ ]
+}

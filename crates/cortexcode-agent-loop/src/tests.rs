@@ -277,6 +277,49 @@ async fn handles_tool_calls_and_results() {
     assert!(!end);
 }
 
+/// `validateToolArguments` in `prepareToolCall`: TypeBox-style conversion
+/// before execution, and TypeBox's error text as the tool result on failure.
+#[tokio::test]
+async fn converts_arguments_and_reports_validation_errors() {
+    let executed = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+    let e = executed.clone();
+    let mut count = tool("count", move |args| {
+        e.lock().unwrap().push(args.clone());
+        Ok(echo_result("ok: ", &args))
+    });
+    count.parameters = serde_json::json!({
+        "type": "object",
+        "properties": {"n": {"type": "integer", "minimum": 1}},
+        "required": ["n"]
+    });
+    let mut config = identity_config();
+    mock_stream(&mut config, |n, _| match n {
+        0 => tool_calls(&[
+            ("tool-1", "count", serde_json::json!({"n": "3"})),
+            ("tool-2", "count", serde_json::json!({"n": 0})),
+        ]),
+        _ => text("done"),
+    });
+    let (_, messages) = collect(agent_loop(
+        vec![user("count")],
+        context_with(vec![count]),
+        config,
+    ))
+    .await;
+    assert_eq!(*executed.lock().unwrap(), [serde_json::json!({"n": 3})]);
+    let failed = messages
+        .iter()
+        .filter_map(|m| match m.extract_message() {
+            Some(ai_types::Message::ToolResult(r)) if r.is_error => Some(text_of(&r.content)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        failed,
+        ["Validation failed for tool \"count\":\n  - n: must be >= 1\n\nReceived arguments:\n{\n  \"n\": 0\n}"]
+    );
+}
+
 #[tokio::test]
 async fn executes_mutated_before_tool_call_args_without_revalidation() {
     let executed = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));

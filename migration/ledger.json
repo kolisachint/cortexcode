@@ -1005,7 +1005,7 @@
    "id": "8.5b",
    "title": "validateToolArguments (TypeBox Convert-style coercion + JSON-schema validation via jsonschema, TS error format) in ai-util; wire into agent-loop",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.5a"
    ],
@@ -1021,7 +1021,9 @@
     "packages/ai/test/validation.test.ts"
    ],
    "l1_cmds": [],
-   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "l2": [
+    "print-tool-invalid-light"
+   ],
    "notes": "Split from 8.5 (2026-09-25).",
    "log": [
     {
@@ -1029,6 +1031,30 @@
      "commit": "632ecfe",
      "kind": "note",
      "text": "7.5a: agent-loop calls validate_tool_arguments() (crates/cortexcode-agent-loop), currently a pass-through; port validateToolArguments (TypeBox Convert + JSON-schema coercion, TS error format) and wire it there."
+    },
+    {
+     "at": "2026-09-25T15:39:02Z",
+     "commit": "8ff9654",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:46:56Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T15:47:02Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T15:47:16Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-invalid-light=pass"
     }
    ]
   },
@@ -1651,7 +1677,14 @@
     "mcp-tool-call"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:46:43Z",
+     "commit": "8ff9654",
+     "kind": "note",
+     "text": "8.5b: hoocode's mcp-loader rebuilds each MCP tool's parameters with TypeBox (buildMcpSchema: number/integer→Type.Number, boolean→Type.Boolean, else Type.String; Optional unless required), so validation takes the TypeBox Value.Convert path. cortex's agent-mcp build_schema passes the raw schema through; port buildMcpSchema here (AgentTool.plain_json_schema stays false)."
+    }
+   ]
   },
   {
    "id": "11.1",

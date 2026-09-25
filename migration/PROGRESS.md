@@ -14,6 +14,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 8.5b done (validateToolArguments)
+- ai-util `validation`: `validate_tool_arguments(name, schema, args, SchemaOrigin)` =
+  validation.ts. `typebox_convert` ports TypeBox 1.1 `Value.Convert` (TryNumber/Boolean/
+  String/Null/Array, unions, literals, enums; StringEnum/Unsafe untouched) for hoocode's
+  TypeBox tools; `coerce_with_json_schema` for plain JSON schemas; a validator reporting
+  TypeBox's errors (keyword order, instance paths, en_US messages) and the TS error text.
+- `AgentTool.plain_json_schema` (default false; hoocode builds MCP schemas with TypeBox
+  too, noted on 10.11). agent-loop's `prepareToolCall` now validates for real.
+- Tests: validation.test.ts ported; `validation_fixture.json` recorded from the pinned
+  hoocode with node (TypeBox and plain paths); agent-loop conversion/error test.
+- New L2 scenario `print-tool-invalid-light` (read called without path): the tool-result
+  error text in the next request matches hoocode byte-for-byte.
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 8.5 split; 8.5a done (retry-delay + SDK retries, overflow, partial JSON)
 - Ledger: 8.5 split into 8.5a (retry-delay, SDK retry policy, overflow, json-parse,
   cross-provider handoff) and 8.5b (validation.ts + agent-loop wiring). The claude-5-models
