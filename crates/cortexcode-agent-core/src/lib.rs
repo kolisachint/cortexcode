@@ -579,7 +579,10 @@ impl From<AgentMessage> for PromptInput {
 #[cfg(test)]
 mod transcript_tests {
     use super::*;
-    use cortexcode_ai_provider_faux::{faux_text_message, FauxProvider, FauxResponseStep};
+    use cortexcode_ai_provider_faux::{
+        faux_message, faux_text_message, faux_tool_call, FauxProvider, FauxResponseStep,
+    };
+    use cortexcode_ai_types::Content;
 
     fn model() -> Model {
         Model {
@@ -636,5 +639,102 @@ mod transcript_tests {
             })
             .collect();
         assert_eq!(roles, ["user", "assistant", "user", "assistant"]);
+    }
+
+    fn agent_with_tools(
+        faux: &Arc<FauxProvider>,
+        tools: Vec<cortexcode_agent_types::AgentTool>,
+    ) -> Agent {
+        Agent::with_options(AgentOptions {
+            initial_state: Some(AgentState {
+                system_prompt: String::new(),
+                model: model(),
+                thinking_level: ThinkingLevel::Off,
+                tools: cortexcode_agent_types::AgentTools::new(tools),
+                messages: Vec::new(),
+                is_streaming: false,
+                streaming_message: None,
+                pending_tool_calls: Default::default(),
+                error_message: None,
+            }),
+            stream_fn: Some(Arc::new(faux.stream_fn())),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn tool_results_match_hoocode_messages_and_events() {
+        let faux = Arc::new(FauxProvider::new());
+        faux.set_responses(vec![
+            FauxResponseStep::Message(faux_message(
+                vec![
+                    faux_tool_call("fails", serde_json::json!({}), Some("c1".into())),
+                    faux_tool_call("detailed", serde_json::json!({}), Some("c2".into())),
+                    faux_tool_call("missing", serde_json::json!({}), Some("c3".into())),
+                ],
+                Some(cortexcode_ai_types::StopReason::ToolUse),
+                None,
+            )),
+            FauxResponseStep::Message(faux_text_message("done", None)),
+        ]);
+        let fails = cortexcode_agent_types::AgentTool::new(
+            "fails",
+            "",
+            serde_json::json!({"type": "object"}),
+            Box::new(|_, _, _, _| Err("ENOENT: no such file or directory, access '/x'".into())),
+        );
+        let detailed = cortexcode_agent_types::AgentTool::new(
+            "detailed",
+            "",
+            serde_json::json!({"type": "object"}),
+            Box::new(|_, _, _, _| {
+                Ok(cortexcode_agent_types::AgentToolResult {
+                    content: vec![Content::text("ok")],
+                    details: serde_json::json!({"k": 1}),
+                    terminate: false,
+                })
+            }),
+        );
+        let agent = agent_with_tools(&faux, vec![fails, detailed]);
+        let ended = Arc::new(Mutex::new(Vec::new()));
+        let sink = ended.clone();
+        let _sub = agent.subscribe(move |event| {
+            if let AgentEvent::MessageEnd {
+                message: AgentMessage::ToolResult(m),
+            } = event
+            {
+                sink.lock().unwrap().push(m.tool_call_id.clone());
+            }
+        });
+        agent.prompt(PromptInput::Text("go".into())).unwrap();
+
+        let results: Vec<_> = agent
+            .state()
+            .messages
+            .into_iter()
+            .filter_map(|m| match m {
+                AgentMessage::ToolResult(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+        let text = |r: &cortexcode_ai_types::ToolResultMessage| match &r.content[0] {
+            Content::Text(t) => t.text.clone(),
+            other => panic!("{other:?}"),
+        };
+        // A thrown error is its message, unprefixed, with empty details.
+        assert_eq!(
+            text(&results[0]),
+            "ENOENT: no such file or directory, access '/x'"
+        );
+        assert!(results[0].is_error);
+        assert_eq!(results[0].details, Some(serde_json::json!({})));
+        // A tool's details reach the message.
+        assert_eq!(results[1].details, Some(serde_json::json!({"k": 1})));
+        assert!(!results[1].is_error);
+        // An unknown tool is an error result.
+        assert_eq!(text(&results[2]), "Tool missing not found");
+        assert!(results[2].is_error);
+        // Each tool result is announced with message_start/message_end.
+        assert_eq!(*ended.lock().unwrap(), ["c1", "c2", "c3"]);
     }
 }

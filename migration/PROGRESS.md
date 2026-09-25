@@ -7,9 +7,43 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 - Next task: run `python3 migration/ledger.py next`.
 - Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
-  pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
+  pass; 10.2a (l1_done) + 10.4c make `print-tool-read` pass, including identical model requests.
 
 ## Log
+
+### 2026-09-25: 10.2a l1_done (read tool at pin semantics)
+- New crates:
+  - `code-tool-api`: `truncate` (800 lines / 32KB, JS `toFixed` rounding in `format_size`),
+    `path_utils` (`resolveReadPath` with the AM/PM, NFD and curly-quote variants; `code-cli`'s
+    `@file` handling now uses it), `ToolDefinition` + `wrap_tool_definition` with a
+    `ToolContext` (model, session branch), and Node-style fs errors (`ENOENT: ..., access '/x'`).
+  - `code-media`, created early because `read` needs it: `file-type`-style sniffing (APNG
+    rejected, BOM skipped) and `resize_image`/`format_dimension_note` on the `image` crate.
+    11.4 adds clipboard.
+  - `code-tools-fs`: `read` and `read_dedup`. JS number/slice semantics are ported for odd
+    offset/limit values, checked against the pinned hoocode. All read cases of `tools.test.ts`
+    and the `findCoveringRead` half of `read-dedup.test.ts` are ported.
+- `code-tools::default_tools_with` takes read options + a context factory. The runtime passes
+  the model, plus a `LiveTranscript` fed by `message_end` events (stands in for the session
+  branch until 10.3). It uses hoocode's default settings: dedup on, since `contextGc.enabled`
+  defaults to true (settings are 10.1).
+- Agent-loop parity fixes:
+  - tool errors are the bare message with `details: {}` (no `Error: ` prefix);
+  - unknown or blocked tools are error results (`Tool x not found`, `Tool execution was blocked`);
+  - tool `details` reach the tool result message;
+  - tool results emit `message_start`/`message_end`: in parallel mode after the whole batch,
+    so sibling reads don't dedup against each other (tools still run one at a time);
+  - the abort signal reaches tools.
+- `serde_json` `preserve_order` (enabled via ai-types): cortex re-serialized tool-call
+  arguments with sorted keys; hoocode keeps insertion order.
+- L2: new scenario `print-tool-read-paging` (selfcheck stable): truncation, paging, ENOENT,
+  EISDIR, PDF note, dedup pointer. Every read result is byte-identical. Both scenarios still fail,
+  but only on:
+  - the system prompt (10.4c);
+  - hoocode's context GC stubbing superseded reads, which no ledger task covered. Added
+    **10.2g** (context-gc.ts + transformContext wiring).
+- Next: `ledger.py next` (10.4c turns print-tool-read green; 10.2g turns paging green once
+  10.4c lands).
 
 ### 2026-09-25: fix — tools never executed (agent-loop used a closure-less clone)
 - `prepare_tool_call` handed the loop `tool.clone_via_fields()`. That clone's `execute` always

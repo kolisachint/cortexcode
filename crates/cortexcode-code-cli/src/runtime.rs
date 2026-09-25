@@ -7,8 +7,8 @@
 
 use crate::Args;
 use cortexcode_agent_core::PromptInput;
-use cortexcode_agent_core::{Agent, AgentOptions};
-use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
+use cortexcode_agent_core::{Agent, AgentOptions, Subscription};
+use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_types::{
     AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
@@ -18,7 +18,11 @@ use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
 use cortexcode_code_prompts::{system_prompt, Mode};
-use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
+use cortexcode_code_tool_api::{SessionBranch, ToolContext, ToolContextFactory};
+use cortexcode_code_tools::{
+    permissions::PermissionPolicy, DefaultToolsOptions, PolicyPermissionGate,
+};
+use cortexcode_code_tools_fs::ReadToolOptions;
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -201,10 +205,57 @@ fn build_system_prompt(args: &Args) -> String {
     system_prompt(mode, &config)
 }
 
-/// Build the default set of coding tools.
-fn build_tools() -> Vec<cortexcode_agent_types::AgentTool> {
+/// The messages of this run as the session manager would persist them: each
+/// one is appended on `message_end`. Stands in for the session branch that
+/// tools see (read-dedup) until the session port (10.3).
+#[derive(Default)]
+struct LiveTranscript(std::sync::Mutex<Vec<serde_json::Value>>);
+
+impl LiveTranscript {
+    /// Record every message the agent ends. Keep the returned handle alive.
+    fn follow(self: &Arc<Self>, agent: &Agent) -> Subscription {
+        let transcript = self.clone();
+        agent.subscribe(move |event| {
+            if let AgentEvent::MessageEnd { message } = event {
+                if let Ok(value) = serde_json::to_value(&message) {
+                    transcript
+                        .0
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .push(value);
+                }
+            }
+        })
+    }
+}
+
+impl SessionBranch for LiveTranscript {
+    fn get_branch(&self) -> Vec<serde_json::Value> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+}
+
+/// Build the default set of coding tools. Tool options use hoocode's default
+/// settings (`toolOutput` 32KB/800 lines, `images.autoResize`, `contextGc.enabled`
+/// gating read-dedup) until settings are ported (10.1).
+fn build_tools(
+    model: &AiModel,
+    transcript: Arc<LiveTranscript>,
+) -> Vec<cortexcode_agent_types::AgentTool> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    cortexcode_code_tools::default_tools(cwd, PermissionPolicy::default())
+    let model = model.clone();
+    let ctx_factory: ToolContextFactory = Arc::new(move || ToolContext {
+        model: Some(model.clone()),
+        session_manager: Some(transcript.clone()),
+    });
+    let options = DefaultToolsOptions {
+        read: ReadToolOptions {
+            dedup_reads: true,
+            ..Default::default()
+        },
+        ctx_factory: Some(ctx_factory),
+    };
+    cortexcode_code_tools::default_tools_with(cwd, PermissionPolicy::default(), options)
 }
 
 /// Build the permission gate for the current CLI mode.
@@ -236,7 +287,12 @@ fn make_stream_fn() -> StreamFn {
 }
 
 /// Build an `Agent` from CLI arguments with a configured permission gate.
-fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
+/// Build the agent. The returned subscription keeps the tools' live
+/// transcript current; hold it as long as the agent.
+fn build_agent_with_gate(
+    args: &Args,
+    interactive: bool,
+) -> Result<(Agent, Subscription), RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
     // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
     let registry = match cortexcode_code_models::default_models_json_path() {
@@ -285,7 +341,8 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     }
 
     let system_prompt = build_system_prompt(args);
-    let tools = build_tools();
+    let transcript = Arc::new(LiveTranscript::default());
+    let tools = build_tools(&model, transcript.clone());
 
     let state = AgentState {
         system_prompt,
@@ -309,8 +366,9 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
         stream_fn,
         ..Default::default()
     });
+    let subscription = transcript.follow(&agent);
 
-    Ok(agent)
+    Ok((agent, subscription))
 }
 
 /// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
@@ -357,8 +415,8 @@ pub fn run_print_mode(
         stdin_content.as_deref(),
     );
 
-    let agent = match build_agent_with_gate(args, false) {
-        Ok(agent) => agent,
+    let (agent, _transcript) = match build_agent_with_gate(args, false) {
+        Ok(built) => built,
         Err(e) => {
             writeln!(err, "{e}")?;
             return Ok(1);
@@ -418,7 +476,7 @@ pub fn run_interactive_mode(
     };
     use std::io::Write as _;
 
-    let agent = build_agent_with_gate(args, true)?;
+    let (agent, _transcript) = build_agent_with_gate(args, true)?;
     let mut stdout = std::io::stdout();
     terminal::enable_raw_mode().map_err(|e| RuntimeError::Setup(e.to_string()))?;
     let _ = stdout

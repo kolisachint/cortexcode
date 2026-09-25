@@ -2,7 +2,7 @@
 //! `cli/initial-message.ts`, `cli/file-processor.ts` (`@file` args) and the
 //! part of `core/tools/path-utils.ts` they use.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 /// `buildInitialMessage`: stdin content, then `@file` text, then the first CLI
 /// message, concatenated without separators. The first message is removed from
@@ -40,112 +40,15 @@ pub fn normalize_piped_stdin(data: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
-const UNICODE_SPACES: [char; 15] = [
-    '\u{00A0}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
-    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200A}', '\u{202F}', '\u{205F}', '\u{3000}',
-];
-
-/// `expandPath`: file URL → path, strip a leading `@`, normalize unicode
-/// spaces, expand `~`.
-pub fn expand_path(file_path: &str, home: &Path) -> String {
-    let path = file_path
-        .strip_prefix("file://")
-        .map(|rest| {
-            url::Url::parse(file_path)
-                .ok()
-                .and_then(|u| u.to_file_path().ok())
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|| rest.to_string())
-        })
-        .unwrap_or_else(|| file_path.to_string());
-    let path = path.strip_prefix('@').unwrap_or(&path);
-    let normalized: String = path
-        .chars()
-        .map(|c| if UNICODE_SPACES.contains(&c) { ' ' } else { c })
-        .collect();
-    if normalized == "~" {
-        return home.to_string_lossy().into_owned();
-    }
-    if let Some(rest) = normalized.strip_prefix("~/") {
-        return format!("{}/{}", home.to_string_lossy(), rest);
-    }
-    normalized
-}
-
-/// Node's `path.resolve(cwd, p)`: absolute, with `.` and `..` resolved lexically.
-fn resolve_path(cwd: &Path, p: &str) -> PathBuf {
-    let joined = cwd.join(p);
-    let mut out = PathBuf::new();
-    for component in joined.components() {
-        match component {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
-/// `resolveReadPath`: resolve against `cwd`, then try the macOS screenshot
-/// variants (narrow no-break space before AM/PM, curly apostrophe). The NFD
-/// variant needs Unicode normalization and arrives with the tools port (10.2).
+/// `resolveReadPath` (`core/tools/path-utils.ts`), shared with the read tool.
 pub fn resolve_read_path(file_path: &str, cwd: &Path, home: &Path) -> PathBuf {
-    let resolved = resolve_path(cwd, &expand_path(file_path, home));
-    if resolved.exists() {
-        return resolved;
-    }
-    let text = resolved.to_string_lossy().into_owned();
-    let am_pm = am_pm_variant(&text);
-    if am_pm != text && Path::new(&am_pm).exists() {
-        return PathBuf::from(am_pm);
-    }
-    let curly = text.replace('\'', "\u{2019}");
-    if curly != text && Path::new(&curly).exists() {
-        return PathBuf::from(curly);
-    }
-    resolved
-}
-
-/// `/ (AM|PM)\./gi` → ` $1.`
-fn am_pm_variant(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut rest = s;
-    while let Some(i) = rest.find(' ') {
-        let after = &rest[i + 1..];
-        let matched = after.len() >= 3
-            && after.is_char_boundary(2)
-            && (after[..2].eq_ignore_ascii_case("am") || after[..2].eq_ignore_ascii_case("pm"))
-            && after.as_bytes()[2] == b'.';
-        out.push_str(&rest[..i]);
-        if matched {
-            out.push('\u{202F}');
-            out.push_str(&after[..3]);
-            rest = &after[3..];
-        } else {
-            out.push(' ');
-            rest = after;
-        }
-    }
-    out.push_str(rest);
-    out
+    cortexcode_code_tool_api::path_utils::resolve_read_path_with_home(file_path, cwd, home)
 }
 
 /// Supported image types (`IMAGE_MIME_TYPES` in `utils/mime.ts`), sniffed from
 /// the file's magic bytes like `file-type` does.
 fn sniff_image_mime(head: &[u8]) -> Option<&'static str> {
-    if head.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
-        Some("image/png")
-    } else if head.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some("image/jpeg")
-    } else if head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a") {
-        Some("image/gif")
-    } else if head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP" {
-        Some("image/webp")
-    } else {
-        None
-    }
+    cortexcode_code_media::detect_supported_image_mime_type(head)
 }
 
 /// `processFileArguments` for text files. On failure returns the message
@@ -219,34 +122,6 @@ mod tests {
     }
 
     #[test]
-    fn expand_path_handles_at_tilde_url_and_unicode_spaces() {
-        let home = Path::new("/home/u");
-        assert_eq!(expand_path("~", home), "/home/u");
-        assert_eq!(expand_path("~/a.txt", home), "/home/u/a.txt");
-        assert_eq!(expand_path("@x.md", home), "x.md");
-        assert_eq!(expand_path("file:///tmp/a%20b.txt", home), "/tmp/a b.txt");
-        assert_eq!(expand_path("a\u{00A0}b", home), "a b");
-    }
-
-    #[test]
-    fn resolve_is_lexical_like_node_path_resolve() {
-        assert_eq!(
-            resolve_path(Path::new("/w/sub"), "../a/./b.txt"),
-            PathBuf::from("/w/a/b.txt")
-        );
-        assert_eq!(resolve_path(Path::new("/w"), "/abs"), PathBuf::from("/abs"));
-    }
-
-    #[test]
-    fn am_pm_variant_inserts_narrow_no_break_space() {
-        assert_eq!(
-            am_pm_variant("Shot 1.2.3 at 9.41.00 pm.png"),
-            "Shot 1.2.3 at 9.41.00\u{202F}pm.png"
-        );
-        assert_eq!(am_pm_variant("no match here"), "no match here");
-    }
-
-    #[test]
     fn file_arguments_wrap_text_and_skip_empty_files() {
         let dir = std::env::temp_dir().join(format!("cortex-fileargs-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -271,11 +146,15 @@ mod tests {
                 dir.join("missing.txt").display()
             )
         );
-        std::fs::write(
-            dir.join("i.png"),
-            [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0],
-        )
-        .unwrap();
+        // A real 1x1 PNG: file-type needs the IHDR/IDAT chunks, not just the signature.
+        let png: [u8; 70] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+            0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9C, 0x63, 0x60, 0x60, 0x60, 0xF8, 0x0F, 0x00, 0x01, 0x04, 0x01, 0x00, 0x5F, 0xE5,
+            0xC3, 0x4B, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+        ];
+        std::fs::write(dir.join("i.png"), png).unwrap();
         assert!(
             process_file_arguments(&msgs(&["i.png"]), &dir, Path::new("/nohome"))
                 .unwrap_err()

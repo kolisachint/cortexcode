@@ -624,7 +624,7 @@ widget crates. **D**eferred: Phase 12, created only on a go decision.
 | `code-print` *(exists)* | S | print + json mode | 10.8a/b |
 | `code-rpc` *(exists, rewrite)* | S | hoocode RPC protocol + client | 10.8c |
 | `code-cli` | V | `cli/args.ts`, `main.ts` composition | 10.7a/b |
-| `code-media` | V | image resize and convert, clipboard images (`image` crate) | 11.4 |
+| `code-media` | V | image resize and convert, clipboard images (`image` crate) | 10.2a (sniff + resize for `read`), 11.4 |
 | `code-tui-theme` | H | `theme.ts` + JSON themes | 11.1 |
 | `code-tui-keybindings` | H | app keybindings | 11.1 |
 | `code-tui-widgets` | H | message, tool, diff, footer, summary and task-panel components | 11.2, 11.5 |
@@ -801,7 +801,7 @@ static PROVIDER_REGISTRY: Lazy<Mutex<HashMap<String, Box<dyn ProviderFactory>>>>
 | Wire formats | **Byte-compatible with hoocode JSON** (messages, session JSONL v3, RPC protocol, `--mode json` events, `settings.json`, `auth.json`, `models.json`). *Added 2026-09-24* | Users can resume hoocode sessions, RPC clients and IDE integrations keep working, and golden fixtures from hoocode can be replayed |
 | Config directory | Read `~/.hoocode/` and `.hoocode/` (project) as a fallback source. Write `~/.cortexcode/` and `.cortexcode/` | Matches §10.6. Project-level `.hoocode/` (modes, skills, prompts) must be discovered too, not only the global `settings.json` |
 | MSRV | **1.88** (was 1.78) | Needed by `rmcp` 3.x. `similar` 3.x needs 1.85 |
-| Serialization | **`serde`** + `serde_json` + `serde_yaml` | De facto Rust standard |
+| Serialization | **`serde`** + `serde_json` (`preserve_order`, so re-serialized JSON such as tool-call arguments keeps hoocode's key order) + `serde_yaml` | De facto Rust standard |
 | HTTP client | **`reqwest`** | TLS, streaming, proxy support built in |
 | Embedded templates | **`include_str!`** at compile time | No `build.rs` needed for static content |
 | Generated models | **`build.rs`** (gated behind `CORTEX_UPDATE_MODELS=1`) | Mirrors TS `scripts/generate-models.ts` |
