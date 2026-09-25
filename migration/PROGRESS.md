@@ -5,12 +5,17 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`. 7.3 (async core) is complete; 7.5
-  (agent + loop parity), 8.3, 8.5, 8.7, 9.1 and 10.2b are unblocked by it.
+- Next task: run `python3 migration/ledger.py next`. Phase 8 now has 8.1, 8.2, 8.2a, 8.3,
+  8.5a and 8.5b done. Every HTTP provider (openai-completions, openai-responses, azure,
+  anthropic) has SDK-style client retries; still missing: openai-codex (8.4a), Copilot
+  (8.4b), gemini-cli/antigravity (8.4c), the OAuth split (8.7) and the remaining ai tests
+  (8.6, which also owns the claude-5-models request format and the UserMessage
+  string-content decision).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
-  light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
-  (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
-  as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
+  light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
+  `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
+  notes for what they wait on. New scenarios this session: `print-retry` (8.5a) and
+  `print-tool-invalid-light` (8.5b).
 
 ## Log
 
