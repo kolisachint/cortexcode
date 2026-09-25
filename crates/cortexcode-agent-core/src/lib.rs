@@ -1,23 +1,34 @@
 //! Core agent runtime for cortex agents.
 //!
-//! This crate provides the `Agent` struct — a stateful wrapper around the
-//! low-level agent loop — plus the loop functions themselves. It mirrors the
-//! TypeScript `@kolisachint/hoocode-agent-core` package.
+//! Port of hoocode `packages/agent/src/agent.ts`: [`Agent`] is the stateful
+//! wrapper around the agent loop. It owns the transcript (reduced from loop
+//! events), runs one prompt at a time with its own abort signal, notifies
+//! listeners, and queues steering and follow-up messages.
+//!
+//! Differences from TypeScript: listeners are synchronous closures (a run
+//! cannot finish before they return, which is what awaiting them guarantees),
+//! and state is read through [`Agent::state`] snapshots and changed through
+//! setters instead of property assignment.
 
 pub mod types;
 
-use cortexcode_agent_loop::{
-    default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink,
-};
-use cortexcode_ai_stream::AssistantMessageEventStream;
-use cortexcode_ai_types::{self as ai_types, Model, SimpleStreamOptions, ThinkingLevel};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+
+use cortexcode_agent_loop::{
+    default_convert_to_llm, run_agent_loop, run_agent_loop_continue, AgentEventSink, BoxError,
+};
+use cortexcode_ai_stream::AssistantMessageEventStream;
+use cortexcode_ai_types::{
+    self as ai_types, AbortSignal, AssistantMessage, Content, ImageContent, Message, Model,
+    SimpleStreamOptions, StopReason, ThinkingBudgets, ThinkingDisplay, ThinkingLevel, Transport,
+    UserMessage,
+};
 use types::*;
 
 // ---------------------------------------------------------------------------
-// Type aliases
+// Hook types (shared, so they can be assigned after construction)
 // ---------------------------------------------------------------------------
 
 /// Function type for creating an AI stream for a given model, context, and options.
@@ -26,7 +37,7 @@ pub type StreamFn = Box<
             Model,
             ai_types::Context,
             SimpleStreamOptions,
-        ) -> Result<AssistantMessageEventStream, Box<dyn std::error::Error + Send + Sync>>
+        ) -> Result<AssistantMessageEventStream, BoxError>
         + Send
         + Sync,
 >;
@@ -34,12 +45,51 @@ pub type StreamFn = Box<
 /// Arc-wrapped stream function.
 pub type SharedStreamFn = Arc<StreamFn>;
 
+pub type ConvertToLlmFn =
+    Arc<dyn Fn(Vec<AgentMessage>) -> Result<Vec<Message>, BoxError> + Send + Sync>;
+pub type TransformContextFn = Arc<
+    dyn Fn(Vec<AgentMessage>, Option<AbortSignal>) -> Result<Vec<AgentMessage>, BoxError>
+        + Send
+        + Sync,
+>;
+pub type GetApiKeyFn = Arc<dyn Fn(String) -> Result<Option<String>, BoxError> + Send + Sync>;
+pub type BeforeToolCallFn = Arc<
+    dyn Fn(
+            &mut BeforeToolCallContext,
+            Option<AbortSignal>,
+        ) -> Result<Option<BeforeToolCallResult>, BoxError>
+        + Send
+        + Sync,
+>;
+pub type AfterToolCallFn = Arc<
+    dyn Fn(
+            AfterToolCallContext,
+            Option<AbortSignal>,
+        ) -> Result<Option<AfterToolCallResult>, BoxError>
+        + Send
+        + Sync,
+>;
+pub type PrepareNextTurnFn = Arc<
+    dyn Fn(
+            PrepareNextTurnContext,
+            Option<AbortSignal>,
+        ) -> Result<Option<AgentLoopTurnUpdate>, BoxError>
+        + Send
+        + Sync,
+>;
+pub type BackgroundResultMessageFn =
+    Arc<dyn Fn(BackgroundToolResult) -> AgentMessage + Send + Sync>;
+pub type BackgroundPlaceholderFn = Arc<dyn Fn(AgentToolCall) -> Option<String> + Send + Sync>;
+
+/// A listener gets each event and the running prompt's abort signal.
+pub type Listener = Arc<dyn Fn(&AgentEvent, &AbortSignal) + Send + Sync>;
+
 // ---------------------------------------------------------------------------
 // PendingMessageQueue
 // ---------------------------------------------------------------------------
 
-/// Controls how queued messages are drained.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// Controls how queued messages are drained (`QueueMode`).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum QueueMode {
     /// All queued messages are drained at once.
     All,
@@ -61,33 +111,22 @@ impl PendingMessageQueue {
         }
     }
 
-    fn enqueue(&mut self, message: AgentMessage) {
-        self.messages.push(message);
-    }
-
-    fn has_items(&self) -> bool {
-        !self.messages.is_empty()
-    }
-
     fn drain(&mut self) -> Vec<AgentMessage> {
-        if self.mode == QueueMode::All {
+        if self.mode == QueueMode::All || self.messages.is_empty() {
             std::mem::take(&mut self.messages)
-        } else if self.messages.is_empty() {
-            Vec::new()
         } else {
             self.messages.drain(..1).collect()
         }
     }
-
-    fn clear(&mut self) {
-        self.messages.clear();
-    }
 }
 
+type Queue = Arc<Mutex<PendingMessageQueue>>;
+
 // ---------------------------------------------------------------------------
-// Default model
+// State
 // ---------------------------------------------------------------------------
 
+/// `DEFAULT_MODEL` in agent.ts.
 fn default_model() -> Model {
     Model {
         compat: None,
@@ -106,62 +145,101 @@ fn default_model() -> Model {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Internal mutable state
-// ---------------------------------------------------------------------------
-
-struct InnerState {
-    system_prompt: String,
-    model: Model,
-    api_key: Option<String>,
-    thinking_level: ThinkingLevel,
-    tools: AgentTools,
-    messages: Vec<AgentMessage>,
-    is_streaming: bool,
-    streaming_message: Option<AgentMessage>,
-    pending_tool_calls: HashSet<String>,
-    error_message: Option<String>,
+fn default_state() -> AgentState {
+    AgentState {
+        system_prompt: String::new(),
+        model: default_model(),
+        thinking_level: ThinkingLevel::Off,
+        tools: AgentTools::new(vec![]),
+        messages: vec![],
+        is_streaming: false,
+        streaming_message: None,
+        pending_tool_calls: HashSet::new(),
+        error_message: None,
+    }
 }
 
-impl InnerState {
-    fn new(initial: Option<AgentState>, api_key: Option<String>) -> Self {
-        let state = initial.unwrap_or(AgentState {
-            system_prompt: String::new(),
-            model: default_model(),
-            thinking_level: ThinkingLevel::Off,
-            tools: AgentTools::new(vec![]),
-            messages: vec![],
-            is_streaming: false,
-            streaming_message: None,
-            pending_tool_calls: HashSet::new(),
-            error_message: None,
-        });
+/// Settings forwarded to every run (public fields on the TypeScript agent).
+#[derive(Clone)]
+struct RunSettings {
+    api_key: Option<String>,
+    session_id: Option<String>,
+    thinking_budgets: Option<ThinkingBudgets>,
+    thinking_display: Option<ThinkingDisplay>,
+    transport: Option<Transport>,
+    max_retry_delay_ms: Option<u64>,
+    tool_execution: ToolExecutionMode,
+}
 
-        Self {
-            system_prompt: state.system_prompt,
-            model: state.model,
-            api_key,
-            thinking_level: state.thinking_level,
-            tools: state.tools,
-            messages: state.messages,
-            is_streaming: false,
-            streaming_message: None,
-            pending_tool_calls: HashSet::new(),
-            error_message: None,
+#[derive(Clone, Default)]
+struct Hooks {
+    stream_fn: Option<SharedStreamFn>,
+    convert_to_llm: Option<ConvertToLlmFn>,
+    transform_context: Option<TransformContextFn>,
+    get_api_key: Option<GetApiKeyFn>,
+    before_tool_call: Option<BeforeToolCallFn>,
+    after_tool_call: Option<AfterToolCallFn>,
+    prepare_next_turn: Option<PrepareNextTurnFn>,
+    create_background_result_message: Option<BackgroundResultMessageFn>,
+    create_background_placeholder: Option<BackgroundPlaceholderFn>,
+    on_background_task_count_change: Option<Arc<dyn Fn(usize) + Send + Sync>>,
+    permission_gate: Option<Arc<dyn PermissionGate>>,
+}
+
+/// State shared with the event sink of a running prompt.
+struct Shared {
+    state: Mutex<AgentState>,
+    #[allow(clippy::type_complexity)]
+    listeners: Mutex<Vec<(usize, Listener)>>,
+    /// The running prompt's abort signal (`activeRun`).
+    active: Mutex<Option<AbortSignal>>,
+    idle: tokio::sync::Notify,
+    hooks: Mutex<Hooks>,
+}
+
+impl Shared {
+    /// `processEvents`: reduce state for a loop event, then notify listeners.
+    fn process_event(&self, event: AgentEvent) {
+        {
+            let mut state = self.state.lock().unwrap();
+            match &event {
+                AgentEvent::MessageStart { message }
+                | AgentEvent::MessageUpdate { message, .. } => {
+                    state.streaming_message = Some(message.clone());
+                }
+                AgentEvent::MessageEnd { message } => {
+                    state.streaming_message = None;
+                    state.messages.push(message.clone());
+                }
+                AgentEvent::ToolExecutionStart { tool_call_id, .. } => {
+                    state.pending_tool_calls.insert(tool_call_id.clone());
+                }
+                AgentEvent::ToolExecutionEnd { tool_call_id, .. } => {
+                    state.pending_tool_calls.remove(tool_call_id);
+                }
+                AgentEvent::TurnEnd { message, .. } => {
+                    if let Some(error) = &message.error_message {
+                        state.error_message = Some(error.clone());
+                    }
+                }
+                AgentEvent::AgentEnd { .. } => state.streaming_message = None,
+                _ => {}
+            }
         }
-    }
-
-    fn snapshot(&self) -> AgentState {
-        AgentState {
-            system_prompt: self.system_prompt.clone(),
-            model: self.model.clone(),
-            thinking_level: self.thinking_level.clone(),
-            tools: self.tools.clone(),
-            messages: self.messages.clone(),
-            is_streaming: self.is_streaming,
-            streaming_message: self.streaming_message.clone(),
-            pending_tool_calls: self.pending_tool_calls.clone(),
-            error_message: self.error_message.clone(),
+        let Some(signal) = self.active.lock().unwrap().clone() else {
+            // TS throws "Agent listener invoked outside active run".
+            return;
+        };
+        // Call a copy so listeners may (un)subscribe without deadlocking.
+        let listeners: Vec<Listener> = self
+            .listeners
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(_, l)| l.clone())
+            .collect();
+        for listener in listeners {
+            listener(&event, &signal);
         }
     }
 }
@@ -170,377 +248,537 @@ impl InnerState {
 // Agent
 // ---------------------------------------------------------------------------
 
-/// Stateful wrapper around the low-level agent loop.
-///
-/// `Agent` owns the current transcript, emits lifecycle events, executes tools,
-/// and exposes queueing APIs for steering and follow-up messages.
+/// Errors from starting a run (the run's own failures become messages).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentError(pub String);
+
+impl std::fmt::Display for AgentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for AgentError {}
+
+/// Stateful wrapper around the agent loop.
 pub struct Agent {
-    inner: Arc<Mutex<InnerState>>,
-    #[allow(clippy::type_complexity)]
-    listeners: Arc<Mutex<Vec<(usize, Box<dyn Fn(AgentEvent) + Send>)>>>,
+    shared: Arc<Shared>,
     next_listener_id: Arc<AtomicUsize>,
-    steering_queue: Arc<Mutex<PendingMessageQueue>>,
-    follow_up_queue: Arc<Mutex<PendingMessageQueue>>,
-    /// The running prompt's abort signal (agent.ts `abortController`).
-    active_signal: Arc<Mutex<Option<ai_types::AbortSignal>>>,
-    permission_gate: Option<Arc<dyn PermissionGate>>,
-    stream_fn: Option<SharedStreamFn>,
+    steering_queue: Queue,
+    follow_up_queue: Queue,
+    settings: Mutex<RunSettings>,
 }
 
 /// Handle returned by [`Agent::subscribe`]. Removes the listener when dropped.
 pub struct Subscription {
     id: usize,
-    #[allow(clippy::type_complexity)]
-    listeners: Arc<Mutex<Vec<(usize, Box<dyn Fn(AgentEvent) + Send>)>>>,
+    shared: Arc<Shared>,
+}
+
+impl Subscription {
+    /// Remove the listener now (the TypeScript unsubscribe function).
+    pub fn unsubscribe(self) {}
 }
 
 impl Drop for Subscription {
     fn drop(&mut self) {
-        let mut listeners = self.listeners.lock().unwrap();
-        listeners.retain(|(id, _)| *id != self.id);
-    }
-}
-
-impl Agent {
-    /// Create a new Agent with default configuration.
-    pub fn new() -> Self {
-        Self::with_options(AgentOptions::default())
-    }
-
-    /// Create a new Agent with the given options.
-    pub fn with_options(options: AgentOptions) -> Self {
-        #[allow(clippy::arc_with_non_send_sync)]
-        let inner = Arc::new(Mutex::new(InnerState::new(
-            options.initial_state,
-            options.api_key,
-        )));
-
-        Agent {
-            inner,
-            listeners: Arc::new(Mutex::new(Vec::new())),
-            steering_queue: Arc::new(Mutex::new(PendingMessageQueue::new(
-                options.steering_mode.unwrap_or_default(),
-            ))),
-            follow_up_queue: Arc::new(Mutex::new(PendingMessageQueue::new(
-                options.follow_up_mode.unwrap_or_default(),
-            ))),
-            active_signal: Arc::new(Mutex::new(None)),
-            next_listener_id: Arc::new(AtomicUsize::new(1)),
-            permission_gate: options.permission_gate,
-            stream_fn: options.stream_fn.map(|b| b as _),
-        }
-    }
-
-    /// Read the current agent state.
-    pub fn state(&self) -> AgentState {
-        self.inner.lock().unwrap().snapshot()
-    }
-
-    /// Subscribe to agent lifecycle events.
-    ///
-    /// Returns a handle that removes the listener when dropped.
-    pub fn subscribe<F>(&self, listener: F) -> Subscription
-    where
-        F: Fn(AgentEvent) + Send + 'static,
-    {
-        let id = self.next_listener_id.fetch_add(1, Ordering::SeqCst);
-        self.listeners
+        self.shared
+            .listeners
             .lock()
             .unwrap()
-            .push((id, Box::new(listener)));
-        Subscription {
-            id,
-            listeners: Arc::clone(&self.listeners),
-        }
-    }
-
-    fn event_sink(&self) -> AgentEventSink {
-        let listeners = Arc::clone(&self.listeners);
-        Box::new(move |event| {
-            let listeners = listeners.lock().unwrap();
-            for (_, listener) in listeners.iter() {
-                listener(event.clone());
-            }
-        })
-    }
-
-    // -----------------------------------------------------------------------
-    // Queueing
-    // -----------------------------------------------------------------------
-
-    /// Queue a message to be injected after the current assistant turn finishes.
-    pub fn steer(&self, message: AgentMessage) {
-        self.steering_queue.lock().unwrap().enqueue(message);
-    }
-
-    /// Queue a message to run only after the agent would otherwise stop.
-    pub fn follow_up(&self, message: AgentMessage) {
-        self.follow_up_queue.lock().unwrap().enqueue(message);
-    }
-
-    /// Remove all queued steering messages.
-    pub fn clear_steering_queue(&self) {
-        self.steering_queue.lock().unwrap().clear();
-    }
-
-    /// Remove all queued follow-up messages.
-    pub fn clear_follow_up_queue(&self) {
-        self.follow_up_queue.lock().unwrap().clear();
-    }
-
-    /// Remove all queued messages.
-    pub fn clear_all_queues(&self) {
-        self.clear_steering_queue();
-        self.clear_follow_up_queue();
-    }
-
-    /// Returns true when either queue still contains pending messages.
-    pub fn has_queued_messages(&self) -> bool {
-        self.steering_queue.lock().unwrap().has_items()
-            || self.follow_up_queue.lock().unwrap().has_items()
-    }
-
-    // -----------------------------------------------------------------------
-    // Lifecycle
-    // -----------------------------------------------------------------------
-
-    /// Abort the current run, if one is active. The signal reaches the
-    /// provider stream (which ends with `stopReason: "aborted"`) and the tools.
-    pub fn abort(&self) {
-        if let Some(signal) = self.active_signal.lock().unwrap().as_ref() {
-            signal.abort();
-        }
-    }
-
-    /// A fresh abort signal for a run, registered so [`Agent::abort`] reaches it.
-    fn begin_run(&self) -> ai_types::AbortSignal {
-        let signal = ai_types::AbortSignal::new();
-        *self.active_signal.lock().unwrap() = Some(signal.clone());
-        signal
-    }
-
-    fn end_run(&self) {
-        *self.active_signal.lock().unwrap() = None;
-    }
-
-    /// Clear transcript state and queued messages.
-    pub fn reset(&self) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.messages.clear();
-        inner.is_streaming = false;
-        inner.streaming_message = None;
-        inner.pending_tool_calls.clear();
-        inner.error_message = None;
-        self.clear_all_queues();
-    }
-
-    /// Start a new prompt with one or more messages, or from text.
-    ///
-    /// Resolves when the run is done. Events are emitted to subscribed
-    /// listeners during processing.
-    pub async fn prompt(
-        &self,
-        input: PromptInput,
-    ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
-        let messages = self.normalize_prompt_input(input);
-        let context = {
-            let inner = self.inner.lock().unwrap();
-            AgentContext::new_with_tools(
-                inner.system_prompt.clone(),
-                inner.messages.clone(),
-                inner.tools.clone(),
-            )
-        };
-
-        let config = self.build_loop_config(self.begin_run())?;
-
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.is_streaming = true;
-            inner.streaming_message = None;
-            inner.error_message = None;
-        }
-
-        // Build the event sink
-        let mut emit = self.event_sink();
-
-        let result = run_agent_loop(messages, context, &config, &mut emit).await;
-        self.end_run();
-        let result = result?;
-
-        // Append this run's messages to the transcript (agent.ts pushes each
-        // message on `message_end`; the transcript is never replaced).
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.messages.extend(result.iter().cloned());
-            inner.is_streaming = false;
-            inner.streaming_message = None;
-            inner.error_message = None;
-        }
-
-        Ok(result)
-    }
-
-    /// Continue from the current transcript.
-    pub async fn r#continue(
-        &self,
-    ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
-        let context = {
-            let inner = self.inner.lock().unwrap();
-            AgentContext::new_with_tools(
-                inner.system_prompt.clone(),
-                inner.messages.clone(),
-                inner.tools.clone(),
-            )
-        };
-
-        // Check last message
-        if let Some(last) = context.messages.last() {
-            if let AgentMessage::Assistant(_) = last {
-                // Try steering/follow-up messages first
-                let steering = self.steering_queue.lock().unwrap().drain();
-                if !steering.is_empty() {
-                    return self.run_prompt_messages(steering, true).await;
-                }
-                let follow_ups = self.follow_up_queue.lock().unwrap().drain();
-                if !follow_ups.is_empty() {
-                    return self.run_prompt_messages(follow_ups, false).await;
-                }
-                return Err("Cannot continue from message role: assistant".into());
-            }
-        } else {
-            return Err("No messages to continue from".into());
-        }
-
-        let config = self.build_loop_config(self.begin_run())?;
-
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.is_streaming = true;
-        }
-
-        let mut context_mut = context;
-        let mut emit = self.event_sink();
-
-        let result = run_agent_loop_continue(&mut context_mut, &config, &mut emit).await;
-        self.end_run();
-        let result = result?;
-
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.messages = context_mut.messages;
-            inner.is_streaming = false;
-        }
-
-        Ok(result)
-    }
-
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
-
-    fn normalize_prompt_input(&self, input: PromptInput) -> Vec<AgentMessage> {
-        match input {
-            PromptInput::Messages(msgs) => msgs,
-            PromptInput::Text(text) => {
-                vec![AgentMessage::user_text(text)]
-            }
-        }
-    }
-
-    async fn run_prompt_messages(
-        &self,
-        messages: Vec<AgentMessage>,
-        _skip_initial_steering: bool,
-    ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
-        let context = {
-            let inner = self.inner.lock().unwrap();
-            AgentContext::new_with_tools(
-                inner.system_prompt.clone(),
-                inner.messages.clone(),
-                inner.tools.clone(),
-            )
-        };
-
-        let config = self.build_loop_config(self.begin_run())?;
-
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.is_streaming = true;
-        }
-
-        let mut emit = self.event_sink();
-        let result = run_agent_loop(messages, context, &config, &mut emit).await;
-        self.end_run();
-        let result = result?;
-
-        {
-            let mut inner = self.inner.lock().unwrap();
-            inner.messages.extend(result.iter().cloned());
-            inner.is_streaming = false;
-        }
-
-        Ok(result)
-    }
-
-    fn build_loop_config(
-        &self,
-        signal: ai_types::AbortSignal,
-    ) -> Result<AgentLoopConfig, Box<dyn std::error::Error + Send + Sync>> {
-        let inner = self.inner.lock().unwrap();
-
-        Ok(AgentLoopConfig {
-            cache_retention: None,
-            model: inner.model.clone(),
-            reasoning: if inner.thinking_level == ThinkingLevel::Off {
-                None
-            } else {
-                Some(inner.thinking_level.clone())
-            },
-            convert_to_llm: Some(Box::new(default_convert_to_llm)),
-            transform_context: None,
-            get_api_key: None,
-            should_stop_after_turn: None,
-            prepare_next_turn: None,
-            get_steering_messages: {
-                let queue = self.steering_queue.clone();
-                Some(Box::new(move || Ok(queue.lock().unwrap().drain())))
-            },
-            get_follow_up_messages: {
-                let queue = self.follow_up_queue.clone();
-                Some(Box::new(move || Ok(queue.lock().unwrap().drain())))
-            },
-            create_background_result_message: None,
-            create_background_placeholder: None,
-            on_background_task_count_change: None,
-            before_tool_call: None,
-            after_tool_call: None,
-            permission_gate: self.permission_gate.clone(),
-            stream_fn: self
-                .stream_fn
-                .clone()
-                .map(|a| -> StreamFn { Box::new(move |m, c, o| (*a)(m, c, o)) }),
-            tool_execution: ToolExecutionMode::Parallel,
-            signal: Some(signal),
-            api_key: inner.api_key.clone(),
-            session_id: None,
-            max_retry_delay_ms: None,
-            thinking_budgets: None,
-            thinking_display: None,
-            transport: None,
-            on_payload: None,
-            on_response: None,
-
-            send_session_affinity_headers: None,
-
-            prompt_suffix: None,
-        })
+            .retain(|(id, _)| *id != self.id);
     }
 }
 
 impl Default for Agent {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Agent {
+    pub fn new() -> Self {
+        Self::with_options(AgentOptions::default())
+    }
+
+    pub fn with_options(options: AgentOptions) -> Self {
+        let mut state = options.initial_state.unwrap_or_else(default_state);
+        state.is_streaming = false;
+        state.streaming_message = None;
+        state.pending_tool_calls = HashSet::new();
+        state.error_message = None;
+        Agent {
+            shared: Arc::new(Shared {
+                state: Mutex::new(state),
+                listeners: Mutex::new(Vec::new()),
+                active: Mutex::new(None),
+                idle: tokio::sync::Notify::new(),
+                hooks: Mutex::new(Hooks {
+                    stream_fn: options.stream_fn,
+                    convert_to_llm: options.convert_to_llm,
+                    transform_context: options.transform_context,
+                    get_api_key: options.get_api_key,
+                    before_tool_call: options.before_tool_call,
+                    after_tool_call: options.after_tool_call,
+                    prepare_next_turn: options.prepare_next_turn,
+                    create_background_result_message: options.create_background_result_message,
+                    create_background_placeholder: options.create_background_placeholder,
+                    on_background_task_count_change: options.on_background_task_count_change,
+                    permission_gate: options.permission_gate,
+                }),
+            }),
+            next_listener_id: Arc::new(AtomicUsize::new(1)),
+            steering_queue: Arc::new(Mutex::new(PendingMessageQueue::new(
+                options.steering_mode.unwrap_or_default(),
+            ))),
+            follow_up_queue: Arc::new(Mutex::new(PendingMessageQueue::new(
+                options.follow_up_mode.unwrap_or_default(),
+            ))),
+            settings: Mutex::new(RunSettings {
+                api_key: options.api_key,
+                session_id: options.session_id,
+                thinking_budgets: options.thinking_budgets,
+                thinking_display: options.thinking_display,
+                transport: options.transport,
+                max_retry_delay_ms: options.max_retry_delay_ms,
+                tool_execution: options.tool_execution.unwrap_or_default(),
+            }),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+
+    /// A snapshot of the current state.
+    pub fn state(&self) -> AgentState {
+        self.shared.state.lock().unwrap().clone()
+    }
+
+    pub fn set_system_prompt(&self, system_prompt: impl Into<String>) {
+        self.shared.state.lock().unwrap().system_prompt = system_prompt.into();
+    }
+
+    pub fn set_model(&self, model: Model) {
+        self.shared.state.lock().unwrap().model = model;
+    }
+
+    pub fn set_thinking_level(&self, level: ThinkingLevel) {
+        self.shared.state.lock().unwrap().thinking_level = level;
+    }
+
+    /// `state.tools = tools` (copies the list).
+    pub fn set_tools(&self, tools: Vec<AgentTool>) {
+        self.shared.state.lock().unwrap().tools = AgentTools::new(tools);
+    }
+
+    /// `state.messages = messages` (copies the list).
+    pub fn set_messages(&self, messages: Vec<AgentMessage>) {
+        self.shared.state.lock().unwrap().messages = messages;
+    }
+
+    /// `state.messages.push(message)`.
+    pub fn append_message(&self, message: AgentMessage) {
+        self.shared.state.lock().unwrap().messages.push(message);
+    }
+
+    // -----------------------------------------------------------------------
+    // Settings and hooks
+    // -----------------------------------------------------------------------
+
+    pub fn session_id(&self) -> Option<String> {
+        self.settings.lock().unwrap().session_id.clone()
+    }
+
+    pub fn set_session_id(&self, session_id: Option<String>) {
+        self.settings.lock().unwrap().session_id = session_id;
+    }
+
+    pub fn set_tool_execution(&self, mode: ToolExecutionMode) {
+        self.settings.lock().unwrap().tool_execution = mode;
+    }
+
+    pub fn set_thinking_budgets(&self, budgets: Option<ThinkingBudgets>) {
+        self.settings.lock().unwrap().thinking_budgets = budgets;
+    }
+
+    pub fn set_max_retry_delay_ms(&self, ms: Option<u64>) {
+        self.settings.lock().unwrap().max_retry_delay_ms = ms;
+    }
+
+    /// `agent.prepareNextTurn = …`. Takes effect for the running prompt too:
+    /// the loop always calls through to the current hook.
+    pub fn set_prepare_next_turn(&self, hook: Option<PrepareNextTurnFn>) {
+        self.shared.hooks.lock().unwrap().prepare_next_turn = hook;
+    }
+
+    pub fn set_before_tool_call(&self, hook: Option<BeforeToolCallFn>) {
+        self.shared.hooks.lock().unwrap().before_tool_call = hook;
+    }
+
+    pub fn set_after_tool_call(&self, hook: Option<AfterToolCallFn>) {
+        self.shared.hooks.lock().unwrap().after_tool_call = hook;
+    }
+
+    pub fn set_transform_context(&self, hook: Option<TransformContextFn>) {
+        self.shared.hooks.lock().unwrap().transform_context = hook;
+    }
+
+    pub fn set_stream_fn(&self, stream_fn: Option<SharedStreamFn>) {
+        self.shared.hooks.lock().unwrap().stream_fn = stream_fn;
+    }
+
+    // -----------------------------------------------------------------------
+    // Listeners
+    // -----------------------------------------------------------------------
+
+    /// Subscribe to lifecycle events. Listeners run in subscription order and
+    /// get the running prompt's abort signal. Dropping the handle unsubscribes.
+    pub fn subscribe<F>(&self, listener: F) -> Subscription
+    where
+        F: Fn(&AgentEvent, &AbortSignal) + Send + Sync + 'static,
+    {
+        let id = self.next_listener_id.fetch_add(1, Ordering::SeqCst);
+        self.shared
+            .listeners
+            .lock()
+            .unwrap()
+            .push((id, Arc::new(listener)));
+        Subscription {
+            id,
+            shared: self.shared.clone(),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Queueing
+    // -----------------------------------------------------------------------
+
+    pub fn steering_mode(&self) -> QueueMode {
+        self.steering_queue.lock().unwrap().mode
+    }
+
+    pub fn set_steering_mode(&self, mode: QueueMode) {
+        self.steering_queue.lock().unwrap().mode = mode;
+    }
+
+    pub fn follow_up_mode(&self) -> QueueMode {
+        self.follow_up_queue.lock().unwrap().mode
+    }
+
+    pub fn set_follow_up_mode(&self, mode: QueueMode) {
+        self.follow_up_queue.lock().unwrap().mode = mode;
+    }
+
+    /// Queue a message to be injected after the current assistant turn finishes.
+    pub fn steer(&self, message: AgentMessage) {
+        self.steering_queue.lock().unwrap().messages.push(message);
+    }
+
+    /// Queue a message to run only after the agent would otherwise stop.
+    pub fn follow_up(&self, message: AgentMessage) {
+        self.follow_up_queue.lock().unwrap().messages.push(message);
+    }
+
+    pub fn clear_steering_queue(&self) {
+        self.steering_queue.lock().unwrap().messages.clear();
+    }
+
+    pub fn clear_follow_up_queue(&self) {
+        self.follow_up_queue.lock().unwrap().messages.clear();
+    }
+
+    pub fn clear_all_queues(&self) {
+        self.clear_steering_queue();
+        self.clear_follow_up_queue();
+    }
+
+    pub fn has_queued_messages(&self) -> bool {
+        !self.steering_queue.lock().unwrap().messages.is_empty()
+            || !self.follow_up_queue.lock().unwrap().messages.is_empty()
+    }
+
+    // -----------------------------------------------------------------------
+    // Lifecycle
+    // -----------------------------------------------------------------------
+
+    /// The running prompt's abort signal, if any.
+    pub fn signal(&self) -> Option<AbortSignal> {
+        self.shared.active.lock().unwrap().clone()
+    }
+
+    /// Abort the current run, if one is active. The signal reaches the
+    /// provider stream (which ends with `stopReason: "aborted"`) and the tools.
+    pub fn abort(&self) {
+        if let Some(signal) = self.signal() {
+            signal.abort();
+        }
+    }
+
+    /// `waitForIdle()`: resolves once no prompt is running.
+    pub async fn wait_for_idle(&self) {
+        loop {
+            let idle = self.shared.idle.notified();
+            tokio::pin!(idle);
+            idle.as_mut().enable();
+            if self.shared.active.lock().unwrap().is_none() {
+                return;
+            }
+            idle.await;
+        }
+    }
+
+    /// Clear transcript state, runtime state and queued messages.
+    pub fn reset(&self) {
+        {
+            let mut state = self.shared.state.lock().unwrap();
+            state.messages.clear();
+            state.is_streaming = false;
+            state.streaming_message = None;
+            state.pending_tool_calls.clear();
+            state.error_message = None;
+        }
+        self.clear_all_queues();
+    }
+
+    /// Start a new prompt. Only fails when a prompt is already running; run
+    /// failures end the run with an error assistant message instead.
+    pub async fn prompt(&self, input: impl Into<PromptInput>) -> Result<(), AgentError> {
+        let messages = normalize_prompt_input(input.into());
+        let signal = self.begin_run(
+            "Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.",
+        )?;
+        self.run_prompt_messages(messages, false, signal).await;
+        Ok(())
+    }
+
+    /// Continue from the current transcript. The last message must be a user
+    /// or tool-result message; after an assistant message, queued steering
+    /// (then follow-up) messages start a new run.
+    pub async fn r#continue(&self) -> Result<(), AgentError> {
+        const BUSY: &str = "Agent is already processing. Wait for completion before continuing.";
+        if self.signal().is_some() {
+            return Err(AgentError(BUSY.into()));
+        }
+        let last_role = self
+            .shared
+            .state
+            .lock()
+            .unwrap()
+            .messages
+            .last()
+            .map(|m| m.role());
+        match last_role {
+            None => Err(AgentError("No messages to continue from".into())),
+            Some("assistant") => {
+                let steering = self.steering_queue.lock().unwrap().drain();
+                if !steering.is_empty() {
+                    let signal = self.begin_run(BUSY)?;
+                    self.run_prompt_messages(steering, true, signal).await;
+                    return Ok(());
+                }
+                let follow_ups = self.follow_up_queue.lock().unwrap().drain();
+                if !follow_ups.is_empty() {
+                    let signal = self.begin_run(BUSY)?;
+                    self.run_prompt_messages(follow_ups, false, signal).await;
+                    return Ok(());
+                }
+                Err(AgentError(
+                    "Cannot continue from message role: assistant".into(),
+                ))
+            }
+            Some(_) => {
+                let signal = self.begin_run(BUSY)?;
+                let config = self.create_loop_config(false, signal.clone());
+                let mut context = self.create_context_snapshot();
+                let mut emit = self.event_sink();
+                let result = run_agent_loop_continue(&mut context, &config, &mut emit).await;
+                self.finish(result.err(), &signal);
+                Ok(())
+            }
+        }
+    }
+
+    /// Claim the single run slot (`activeRun`) with a fresh abort signal.
+    fn begin_run(&self, busy: &str) -> Result<AbortSignal, AgentError> {
+        let mut active = self.shared.active.lock().unwrap();
+        if active.is_some() {
+            return Err(AgentError(busy.to_string()));
+        }
+        let signal = AbortSignal::new();
+        *active = Some(signal.clone());
+        drop(active);
+        let mut state = self.shared.state.lock().unwrap();
+        state.is_streaming = true;
+        state.streaming_message = None;
+        state.error_message = None;
+        Ok(signal)
+    }
+
+    async fn run_prompt_messages(
+        &self,
+        messages: Vec<AgentMessage>,
+        skip_initial_steering_poll: bool,
+        signal: AbortSignal,
+    ) {
+        let config = self.create_loop_config(skip_initial_steering_poll, signal.clone());
+        let context = self.create_context_snapshot();
+        let mut emit = self.event_sink();
+        let result = run_agent_loop(messages, context, &config, &mut emit).await;
+        self.finish(result.err(), &signal);
+    }
+
+    /// `handleRunFailure` (for a failed run) then `finishRun`.
+    fn finish(&self, error: Option<BoxError>, signal: &AbortSignal) {
+        if let Some(error) = error {
+            let model = self.shared.state.lock().unwrap().model.clone();
+            let failure = AssistantMessage {
+                content: vec![Content::text("")],
+                api: model.api,
+                provider: model.provider,
+                model: model.id,
+                usage: Default::default(),
+                stop_reason: if signal.aborted() {
+                    StopReason::Aborted
+                } else {
+                    StopReason::Error
+                },
+                error_message: Some(error.to_string()),
+                timestamp: ai_types::now_ms(),
+                ..Default::default()
+            };
+            let message = AgentMessage::Assistant(failure.clone());
+            self.shared.process_event(AgentEvent::MessageStart {
+                message: message.clone(),
+            });
+            self.shared.process_event(AgentEvent::MessageEnd {
+                message: message.clone(),
+            });
+            self.shared.process_event(AgentEvent::TurnEnd {
+                message: failure,
+                tool_results: vec![],
+            });
+            self.shared.process_event(AgentEvent::AgentEnd {
+                messages: vec![message],
+            });
+        }
+        {
+            let mut state = self.shared.state.lock().unwrap();
+            state.is_streaming = false;
+            state.streaming_message = None;
+            state.pending_tool_calls.clear();
+        }
+        self.release_run();
+    }
+
+    fn release_run(&self) {
+        *self.shared.active.lock().unwrap() = None;
+        {
+            let mut state = self.shared.state.lock().unwrap();
+            state.is_streaming = false;
+        }
+        self.shared.idle.notify_waiters();
+    }
+
+    fn event_sink(&self) -> AgentEventSink {
+        let shared = self.shared.clone();
+        Box::new(move |event| shared.process_event(event))
+    }
+
+    fn create_context_snapshot(&self) -> AgentContext {
+        let state = self.shared.state.lock().unwrap();
+        AgentContext::new_with_tools(
+            state.system_prompt.clone(),
+            state.messages.clone(),
+            state.tools.clone(),
+        )
+    }
+
+    fn create_loop_config(
+        &self,
+        skip_initial_steering_poll: bool,
+        signal: AbortSignal,
+    ) -> AgentLoopConfig {
+        let (model, thinking_level) = {
+            let state = self.shared.state.lock().unwrap();
+            (state.model.clone(), state.thinking_level.clone())
+        };
+        let settings = self.settings.lock().unwrap().clone();
+        let hooks = self.shared.hooks.lock().unwrap().clone();
+
+        let mut config = AgentLoopConfig::new(model);
+        config.reasoning = (thinking_level != ThinkingLevel::Off).then_some(thinking_level);
+        config.session_id = settings.session_id;
+        config.transport = settings.transport;
+        config.thinking_budgets = settings.thinking_budgets;
+        config.thinking_display = settings.thinking_display;
+        config.max_retry_delay_ms = settings.max_retry_delay_ms;
+        config.tool_execution = settings.tool_execution;
+        config.api_key = settings.api_key;
+        config.signal = Some(signal);
+        config.permission_gate = hooks.permission_gate;
+        config.on_background_task_count_change = hooks.on_background_task_count_change;
+        if let Some(stream_fn) = hooks.stream_fn {
+            config.stream_fn = Some(Box::new(move |m, c, o| stream_fn(m, c, o)));
+        }
+        config.convert_to_llm = Some(match hooks.convert_to_llm {
+            Some(convert) => Box::new(move |messages| convert(messages)),
+            None => Box::new(default_convert_to_llm),
+        });
+        if let Some(transform) = hooks.transform_context {
+            config.transform_context = Some(Box::new(move |m, s| transform(m, s)));
+        }
+        if let Some(get) = hooks.get_api_key {
+            config.get_api_key = Some(Box::new(move |provider| get(provider)));
+        }
+        if let Some(before) = hooks.before_tool_call {
+            config.before_tool_call = Some(Box::new(move |ctx, s| before(ctx, s)));
+        }
+        if let Some(after) = hooks.after_tool_call {
+            config.after_tool_call = Some(Box::new(move |ctx, s| after(ctx, s)));
+        }
+        if let Some(make) = hooks.create_background_result_message {
+            config.create_background_result_message = Some(Box::new(move |r| make(r)));
+        }
+        if let Some(make) = hooks.create_background_placeholder {
+            config.create_background_placeholder = Some(Box::new(move |tc| make(tc)));
+        }
+        // Always provide the hook so a late assignment reaches this run.
+        let shared = self.shared.clone();
+        config.prepare_next_turn = Some(Box::new(move |turn| {
+            let hook = shared.hooks.lock().unwrap().prepare_next_turn.clone();
+            let signal = shared.active.lock().unwrap().clone();
+            match hook {
+                Some(hook) => hook(turn, signal),
+                None => Ok(None),
+            }
+        }));
+        let steering = self.steering_queue.clone();
+        let skip = Mutex::new(skip_initial_steering_poll);
+        config.get_steering_messages = Some(Box::new(move || {
+            if std::mem::take(&mut *skip.lock().unwrap()) {
+                return Ok(vec![]);
+            }
+            Ok(steering.lock().unwrap().drain())
+        }));
+        let follow_ups = self.follow_up_queue.clone();
+        config.get_follow_up_messages =
+            Some(Box::new(move || Ok(follow_ups.lock().unwrap().drain())));
+        config
+    }
+}
+
+fn normalize_prompt_input(input: PromptInput) -> Vec<AgentMessage> {
+    match input {
+        PromptInput::Messages(messages) => messages,
+        PromptInput::Text { text, images } => {
+            let mut content = vec![Content::text(text)];
+            content.extend(images.into_iter().map(Content::Image));
+            vec![AgentMessage::User(UserMessage {
+                content,
+                timestamp: ai_types::now_ms(),
+            })]
+        }
     }
 }
 
@@ -552,34 +790,61 @@ impl Default for Agent {
 #[derive(Default)]
 pub struct AgentOptions {
     pub initial_state: Option<AgentState>,
-    pub api_key: Option<String>,
+    pub convert_to_llm: Option<ConvertToLlmFn>,
+    pub transform_context: Option<TransformContextFn>,
+    pub stream_fn: Option<SharedStreamFn>,
+    pub get_api_key: Option<GetApiKeyFn>,
+    pub before_tool_call: Option<BeforeToolCallFn>,
+    pub after_tool_call: Option<AfterToolCallFn>,
+    pub prepare_next_turn: Option<PrepareNextTurnFn>,
+    pub create_background_result_message: Option<BackgroundResultMessageFn>,
+    pub create_background_placeholder: Option<BackgroundPlaceholderFn>,
+    pub on_background_task_count_change: Option<Arc<dyn Fn(usize) + Send + Sync>>,
     pub steering_mode: Option<QueueMode>,
     pub follow_up_mode: Option<QueueMode>,
+    pub session_id: Option<String>,
+    pub thinking_budgets: Option<ThinkingBudgets>,
+    pub thinking_display: Option<ThinkingDisplay>,
+    pub transport: Option<Transport>,
+    pub max_retry_delay_ms: Option<u64>,
+    pub tool_execution: Option<ToolExecutionMode>,
+    /// cortex: key used when `get_api_key` yields none.
+    pub api_key: Option<String>,
+    /// cortex: gate consulted before `before_tool_call`.
     pub permission_gate: Option<Arc<dyn PermissionGate>>,
-    pub stream_fn: Option<SharedStreamFn>,
 }
 
 // ---------------------------------------------------------------------------
 // PromptInput
 // ---------------------------------------------------------------------------
 
-/// Input to the `Agent::prompt` method.
+/// Input to [`Agent::prompt`]: messages, or text with optional images.
 pub enum PromptInput {
-    /// A batch of agent messages.
     Messages(Vec<AgentMessage>),
-    /// Plain text, converted to a user message.
-    Text(String),
+    Text {
+        text: String,
+        images: Vec<ImageContent>,
+    },
+}
+
+impl PromptInput {
+    pub fn text(text: impl Into<String>) -> Self {
+        PromptInput::Text {
+            text: text.into(),
+            images: Vec::new(),
+        }
+    }
 }
 
 impl From<String> for PromptInput {
     fn from(s: String) -> Self {
-        PromptInput::Text(s)
+        PromptInput::text(s)
     }
 }
 
 impl From<&str> for PromptInput {
     fn from(s: &str) -> Self {
-        PromptInput::Text(s.to_string())
+        PromptInput::text(s)
     }
 }
 
@@ -596,222 +861,4 @@ impl From<AgentMessage> for PromptInput {
 }
 
 #[cfg(test)]
-mod transcript_tests {
-    use super::*;
-    use cortexcode_ai_provider_faux::{
-        faux_message, faux_text_message, faux_tool_call, FauxProvider, FauxResponseStep,
-    };
-    use cortexcode_ai_types::Content;
-
-    fn model() -> Model {
-        Model {
-            id: "faux-model".into(),
-            name: "Faux".into(),
-            api: "faux".into(),
-            provider: "faux".into(),
-            base_url: String::new(),
-            reasoning: false,
-            thinking_level_map: None,
-            input: vec!["text".into()],
-            cost: Default::default(),
-            context_window: 1000,
-            max_tokens: 100,
-            headers: None,
-            compat: None,
-        }
-    }
-
-    #[tokio::test]
-    async fn prompt_appends_to_the_transcript() {
-        let faux = Arc::new(FauxProvider::new());
-        faux.set_responses(vec![
-            FauxResponseStep::Message(faux_text_message("one", None)),
-            FauxResponseStep::Message(faux_text_message("two", None)),
-        ]);
-        let agent = Agent::with_options(AgentOptions {
-            initial_state: Some(AgentState {
-                system_prompt: String::new(),
-                model: model(),
-                thinking_level: ThinkingLevel::Off,
-                tools: cortexcode_agent_types::AgentTools::new(Vec::new()),
-                messages: Vec::new(),
-                is_streaming: false,
-                streaming_message: None,
-                pending_tool_calls: Default::default(),
-                error_message: None,
-            }),
-            stream_fn: Some(Arc::new(faux.stream_fn())),
-            ..Default::default()
-        });
-        agent.prompt(PromptInput::Text("a".into())).await.unwrap();
-        let second = agent.prompt(PromptInput::Text("b".into())).await.unwrap();
-        // The returned messages are only this run's; the transcript keeps both runs.
-        assert_eq!(second.len(), 2);
-        let roles: Vec<&str> = agent
-            .state()
-            .messages
-            .iter()
-            .map(|m| match m {
-                AgentMessage::User(_) => "user",
-                AgentMessage::Assistant(_) => "assistant",
-                _ => "other",
-            })
-            .collect();
-        assert_eq!(roles, ["user", "assistant", "user", "assistant"]);
-    }
-
-    fn agent_with_tools(
-        faux: &Arc<FauxProvider>,
-        tools: Vec<cortexcode_agent_types::AgentTool>,
-    ) -> Agent {
-        Agent::with_options(AgentOptions {
-            initial_state: Some(AgentState {
-                system_prompt: String::new(),
-                model: model(),
-                thinking_level: ThinkingLevel::Off,
-                tools: cortexcode_agent_types::AgentTools::new(tools),
-                messages: Vec::new(),
-                is_streaming: false,
-                streaming_message: None,
-                pending_tool_calls: Default::default(),
-                error_message: None,
-            }),
-            stream_fn: Some(Arc::new(faux.stream_fn())),
-            ..Default::default()
-        })
-    }
-
-    #[tokio::test]
-    async fn tool_results_match_hoocode_messages_and_events() {
-        let faux = Arc::new(FauxProvider::new());
-        faux.set_responses(vec![
-            FauxResponseStep::Message(faux_message(
-                vec![
-                    faux_tool_call("fails", serde_json::json!({}), Some("c1".into())),
-                    faux_tool_call("detailed", serde_json::json!({}), Some("c2".into())),
-                    faux_tool_call("missing", serde_json::json!({}), Some("c3".into())),
-                ],
-                Some(cortexcode_ai_types::StopReason::ToolUse),
-                None,
-            )),
-            FauxResponseStep::Message(faux_text_message("done", None)),
-        ]);
-        let fails = cortexcode_agent_types::AgentTool::new(
-            "fails",
-            "",
-            serde_json::json!({"type": "object"}),
-            Box::new(|_, _, _, _| Err("ENOENT: no such file or directory, access '/x'".into())),
-        );
-        let detailed = cortexcode_agent_types::AgentTool::new(
-            "detailed",
-            "",
-            serde_json::json!({"type": "object"}),
-            Box::new(|_, _, _, _| {
-                Ok(cortexcode_agent_types::AgentToolResult {
-                    content: vec![Content::text("ok")],
-                    details: serde_json::json!({"k": 1}),
-                    terminate: false,
-                })
-            }),
-        );
-        let agent = agent_with_tools(&faux, vec![fails, detailed]);
-        let ended = Arc::new(Mutex::new(Vec::new()));
-        let sink = ended.clone();
-        let _sub = agent.subscribe(move |event| {
-            if let AgentEvent::MessageEnd {
-                message: AgentMessage::ToolResult(m),
-            } = event
-            {
-                sink.lock().unwrap().push(m.tool_call_id.clone());
-            }
-        });
-        agent.prompt(PromptInput::Text("go".into())).await.unwrap();
-
-        let results: Vec<_> = agent
-            .state()
-            .messages
-            .into_iter()
-            .filter_map(|m| match m {
-                AgentMessage::ToolResult(r) => Some(r),
-                _ => None,
-            })
-            .collect();
-        let text = |r: &cortexcode_ai_types::ToolResultMessage| match &r.content[0] {
-            Content::Text(t) => t.text.clone(),
-            other => panic!("{other:?}"),
-        };
-        // A thrown error is its message, unprefixed, with empty details.
-        assert_eq!(
-            text(&results[0]),
-            "ENOENT: no such file or directory, access '/x'"
-        );
-        assert!(results[0].is_error);
-        assert_eq!(results[0].details, Some(serde_json::json!({})));
-        // A tool's details reach the message.
-        assert_eq!(results[1].details, Some(serde_json::json!({"k": 1})));
-        assert!(!results[1].is_error);
-        // An unknown tool is an error result.
-        assert_eq!(text(&results[2]), "Tool missing not found");
-        assert!(results[2].is_error);
-        // Each tool result is announced with message_start/message_end.
-        assert_eq!(*ended.lock().unwrap(), ["c1", "c2", "c3"]);
-    }
-
-    /// `agent.abort()` mid-stream: the signal reaches the provider, which ends
-    /// the assistant message with `stopReason: "aborted"` and what streamed so far.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn abort_reaches_the_provider_stream() {
-        let head = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial \"}}]}\n\n";
-        let base_url = cortexcode_ai_stream::testing::serve_sse_then_hang(
-            head,
-            std::time::Duration::from_secs(30),
-        );
-        let mut m = model();
-        m.api = "openai-completions".into();
-        m.provider = "openai".into();
-        m.base_url = base_url;
-        let agent = Arc::new(Agent::with_options(AgentOptions {
-            initial_state: Some(AgentState {
-                system_prompt: String::new(),
-                model: m,
-                thinking_level: ThinkingLevel::Off,
-                tools: cortexcode_agent_types::AgentTools::new(Vec::new()),
-                messages: Vec::new(),
-                is_streaming: false,
-                streaming_message: None,
-                pending_tool_calls: Default::default(),
-                error_message: None,
-            }),
-            api_key: Some("sk-test".into()),
-            stream_fn: Some(Arc::new(Box::new(cortexcode_ai_provider_openai::stream))),
-            ..Default::default()
-        }));
-        let weak = Arc::downgrade(&agent);
-        let _sub = agent.subscribe(move |event| {
-            if let AgentEvent::MessageUpdate { .. } = event {
-                if let Some(agent) = weak.upgrade() {
-                    agent.abort();
-                }
-            }
-        });
-
-        let messages = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            agent.prompt(PromptInput::Text("go".into())),
-        )
-        .await
-        .expect("abort must end the run without waiting for the server")
-        .unwrap();
-
-        match messages.last() {
-            Some(AgentMessage::Assistant(a)) => {
-                assert_eq!(a.stop_reason, cortexcode_ai_types::StopReason::Aborted);
-                assert_eq!(a.content, vec![Content::text("partial ")]);
-            }
-            other => panic!("expected the aborted assistant message, got {other:?}"),
-        }
-        // The run is over; a later abort is a no-op.
-        agent.abort();
-        assert!(!agent.state().is_streaming);
-    }
-}
+mod tests;

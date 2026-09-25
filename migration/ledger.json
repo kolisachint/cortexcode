@@ -705,7 +705,7 @@
    "id": "7.5b",
    "title": "Agent parity: port agent.ts (state mutators, listeners with abort signal, waitForIdle, run failure lifecycle, streaming guards, queue modes, continue() semantics, sessionId); port agent.test.ts + prepare-next-turn-refresh.test.ts",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.5a"
    ],
@@ -729,6 +729,18 @@
      "commit": "632ecfe",
      "kind": "note",
      "text": "split from 7.5 (~1.6K source + 2.2K test lines): 7.5a agent-loop.ts, 7.5b agent.ts"
+    },
+    {
+     "at": "2026-09-25T12:02:18Z",
+     "commit": "c3e5e41",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T12:08:09Z",
+     "commit": "c3e5e41",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

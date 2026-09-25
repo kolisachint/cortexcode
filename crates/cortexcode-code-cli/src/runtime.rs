@@ -260,9 +260,9 @@ impl LiveTranscript {
     /// Record every message the agent ends. Keep the returned handle alive.
     fn follow(self: &Arc<Self>, agent: &Agent) -> Subscription {
         let transcript = self.clone();
-        agent.subscribe(move |event| {
+        agent.subscribe(move |event, _signal| {
             if let AgentEvent::MessageEnd { message } = event {
-                if let Ok(value) = serde_json::to_value(&message) {
+                if let Ok(value) = serde_json::to_value(message) {
                     transcript
                         .0
                         .lock()
@@ -497,11 +497,11 @@ pub fn run_print_mode(
 
     let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
     let formatter_for_sub = formatter.clone();
-    let _sub = agent.subscribe(Box::new(move |event| {
+    let _sub = agent.subscribe(move |event, _signal| {
         if let Ok(mut fmt) = formatter_for_sub.lock() {
-            fmt.record(event);
+            fmt.record(event.clone());
         }
-    }));
+    });
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
@@ -583,10 +583,12 @@ pub fn run_interactive_mode(
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
                             let user_msg = text_message(line);
+                            let before = agent.state().messages.len();
                             let run = agent.prompt(PromptInput::Messages(vec![user_msg]));
                             match async_runtime().block_on(run) {
-                                Ok(messages) => {
-                                    let text = format_text_output(&messages);
+                                Ok(()) => {
+                                    let messages = agent.state().messages;
+                                    let text = format_text_output(&messages[before..]);
                                     if !text.is_empty() {
                                         writeln!(output, "Cortex: {}\n", text)?;
                                     } else {

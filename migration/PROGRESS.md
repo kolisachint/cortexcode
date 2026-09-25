@@ -14,6 +14,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 7.5b done (agent.ts parity); phase 7 complete except 7.1 bookkeeping
+- `Agent` follows agent.ts: state is reduced from loop events (`message_end` appends,
+  streaming message, pending tool calls, `turn_end` error message); one run at a time with
+  hoocode's busy errors for `prompt`/`continue`; a fresh `AbortSignal` per run passed to
+  listeners (`subscribe(|event, signal|)`) and exposed as `signal()`; `wait_for_idle()`;
+  thrown run failures become the error assistant message + `message_start/end`, `turn_end`,
+  `agent_end` (`handleRunFailure`); `continue()` from an assistant tail drains steering
+  (skipping the initial steering poll) then follow-ups; queue modes settable; settings
+  (`session_id`, tool execution, budgets, retry cap) and hooks settable after construction,
+  with `prepareNextTurn` always wired so a late assignment reaches the running prompt.
+- API: `prompt(impl Into<PromptInput>) -> Result<(), AgentError>` (text + images or messages);
+  run output is read from `state()`. State setters replace property assignment. code-cli
+  adapted (listeners take `(event, signal)`; interactive mode reads the new messages from state).
+- Ported agent.test.ts (16) and prepare-next-turn-refresh.test.ts; async-subscriber tests
+  become blocking listeners (a run can't finish before they return). 20 agent-core tests.
+- agent-loop tests: the parallel gate waits up to 10s (it opens as soon as the second tool
+  runs), fixing a flake under full-workspace load.
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 7.5 split; 7.5a done (agent-loop.ts parity)
 - Ledger: 7.5 split into 7.5a (agent-loop.ts + agent-loop.test.ts) and 7.5b (agent.ts +
   agent.test.ts + prepare-next-turn-refresh.test.ts).

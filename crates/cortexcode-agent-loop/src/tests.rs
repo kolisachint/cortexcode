@@ -346,7 +346,9 @@ async fn prepares_tool_arguments_before_execution() {
 
 /// A tool whose "first" call blocks until "second" runs (proving overlap) or a
 /// timeout passes; returns (tool, parallel_observed).
-fn gated_tool(name: &str) -> (AgentTool, Arc<AtomicBool>) {
+/// `wait` bounds how long "first" waits: long for the parallel cases (the gate
+/// opens as soon as "second" runs), short where the calls must be sequential.
+fn gated_tool(name: &str, wait: Duration) -> (AgentTool, Arc<AtomicBool>) {
     let parallel = Arc::new(AtomicBool::new(false));
     let first_resolved = Arc::new(AtomicBool::new(false));
     let gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
@@ -357,7 +359,7 @@ fn gated_tool(name: &str) -> (AgentTool, Arc<AtomicBool>) {
             "first" => {
                 let guard = lock.lock().unwrap();
                 let _ = cvar
-                    .wait_timeout_while(guard, Duration::from_millis(300), |released| !*released)
+                    .wait_timeout_while(guard, wait, |released| !*released)
                     .unwrap();
                 first_resolved.store(true, Ordering::SeqCst);
             }
@@ -387,7 +389,7 @@ fn first_and_second(name: &'static str) -> impl Fn(usize, &ai_types::Context) ->
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn emits_tool_execution_end_in_completion_order_but_results_in_source_order() {
-    let (echo, parallel) = gated_tool("echo");
+    let (echo, parallel) = gated_tool("echo", Duration::from_secs(10));
     let mut config = identity_config();
     config.tool_execution = ToolExecutionMode::Parallel;
     mock_stream(&mut config, first_and_second("echo"));
@@ -495,7 +497,7 @@ async fn injects_queued_messages_after_all_tool_calls_complete() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn forces_sequential_execution_when_a_tool_is_sequential_under_parallel_config() {
-    let (mut slow, parallel) = gated_tool("slow");
+    let (mut slow, parallel) = gated_tool("slow", Duration::from_millis(300));
     slow.execution_mode = Some(ToolExecutionMode::Sequential);
     let mut config = identity_config();
     mock_stream(&mut config, first_and_second("slow"));
@@ -544,7 +546,7 @@ async fn forces_sequential_execution_when_one_of_several_tools_is_sequential() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn allows_parallel_execution_when_all_tools_are_parallel() {
-    let (mut echo, parallel) = gated_tool("echo");
+    let (mut echo, parallel) = gated_tool("echo", Duration::from_secs(10));
     echo.execution_mode = Some(ToolExecutionMode::Parallel);
     let mut config = identity_config();
     mock_stream(&mut config, first_and_second("echo"));
