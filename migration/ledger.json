@@ -625,7 +625,7 @@
    "id": "7.4",
    "title": "One session stack: code-session is the implementation; agent-session reduced to the storage trait (memory + JSONL repo)",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -642,7 +642,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T05:56:49Z",
+     "commit": "e1cec3f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T06:02:24Z",
+     "commit": "e1cec3f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "7.5",

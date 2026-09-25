@@ -1,101 +1,161 @@
-//! Session persistence for agent conversations.
+//! Session trees for cortex agents.
 //!
-//! Mirrors the `harness/session/` directory from the TypeScript
-//! `@kolisachint/hoocode-agent-core` package.
-//!
-//! Because `AgentTool` contains execution callbacks, `AgentContext` itself is
-//! not serializable. Instead we persist the serializable parts of a session
-//! (`system_prompt` and `messages`) and rebuild the context on load by
-//! supplying the tool set.
+//! Port of hoocode `packages/agent/src/harness/session/` and the session types
+//! in `harness/types.ts`: the JSONL entry format ([`entry`]),
+//! `buildSessionContext` ([`context`]), the storage trait with in-memory and
+//! JSONL backends ([`storage`]), `Session` ([`session`]) and the repositories
+//! ([`repo`]). `cortexcode-code-session` (hoocode `session-manager.ts`) builds
+//! on these types.
 
-use cortexcode_agent_types::{AgentContext, AgentMessage, AgentTool};
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+pub mod context;
+pub mod entry;
+pub mod repo;
+pub mod session;
+pub mod storage;
 
-pub mod store;
+pub use context::{build_session_context, ModelRef, SessionContext};
+pub use entry::{CustomMessageContent, FileEntry, Header, CURRENT_SESSION_VERSION};
+pub use repo::{
+    get_entries_to_fork, ForkOptions, ForkPosition, InMemorySessionRepo, JsonlSessionCreateOptions,
+    JsonlSessionRepo, SharedSession,
+};
+pub use session::{BranchSummaryInput, Session};
+pub use storage::{
+    entry_type_of, load_jsonl_session_metadata, InMemorySessionStorage, JsonlSessionMetadata,
+    JsonlSessionStorage, SessionMetadata, SessionStorage, SessionTreeEntry,
+};
 
-pub use store::*;
-
-/// Metadata stored alongside a persisted session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionMetadata {
-    /// When the session was created (ISO 8601).
-    pub created_at: String,
-    /// When the session was last updated (ISO 8601).
-    pub updated_at: String,
-    /// Optional human-readable title.
-    pub title: Option<String>,
+/// Errors from session storage and repositories. Messages match hoocode's.
+#[derive(Debug)]
+pub enum SessionError {
+    /// `Entry <id> not found`.
+    EntryNotFound(String),
+    /// `Session not found: <id or path>`.
+    SessionNotFound(String),
+    /// A malformed session file or an invalid request (message as in TS).
+    Invalid(String),
+    Io(std::io::Error),
+    Json(serde_json::Error),
 }
 
-/// Serializable representation of a session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionData {
-    /// Unique session identifier.
-    pub id: String,
-    /// Session metadata.
-    pub metadata: SessionMetadata,
-    /// System prompt used for the session.
-    pub system_prompt: String,
-    /// Conversation messages.
-    pub messages: Vec<AgentMessage>,
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SessionError::EntryNotFound(id) => write!(f, "Entry {id} not found"),
+            SessionError::SessionNotFound(what) => write!(f, "Session not found: {what}"),
+            SessionError::Invalid(message) => f.write_str(message),
+            SessionError::Io(e) => write!(f, "{e}"),
+            SessionError::Json(e) => write!(f, "{e}"),
+        }
+    }
 }
 
-impl SessionData {
-    /// Create new session data from an `AgentContext`.
-    pub fn from_context(id: impl Into<String>, context: &AgentContext) -> Self {
-        let now = now_iso8601();
-        Self {
-            id: id.into(),
-            metadata: SessionMetadata {
-                created_at: now.clone(),
-                updated_at: now,
-                title: None,
-            },
-            system_prompt: context.system_prompt.clone(),
-            messages: context.messages.clone(),
+impl std::error::Error for SessionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            SessionError::Io(e) => Some(e),
+            SessionError::Json(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for SessionError {
+    fn from(e: std::io::Error) -> Self {
+        SessionError::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for SessionError {
+    fn from(e: serde_json::Error) -> Self {
+        SessionError::Json(e)
+    }
+}
+
+/// `createSessionId()`: a UUIDv7.
+pub fn create_session_id() -> String {
+    uuid::Uuid::now_v7().to_string()
+}
+
+/// `createTimestamp()` / `new Date().toISOString()`.
+pub fn create_timestamp() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+/// `generateEntryId`: the first 8 characters of a random UUID that `exists`
+/// does not report as taken; a full UUID after 100 collisions.
+pub fn generate_entry_id(exists: impl Fn(&str) -> bool) -> String {
+    for _ in 0..100 {
+        let id = uuid::Uuid::new_v4().to_string()[..8].to_string();
+        if !exists(&id) {
+            return id;
+        }
+    }
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// `encodeCwd`: `--<cwd without one leading separator, with / \ : as ->--`.
+pub fn encode_cwd(cwd: &str) -> String {
+    let trimmed = cwd
+        .strip_prefix(['/', '\\'])
+        .unwrap_or(cwd)
+        .replace(['/', '\\', ':'], "-");
+    format!("--{trimmed}--")
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    //! `session-test-utils.ts`.
+
+    use cortexcode_agent_types::AgentMessage;
+    use cortexcode_ai_types::{AssistantMessage, Content, Message, StopReason, UserMessage};
+
+    pub fn user_message(text: &str) -> AgentMessage {
+        AgentMessage::from_message(Message::User(UserMessage {
+            content: vec![Content::text(text)],
+            timestamp: cortexcode_ai_types::now_ms(),
+        }))
+    }
+
+    pub fn assistant_message(text: &str) -> AgentMessage {
+        AgentMessage::from_message(Message::Assistant(AssistantMessage {
+            content: vec![Content::text(text)],
+            api: "anthropic-messages".into(),
+            provider: "anthropic".into(),
+            model: "claude-sonnet-4-5".into(),
+            stop_reason: StopReason::Stop,
+            timestamp: cortexcode_ai_types::now_ms(),
+            ..Default::default()
+        }))
+    }
+
+    /// A temporary directory removed on drop (`createTempDir` + `afterEach`).
+    pub struct TempDir(std::path::PathBuf);
+
+    impl TempDir {
+        pub fn path(&self) -> &std::path::Path {
+            &self.0
         }
     }
 
-    /// Set the session title.
-    pub fn with_title(mut self, title: impl Into<String>) -> Self {
-        self.metadata.title = Some(title.into());
-        self
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
-    /// Rebuild an `AgentContext` using the supplied tools.
-    pub fn to_context(&self, tools: Vec<AgentTool>) -> AgentContext {
-        AgentContext::new(self.system_prompt.clone(), self.messages.clone(), tools)
+    pub fn temp_dir() -> TempDir {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static N: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "cortex-agent-session-{}-{}-{}",
+            std::process::id(),
+            cortexcode_ai_types::now_ms(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        TempDir(dir)
     }
-}
-
-fn now_iso8601() -> String {
-    // Simple ISO 8601 approximation suitable for sorting.
-    let now = std::time::SystemTime::now();
-    let secs = now
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format!("{}", secs)
-}
-
-/// Return a default session directory under the user's home directory.
-///
-/// Uses `$HOME/.cortexcode/sessions` on Unix-like systems. Falls back to
-/// `./.cortexcode/sessions` if `HOME` is not set.
-pub fn default_session_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .map(|home| home.join(".cortexcode").join("sessions"))
-        .unwrap_or_else(|| PathBuf::from(".cortexcode/sessions"))
-}
-
-/// Ensure the parent directory of `path` exists.
-pub fn ensure_parent(path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -103,21 +163,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_session_data_from_context() {
-        let ctx = AgentContext::new("system".into(), vec![], vec![]);
-        let data = SessionData::from_context("test", &ctx);
-        assert_eq!(data.id, "test");
-        assert_eq!(data.system_prompt, "system");
-        assert!(data.metadata.title.is_none());
+    fn encode_cwd_matches_hoocode() {
+        assert_eq!(encode_cwd("/tmp/my-project"), "--tmp-my-project--");
+        assert_eq!(encode_cwd("C:\\Users\\me"), "--C--Users-me--");
+        // Only one leading separator is dropped (`/^[/\\]/`).
+        assert_eq!(encode_cwd("//srv/x"), "---srv-x--");
+        assert_eq!(encode_cwd("rel/dir"), "--rel-dir--");
     }
 
     #[test]
-    fn test_session_data_roundtrip_context() {
-        let ctx = AgentContext::new("system".into(), vec![], vec![]);
-        let data = SessionData::from_context("test", &ctx).with_title("My Session");
-        let rebuilt = data.to_context(vec![]);
-        assert_eq!(rebuilt.system_prompt, "system");
-        assert_eq!(rebuilt.messages.len(), 0);
-        assert_eq!(data.metadata.title.as_deref(), Some("My Session"));
+    fn ids_and_timestamps_have_hoocode_shapes() {
+        let id = generate_entry_id(|_| false);
+        assert_eq!(id.len(), 8);
+        assert_eq!(generate_entry_id(|_| true).len(), 36);
+        let ts = create_timestamp();
+        assert!(ts.ends_with('Z') && ts.len() == 24, "{ts}");
+        assert_eq!(create_session_id().len(), 36);
     }
 }

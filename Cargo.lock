@@ -319,10 +319,12 @@ dependencies = [
 name = "cortexcode-agent-session"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -657,12 +659,12 @@ name = "cortexcode-code-session"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "cortexcode-agent-session",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
  "cortexcode-code-config",
  "serde",
  "serde_json",
- "uuid",
 ]
 
 [[package]]
@@ -3112,7 +3114,6 @@ checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
- "serde_core",
  "wasm-bindgen",
 ]
 

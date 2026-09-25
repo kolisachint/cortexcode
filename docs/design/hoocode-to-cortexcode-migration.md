@@ -1114,7 +1114,7 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 - [x] **3.1 cortexcode-agent-core** — Agent struct, orchestration, state management — **DONE** (`Agent`, `build_loop_config`, orchestration)
 - [x] **3.2 cortexcode-agent-loop** — Turn loop, tool dispatch, background tools — **DONE** (loop moved from agent-core into standalone crate; sequential/parallel dispatch, background tasks, hooks) ⚠ 0 tests, no steering/follow-up → 7.5
 - [x] **3.3 cortexcode-agent-harness** — Message conversion, system prompt, prompt templates — **DONE** (message helpers, system-prompt builder, prompt templates)
-- [x] **3.4 cortexcode-agent-session** — Session persistence, file management — **DONE** (SessionData, FileSessionStore, MemorySessionStore)
+- [x] **3.4 cortexcode-agent-session** — Session persistence, file management — **DONE**; since 7.4 the port of `harness/session` (entry format, `buildSessionContext`, storage trait + memory/JSONL backends, `Session`, repos); the old `FileSessionStore` is gone
 - [x] **3.5 cortexcode-agent-compaction** — Context window compaction, summarization — **DONE** (token estimation, KeepRecentStrategy, SummaryStrategy) ⚠ 171 LOC vs 1.4K TS (no branch summarization) → 9.2
 - [x] **3.6 cortexcode-agent-tools** — Tool registry / factory pattern — **DONE** (ToolRegistry, factory helpers, result constructors)
 - [x] **3.7 cortexcode-agent-mcp** — MCP transport, tool discovery — **DONE** (stdio and HTTP/SSE transports, `mcp.json` loader, tool discovery, Streamable HTTP with SSE fallback; OAuth deferred) ⚠ replace transport with `rmcp`, add OAuth → 9.1
@@ -1162,7 +1162,7 @@ Everything later serializes these types or runs on this runtime, so this phase i
   - `code-session::FileEntry` uses `rename_all_fields = "camelCase"`.
   - Acceptance: round-trip real JSONL files recorded with hoocode at the pin (`tests/fixtures/hoocode-0.5.89/sessions/*.jsonl`), including v1→v2→v3 migration.
 - [x] **7.3 Async core.** Move providers to async `reqwest` plus one shared SSE decoder (`eventsource-stream`), and delete the four `sse.rs` copies. `AssistantMessageEventStream` becomes a `futures::Stream`. `AbortSignal` becomes `tokio_util::sync::CancellationToken`. Drop the `blocking` feature everywhere. Keep a thin `block_on` helper for tests. *Split 2026-09-25:* 7.3a (ai-sse, EventStream, abort, the four providers), 7.3b (async agent loop/core and consumers), 7.3c (remaining `reqwest::blocking`, `cache_control` into request building).
-- [ ] **7.4 One session stack.** Keep `code-session` (the JSONL tree) as the implementation. Reduce `agent-session` to the storage trait hoocode has in `agent/src/harness/session/{repo,storage}` (memory + JSONL). Delete the duplicate `FileSessionStore`.
+- [x] **7.4 One session stack.** Keep `code-session` (the JSONL tree) as the implementation. Reduce `agent-session` to the storage trait hoocode has in `agent/src/harness/session/{repo,storage}` (memory + JSONL). Delete the duplicate `FileSessionStore`.
 - [ ] **7.5 Agent loop parity.** Port `agent.ts` and `agent-loop.ts` from the pin: steering and follow-up queues, `prepareNextTurn`, `transformContext`, `convertToLlm`, parallel/sequential tool execution, abort mid-stream and mid-tool, and the full event sequence (`agent_start … turn_end … agent_end`). Port `agent.test.ts`, `agent-loop.test.ts` and `prepare-next-turn-refresh.test.ts` onto the faux provider (these crates have 0 tests today).
 
 ### Phase 8 — AI namespace parity

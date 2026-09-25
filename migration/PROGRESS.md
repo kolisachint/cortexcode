@@ -14,6 +14,24 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 7.4 done (one session stack)
+- `agent-session` is now the port of hoocode `packages/agent/src/harness/session/`:
+  - `entry` + `context` moved here from code-session (hoocode keeps `SessionTreeEntry` and
+    `buildSessionContext` in the agent harness; coding-agent's session-manager imports them).
+    code-session re-exports both modules, so its API is unchanged.
+  - `storage`: `SessionStorage` trait (sync; the TS promises wrap in-process state and local
+    appends), `InMemorySessionStorage`, `JsonlSessionStorage` (v3 header in hoocode key order,
+    malformed entry lines skipped, leaf = last line), `load_jsonl_session_metadata`.
+  - `session::Session<S>` (all `append*`, `moveTo` with branch summary, `getSessionName`,
+    `buildContext`); `repo`: `InMemorySessionRepo` (sessions shared as `Arc<Mutex<Session>>`,
+    so `open` returns the same one), `JsonlSessionRepo`, `get_entries_to_fork`.
+  - Shared helpers: `create_session_id` (v7), `generate_entry_id`, `create_timestamp`,
+    `encode_cwd`. code-session's own copies now call these. Behavior fix: `encode_cwd` drops
+    only one leading separator, as hoocode's `/^[/\\]/` does (it used to trim all).
+  - The old `SessionData` / `FileSessionStore` / `MemorySessionStore` are deleted (no users).
+- Ported `storage.test.ts`, `session.test.ts` (both backends) and `repo.test.ts`: 29 tests.
+- Next: `ledger.py next`.
+
 ### 2026-09-25: 7.3c done (no reqwest::blocking left; cache_control in request building)
 - ai-oauth (anthropic token exchange/refresh, GitHub Copilot device flow + refresh), ai-images
   (`generate_images`) and code-tools (`webfetch`/`websearch` placeholders) are async; nothing in
