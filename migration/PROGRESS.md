@@ -27,7 +27,12 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   Moonshot/Together or `compat.supportsStrictMode: false`.
 - New L2 scenario `print-tool-read-light` (selfcheck stable, compares messages + tools):
   **pass**. The done tasks' `print-basic`/`print-error` still pass.
-- Next: `ledger.py next`.
+- 7.3's L2 guard `print-tool-read` → `print-tool-read-light` (M1 is light mode; bookkeeping,
+  noted in the task log).
+- Next: **7.3** (async core). It's large (~7.6K lines across ai-types stream trait, 4
+  providers, oauth, agent-loop/core). Consider splitting it in the ledger first: e.g. 7.3a ai-sse
+  + async provider streams behind the existing trait, 7.3b async agent loop + CancellationToken
+  abort. Keep `print-basic`, `print-error`, `print-tool-read-light` green throughout.
 
 ### 2026-09-25: 10.4c l1_done (buildSystemPrompt port); M1 needs a decision
 - `code-prompts::system_prompt` ports `buildSystemPrompt` exactly (app name `cortex`, which

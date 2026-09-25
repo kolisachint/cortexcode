@@ -486,10 +486,12 @@
    "l1_cmds": [],
    "l2": [
     "print-basic",
-    "print-tool-read"
+    "print-tool-read-light"
    ],
    "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
-   "log": []
+   "log": [
+    "2026-09-25: L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+   ]
   },
   {
    "id": "7.4",
