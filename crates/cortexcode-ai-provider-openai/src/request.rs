@@ -114,18 +114,10 @@ fn image_url_block(media_type: &str, data: &str) -> serde_json::Value {
     })
 }
 
-fn user_message(content: &[Content]) -> serde_json::Value {
-    if content.iter().all(|c| matches!(c, Content::Text(_))) {
-        let text: String = content
-            .iter()
-            .map(|c| match c {
-                Content::Text(t) => t.text.as_str(),
-                _ => "",
-            })
-            .collect();
-        return serde_json::json!({"role": "user", "content": text});
-    }
-
+/// `convertMessages` for a user message with block content: always a parts
+/// array (the string form is only for string content, which `UserMessage`
+/// does not keep). Empty content produces no message.
+fn user_message(content: &[Content]) -> Option<serde_json::Value> {
     let parts: Vec<serde_json::Value> = content
         .iter()
         .filter_map(|c| match c {
@@ -134,7 +126,10 @@ fn user_message(content: &[Content]) -> serde_json::Value {
             Content::Thinking(_) | Content::ToolCall(_) => None,
         })
         .collect();
-    serde_json::json!({"role": "user", "content": parts})
+    if parts.is_empty() {
+        return None;
+    }
+    Some(serde_json::json!({"role": "user", "content": parts}))
 }
 
 fn assistant_message(content: &[Content]) -> Option<serde_json::Value> {
@@ -186,7 +181,9 @@ fn convert_messages(messages: &[Message]) -> Vec<serde_json::Value> {
     while i < messages.len() {
         match &messages[i] {
             Message::User(m) => {
-                out.push(user_message(&m.content));
+                if let Some(v) = user_message(&m.content) {
+                    out.push(v);
+                }
                 i += 1;
             }
             Message::Assistant(m) => {
@@ -304,9 +301,18 @@ mod tests {
             text: "hi".into(),
             cache_control: None,
         })];
-        let v = user_message(&content);
+        let v = user_message(&content).unwrap();
         assert_eq!(v["role"], "user");
-        assert_eq!(v["content"], "hi");
+        // Block content stays a parts array, as in convertMessages.
+        assert_eq!(
+            v["content"],
+            serde_json::json!([{"type": "text", "text": "hi"}])
+        );
+    }
+
+    #[test]
+    fn test_user_message_empty_is_skipped() {
+        assert_eq!(user_message(&[]), None);
     }
 
     #[test]
@@ -323,7 +329,7 @@ mod tests {
                 cache_control: None,
             }),
         ];
-        let v = user_message(&content);
+        let v = user_message(&content).unwrap();
         assert_eq!(v["content"][0]["type"], "text");
         assert_eq!(v["content"][1]["type"], "image_url");
         assert!(v["content"][1]["image_url"]["url"]

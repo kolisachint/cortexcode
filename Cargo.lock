@@ -266,6 +266,7 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-agent-loop",
  "cortexcode-agent-types",
+ "cortexcode-ai-provider-faux",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "serde",

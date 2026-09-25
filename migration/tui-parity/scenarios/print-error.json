@@ -1,0 +1,12 @@
+{
+  "description": "Print mode (-p) when the provider rejects the request: the error goes to stderr, nothing to stdout, exit 1.",
+  "phase": "10.8a",
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "say hello"],
+  "llm": [{"error": "invalid request: mock rejects this", "status": 400}],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["<exited status=1>"]}
+  ]
+}

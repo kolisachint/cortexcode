@@ -11,6 +11,35 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 10.8a done (print-mode text parity; M1 part 1 green)
+- `code-cli::runtime::run_print_mode` ports `runPrintMode` (text) plus `prepareInitialMessage`:
+  - initial message = piped stdin (trimmed) + `@file` text + first message;
+  - each remaining message is its own prompt on the same transcript;
+  - stdout gets each text block of the final assistant message, followed by `\n`;
+  - `error`/`aborted` writes `errorMessage || "Request <reason>"` to stderr and exits 1;
+  - exceptions go to stderr and exit 1.
+- `code-cli::initial_message` ports `initial-message.ts` and `file-processor.ts` (text files):
+  - `<file name="abs">` wrapping; empty files skipped;
+  - `Error: File not found: <abs>`;
+  - `expandPath`/`resolveReadPath`, minus the NFD variant (10.2).
+  Image `@file`s fail as not yet supported (resize needs code-media, 11.4).
+- `code-print::text_result` holds the text-mode tail as a pure function, with tests.
+- Bug fixes:
+  - `agent-core`: `Agent::prompt` replaced the transcript with only the new run's messages,
+    so a second prompt, and every interactive turn, lost history. It now appends (regression
+    test with faux).
+  - User prompts are no longer wrapped in "Please help me with the following coding
+    task:" (hoocode sends the raw text).
+  - openai provider: HTTP errors use the SDK's `APIError.makeMessage` (`400 <error.message>`).
+    User block content is always a parts array, and empty user messages are skipped
+    (`convertMessages`).
+- New L2 scenarios (all `selfcheck` stable):
+  - `print-error`: 400 from the provider gives stderr + exit 1. 10.8a gate, passes.
+  - `print-multi`: `-p q1 q2` checks the transcript. Its stdout passes; its requests differ
+    only in the system prompt, so it is listed as a 10.4c gate.
+- Next: `ledger.py next`. M1 part 2 is 10.2a (`read`; print-tool-read shows "Cloned tool:
+  execute not available") + 10.4c (system prompt).
+
 ### 2026-09-25: 10.7a done (`code-cli`: exact port of the pinned CLI)
 - New crate `cortexcode-code-cli`:
   - `args.rs` is an exact port of `cli/args.ts` `parseArgs`: every pinned flag, `-nt`/`-nbt`/`-nsc`

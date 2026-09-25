@@ -16,8 +16,8 @@ use cortexcode_ai_types::{
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 
 use cortexcode_code_config::Config;
-use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
-use cortexcode_code_prompts::{initial_user_prompt, system_prompt, Mode};
+use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_prompts::{system_prompt, Mode};
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
 
 // ---------------------------------------------------------------------------
@@ -313,29 +313,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     Ok(agent)
 }
 
-/// Build the initial user messages from CLI arguments.
-fn build_user_messages(args: &Args) -> Vec<AgentMessage> {
-    // Prompt modes (ask/plan/build) arrive with 10.5; `--mode` is the output mode.
-    let mode = Mode::default();
-
-    let mut messages = Vec::new();
-
-    // Add file args as user messages.
-    for path in &args.file_args {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            let text = format!("File {}:\n```\n{}\n```", path, content);
-            messages.push(text_message(&text));
-        }
-    }
-
-    // Add explicit prompt messages.
-    for text in &args.messages {
-        messages.push(text_message(&initial_user_prompt(mode, text)));
-    }
-
-    messages
-}
-
+/// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
         content: vec![Content::Text(TextContent {
@@ -347,15 +325,45 @@ fn text_message(text: &str) -> AgentMessage {
     }))
 }
 
-/// Run the agent once in print mode and write the result to `output`.
+/// `runPrintMode` (print-mode.ts) plus the `prepareInitialMessage` step of
+/// `main.ts`. Returns the process exit code.
 pub fn run_print_mode(
     args: &Args,
     mode: PrintMode,
+    stdin_content: Option<String>,
+    color: bool,
     output: &mut dyn Write,
-    _err: &mut dyn Write,
-) -> Result<(), RuntimeError> {
-    let agent = build_agent_with_gate(args, false)?;
-    let messages = build_user_messages(args);
+    err: &mut dyn Write,
+) -> std::io::Result<i32> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    let file_text = if args.file_args.is_empty() {
+        None
+    } else {
+        match crate::initial_message::process_file_arguments(&args.file_args, &cwd, &home) {
+            Ok(text) => Some(text),
+            Err(message) => {
+                writeln!(err, "{}", crate::red(color, &message))?;
+                return Ok(1);
+            }
+        }
+    };
+    let mut messages = args.messages.clone();
+    let initial_message = crate::initial_message::build_initial_message(
+        &mut messages,
+        file_text.as_deref(),
+        stdin_content.as_deref(),
+    );
+
+    let agent = match build_agent_with_gate(args, false) {
+        Ok(agent) => agent,
+        Err(e) => {
+            writeln!(err, "{e}")?;
+            return Ok(1);
+        }
+    };
 
     let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
     let formatter_for_sub = formatter.clone();
@@ -365,37 +373,36 @@ pub fn run_print_mode(
         }
     }));
 
-    let result = agent.prompt(PromptInput::Messages(messages))?;
+    // `session.prompt(initialMessage)` then each remaining message in turn.
+    for prompt in initial_message.iter().chain(messages.iter()) {
+        if let Err(e) = agent.prompt(PromptInput::Messages(vec![text_message(prompt)])) {
+            writeln!(err, "{e}")?;
+            return Ok(1);
+        }
+    }
 
     match mode {
         PrintMode::Text => {
-            writeln!(output, "{}", format_text_output(&result))?;
+            let result = text_result(&agent.state().messages);
+            output.write_all(result.stdout.as_bytes())?;
+            output.flush()?;
+            if let Some(message) = result.stderr {
+                writeln!(err, "{message}")?;
+            }
+            Ok(result.exit_code)
         }
+        // Event-stream parity is 10.8b; json mode never inspects the final message.
         PrintMode::Json => {
             let formatter = std::sync::Arc::try_unwrap(formatter)
                 .ok()
                 .and_then(|m| m.into_inner().ok())
                 .unwrap_or_default();
-            formatter.finalize(output)?;
+            formatter
+                .finalize(output)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            Ok(0)
         }
     }
-
-    if let Some(last) = result.last() {
-        if let Some(Message::Assistant(am)) = last.extract_message() {
-            if let Some(error) = &am.error_message {
-                return Err(RuntimeError::Agent(error.clone()));
-            }
-            if am.stop_reason == cortexcode_ai_types::StopReason::Error {
-                let msg = am
-                    .error_message
-                    .clone()
-                    .unwrap_or_else(|| "unknown error".into());
-                return Err(RuntimeError::Agent(msg));
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Run the agent in an interactive TUI loop.
@@ -444,8 +451,7 @@ pub fn run_interactive_mode(
                         }
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
-                            let user_msg =
-                                text_message(&initial_user_prompt(Mode::default(), line));
+                            let user_msg = text_message(line);
                             match agent.prompt(PromptInput::Messages(vec![user_msg])) {
                                 Ok(messages) => {
                                     let text = format_text_output(&messages);

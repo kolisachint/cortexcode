@@ -355,10 +355,11 @@ impl Agent {
 
         let result = run_agent_loop(messages, context, config, &mut emit)?;
 
-        // Store result messages
+        // Append this run's messages to the transcript (agent.ts pushes each
+        // message on `message_end`; the transcript is never replaced).
         {
             let mut inner = self.inner.lock().unwrap();
-            inner.messages = result.clone();
+            inner.messages.extend(result.iter().cloned());
             inner.is_streaming = false;
             inner.streaming_message = None;
             inner.error_message = None;
@@ -458,7 +459,7 @@ impl Agent {
 
         {
             let mut inner = self.inner.lock().unwrap();
-            inner.messages = result.clone();
+            inner.messages.extend(result.iter().cloned());
             inner.is_streaming = false;
         }
 
@@ -572,5 +573,68 @@ impl From<Vec<AgentMessage>> for PromptInput {
 impl From<AgentMessage> for PromptInput {
     fn from(msg: AgentMessage) -> Self {
         PromptInput::Messages(vec![msg])
+    }
+}
+
+#[cfg(test)]
+mod transcript_tests {
+    use super::*;
+    use cortexcode_ai_provider_faux::{faux_text_message, FauxProvider, FauxResponseStep};
+
+    fn model() -> Model {
+        Model {
+            id: "faux-model".into(),
+            name: "Faux".into(),
+            api: "faux".into(),
+            provider: "faux".into(),
+            base_url: String::new(),
+            reasoning: false,
+            thinking_level_map: None,
+            input: vec!["text".into()],
+            cost: Default::default(),
+            context_window: 1000,
+            max_tokens: 100,
+            headers: None,
+            compat: None,
+        }
+    }
+
+    #[test]
+    fn prompt_appends_to_the_transcript() {
+        let faux = Arc::new(FauxProvider::new());
+        faux.set_responses(vec![
+            FauxResponseStep::Message(faux_text_message("one", None)),
+            FauxResponseStep::Message(faux_text_message("two", None)),
+        ]);
+        let agent = Agent::with_options(AgentOptions {
+            initial_state: Some(AgentState {
+                system_prompt: String::new(),
+                model: model(),
+                thinking_level: ThinkingLevel::Off,
+                tools: cortexcode_agent_types::AgentTools::new(Vec::new()),
+                messages: Vec::new(),
+                is_streaming: false,
+                streaming_message: None,
+                pending_tool_calls: Default::default(),
+                error_message: None,
+            }),
+            stream_fn: Some(Arc::new(faux.stream_fn())),
+            ..Default::default()
+        });
+        agent.prompt(PromptInput::Text("a".into())).unwrap();
+        let second = agent.prompt(PromptInput::Text("b".into())).unwrap();
+        // The returned messages are only this run's; the transcript keeps both runs.
+        assert_eq!(second.len(), 2);
+        let roles: Vec<&str> = agent
+            .state()
+            .messages
+            .iter()
+            .map(|m| match m {
+                AgentMessage::User(_) => "user",
+                AgentMessage::Assistant(_) => "assistant",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(roles, ["user", "assistant", "user", "assistant"]);
     }
 }

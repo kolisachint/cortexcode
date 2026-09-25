@@ -9,6 +9,7 @@ pub mod args;
 pub mod auth;
 mod help;
 mod help_text;
+pub mod initial_message;
 mod permission_dialog;
 mod runtime;
 
@@ -20,7 +21,7 @@ pub use help::{print_help, render_help};
 
 use cortexcode_code_config::Config;
 use cortexcode_code_print::PrintMode;
-use std::io::{IsTerminal, Write};
+use std::io::{IsTerminal, Read, Write};
 
 /// `VERSION` printed by `--version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -83,8 +84,8 @@ fn color_enabled() -> bool {
     std::io::stdout().is_terminal() && std::env::var("TERM").map_or(true, |t| t != "dumb")
 }
 
-fn red(env: Env, text: &str) -> String {
-    if env.color {
+pub(crate) fn red(color: bool, text: &str) -> String {
+    if color {
         format!("\x1b[31m{text}\x1b[39m")
     } else {
         text.to_string()
@@ -164,7 +165,7 @@ pub fn main(argv: &[String]) -> i32 {
             stderr,
             "{}",
             red(
-                env,
+                env.color,
                 &format!("Error: `cortex {cmd}` is not yet supported by cortex")
             )
         );
@@ -188,7 +189,7 @@ pub fn main(argv: &[String]) -> i32 {
     match run(&parsed, env, &mut stdout, &mut stderr) {
         Ok(code) => code,
         Err(e) => {
-            let _ = writeln!(stderr, "{}", red(env, &format!("Error: {e}")));
+            let _ = writeln!(stderr, "{}", red(env.color, &format!("Error: {e}")));
             1
         }
     }
@@ -204,7 +205,7 @@ pub fn run(
     if !parsed.diagnostics.is_empty() {
         for d in &parsed.diagnostics {
             let line = match d.kind {
-                DiagnosticKind::Error => red(env, &format!("Error: {}", d.message)),
+                DiagnosticKind::Error => red(env.color, &format!("Error: {}", d.message)),
                 DiagnosticKind::Warning => yellow(env, &format!("Warning: {}", d.message)),
             };
             writeln!(err, "{line}")?;
@@ -229,7 +230,7 @@ pub fn run(
         writeln!(
             err,
             "{}",
-            red(env, "Error: --export is not yet supported by cortex")
+            red(env.color, "Error: --export is not yet supported by cortex")
         )?;
         return Ok(1);
     }
@@ -238,7 +239,10 @@ pub fn run(
         writeln!(
             err,
             "{}",
-            red(env, "Error: @file arguments are not supported in RPC mode")
+            red(
+                env.color,
+                "Error: @file arguments are not supported in RPC mode"
+            )
         )?;
         return Ok(1);
     }
@@ -255,7 +259,7 @@ pub fn run(
                 err,
                 "{}",
                 red(
-                    env,
+                    env.color,
                     &format!("Error: {flag} is not yet supported by cortex")
                 )
             )?;
@@ -276,32 +280,54 @@ pub fn run(
             err,
             "{}",
             red(
-                env,
+                env.color,
                 &format!("Error: Unknown option{plural}: {}", names.join(", "))
             )
         )?;
         return Ok(1);
     }
 
-    let result =
-        match app_mode {
-            AppMode::Rpc => {
-                cortexcode_code_rpc::start_stdio_server().map_err(|e| format!("rpc error: {e}"))
+    // `readPipedStdin`: RPC mode owns stdin; otherwise a non-TTY stdin is read
+    // whole and becomes the start of the initial message.
+    let stdin_content = if app_mode != AppMode::Rpc && !env.stdin_is_tty {
+        let mut data = String::new();
+        let _ = std::io::stdin().read_to_string(&mut data);
+        initial_message::normalize_piped_stdin(&data)
+    } else {
+        None
+    };
+
+    match app_mode {
+        AppMode::Json => runtime::run_print_mode(
+            parsed,
+            PrintMode::Json,
+            stdin_content,
+            env.color,
+            output,
+            err,
+        ),
+        AppMode::Print => runtime::run_print_mode(
+            parsed,
+            PrintMode::Text,
+            stdin_content,
+            env.color,
+            output,
+            err,
+        ),
+        AppMode::Rpc => match cortexcode_code_rpc::start_stdio_server() {
+            Ok(()) => Ok(0),
+            Err(e) => {
+                writeln!(err, "rpc error: {e}")?;
+                Ok(1)
             }
-            AppMode::Json => runtime::run_print_mode(parsed, PrintMode::Json, output, err)
-                .map_err(|e| e.to_string()),
-            AppMode::Print => runtime::run_print_mode(parsed, PrintMode::Text, output, err)
-                .map_err(|e| e.to_string()),
-            AppMode::Interactive => {
-                runtime::run_interactive_mode(parsed, output, err).map_err(|e| e.to_string())
+        },
+        AppMode::Interactive => match runtime::run_interactive_mode(parsed, output, err) {
+            Ok(()) => Ok(0),
+            Err(e) => {
+                writeln!(err, "{e}")?;
+                Ok(1)
             }
-        };
-    match result {
-        Ok(()) => Ok(0),
-        Err(e) => {
-            writeln!(err, "{e}")?;
-            Ok(1)
-        }
+        },
     }
 }
 
