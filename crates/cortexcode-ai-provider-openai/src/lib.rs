@@ -5,9 +5,8 @@
 //! OpenAI-compatible provider; per-provider quirks come from the resolved
 //! compat ([`request::get_compat`]).
 //!
-//! Known deviations: the `openai` SDK's own client retries (2 by default,
-//! with the `retryDelayCapFetch` cap) and `describeProviderError`'s
-//! retry-after suffix are not ported yet (retry utilities, 8.5), and the
+//! Client retries follow the `openai` SDK (see
+//! `cortexcode_ai_util::send_with_sdk_retries`). Known deviation: the
 //! `onPayload` / `onResponse` hooks are not supported.
 
 pub mod request;
@@ -228,27 +227,34 @@ async fn create_with_param_fallback(
     let mut attempt = params;
     let mut passes = DROPPABLE_PARAMS.len();
     loop {
-        let mut request = client.post(url);
-        for (k, v) in headers {
-            request = request.header(k, v);
-        }
-        let response = request
-            .json(&attempt)
-            .send()
-            .await
-            .map_err(|e| RequestError::plain(format!("Connection error: {e}")))?;
+        let response = cortexcode_ai_util::post_json_with_sdk_retries(
+            &client,
+            url,
+            headers,
+            &attempt,
+            options.max_retries,
+            options.max_retry_delay_ms,
+        )
+        .await
+        .map_err(|failure| RequestError::plain(failure.message()))?;
         if response.status().is_success() {
             return Ok(response);
         }
         let status = response.status().as_u16();
+        let response_headers = cortexcode_ai_util::response_headers(&response);
         let body = response.text().await.unwrap_or_default();
-        let error = RequestError::http(status, body);
+        let mut error = RequestError::http(status, body);
         let text = format!("{} {}", error.message, error.body);
         let named: Vec<&'static str> = droppable_params_named_by(error.status, &text)
             .into_iter()
             .filter(|p| attempt.get(*p).is_some_and(|v| !v.is_null()))
             .collect();
         if named.is_empty() || passes == 0 {
+            error.message = cortexcode_ai_util::describe_provider_error(
+                &error.message,
+                Some(&response_headers),
+                options.max_retry_delay_ms,
+            );
             return Err(error);
         }
         passes -= 1;

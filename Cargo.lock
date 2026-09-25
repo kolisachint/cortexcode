@@ -367,6 +367,7 @@ dependencies = [
  "cortexcode-ai-types",
  "cortexcode-ai-util",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -550,10 +551,13 @@ dependencies = [
 name = "cortexcode-ai-util"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-ai-types",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

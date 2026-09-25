@@ -6,6 +6,8 @@
 
 mod copilot_headers;
 mod param_fallback;
+mod partial_json;
+mod retry_delay;
 mod tool_constraints;
 mod transform_messages;
 
@@ -15,6 +17,13 @@ pub use copilot_headers::{
 pub use param_fallback::{
     droppable_params_named_by, note_rejected_params, rejected_params_for, reset_rejected_params,
     DROPPABLE_PARAMS,
+};
+pub use partial_json::{parse_partial_json, PartialJsonError};
+pub use retry_delay::{
+    describe_provider_error, exceeds_retry_delay_cap, format_delay, header_lookup,
+    is_long_retry_delay_error, parse_retry_after_ms, post_json_with_sdk_retries, response_headers,
+    sdk_retry_timeout_ms, sdk_should_retry, send_with_sdk_retries, SendFailure,
+    DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SDK_MAX_RETRIES, MAX_TIMER_DELAY_MS,
 };
 pub use tool_constraints::to_strict_json_schema;
 pub use transform_messages::{transform_messages, NormalizeToolCallId};
@@ -189,67 +198,30 @@ pub fn parse_json_with_repair<T: serde::de::DeserializeOwned>(
 ///
 /// Ported from TypeScript `utils/json-parse.ts` → `parseStreamingJson()`.
 pub fn parse_streaming_json<T: serde::de::DeserializeOwned + Default>(partial: Option<&str>) -> T {
-    let Some(input) = partial else {
-        return serde_json::from_str("{}").unwrap_or_default();
+    let empty = || serde_json::from_str("{}").unwrap_or_default();
+    let Some(input) = partial.filter(|p| !p.trim().is_empty()) else {
+        return empty();
     };
-
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return serde_json::from_str("{}").unwrap_or_default();
-    }
-
-    // Try full parse first.
-    if let Ok(val) = serde_json::from_str::<T>(trimmed) {
+    if let Ok(val) = parse_json_with_repair::<T>(input) {
         return val;
     }
-
-    // Try with repair.
-    let repaired = repair_json(trimmed);
-    if let Ok(val) = serde_json::from_str::<T>(&repaired) {
-        return val;
-    }
-
-    // Try tolerant partial parse — find the deepest valid JSON prefix by
-    // progressively trimming trailing characters.
-    try_tolerant_parse::<T>(trimmed)
-        .or_else(|| try_tolerant_parse::<T>(&repaired))
-        .unwrap_or_else(|| serde_json::from_str("{}").unwrap_or_default())
-}
-
-/// Try to parse JSON by trimming trailing characters until valid.
-fn try_tolerant_parse<T: serde::de::DeserializeOwned + Default>(input: &str) -> Option<T> {
-    // For arrays, try adding closing brackets.
-    if let Some(stripped) = input.strip_suffix(',') {
-        if let Ok(val) = serde_json::from_str::<T>(stripped) {
-            return Some(val);
-        }
-    }
-
-    // Try adding closing quotes, brackets, braces progressively.
-    let mut candidate = input.to_string();
-    for _ in 0..10 {
-        if let Ok(val) = serde_json::from_str::<T>(&candidate) {
-            return Some(val);
-        }
-        // Add closing brace if it looks like an object
-        if candidate.starts_with('{') && !candidate.ends_with('}') {
-            candidate.push('}');
-            continue;
-        }
-        // Add closing bracket if it looks like an array
-        if candidate.starts_with('[') && !candidate.ends_with(']') {
-            candidate.push(']');
-            continue;
-        }
-        // Add closing quote if in string
-        if candidate.ends_with('"') || candidate.matches('"').count() % 2 == 1 {
-            candidate.push('"');
-            continue;
-        }
-        break;
-    }
-
-    None
+    // `partial-json`, on the raw text and then on the repaired text; a null
+    // result counts as nothing (`result ?? {}`).
+    let partial = |text: &str| {
+        partial_json::parse_partial_json(text)
+            .ok()
+            .map(|v| {
+                if v.is_null() {
+                    serde_json::json!({})
+                } else {
+                    v
+                }
+            })
+            .and_then(|v| serde_json::from_value::<T>(v).ok())
+    };
+    partial(input)
+        .or_else(|| partial(&repair_json(input)))
+        .unwrap_or_else(empty)
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +286,7 @@ fn overflow_patterns() -> &'static [regex::Regex] {
             r"(?i)maximum prompt length is \d+",
             r"(?i)reduce the length of the messages",
             r"(?i)maximum context length is \d+ tokens",
-            r"(?i)input \(\d+ tokens\) is longer than the model's? context length \(\d+ tokens\)",
+            r"(?i)input \(\d+ tokens\) is longer than the model'?s context length \(\d+ tokens\)",
             r"(?i)exceeds the limit of \d+",
             r"(?i)exceeds the available context size",
             r"(?i)greater than the context length",
@@ -529,6 +501,104 @@ mod tests {
             timestamp: 0,
             error_message: Some(msg.to_string()),
         }
+    }
+
+    /// `parseStreamingJson` on incomplete input, against what the
+    /// `partial-json` package at the pin returns (recorded with node).
+    #[test]
+    fn parse_streaming_json_matches_partial_json() {
+        let cases = [
+            (r#"{"path":"README"#, r#"{"path":"README"}"#),
+            (r#"{"a":1,"b":[1,2"#, r#"{"a":1,"b":[1,2]}"#),
+            (r#"{"a":{"b":"c"#, r#"{"a":{"b":"c"}}"#),
+            (r#"{"a":tr"#, r#"{"a":true}"#),
+            (r#"{"a":1."#, r#"{}"#),
+            (r#"{"a":"x\"#, r#"{"a":"x"}"#),
+            (r#"[1,2,{"k":"#, r#"[1,2,{}]"#),
+            (r#"{"a":nu"#, r#"{"a":null}"#),
+            (r#"{"a"#, r#"{}"#),
+            (r#"{"a":"#, r#"{}"#),
+            (r#""str"#, r#""str""#),
+            (r#"{"a":-"#, r#"{}"#),
+            (r#"{"a":"\u00"#, r#"{"a":""}"#),
+            ("", "{}"),
+        ];
+        let mut failures = Vec::new();
+        for (input, expected) in cases {
+            let got: serde_json::Value = parse_streaming_json(Some(input));
+            let expected: serde_json::Value = serde_json::from_str(expected).unwrap();
+            if got != expected {
+                failures.push(format!("{input:?}: got {got}, want {expected}"));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    // --- overflow.test.ts ---
+
+    fn ollama_error(msg: &str) -> AssistantMessage {
+        let mut m = make_error_msg(msg);
+        m.api = "openai-completions".into();
+        m.provider = "ollama".into();
+        m.model = "qwen3.5:35b".into();
+        m
+    }
+
+    #[test]
+    fn detects_explicit_ollama_prompt_too_long_errors() {
+        let m = ollama_error("400 `prompt too long; exceeded max context length by 100918 tokens`");
+        assert!(is_context_overflow(&m, Some(32768)));
+    }
+
+    #[test]
+    fn detects_together_ai_context_length_errors() {
+        let m = ollama_error(
+            "400 The input (516368 tokens) is longer than the model's context length (262144 tokens).",
+        );
+        assert!(is_context_overflow(&m, Some(262144)));
+        let m = ollama_error(
+            "400 The input (516368 tokens) is longer than the models context length (262144 tokens).",
+        );
+        assert!(is_context_overflow(&m, Some(262144)));
+    }
+
+    #[test]
+    fn non_overflow_errors_are_not_overflow() {
+        for msg in [
+            "500 `model runner crashed unexpectedly`",
+            "Throttling error: Too many tokens, please wait before trying again.",
+            "Service unavailable: The service is temporarily unavailable.",
+            "Rate limit exceeded, please retry after 30 seconds.",
+            "Too many requests. Please slow down.",
+        ] {
+            assert!(
+                !is_context_overflow(&ollama_error(msg), Some(200_000)),
+                "{msg}"
+            );
+        }
+    }
+
+    fn length_stop(input: u64, cache_read: u64, output: u64) -> AssistantMessage {
+        let mut m = make_error_msg("");
+        m.error_message = None;
+        m.stop_reason = StopReason::Length;
+        m.usage.input = input;
+        m.usage.cache_read = cache_read;
+        m.usage.output = output;
+        m
+    }
+
+    #[test]
+    fn detects_xiaomi_style_length_stop_overflow() {
+        assert!(is_context_overflow(
+            &length_stop(58, 1_048_512, 0),
+            Some(1_048_576)
+        ));
+        assert!(!is_context_overflow(
+            &length_stop(1000, 0, 4096),
+            Some(200_000)
+        ));
+        assert!(!is_context_overflow(&length_stop(100, 0, 0), Some(200_000)));
     }
 
     #[test]

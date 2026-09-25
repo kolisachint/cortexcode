@@ -14,6 +14,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 8.5 split; 8.5a done (retry-delay + SDK retries, overflow, partial JSON)
+- Ledger: 8.5 split into 8.5a (retry-delay, SDK retry policy, overflow, json-parse,
+  cross-provider handoff) and 8.5b (validation.ts + agent-loop wiring). The claude-5-models
+  request-format note moved to 8.6 (anthropic provider); diagnostics.ts noted on 8.4a.
+- ai-util `retry_delay`: parseRetryAfterMs, formatDelay, describeProviderError,
+  isLongRetryDelayError, the cap-fetch rule (`exceeds_retry_delay_cap`), and the SDK retry
+  loop (`send_with_sdk_retries` / `post_json_with_sdk_retries`: 2 retries on 408/409/429/5xx
+  and transport errors, x-should-retry, retry-after(-ms), 0.5..8s backoff with jitter, JS
+  timer clamp). Wired into openai-completions (inside each param-fallback pass), the
+  Responses driver (openai-responses + azure) and anthropic; final errors go through
+  describeProviderError; transport errors read "Connection error." / "Request timed out.".
+  `SimpleStreamOptions.max_retries` now reaches the providers.
+- anthropic: `api_error_message` follows @anthropic-ai/sdk (whole parsed body).
+- ai-util `partial_json`: port of the partial-json package (0.1.7, Allow.ALL);
+  `parse_streaming_json` now follows json-parse.ts (the old tolerant parse returned
+  `{"path":"README}"}` for `{"path":"README`).
+- overflow: Together AI pattern fixed (`model'?s`); overflow.test.ts ported.
+- cross-provider-handoff.test.ts ported as an `#[ignore]` live test in cortexcode-ai.
+- New L2 scenario `print-retry` (503 then an answer): passes, identical requests.
+- Next: 8.5b (validation.ts), via `ledger.py next`.
+
 ### 2026-09-25: 8.3 done (openai-responses crate; azure on top of it)
 - New crate `ai-provider-openai-responses`: `shared` = openai-responses-shared.ts
   (`convert_responses_messages` incl. foreign `fc_<hash>` item ids, different-model fc id

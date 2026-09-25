@@ -731,3 +731,68 @@ fn map_stop_reason_matches_hoocode() {
         )
     );
 }
+
+// --- SDK client retries (retry-delay.ts + the openai SDK) ---
+
+#[test]
+fn retries_server_errors_like_the_sdk() {
+    let server = serve_script(vec![
+        (
+            "HTTP/1.1 500 Internal Server Error\r\nretry-after-ms: 1",
+            "application/json",
+            r#"{"error":{"message":"boom"}}"#,
+        ),
+        (OK, SSE, ok_body()),
+    ]);
+    let m = gateway_run(&server);
+    assert_eq!(m.stop_reason, StopReason::Stop);
+    assert_eq!(server.requests().len(), 2);
+}
+
+#[test]
+fn long_retry_after_is_not_retried_and_is_described() {
+    let server = serve_script(vec![(
+        "HTTP/1.1 429 Too Many Requests\r\nretry-after: 2472352",
+        "application/json",
+        r#"{"error":{"message":"quota exceeded"}}"#,
+    )]);
+    // hoocode's agent always passes the cap (settings default 60s).
+    let model = at(completions("openai", "gpt-4o-mini"), &server);
+    let options = SimpleStreamOptions {
+        api_key: Some("k".into()),
+        max_retry_delay_ms: Some(60_000),
+        ..Default::default()
+    };
+    let context = Context::new(String::new(), vec![user("hi")], vec![]);
+    let (_, m) = collect(stream(model, context, options).unwrap());
+    assert_eq!(server.requests().len(), 1);
+    assert_eq!(
+        m.error_message.as_deref(),
+        Some("429 quota exceeded (the provider asked to wait 28d 14h before retrying, so no retry was attempted)")
+    );
+}
+
+#[test]
+fn max_retries_zero_disables_retries() {
+    let server = serve_script(vec![(
+        "HTTP/1.1 503 Service Unavailable",
+        "application/json",
+        r#"{"error":{"message":"down"}}"#,
+    )]);
+    let model = at(completions("openai", "gpt-4o-mini"), &server);
+    let options = SimpleStreamOptions {
+        api_key: Some("k".into()),
+        max_retries: Some(0),
+        ..Default::default()
+    };
+    let (_, m) = collect(
+        stream(
+            model,
+            Context::new(String::new(), vec![user("hi")], vec![]),
+            options,
+        )
+        .unwrap(),
+    );
+    assert_eq!(server.requests().len(), 1);
+    assert_eq!(m.error_message.as_deref(), Some("503 down"));
+}

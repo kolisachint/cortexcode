@@ -190,6 +190,8 @@ pub struct CompletionsOptions {
     pub session_id: Option<String>,
     pub headers: Option<HashMap<String, String>>,
     pub timeout_ms: Option<u64>,
+    /// SDK client retries (default 2).
+    pub max_retries: Option<u32>,
     pub max_retry_delay_ms: Option<u64>,
     pub constrain_tool_calls: bool,
     pub tool_choice: Option<Value>,
@@ -233,6 +235,7 @@ pub fn simple_options(
         session_id: options.session_id.clone(),
         headers: options.headers.clone(),
         timeout_ms: options.timeout_ms,
+        max_retries: options.max_retries.map(|n| n as u32),
         max_retry_delay_ms: options.max_retry_delay_ms,
         constrain_tool_calls: options.constrain_tool_calls == Some(true),
         tool_choice: options.tool_choice.clone(),

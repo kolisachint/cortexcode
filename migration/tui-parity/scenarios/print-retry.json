@@ -1,0 +1,17 @@
+{
+  "description": "Print mode (-p) when the provider first answers 503: the provider client retries (openai SDK policy: 2 retries, backoff) and the second request's answer is printed; exit 0. Both apps must send the same two requests.",
+  "phase": "8.5a",
+  "compare_requests": true,
+  "request_fields": ["model", "stream", "stream_options", "store", "max_completion_tokens", "prompt_cache_retention"],
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "say hello"],
+  "llm": [
+    {"error": "service unavailable", "status": 503},
+    {"text": "Hello after retry."}
+  ],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["Hello after retry.", "<exited status=0>"]}
+  ]
+}

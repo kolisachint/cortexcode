@@ -42,11 +42,22 @@ pub fn stream(
     let stream = create_assistant_message_event_stream();
     let sender = stream.clone();
     let template = AssistantMessage::for_model(&model);
+    let retry = RetryOptions {
+        max_retries: options.max_retries.map(|n| n as u32),
+        max_retry_delay_ms: options.max_retry_delay_ms,
+    };
     spawn_producer(
         &stream,
-        run_stream(url, headers, body, sender, template, options.signal),
+        run_stream(url, headers, body, sender, template, options.signal, retry),
     );
     Ok(stream)
+}
+
+/// `maxRetries` / `maxRetryDelayMs` for the SDK-style client retries.
+#[derive(Clone, Copy)]
+struct RetryOptions {
+    max_retries: Option<u32>,
+    max_retry_delay_ms: Option<u64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -60,15 +71,16 @@ async fn run_stream(
     sender: AssistantMessageEventStream,
     template: AssistantMessage,
     signal: Option<AbortSignal>,
+    retry: RetryOptions,
 ) {
     let mut state = StreamState::new(template);
     let outcome = match &signal {
         Some(signal) => tokio::select! {
             biased;
             _ = signal.cancelled() => Err("Request was aborted".to_string()),
-            r = drive(&url, &headers, &body, &mut state, &sender) => r,
+            r = drive(&url, &headers, &body, &mut state, &sender, retry) => r,
         },
-        None => drive(&url, &headers, &body, &mut state, &sender).await,
+        None => drive(&url, &headers, &body, &mut state, &sender, retry).await,
     };
     if let Err(message) = outcome {
         let aborted = signal.as_ref().is_some_and(AbortSignal::aborted);
@@ -80,32 +92,40 @@ async fn run_stream(
     }
 }
 
-/// Send the request and feed the SSE events to `state`. `Err` carries the
-/// error message for the terminal `error` event.
+/// Send the request (with the SDK's client retries) and feed the SSE events
+/// to `state`. `Err` carries the error message for the terminal `error`
+/// event.
 async fn drive(
     url: &str,
     headers: &[(String, String)],
     body: &serde_json::Value,
     state: &mut StreamState,
     sender: &AssistantMessageEventStream,
+    retry: RetryOptions,
 ) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-    let mut request = client.post(url);
-    for (k, v) in headers {
-        request = request.header(k, v);
-    }
-    let response = request
-        .json(body)
-        .send()
-        .await
-        .map_err(|e| format!("request to Anthropic API failed: {e}"))?;
+    let response = cortexcode_ai_util::post_json_with_sdk_retries(
+        &client,
+        url,
+        headers,
+        body,
+        retry.max_retries,
+        retry.max_retry_delay_ms,
+    )
+    .await
+    .map_err(|failure| failure.message().to_string())?;
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
+        let response_headers = cortexcode_ai_util::response_headers(&response);
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("Anthropic API returned {status}: {text}"));
+        return Err(cortexcode_ai_util::describe_provider_error(
+            &api_error_message(status, &text),
+            Some(&response_headers),
+            retry.max_retry_delay_ms,
+        ));
     }
 
     let mut events = cortexcode_ai_sse::sse_events(response.bytes_stream());
@@ -470,6 +490,36 @@ fn now_millis() -> i64 {
         .as_millis() as i64
 }
 
+/// The message of the `@anthropic-ai/sdk` `APIError` for a non-2xx
+/// response: `APIError.makeMessage` over the whole parsed body (or the raw
+/// text when it is not JSON).
+pub fn api_error_message(status: u16, body: &str) -> String {
+    fn truthy(v: &serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => false,
+            serde_json::Value::Bool(b) => *b,
+            serde_json::Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+            serde_json::Value::String(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+    // `safeJSON`: the parsed body is the error; unparseable text is the message.
+    let msg = match serde_json::from_str::<serde_json::Value>(body) {
+        Ok(error) => match error.get("message").filter(|m| truthy(m)) {
+            Some(serde_json::Value::String(m)) => m.clone(),
+            Some(m) => m.to_string(),
+            None if truthy(&error) => error.to_string(),
+            None => String::new(),
+        },
+        Err(_) => body.to_string(),
+    };
+    if msg.is_empty() {
+        format!("{status} status code (no body)")
+    } else {
+        format!("{status} {msg}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -626,6 +676,7 @@ mod tests {
         let context = Context::new("".into(), vec![], vec![]);
         let options = SimpleStreamOptions {
             api_key: Some("sk-test".into()),
+            max_retries: Some(0),
             ..Default::default()
         };
 
@@ -634,10 +685,29 @@ mod tests {
         match events.last().unwrap() {
             AssistantMessageEvent::Error { error } => {
                 assert_eq!(error.stop_reason, StopReason::Error);
-                assert!(error.error_message.as_ref().unwrap().contains("429"));
+                assert_eq!(
+                    error.error_message.as_deref(),
+                    Some(
+                        r#"429 {"type":"error","error":{"type":"rate_limit_error","message":"rate limited"}}"#
+                    )
+                );
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn api_error_message_matches_the_anthropic_sdk() {
+        assert_eq!(
+            api_error_message(
+                400,
+                r#"{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}"#
+            ),
+            r#"400 {"type":"error","error":{"type":"invalid_request_error","message":"bad"}}"#
+        );
+        assert_eq!(api_error_message(401, r#"{"message":"nope"}"#), "401 nope");
+        assert_eq!(api_error_message(502, "upstream down"), "502 upstream down");
+        assert_eq!(api_error_message(500, ""), "500 status code (no body)");
     }
 
     #[test]

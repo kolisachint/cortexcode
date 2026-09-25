@@ -4,9 +4,9 @@
 //! Port of hoocode `providers/openai-responses.ts` and
 //! `providers/openai-responses-shared.ts` (v0.5.89).
 //!
-//! Known deviations: the `openai` SDK's client retries and
-//! `describeProviderError`'s retry-after suffix wait for the retry utilities
-//! (8.5), and the `onPayload` / `onResponse` hooks are not supported.
+//! Client retries follow the `openai` SDK (see
+//! `cortexcode_ai_util::send_with_sdk_retries`). Known deviation: the
+//! `onPayload` / `onResponse` hooks are not supported.
 
 pub mod shared;
 
@@ -42,6 +42,8 @@ pub struct ResponsesOptions {
     pub session_id: Option<String>,
     pub headers: Option<HashMap<String, String>>,
     pub timeout_ms: Option<u64>,
+    /// SDK client retries (default 2).
+    pub max_retries: Option<u32>,
     pub max_retry_delay_ms: Option<u64>,
     pub constrain_tool_calls: bool,
     /// `minimal` .. `xhigh`, already clamped to what the model supports.
@@ -87,6 +89,7 @@ pub fn simple_options(
         session_id: options.session_id.clone(),
         headers: options.headers.clone(),
         timeout_ms: options.timeout_ms,
+        max_retries: options.max_retries.map(|n| n as u32),
         max_retry_delay_ms: options.max_retry_delay_ms,
         constrain_tool_calls: options.constrain_tool_calls == Some(true),
         reasoning_effort,
@@ -141,6 +144,8 @@ pub fn stream_responses(
         headers,
         body,
         timeout_ms: options.timeout_ms,
+        max_retries: options.max_retries,
+        max_retry_delay_ms: options.max_retry_delay_ms,
     };
     let stream_options = ResponsesStreamOptions {
         service_tier: options.service_tier.clone(),

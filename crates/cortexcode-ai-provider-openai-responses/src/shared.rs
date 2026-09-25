@@ -14,7 +14,8 @@ use cortexcode_ai_types::{
     StopReason, TextContent, ThinkingContent, Tool, ToolCallContent, Usage,
 };
 use cortexcode_ai_util::{
-    openai_api_error_message, parse_streaming_json, short_hash, to_strict_json_schema,
+    describe_provider_error, openai_api_error_message, parse_streaming_json,
+    post_json_with_sdk_retries, response_headers, short_hash, to_strict_json_schema,
     transform_messages,
 };
 use futures_util::StreamExt;
@@ -768,6 +769,9 @@ pub struct ResponsesRequest {
     pub headers: Vec<(String, String)>,
     pub body: Value,
     pub timeout_ms: Option<u64>,
+    /// SDK client retries (default 2).
+    pub max_retries: Option<u32>,
+    pub max_retry_delay_ms: Option<u64>,
 }
 
 /// Run a Responses API request as the TS providers' `stream*` functions do:
@@ -844,19 +848,25 @@ async fn drive(
     let client = builder
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-    let mut http = client.post(&request.url);
-    for (k, v) in &request.headers {
-        http = http.header(k, v);
-    }
-    let response = http
-        .json(&request.body)
-        .send()
-        .await
-        .map_err(|e| format!("Connection error: {e}"))?;
+    let response = post_json_with_sdk_retries(
+        &client,
+        &request.url,
+        &request.headers,
+        &request.body,
+        request.max_retries,
+        request.max_retry_delay_ms,
+    )
+    .await
+    .map_err(|failure| failure.message().to_string())?;
     if !response.status().is_success() {
         let status = response.status().as_u16();
+        let headers = response_headers(&response);
         let body = response.text().await.unwrap_or_default();
-        return Err(openai_api_error_message(status, &body));
+        return Err(describe_provider_error(
+            &openai_api_error_message(status, &body),
+            Some(&headers),
+            request.max_retry_delay_ms,
+        ));
     }
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),
