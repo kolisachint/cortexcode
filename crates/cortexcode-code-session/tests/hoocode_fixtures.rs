@@ -65,8 +65,8 @@ fn every_entry_and_message_type_round_trips() {
 }
 
 #[test]
-fn string_content_is_accepted_and_emitted_as_blocks() {
-    // `content: "plain string content"` on a custom message: accepted, written as blocks.
+fn string_content_round_trips_as_a_string() {
+    // `content: "plain string content"` on a custom message stays a string, as in TS.
     let loaded = load_session_file(fixture("all-entry-types.jsonl"));
     assert_eq!(loaded.unrecognized, 0);
     let custom = loaded
@@ -82,7 +82,7 @@ fn string_content_is_accepted_and_emitted_as_blocks() {
         .unwrap();
     assert_eq!(
         serde_json::to_value(&custom.content).unwrap(),
-        serde_json::json!([{"type": "text", "text": "plain string content"}])
+        serde_json::json!("plain string content")
     );
 }
 

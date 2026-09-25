@@ -628,8 +628,15 @@ pub fn convert_messages(model: &Model, context: &Context, compat: &ResolvedCompa
 
         match msg {
             Message::User(m) => {
+                if let Some(text) = m.content.as_str() {
+                    i += 1;
+                    params.push(json!({"role": "user", "content": text}));
+                    last_role = Some("user");
+                    continue;
+                }
                 let content: Vec<Value> = m
                     .content
+                    .blocks()
                     .iter()
                     .filter_map(|item| match item {
                         Content::Text(t) => Some(json!({"type": "text", "text": t.text})),

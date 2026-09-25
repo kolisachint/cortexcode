@@ -137,8 +137,10 @@ pub fn convert_responses_messages(
     for msg in &transformed {
         match msg {
             Message::User(m) => {
+                // A string is sent as one input_text part, as a one-block array.
                 let content: Vec<Value> = m
                     .content
+                    .blocks()
                     .iter()
                     .filter_map(|item| match item {
                         Content::Text(t) => Some(json!({"type": "input_text", "text": t.text})),

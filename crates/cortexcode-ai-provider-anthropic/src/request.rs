@@ -229,7 +229,12 @@ fn convert_messages(
 
     for msg in messages {
         match msg {
-            Message::User(m) => raw.push(("user", content_blocks(&m.content))),
+            // TS sends string content as a string (a text block once cached);
+            // 8.6c ports convertMessages faithfully.
+            Message::User(m) => match m.content.as_str() {
+                Some(text) if text.trim().is_empty() => {}
+                _ => raw.push(("user", content_blocks(&m.content.blocks()))),
+            },
             Message::Assistant(m) => raw.push(("assistant", assistant_content_blocks(&m.content))),
             Message::ToolResult(m) => {
                 let block = serde_json::json!({
@@ -286,7 +291,8 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-            })],
+            })]
+            .into(),
             timestamp: 0,
         })
     }
@@ -466,7 +472,8 @@ mod tests {
             content: vec![Content::Image(ImageContent {
                 data: "base64data".into(),
                 media_type: "image/png".into(),
-            })],
+            })]
+            .into(),
             timestamp: 0,
         })];
         let out = convert_messages(&messages, None);

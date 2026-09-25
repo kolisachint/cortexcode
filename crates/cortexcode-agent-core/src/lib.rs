@@ -775,7 +775,7 @@ fn normalize_prompt_input(input: PromptInput) -> Vec<AgentMessage> {
             let mut content = vec![Content::text(text)];
             content.extend(images.into_iter().map(Content::Image));
             vec![AgentMessage::User(UserMessage {
-                content,
+                content: content.into(),
                 timestamp: ai_types::now_ms(),
             })]
         }

@@ -390,7 +390,7 @@ async fn continue_processes_queued_follow_ups_after_an_assistant_turn() {
     let messages = agent.state().messages;
     assert!(messages.iter().any(|m| matches!(
         m,
-        AgentMessage::User(u) if u.content == vec![Content::text("Queued follow-up")]
+        AgentMessage::User(u) if u.content == vec![Content::text("Queued follow-up")].into()
     )));
     assert_eq!(messages.last().unwrap().role(), "assistant");
 }

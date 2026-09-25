@@ -197,7 +197,7 @@ async fn handles_custom_message_types_via_convert_to_llm() {
     mock_stream(&mut config, |_, _| text("Response"));
     let notification = AgentMessage::Custom(CustomMessage {
         custom_type: "notification".into(),
-        content: vec![Content::text("This is a notification")],
+        content: vec![Content::text("This is a notification")].into(),
         display: true,
         details: None,
         timestamp: 0,
@@ -496,10 +496,9 @@ async fn injects_queued_messages_after_all_tool_calls_complete() {
     let saw = saw_interrupt.clone();
     mock_stream(&mut config, move |n, context| {
         if n == 1 {
-            let found = context
-                .messages
-                .iter()
-                .any(|m| matches!(m, Message::User(u) if text_of(&u.content) == "interrupt"));
+            let found = context.messages.iter().any(
+                |m| matches!(m, Message::User(u) if text_of(&u.content.blocks()) == "interrupt"),
+            );
             saw.store(found, Ordering::SeqCst);
         }
         first_and_second("echo")(n, context)
@@ -528,7 +527,7 @@ async fn injects_queued_messages_after_all_tool_calls_complete() {
             } => Some(format!("tool:{}", r.tool_call_id)),
             AgentEvent::MessageStart {
                 message: AgentMessage::User(u),
-            } => Some(text_of(&u.content)),
+            } => Some(text_of(&u.content.blocks())),
             _ => None,
         })
         .collect();
@@ -983,7 +982,7 @@ async fn continue_allows_custom_message_tail() {
     mock_stream(&mut config, |_, _| text("Response to custom message"));
     let custom = AgentMessage::Custom(CustomMessage {
         custom_type: "hook".into(),
-        content: vec![Content::text("Hook content")],
+        content: vec![Content::text("Hook content")].into(),
         display: true,
         details: None,
         timestamp: 0,
@@ -1048,7 +1047,7 @@ async fn background_tools_do_not_block_and_deliver_a_follow_up_message() {
     assert!(placeholder.contains("background"));
     let follow_up = messages
         .iter()
-        .position(|m| matches!(m, AgentMessage::User(u) if text_of(&u.content).contains("bg-result: hello")))
+        .position(|m| matches!(m, AgentMessage::User(u) if text_of(&u.content.blocks()).contains("bg-result: hello")))
         .expect("the background result follow-up");
     let still_working = messages
         .iter()
@@ -1096,7 +1095,7 @@ async fn create_background_result_message_shapes_the_follow_up() {
     config.create_background_result_message = Some(Box::new(|result| {
         AgentMessage::Custom(CustomMessage {
             custom_type: "backgroundTask".into(),
-            content: result.result.content,
+            content: result.result.content.into(),
             display: true,
             details: Some(serde_json::json!({"isError": result.is_error})),
             timestamp: ai_types::now_ms(),
@@ -1115,8 +1114,8 @@ async fn create_background_result_message_shapes_the_follow_up() {
         })
         .expect("the custom background message");
     assert_eq!(custom.custom_type, "backgroundTask");
-    assert_eq!(text_of(&custom.content), "bg-result: hi");
-    assert!(!messages
-        .iter()
-        .any(|m| matches!(m, AgentMessage::User(u) if text_of(&u.content).contains("bg-result"))));
+    assert_eq!(text_of(&custom.content.blocks()), "bg-result: hi");
+    assert!(!messages.iter().any(
+        |m| matches!(m, AgentMessage::User(u) if text_of(&u.content.blocks()).contains("bg-result"))
+    ));
 }

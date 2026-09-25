@@ -561,7 +561,7 @@ fn prompt_suffix_reaches_the_endpoint() {
     let body = server.requests()[0].json();
     assert_eq!(
         body["messages"][0]["content"],
-        json!([{"type": "text", "text": "summarize this /no_think"}])
+        json!("summarize this /no_think")
     );
 }
 

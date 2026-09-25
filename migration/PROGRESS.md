@@ -6,8 +6,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 ## Resume here
 
 - Next task: run `python3 migration/ledger.py next`. 8.6 was split (too big: 41 of 68 ai
-  test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, next),
-  8.6c (anthropic tests incl. claude-5 request format), 8.6d (google tests), 8.6e
+  test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, done),
+  8.6c (anthropic tests incl. claude-5 request format; next), 8.6d (google tests), 8.6e
   (cross-provider suites, mostly live `#[ignore]`). Codex/Copilot/gemini-cli/OAuth test
   files stay with 8.4a/8.4b/8.4c/8.7; transform-messages-copilot-openai-to-anthropic was
   added to 8.4b.
@@ -19,6 +19,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.6b done (UserMessage string content)
+- Decision: `UserMessage.content` (and `CustomMessage.content`) is now
+  `ai_types::UserContent` = untagged `Text(String) | Blocks(Vec<Content>)`, the TS
+  `string | (TextContent | ImageContent)[]`. A string stays a string on the wire (sessions,
+  RPC/json output). `blocks()` (Cow), `into_blocks()`, `as_str()`, and `From` for Vec/String/&str.
+  `deserialize_string_or_blocks` is gone; agent-session's `CustomMessageContent` is an alias.
+- Providers follow TS for string content: openai-completions sends `content: "…"` (cache
+  marker / prompt suffix already handled strings); openai-responses sends one input_text part;
+  google one text part (even empty); transform-messages leaves strings alone; custom messages
+  become one text block in convertToLlm. anthropic: string -> one text block (skipped when
+  blank); its convertMessages still isn't faithful (note on 8.6c).
+- Tests: cache-control-format "cacheRetention none" now asserts the string like TS; the
+  completions request tests use string user content as the TS tests do; the session fixture
+  test now expects the custom message's string content to round-trip as a string (it pinned
+  the old divergence). New tests for the responses/google string path.
+- Next: 8.6c via `ledger.py next`.
 
 ### 2026-09-25: 8.6 split; 8.6a done (faux provider = faux.ts)
 - Ledger: 8.6 -> 8.6a..8.6e (see Resume here). No task depended on 8.6.

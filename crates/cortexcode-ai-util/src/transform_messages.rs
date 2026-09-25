@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use cortexcode_ai_types::{
     AssistantMessage, Content, Message, Model, StopReason, TextContent, ToolCallContent,
-    ToolResultMessage,
+    ToolResultMessage, UserContent,
 };
 
 const NON_VISION_USER_IMAGE_PLACEHOLDER: &str = "(image omitted: model does not support images)";
@@ -42,8 +42,11 @@ fn downgrade_unsupported_images(messages: &[Message], model: &Model) -> Vec<Mess
         .map(|msg| match msg {
             Message::User(m) => {
                 let mut m = m.clone();
-                m.content =
-                    replace_images_with_placeholder(&m.content, NON_VISION_USER_IMAGE_PLACEHOLDER);
+                if let UserContent::Blocks(blocks) = &m.content {
+                    m.content =
+                        replace_images_with_placeholder(blocks, NON_VISION_USER_IMAGE_PLACEHOLDER)
+                            .into();
+                }
                 Message::User(m)
             }
             Message::ToolResult(m) => {
@@ -268,7 +271,7 @@ mod tests {
             media_type: "image/png".into(),
         });
         let msgs = vec![Message::User(UserMessage {
-            content: vec![img.clone(), img, Content::Text(TextContent::new("hi"))],
+            content: vec![img.clone(), img, Content::Text(TextContent::new("hi"))].into(),
             timestamp: 0,
         })];
         let out = transform_messages(&msgs, &model(&["text"]), None);
@@ -279,6 +282,7 @@ mod tests {
                 Content::Text(TextContent::new(NON_VISION_USER_IMAGE_PLACEHOLDER)),
                 Content::Text(TextContent::new("hi")),
             ]
+            .into()
         );
         let out = transform_messages(&msgs, &model(&["text", "image"]), None);
         assert_eq!(out, msgs);
@@ -336,7 +340,7 @@ mod tests {
         let msgs = vec![
             assistant("p", vec![call("c1")], StopReason::ToolUse),
             Message::User(UserMessage {
-                content: vec![Content::Text(TextContent::new("next"))],
+                content: vec![Content::Text(TextContent::new("next"))].into(),
                 timestamp: 0,
             }),
             assistant("p", vec![call("c2")], StopReason::Error),

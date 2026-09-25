@@ -823,7 +823,7 @@ fn serialize_context(context: &Context) -> String {
     }
     for message in &context.messages {
         parts.push(match message {
-            Message::User(m) => format!("user:{}", content_to_text(&m.content)),
+            Message::User(m) => format!("user:{}", content_to_text(&m.content.blocks())),
             Message::Assistant(m) => format!("assistant:{}", assistant_content_to_text(&m.content)),
             Message::ToolResult(m) => format!("toolResult:{}", tool_result_to_text(m)),
         });

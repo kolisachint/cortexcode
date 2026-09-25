@@ -17,7 +17,7 @@ pub(crate) fn catalog(provider: &str, id: &str) -> Model {
 
 pub(crate) fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::Text(TextContent::new(text))],
+        content: vec![Content::Text(TextContent::new(text))].into(),
         timestamp: 0,
     })
 }
@@ -200,6 +200,24 @@ fn converts_system_user_assistant_and_results() {
     );
     let without_system = convert_responses_messages(&model, &context, &allowed(), false);
     assert_eq!(without_system[0]["role"], "user");
+}
+
+#[test]
+fn string_user_content_is_one_input_text_part() {
+    let model = catalog("openai", "gpt-5-mini");
+    let context = Context::new(
+        String::new(),
+        vec![Message::User(UserMessage {
+            content: "".into(),
+            timestamp: 1,
+        })],
+        vec![],
+    );
+    // Even an empty string is sent (only an empty block list is skipped).
+    assert_eq!(
+        convert_responses_messages(&model, &context, &allowed(), true),
+        vec![json!({"role": "user", "content": [{"type": "input_text", "text": ""}]})]
+    );
 }
 
 #[test]

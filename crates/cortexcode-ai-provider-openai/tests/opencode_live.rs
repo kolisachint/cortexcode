@@ -54,7 +54,8 @@ fn simple_text_context(prompt: &str) -> Context {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: prompt.into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
@@ -71,7 +72,8 @@ fn tool_context(prompt: &str) -> Context {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: prompt.into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
@@ -257,7 +259,8 @@ fn test_conversation_context() {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "My name is Alice.".into(),
-            })],
+            })]
+            .into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }),
         cortexcode_ai_types::Message::Assistant(cortexcode_ai_types::AssistantMessage {
@@ -281,7 +284,8 @@ fn test_conversation_context() {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "What is my name?".into(),
-            })],
+            })]
+            .into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }),
     ];
@@ -325,7 +329,8 @@ fn test_system_prompt() {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "Hello!".into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
@@ -661,7 +666,8 @@ fn test_multiple_tools() {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "Search for all .rs files".into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],

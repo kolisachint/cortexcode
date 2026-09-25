@@ -112,7 +112,7 @@ pub(crate) mod test_utils {
 
     pub fn user_message(text: &str) -> AgentMessage {
         AgentMessage::from_message(Message::User(UserMessage {
-            content: vec![Content::text(text)],
+            content: vec![Content::text(text)].into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }))
     }

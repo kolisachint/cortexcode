@@ -177,30 +177,72 @@ pub struct Cost {
 // Messages
 // ---------------------------------------------------------------------------
 
-/// Deserialize TS `string | (TextContent | ImageContent)[]` into blocks.
-/// A plain string becomes one text block; serialization always emits the array form.
-pub fn deserialize_string_or_blocks<'de, D>(de: D) -> Result<Vec<Content>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrBlocks {
-        Text(String),
-        Blocks(Vec<Content>),
+/// TS `string | (TextContent | ImageContent)[]`: user (and custom message)
+/// content. A plain string stays a string on the wire: providers send it
+/// differently (e.g. openai-completions `content: "…"`) and sessions store it
+/// as given. Use [`UserContent::blocks`] to read it as blocks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UserContent {
+    Text(String),
+    Blocks(Vec<Content>),
+}
+
+impl Default for UserContent {
+    fn default() -> Self {
+        UserContent::Blocks(Vec::new())
     }
-    Ok(match StringOrBlocks::deserialize(de)? {
-        StringOrBlocks::Text(t) => vec![Content::text(t)],
-        StringOrBlocks::Blocks(b) => b,
-    })
+}
+
+impl UserContent {
+    /// The content as blocks; a string is one text block.
+    pub fn blocks(&self) -> std::borrow::Cow<'_, [Content]> {
+        match self {
+            UserContent::Text(text) => std::borrow::Cow::Owned(vec![Content::text(text.clone())]),
+            UserContent::Blocks(blocks) => std::borrow::Cow::Borrowed(blocks),
+        }
+    }
+
+    /// [`Self::blocks`], by value.
+    pub fn into_blocks(self) -> Vec<Content> {
+        match self {
+            UserContent::Text(text) => vec![Content::text(text)],
+            UserContent::Blocks(blocks) => blocks,
+        }
+    }
+
+    /// The string form, when the content is a plain string.
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            UserContent::Text(text) => Some(text),
+            UserContent::Blocks(_) => None,
+        }
+    }
+}
+
+impl From<Vec<Content>> for UserContent {
+    fn from(blocks: Vec<Content>) -> Self {
+        UserContent::Blocks(blocks)
+    }
+}
+
+impl From<String> for UserContent {
+    fn from(text: String) -> Self {
+        UserContent::Text(text)
+    }
+}
+
+impl From<&str> for UserContent {
+    fn from(text: &str) -> Self {
+        UserContent::Text(text.to_string())
+    }
 }
 
 /// A user message (`{"role":"user"}`).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMessage {
-    #[serde(deserialize_with = "deserialize_string_or_blocks")]
-    pub content: Vec<Content>,
+    pub content: UserContent,
     /// Unix time in milliseconds.
     #[serde(default)]
     pub timestamp: i64,
@@ -706,9 +748,14 @@ mod wire_tests {
         assert_eq!(
             user,
             Message::User(UserMessage {
-                content: vec![Content::text("hello")],
+                content: UserContent::Text("hello".into()),
                 timestamp: 1
             })
+        );
+        // String content round-trips as a string (TS keeps it as given).
+        assert_eq!(
+            serde_json::to_value(&user).unwrap(),
+            json!({"role": "user", "content": "hello", "timestamp": 1})
         );
     }
 

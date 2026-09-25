@@ -53,9 +53,10 @@ fn custom_model(provider: &str, base_url: &str, reasoning: bool, compat: Option<
     }
 }
 
+/// `{ role: "user", content: text }`: string content, as the TS tests use.
 pub(crate) fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::Text(TextContent::new(text))],
+        content: text.into(),
         timestamp: 1,
     })
 }
@@ -173,11 +174,7 @@ fn omits_anthropic_cache_markers_when_cache_retention_is_none() {
     let messages = params["messages"].as_array().unwrap();
     assert!(messages[0]["content"].is_string());
     assert!(params["tools"][0].get("cache_control").is_none());
-    // TS keeps the string content of `content: "Hello"`; UserMessage keeps
-    // blocks, so the check is that no part got a marker.
-    assert!(messages.last().unwrap()["content"][0]
-        .get("cache_control")
-        .is_none());
+    assert!(messages.last().unwrap()["content"].is_string());
 }
 
 // --- openai-completions-empty-tools.test.ts ---
@@ -753,7 +750,15 @@ fn local_endpoint_payload_matches_hoocode() {
     let p = with_env(None, || {
         payload(
             &model,
-            &Context::new("sys".into(), vec![user("hi")], vec![]),
+            // hoocode's agent always builds array content for prompts.
+            &Context::new(
+                "sys".into(),
+                vec![Message::User(UserMessage {
+                    content: vec![Content::Text(TextContent::new("hi"))].into(),
+                    timestamp: 1,
+                })],
+                vec![],
+            ),
             SimpleStreamOptions {
                 session_id: Some("s1".into()),
                 ..Default::default()

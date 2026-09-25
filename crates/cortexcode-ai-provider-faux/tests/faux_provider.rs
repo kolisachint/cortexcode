@@ -44,7 +44,7 @@ fn user(text: &str) -> Message {
 
 fn user_at(text: &str, timestamp: i64) -> Message {
     Message::User(UserMessage {
-        content: vec![faux_text(text)],
+        content: vec![faux_text(text)].into(),
         timestamp,
     })
 }
@@ -351,7 +351,8 @@ async fn estimates_prompt_and_output_tokens_from_serialized_context() {
                         data: "abcd".into(),
                         media_type: "image/png".into(),
                     }),
-                ],
+                ]
+                .into(),
                 timestamp: 1,
             }),
             Message::Assistant(faux_assistant_message("prior", Default::default())),

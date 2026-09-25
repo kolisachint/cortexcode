@@ -3,7 +3,7 @@
 //! Ported from TypeScript `@kolisachint/hoocode-ai` →
 //! `providers/google-shared.ts`.
 
-use cortexcode_ai_types::{Content, Context, Message, Model, StopReason, Tool};
+use cortexcode_ai_types::{Content, Context, Message, Model, StopReason, Tool, UserContent};
 
 /// Whether a model requires explicit tool-call IDs in function calls/responses
 /// (non-Gemini models proxied through Google's Cloud Code Assist API).
@@ -51,8 +51,15 @@ pub fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Val
     for msg in &context.messages {
         match msg {
             Message::User(m) => {
-                let parts: Vec<serde_json::Value> = m
-                    .content
+                let blocks = match &m.content {
+                    UserContent::Text(text) => {
+                        contents
+                            .push(serde_json::json!({"role": "user", "parts": [{"text": text}]}));
+                        continue;
+                    }
+                    UserContent::Blocks(blocks) => blocks,
+                };
+                let parts: Vec<serde_json::Value> = blocks
                     .iter()
                     .filter_map(|c| match c {
                         Content::Text(t) => Some(serde_json::json!({"text": t.text})),
@@ -298,7 +305,8 @@ mod tests {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "hi".into(),
-                })],
+                })]
+                .into(),
                 timestamp: 0,
             })],
             vec![],
@@ -306,6 +314,24 @@ mod tests {
         let out = convert_messages(&m, &ctx);
         assert_eq!(out[0]["role"], "user");
         assert_eq!(out[0]["parts"][0]["text"], "hi");
+    }
+
+    #[test]
+    fn test_convert_messages_user_string_content() {
+        let m = model("gemini-2.0-flash", &["text"]);
+        let ctx = Context::new(
+            "".into(),
+            vec![Message::User(UserMessage {
+                content: "".into(),
+                timestamp: 0,
+            })],
+            vec![],
+        );
+        // google-shared.ts sends a string as one text part, even when empty.
+        assert_eq!(
+            convert_messages(&m, &ctx),
+            vec![serde_json::json!({"role": "user", "parts": [{"text": ""}]})]
+        );
     }
 
     #[test]

@@ -13,7 +13,7 @@ pub fn approximate_token_count(messages: &[AgentMessage]) -> usize {
         .iter()
         .filter_map(|msg| msg.extract_message())
         .map(|msg| match msg {
-            Message::User(u) => content_text(&u.content),
+            Message::User(u) => content_text(&u.content.blocks()),
             Message::Assistant(a) => content_text(&a.content),
             Message::ToolResult(t) => content_text(&t.content),
         })
@@ -90,7 +90,8 @@ impl CompactionStrategy for SummaryStrategy {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: format!("[Summary of earlier conversation]\n{}", summary_text),
-            })],
+            })]
+            .into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }));
 
@@ -108,7 +109,7 @@ pub fn summarize_messages(messages: &[AgentMessage]) -> String {
         .iter()
         .filter_map(|msg| msg.extract_message())
         .map(|msg| match msg {
-            Message::User(u) => format!("User: {}", content_text(&u.content)),
+            Message::User(u) => format!("User: {}", content_text(&u.content.blocks())),
             Message::Assistant(a) => format!("Assistant: {}", content_text(&a.content)),
             Message::ToolResult(t) => format!("Tool {}: {}", t.tool_name, content_text(&t.content)),
         })
@@ -125,7 +126,8 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-            })],
+            })]
+            .into(),
             timestamp: 0,
         }))
     }

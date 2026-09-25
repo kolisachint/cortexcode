@@ -1100,7 +1100,7 @@
    "id": "8.6b",
    "title": "UserMessage string content kept as a string (ai-types representation) + byte parity in providers/sessions",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.6a"
    ],
@@ -1123,6 +1123,18 @@
      "commit": "912521f",
      "kind": "note",
      "text": "8.2: UserMessage.content is always blocks; TS keeps string content as a string (openai-completions sends it as a string, cache-control-format.test.ts asserts it; sessions store it). Needs a representation decision (enum or flag in ai-types) before the remaining provider/session tests can match byte-for-byte."
+    },
+    {
+     "at": "2026-09-25T17:06:59Z",
+     "commit": "15b9888",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:14:05Z",
+     "commit": "15b9888",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -1161,6 +1173,12 @@
      "commit": "7b349fa",
      "kind": "note",
      "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+    },
+    {
+     "at": "2026-09-25T17:09:10Z",
+     "commit": "15b9888",
+     "kind": "note",
+     "text": "8.6b: anthropic request.rs convert_messages is not a faithful port of convertMessages: it merges every same-role turn and maps string user content to one text block (TS sends it as a string, converted to a text block only when it gets the cache marker). Port convertMessages as is."
     }
    ]
   },

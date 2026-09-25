@@ -153,7 +153,7 @@ fn test_tool() -> Tool {
 
 fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::Text(TextContent::new(text))],
+        content: vec![Content::Text(TextContent::new(text))].into(),
         timestamp: 0,
     })
 }

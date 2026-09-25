@@ -450,7 +450,8 @@ fn text_message(text: &str) -> AgentMessage {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.to_string(),
-        })],
+        })]
+        .into(),
         timestamp: cortexcode_ai_types::now_ms(),
     }))
 }
