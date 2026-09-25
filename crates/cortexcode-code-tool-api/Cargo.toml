@@ -1,19 +1,21 @@
 [package]
-name = "cortexcode-code-prompts"
+name = "cortexcode-code-tool-api"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Prompt templates for the cortex coding agent"
+description = "Shared tool plumbing for the cortex coding agent: tool definitions, output truncation, path resolution"
 readme = "README.md"
 
 [package.metadata.cortex]
-publish = true
+publish = false
 
 [dependencies]
-cortexcode-agent-harness = { workspace = true }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+cortexcode-agent-types = { workspace = true }
+cortexcode-ai-types = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+unicode-normalization = "0.1"
+url = "2"

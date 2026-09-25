@@ -1,0 +1,17 @@
+[package]
+name = "cortexcode-code-media"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Image handling for the cortex coding agent: format sniffing, resize/re-encode for model input"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }

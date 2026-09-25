@@ -330,13 +330,14 @@
    "id": "10.2a",
    "title": "read tool at pin semantics (line numbers, offset/limit, truncation, images, read-dedup) in new crates code-tool-api + code-tools-fs",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.8a"
    ],
    "crates": [
     "cortexcode-code-tool-api",
-    "cortexcode-code-tools-fs"
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-media"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/read.ts",
@@ -352,16 +353,36 @@
    ],
    "l1_cmds": [],
    "l2": [
-    "print-tool-read"
+    "print-tool-read",
+    "print-tool-read-paging"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Also creates cortexcode-code-media early (image sniffing + resize for read images; 11.4 extends it). Both L2 scenarios need 10.4c (system prompt); print-tool-read-paging also needs 10.2g (context GC stubs superseded reads).",
+   "log": [
+    {
+     "at": "2026-09-25T04:54:56Z",
+     "commit": "f4132f4",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T04:55:14Z",
+     "commit": "f4132f4",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail"
+    },
+    {
+     "at": "2026-09-25T04:56:40Z",
+     "commit": "edeb2bf",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail"
+    }
+   ]
   },
   {
    "id": "10.4c",
    "title": "System prompt parity for the default tool bundle (same text the model sees, modulo app name)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
@@ -376,10 +397,64 @@
    "l1_cmds": [],
    "l2": [
     "print-tool-read",
+    "print-tool-read-paging",
     "print-multi"
    ],
-   "notes": "print-tool-read compares requests.messages, which includes the system prompt.",
-   "log": []
+   "notes": "print-tool-read compares requests.messages, which includes the system prompt. 10.4c ported buildSystemPrompt + skills/agents/self-docs formatters (L1). The default-bundle prompt's L2 then needs the bundle's content, owned elsewhere: tool snippets/guidelines of bash (10.2b), edit/write (10.2c), SearchCodebase (10.2d), ask_options/TodoWrite (10.2f), Task/TaskOutput + <available_agents> (10.9); the Task section from the built-in APPEND_SYSTEM template and the builtin artifact-design skill (10.5); the build-mode appendix (10.5b); SearchHooCode from the hoo-core self-knowledge extension (only 12.4 fits, deferred); the '# About <app> itself' docs section (cortex must ship docs; the listed paths/files must match modulo a path normalization rule). Decision pending with the user: see PROGRESS.md 2026-09-25.",
+   "log": [
+    {
+     "at": "2026-09-25T04:58:13Z",
+     "commit": "8be2e1f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:02:56Z",
+     "commit": "8be2e1f",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail, print-multi=fail"
+    }
+   ]
+  },
+  {
+   "id": "10.4d",
+   "title": "Light mode (--light): LIGHT_SYSTEM_PROMPT, the four light tools (short descriptions, stripped schemas), no skills/context files/subagents/TodoWrite/mode appendix",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.4c"
+   ],
+   "crates": [
+    "cortexcode-code-tools",
+    "cortexcode-code-prompts",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/light.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/light*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-read-light"
+   ],
+   "notes": "User decision 2026-09-25: M1 is reached through light mode, whose prompt is portable (fixed text + date/cwd). The default-bundle scenarios (print-tool-read etc.) stay as 10.4c's later gates. The 'light' setting needs settings (10.1); the flag works now. light edit shims to the placeholder edit until 10.2c.",
+   "log": [
+    {
+     "at": "2026-09-25T05:05:14Z",
+     "commit": "0138c18",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:08:32Z",
+     "commit": "0138c18",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read-light=pass"
+    }
+   ]
   },
   {
    "id": "7.3",
@@ -411,10 +486,12 @@
    "l1_cmds": [],
    "l2": [
     "print-basic",
-    "print-tool-read"
+    "print-tool-read-light"
    ],
    "notes": "Refactor under L2 guard: M1 scenarios must stay green. 7.2 kept TextContent/ImageContent.cache_control as #[serde(skip)] request hints. Move prompt-caching decisions into request building as in TS, and delete the field.",
-   "log": []
+   "log": [
+    "2026-09-25: L2 guard print-tool-read -> print-tool-read-light (M1 is light mode by user decision; print-tool-read needs the full default bundle)."
+   ]
   },
   {
    "id": "7.4",
@@ -939,6 +1016,34 @@
    "log": []
   },
   {
+   "id": "10.2g",
+   "title": "Context GC: evictSupersededReads (stub superseded read results in the outgoing context) + transformContext wiring",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/context-gc.ts",
+    "packages/coding-agent/src/core/sdk.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/read-dedup.test.ts",
+    "packages/coding-agent/test/read-edit-gc-sequence-matrix.test.ts",
+    "packages/coding-agent/test/context-gc*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-tool-read-paging"
+   ],
+   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c.",
+   "log": []
+  },
+  {
    "id": "10.3",
    "title": "New crate code-agent-session: AgentSession orchestrator (persist, retry, auto-compact, stats, tree navigation, model/thinking switch)",
    "phase": 10,
@@ -1316,7 +1421,7 @@
     "slash-commands",
     "file-autocomplete"
    ],
-   "notes": "",
+   "notes": "code-media already exists (10.2a: mime sniffing, resize_image, format_dimension_note); add clipboard/paste here.",
    "log": []
   },
   {

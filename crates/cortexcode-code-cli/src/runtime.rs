@@ -7,8 +7,8 @@
 
 use crate::Args;
 use cortexcode_agent_core::PromptInput;
-use cortexcode_agent_core::{Agent, AgentOptions};
-use cortexcode_agent_types::{AgentMessage, AgentState, PermissionGate};
+use cortexcode_agent_core::{Agent, AgentOptions, Subscription};
+use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentState, PermissionGate};
 use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_types::{
     AssistantMessageEventStream, Context, Model as AiModel, SimpleStreamOptions,
@@ -17,8 +17,12 @@ use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 
 use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
-use cortexcode_code_prompts::{system_prompt, Mode};
+use cortexcode_code_prompts::BuildSystemPromptOptions;
+use cortexcode_code_tool_api::{
+    wrap_tool_definitions, SessionBranch, ToolContext, ToolContextFactory, ToolDefinition,
+};
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
+use cortexcode_code_tools_fs::ReadToolOptions;
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -190,21 +194,113 @@ fn oauth_api_key(provider: &str) -> Option<String> {
     }
 }
 
-/// Build the system prompt from CLI arguments.
-fn build_system_prompt(args: &Args) -> String {
-    if let Some(prompt) = &args.system_prompt {
-        return prompt.clone();
+/// `resolvePromptInput`: a value naming an existing file means its contents.
+fn resolve_prompt_input(input: Option<&str>, description: &str) -> Option<String> {
+    let input = input.filter(|s| !s.is_empty())?;
+    if std::path::Path::new(input).exists() {
+        return match std::fs::read_to_string(input) {
+            Ok(content) => Some(content),
+            Err(e) => {
+                eprintln!(
+                    "\x1b[33mWarning: Could not read {description} file {input}: {e}\x1b[39m"
+                );
+                Some(input.to_string())
+            }
+        };
     }
-    let config = crate::config_or_default();
-    // Prompt modes (ask/plan/build) arrive with 10.5; `--mode` is the output mode.
-    let mode = Mode::default();
-    system_prompt(mode, &config)
+    Some(input.to_string())
 }
 
-/// Build the default set of coding tools.
-fn build_tools() -> Vec<cortexcode_agent_types::AgentTool> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    cortexcode_code_tools::default_tools(cwd, PermissionPolicy::default())
+/// `AgentSession._rebuildSystemPrompt`: the built-in prompt (or `--system-prompt`)
+/// over the active tools' snippets and guidelines. Skills and context files
+/// (10.5), agents (10.9) and shipped docs are not loaded yet.
+fn build_system_prompt(
+    args: &Args,
+    cwd: &std::path::Path,
+    tools: &[ToolDefinition],
+    light: bool,
+) -> String {
+    // main.ts: `systemPrompt: parsed.systemPrompt ?? (lightMode ? LIGHT_SYSTEM_PROMPT : undefined)`
+    let system_prompt_source = args
+        .system_prompt
+        .as_deref()
+        .or(light.then_some(cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT));
+    let mut tool_snippets = Vec::new();
+    let mut prompt_guidelines = Vec::new();
+    for tool in tools {
+        if let Some(snippet) = &tool.prompt_snippet {
+            tool_snippets.push((tool.name.clone(), snippet.clone()));
+        }
+        prompt_guidelines.extend(tool.prompt_guidelines.iter().cloned());
+    }
+    cortexcode_code_prompts::build_system_prompt(&BuildSystemPromptOptions {
+        custom_prompt: resolve_prompt_input(system_prompt_source, "system prompt"),
+        selected_tools: Some(tools.iter().map(|t| t.name.clone()).collect()),
+        tool_snippets,
+        prompt_guidelines,
+        cwd: cwd.to_string_lossy().into_owned(),
+        ..Default::default()
+    })
+}
+
+/// The messages of this run as the session manager would persist them: each
+/// one is appended on `message_end`. Stands in for the session branch that
+/// tools see (read-dedup) until the session port (10.3).
+#[derive(Default)]
+struct LiveTranscript(std::sync::Mutex<Vec<serde_json::Value>>);
+
+impl LiveTranscript {
+    /// Record every message the agent ends. Keep the returned handle alive.
+    fn follow(self: &Arc<Self>, agent: &Agent) -> Subscription {
+        let transcript = self.clone();
+        agent.subscribe(move |event| {
+            if let AgentEvent::MessageEnd { message } = event {
+                if let Ok(value) = serde_json::to_value(&message) {
+                    transcript
+                        .0
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .push(value);
+                }
+            }
+        })
+    }
+}
+
+impl SessionBranch for LiveTranscript {
+    fn get_branch(&self) -> Vec<serde_json::Value> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+}
+
+/// The default coding tools as definitions. Tool options use hoocode's default
+/// settings (`toolOutput` 32KB/800 lines, `images.autoResize`, `contextGc.enabled`
+/// gating read-dedup) until settings are ported (10.1).
+fn build_tool_definitions(cwd: &std::path::Path) -> Vec<ToolDefinition> {
+    let read = ReadToolOptions {
+        dedup_reads: true,
+        ..Default::default()
+    };
+    cortexcode_code_tools::default_tool_definitions(
+        cwd.to_path_buf(),
+        PermissionPolicy::default(),
+        read,
+    )
+}
+
+/// Wrap the definitions for the agent loop; tools see the model and the live
+/// transcript through their context.
+fn wrap_tools(
+    definitions: Vec<ToolDefinition>,
+    model: &AiModel,
+    transcript: Arc<LiveTranscript>,
+) -> Vec<cortexcode_agent_types::AgentTool> {
+    let model = model.clone();
+    let ctx_factory: ToolContextFactory = Arc::new(move || ToolContext {
+        model: Some(model.clone()),
+        session_manager: Some(transcript.clone()),
+    });
+    wrap_tool_definitions(definitions, Some(ctx_factory))
 }
 
 /// Build the permission gate for the current CLI mode.
@@ -236,7 +332,12 @@ fn make_stream_fn() -> StreamFn {
 }
 
 /// Build an `Agent` from CLI arguments with a configured permission gate.
-fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, RuntimeError> {
+/// Build the agent. The returned subscription keeps the tools' live
+/// transcript current; hold it as long as the agent.
+fn build_agent_with_gate(
+    args: &Args,
+    interactive: bool,
+) -> Result<(Agent, Subscription), RuntimeError> {
     let (provider, model_id) = resolve_provider_model(args)?;
     // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
     let registry = match cortexcode_code_models::default_models_json_path() {
@@ -284,8 +385,18 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
         return Err(RuntimeError::Setup(hint));
     }
 
-    let system_prompt = build_system_prompt(args);
-    let tools = build_tools();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    // Light preset (--light): the four light tools and the terse prompt. The
+    // "light" setting needs settings (10.1).
+    let light = args.light == Some(true);
+    let definitions = if light {
+        cortexcode_code_tools::light::light_tool_definitions(cwd.clone())
+    } else {
+        build_tool_definitions(&cwd)
+    };
+    let system_prompt = build_system_prompt(args, &cwd, &definitions, light);
+    let transcript = Arc::new(LiveTranscript::default());
+    let tools = wrap_tools(definitions, &model, transcript.clone());
 
     let state = AgentState {
         system_prompt,
@@ -309,8 +420,9 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
         stream_fn,
         ..Default::default()
     });
+    let subscription = transcript.follow(&agent);
 
-    Ok(agent)
+    Ok((agent, subscription))
 }
 
 /// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
@@ -357,8 +469,8 @@ pub fn run_print_mode(
         stdin_content.as_deref(),
     );
 
-    let agent = match build_agent_with_gate(args, false) {
-        Ok(agent) => agent,
+    let (agent, _transcript) = match build_agent_with_gate(args, false) {
+        Ok(built) => built,
         Err(e) => {
             writeln!(err, "{e}")?;
             return Ok(1);
@@ -418,7 +530,7 @@ pub fn run_interactive_mode(
     };
     use std::io::Write as _;
 
-    let agent = build_agent_with_gate(args, true)?;
+    let (agent, _transcript) = build_agent_with_gate(args, true)?;
     let mut stdout = std::io::stdout();
     terminal::enable_raw_mode().map_err(|e| RuntimeError::Setup(e.to_string()))?;
     let _ = stdout
@@ -489,6 +601,40 @@ pub fn run_interactive_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn light_mode_uses_the_terse_prompt_and_the_four_light_tools() {
+        let args = crate::args::parse_args(&["--light".to_string()]);
+        let cwd = std::path::Path::new("/w");
+        let tools = cortexcode_code_tools::light::light_tool_definitions(cwd.to_path_buf());
+        let prompt = build_system_prompt(&args, cwd, &tools, true);
+        let date = chrono::Local::now().format("%Y-%m-%d");
+        assert_eq!(
+            prompt,
+            format!(
+                "{}\n\nCurrent date: {date}\nCurrent working directory: /w",
+                cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT
+            )
+        );
+        // --system-prompt still wins over the preset.
+        let args = crate::args::parse_args(&[
+            "--light".to_string(),
+            "--system-prompt".to_string(),
+            "Custom.".to_string(),
+        ]);
+        assert!(
+            build_system_prompt(&args, cwd, &tools, true).starts_with("Custom.\n\nCurrent date: ")
+        );
+    }
+
+    #[test]
+    fn default_prompt_lists_tools_with_snippets() {
+        let args = crate::args::parse_args(&[]);
+        let cwd = std::path::Path::new("/w");
+        let prompt = build_system_prompt(&args, cwd, &build_tool_definitions(cwd), false);
+        assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
+        assert!(prompt.contains("Available tools:\n- read: Read file contents\n\nGuidelines:"));
+    }
 
     #[test]
     fn test_default_model_for_provider() {

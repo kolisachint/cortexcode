@@ -115,18 +115,7 @@ impl BackgroundTaskManager {
             let result = execute(tool_call_id, args);
             let (agent_result, is_error) = match result {
                 Ok(r) => (r, false),
-                Err(e) => (
-                    AgentToolResult {
-                        content: vec![Content::Text(TextContent {
-                            text_signature: None,
-                            text: format!("Error: {}", e),
-                            cache_control: None,
-                        })],
-                        details: serde_json::Value::Null,
-                        terminate: false,
-                    },
-                    true,
-                ),
+                Err(e) => (create_error_tool_result(e.to_string()), true),
             };
 
             let bg_result = BackgroundToolResult {
@@ -317,7 +306,7 @@ struct PreparedToolCall {
 enum PreparedToolCallKind {
     /// The tool was prepared and can be executed.
     Ready {
-        tool: AgentTool,
+        tool: Box<AgentTool>,
         args: serde_json::Value,
     },
     /// The tool should return an immediate error result.
@@ -376,7 +365,8 @@ fn prepare_tool_call(
                     kind: PreparedToolCallKind::Blocked {
                         reason: result
                             .reason
-                            .unwrap_or_else(|| format!("Tool '{}' execution blocked", tool.name)),
+                            .filter(|r| !r.is_empty())
+                            .unwrap_or_else(|| "Tool execution was blocked".to_string()),
                     },
                 };
             }
@@ -385,7 +375,7 @@ fn prepare_tool_call(
 
     PreparedToolCall {
         kind: PreparedToolCallKind::Ready {
-            tool: tool.clone(),
+            tool: Box::new(tool.clone()),
             args,
         },
     }
@@ -403,6 +393,10 @@ fn execute_single_tool(
 // Tool execution modes
 // ---------------------------------------------------------------------------
 
+/// Run a batch of tool calls one at a time. With `batch_result_messages`, the
+/// tool result messages are announced after the whole batch, in call order,
+/// the way `executeToolCallsParallel` does (siblings never see each other's
+/// results); otherwise each one right after its tool (`executeToolCallsSequential`).
 fn execute_tool_calls_sequential(
     context: &mut AgentContext,
     assistant_message: &AssistantMessage,
@@ -410,8 +404,10 @@ fn execute_tool_calls_sequential(
     config: &AgentLoopConfig,
     emit: &mut AgentEventSink,
     background: &mut BackgroundTaskManager,
+    batch_result_messages: bool,
 ) -> ExecutedToolCallBatch {
     let mut messages = Vec::new();
+    let mut pending_announcements: Vec<AgentMessage> = Vec::new();
     let mut terminate = false;
 
     // Separate foreground and background
@@ -461,6 +457,7 @@ fn execute_tool_calls_sequential(
                 is_error: false,
                 timestamp: cortexcode_ai_types::now_ms(),
             }));
+            emit_tool_result_message(&placeholder, emit);
             messages.push(placeholder);
 
             background.spawn_background(
@@ -499,16 +496,16 @@ fn execute_tool_calls_sequential(
         let (final_result, is_error, should_terminate) =
             apply_after_tool_call(&result, config, context, assistant_message, tc);
 
-        messages.push(AgentMessage::from_message(Message::ToolResult(
-            ToolResultMessage {
-                details: None,
+        // createToolResultMessage(): `details` is omitted when the tool set none.
+        let tool_result_message =
+            AgentMessage::from_message(Message::ToolResult(ToolResultMessage {
+                details: (!final_result.details.is_null()).then(|| final_result.details.clone()),
                 content: final_result.content.clone(),
                 tool_call_id: tc.id.clone(),
                 tool_name: tc.name.clone(),
                 is_error,
                 timestamp: cortexcode_ai_types::now_ms(),
-            },
-        )));
+            }));
 
         emit(AgentEvent::ToolExecutionEnd {
             tool_call_id: tc.id.clone(),
@@ -517,10 +514,19 @@ fn execute_tool_calls_sequential(
             result: final_result,
             is_error,
         });
+        if batch_result_messages {
+            pending_announcements.push(tool_result_message.clone());
+        } else {
+            emit_tool_result_message(&tool_result_message, emit);
+        }
+        messages.push(tool_result_message);
 
         if should_terminate {
             terminate = true;
         }
+    }
+    for message in &pending_announcements {
+        emit_tool_result_message(message, emit);
     }
 
     ExecutedToolCallBatch {
@@ -537,8 +543,8 @@ fn execute_tool_calls_parallel(
     emit: &mut AgentEventSink,
     background: &mut BackgroundTaskManager,
 ) -> ExecutedToolCallBatch {
-    // For the initial implementation, just fall back to sequential
-    // Full parallel implementation would use threads/async
+    // Tools still run one at a time; only the result-message ordering is
+    // parallel-mode's. Concurrent execution is not ported yet.
     execute_tool_calls_sequential(
         context,
         assistant_message,
@@ -546,7 +552,18 @@ fn execute_tool_calls_parallel(
         config,
         emit,
         background,
+        true,
     )
+}
+
+/// `emitToolResultMessage`: announce a tool result as a message.
+fn emit_tool_result_message(message: &AgentMessage, emit: &mut AgentEventSink) {
+    emit(AgentEvent::MessageStart {
+        message: message.clone(),
+    });
+    emit(AgentEvent::MessageEnd {
+        message: message.clone(),
+    });
 }
 
 fn execute_single_tool_call(
@@ -558,26 +575,24 @@ fn execute_single_tool_call(
     let prepared = prepare_tool_call(context, assistant_message, tool_call, config);
     match prepared.kind {
         PreparedToolCallKind::Ready { tool, args } => {
-            (tool.execute)(tool_call.id.clone(), args, None, None)
+            (tool.execute)(tool_call.id.clone(), args, config.signal.clone(), None)
         }
-        PreparedToolCallKind::Blocked { reason } => Ok(AgentToolResult {
-            content: vec![Content::Text(TextContent {
-                text_signature: None,
-                text: reason,
-                cache_control: None,
-            })],
-            details: serde_json::Value::Null,
-            terminate: false,
-        }),
-        PreparedToolCallKind::NotFound => Ok(AgentToolResult {
-            content: vec![Content::Text(TextContent {
-                text_signature: None,
-                text: format!("Tool '{}' not found", tool_call.name),
-                cache_control: None,
-            })],
-            details: serde_json::Value::Null,
-            terminate: false,
-        }),
+        // Immediate outcomes are error results (createErrorToolResult in agent-loop.ts).
+        PreparedToolCallKind::Blocked { reason } => Err(reason.into()),
+        PreparedToolCallKind::NotFound => Err(format!("Tool {} not found", tool_call.name).into()),
+    }
+}
+
+/// `createErrorToolResult`: the error message as the only text, empty details.
+fn create_error_tool_result(message: String) -> AgentToolResult {
+    AgentToolResult {
+        content: vec![Content::Text(TextContent {
+            text_signature: None,
+            text: message,
+            cache_control: None,
+        })],
+        details: serde_json::json!({}),
+        terminate: false,
     }
 }
 
@@ -590,18 +605,7 @@ fn apply_after_tool_call(
 ) -> (AgentToolResult, bool, bool) {
     let (mut final_result, mut is_error) = match result {
         Ok(r) => (r.clone(), false),
-        Err(e) => (
-            AgentToolResult {
-                content: vec![Content::Text(TextContent {
-                    text_signature: None,
-                    text: format!("Error: {}", e),
-                    cache_control: None,
-                })],
-                details: serde_json::Value::Null,
-                terminate: false,
-            },
-            true,
-        ),
+        Err(e) => (create_error_tool_result(e.to_string()), true),
     };
 
     if let Some(ref after) = config.after_tool_call {
@@ -812,6 +816,7 @@ fn run_loop(
                         config,
                         emit,
                         &mut background,
+                        false,
                     )
                 } else {
                     execute_tool_calls_parallel(

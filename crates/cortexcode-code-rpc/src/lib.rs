@@ -147,7 +147,7 @@ impl RpcError {
 #[derive(Debug, Clone)]
 pub enum HandleResult {
     /// A response should be sent back.
-    Response(Response),
+    Response(Box<Response>),
     /// A notification was handled; no response.
     Acknowledged,
     /// The server should stop after this message.
@@ -200,12 +200,12 @@ impl Server {
                     Ok(value) => (Some(value), None),
                     Err(e) => (None, Some(e)),
                 };
-                HandleResult::Response(Response {
+                HandleResult::Response(Box::new(Response {
                     jsonrpc: "2.0".to_string(),
                     id,
                     result,
                     error,
-                })
+                }))
             }
             RpcMessage::Notification(notif) => {
                 if notif.method == "exit" {

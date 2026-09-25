@@ -36,6 +36,7 @@ members = [
     "crates/cortexcode-code-config",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
+    "crates/cortexcode-code-media",
     "crates/cortexcode-code-models",
     "crates/cortexcode-code-print",
     "crates/cortexcode-code-prompts",
@@ -43,7 +44,9 @@ members = [
     "crates/cortexcode-code-rpc",
     "crates/cortexcode-code-session",
     "crates/cortexcode-code-subagents",
+    "crates/cortexcode-code-tool-api",
     "crates/cortexcode-code-tools",
+    "crates/cortexcode-code-tools-fs",
 
     # TUI namespace
     "crates/cortexcode-tui",
@@ -98,6 +101,7 @@ cortexcode-code-cli = { path = "crates/cortexcode-code-cli" }
 cortexcode-code-config = { path = "crates/cortexcode-code-config" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
+cortexcode-code-media = { path = "crates/cortexcode-code-media" }
 cortexcode-code-print = { path = "crates/cortexcode-code-print" }
 cortexcode-code-models = { path = "crates/cortexcode-code-models" }
 cortexcode-ai-registry = { path = "crates/cortexcode-ai-registry" }
@@ -106,7 +110,9 @@ cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }
 cortexcode-code-session = { path = "crates/cortexcode-code-session" }
 cortexcode-code-subagents = { path = "crates/cortexcode-code-subagents" }
+cortexcode-code-tool-api = { path = "crates/cortexcode-code-tool-api" }
 cortexcode-code-tools = { path = "crates/cortexcode-code-tools" }
+cortexcode-code-tools-fs = { path = "crates/cortexcode-code-tools-fs" }
 
 cortexcode-tui = { path = "crates/cortexcode-tui" }
 cortexcode-tui-components = { path = "crates/cortexcode-tui-components" }

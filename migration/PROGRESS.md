@@ -6,10 +6,90 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 ## Resume here
 
 - Next task: run `python3 migration/ledger.py next`.
-- Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
-  pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
+- Milestone M1 (first Level-2 green with identical model requests) is **reached** through
+  light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
+  (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
+  as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 10.4d done (light mode); M1 reached
+- User decision: reach M1 through hoocode's `--light` preset, which has a portable prompt.
+- `code-prompts::LIGHT_SYSTEM_PROMPT`. `code-tools::light` has `create_light_tools` (read,
+  write, edit, bash with hoocode's short descriptions and stripped schemas, in TypeBox key order)
+  and `measure_prompt_surface`. The light read gets default options and no context, as
+  `baseToolsOverride` does in hoocode. Light edit maps `oldText/newText` onto the placeholder
+  edit until 10.2c.
+- Runtime: `--light` picks the light tools and `--system-prompt ?? LIGHT_SYSTEM_PROMPT` (custom
+  prompt path: date + cwd only). `--light` is no longer an unsupported flag. The `light`
+  setting waits for 10.1.
+- openai provider: tools carry `"strict": false` (`convertTools`), omitted for
+  Moonshot/Together or `compat.supportsStrictMode: false`.
+- New L2 scenario `print-tool-read-light` (selfcheck stable, compares messages + tools):
+  **pass**. The done tasks' `print-basic`/`print-error` still pass.
+- 7.3's L2 guard `print-tool-read` → `print-tool-read-light` (M1 is light mode; bookkeeping,
+  noted in the task log).
+- Next: **7.3** (async core). It's large (~7.6K lines across ai-types stream trait, 4
+  providers, oauth, agent-loop/core). Consider splitting it in the ledger first: e.g. 7.3a ai-sse
+  + async provider streams behind the existing trait, 7.3b async agent loop + CancellationToken
+  abort. Keep `print-basic`, `print-error`, `print-tool-read-light` green throughout.
+
+### 2026-09-25: 10.4c l1_done (buildSystemPrompt port); M1 needs a decision
+- `code-prompts::system_prompt` ports `buildSystemPrompt` exactly (app name `cortex`, which
+  the harness normalizes), plus `formatSkillsForPrompt`, `formatAgentsForPrompt` (with
+  `summarizeAgentDescription`) and `listSelfDocs`/`formatSelfDocsForPrompt`.
+  `system-prompt.test.ts` is ported, plus exact-layout tests.
+- The cortex-only `Mode`/`system_prompt`/`initial_user_prompt` inventions are removed from
+  code-prompts. hoocode's modes arrive with 10.5b.
+- `code-tools::default_tool_definitions` returns `ToolDefinition`s. The runtime builds the
+  prompt from their snippets/guidelines (`_rebuildSystemPrompt`), then wraps them.
+  `--system-prompt` goes through `resolvePromptInput` (a file path means its contents).
+  Placeholder tools have no snippet, so they are unlisted, as in hoocode.
+- L2 is still red: the prompt's layout matches, but the default bundle's content comes from
+  other tasks (see the 10.4c notes in the ledger). One part, SearchHooCode (hoo-core
+  self-knowledge), only fits deferred Phase 12. The `# About hoocode itself` section lists
+  hoocode's installed docs, which cortex doesn't ship.
+- **Decision needed (asked the user):** M1 (`print-tool-read` green) is blocked behind
+  Phase 12 as scoped. Options:
+  (a) port hoocode's `--light` mode (`core/light.ts`: fixed terse prompt + date/cwd,
+      four core tools) as a small task and add light-mode print scenarios as the M1 gate;
+  (b) pull SearchHooCode + shipped docs forward from Phase 12;
+  (c) keep waiting for the full bundle.
+- Next: act on the decision; otherwise `ledger.py next`.
+
+### 2026-09-25: 10.2a l1_done (read tool at pin semantics)
+- New crates:
+  - `code-tool-api`: `truncate` (800 lines / 32KB, JS `toFixed` rounding in `format_size`),
+    `path_utils` (`resolveReadPath` with the AM/PM, NFD and curly-quote variants; `code-cli`'s
+    `@file` handling now uses it), `ToolDefinition` + `wrap_tool_definition` with a
+    `ToolContext` (model, session branch), and Node-style fs errors (`ENOENT: ..., access '/x'`).
+  - `code-media`, created early because `read` needs it: `file-type`-style sniffing (APNG
+    rejected, BOM skipped) and `resize_image`/`format_dimension_note` on the `image` crate.
+    11.4 adds clipboard.
+  - `code-tools-fs`: `read` and `read_dedup`. JS number/slice semantics are ported for odd
+    offset/limit values, checked against the pinned hoocode. All read cases of `tools.test.ts`
+    and the `findCoveringRead` half of `read-dedup.test.ts` are ported.
+- `code-tools::default_tools_with` takes read options + a context factory. The runtime passes
+  the model, plus a `LiveTranscript` fed by `message_end` events (stands in for the session
+  branch until 10.3). It uses hoocode's default settings: dedup on, since `contextGc.enabled`
+  defaults to true (settings are 10.1).
+- Agent-loop parity fixes:
+  - tool errors are the bare message with `details: {}` (no `Error: ` prefix);
+  - unknown or blocked tools are error results (`Tool x not found`, `Tool execution was blocked`);
+  - tool `details` reach the tool result message;
+  - tool results emit `message_start`/`message_end`: in parallel mode after the whole batch,
+    so sibling reads don't dedup against each other (tools still run one at a time);
+  - the abort signal reaches tools.
+- `serde_json` `preserve_order` (enabled via ai-types): cortex re-serialized tool-call
+  arguments with sorted keys; hoocode keeps insertion order.
+- L2: new scenario `print-tool-read-paging` (selfcheck stable): truncation, paging, ENOENT,
+  EISDIR, PDF note, dedup pointer. Every read result is byte-identical. Both scenarios still fail,
+  but only on:
+  - the system prompt (10.4c);
+  - hoocode's context GC stubbing superseded reads, which no ledger task covered. Added
+    **10.2g** (context-gc.ts + transformContext wiring).
+- Next: `ledger.py next` (10.4c turns print-tool-read green; 10.2g turns paging green once
+  10.4c lands).
 
 ### 2026-09-25: fix — tools never executed (agent-loop used a closure-less clone)
 - `prepare_tool_call` handed the loop `tool.clone_via_fields()`. That clone's `execute` always

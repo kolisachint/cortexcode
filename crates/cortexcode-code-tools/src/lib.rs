@@ -1,12 +1,20 @@
 //! Core CLI tools: read, bash, edit, write, grep, find, ls.
 //!
+//! `read` is the pinned port from `cortexcode-code-tools-fs` (10.2a); the
+//! others are placeholders until their 10.2 tasks land.
+//!
 //! Mirrors `core/tools/` from the TypeScript `packages/coding-agent` package.
 
 use cortexcode_agent_types::{AgentTool, AgentToolResult};
 use cortexcode_ai_types::{Content, TextContent};
+use cortexcode_code_tool_api::{
+    tool_definition_from_agent_tool, wrap_tool_definitions, ToolContextFactory, ToolDefinition,
+};
+use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
 use serde_json::json;
 use std::path::Path;
 
+pub mod light;
 pub mod permissions;
 
 pub use permissions::*;
@@ -40,19 +48,6 @@ pub fn error_result(text: impl Into<String>) -> AgentToolResult {
 /// Read the contents of a file.
 pub fn read_file(path: impl AsRef<Path>) -> Result<String, std::io::Error> {
     std::fs::read_to_string(path)
-}
-
-/// Read a specific line range from a file (1-indexed, inclusive).
-pub fn read_file_range(
-    path: impl AsRef<Path>,
-    start_line: usize,
-    end_line: usize,
-) -> Result<String, std::io::Error> {
-    let text = std::fs::read_to_string(path)?;
-    let lines: Vec<&str> = text.lines().collect();
-    let start = start_line.saturating_sub(1).min(lines.len());
-    let end = end_line.min(lines.len());
-    Ok(lines[start..end].join("\n"))
 }
 
 /// Write contents to a file, creating parent directories as needed.
@@ -335,48 +330,60 @@ pub fn todo_action(
     }
 }
 
+/// Options for [`default_tools_with`].
+#[derive(Clone, Default)]
+pub struct DefaultToolsOptions {
+    /// Options for the `read` tool (output caps, image resize, dedup).
+    pub read: ReadToolOptions,
+    /// Supplies the model and session branch to context-aware tools.
+    pub ctx_factory: Option<ToolContextFactory>,
+}
+
 /// Return the default set of coding tools ready to register with an agent.
-pub fn default_tools(cwd: std::path::PathBuf, _permissions: PermissionPolicy) -> Vec<AgentTool> {
-    let cwd_read = cwd.clone();
+pub fn default_tools(cwd: std::path::PathBuf, permissions: PermissionPolicy) -> Vec<AgentTool> {
+    default_tools_with(cwd, permissions, DefaultToolsOptions::default())
+}
+
+/// [`default_tools`] with tool options and a context factory.
+pub fn default_tools_with(
+    cwd: std::path::PathBuf,
+    permissions: PermissionPolicy,
+    options: DefaultToolsOptions,
+) -> Vec<AgentTool> {
+    wrap_tool_definitions(
+        default_tool_definitions(cwd, permissions, options.read),
+        options.ctx_factory,
+    )
+}
+
+/// The default tools as definitions, carrying their system prompt snippets
+/// and guidelines. Tools not yet ported to their pinned behavior have neither,
+/// so the system prompt lists them the way hoocode lists a tool without a
+/// `promptSnippet` (not at all).
+pub fn default_tool_definitions(
+    cwd: std::path::PathBuf,
+    _permissions: PermissionPolicy,
+    read: ReadToolOptions,
+) -> Vec<ToolDefinition> {
+    let mut definitions = vec![create_read_tool_definition(cwd.clone(), read)];
+    definitions.extend(
+        placeholder_tools(cwd)
+            .into_iter()
+            .map(tool_definition_from_agent_tool),
+    );
+    definitions
+}
+
+/// The tools that still await their 10.2 ports.
+pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
     let cwd_bash = cwd.clone();
     let cwd_write = cwd.clone();
     let cwd_edit = cwd.clone();
     let cwd_grep = cwd.clone();
     let cwd_find = cwd.clone();
     let cwd_ls = cwd.clone();
-    let _cwd_webfetch = cwd;
 
     vec![
-        AgentTool::new(
-            "read",
-            "Read file contents. Args: {\"path\": string, \"offset\"?: number, \"limit\"?: number}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "offset": { "type": "number" },
-                    "limit": { "type": "number" }
-                },
-                "required": ["path"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                let full = cwd_read.join(path);
-                let result = match (
-                    args.get("offset").and_then(|v| v.as_u64()),
-                    args.get("limit").and_then(|v| v.as_u64()),
-                ) {
-                    (Some(offset), Some(limit)) => {
-                        read_file_range(&full, offset as usize, (offset + limit) as usize)
-                    }
-                    _ => read_file(&full),
-                };
-                match result {
-                    Ok(text) => Ok(text_result(text)),
-                    Err(e) => Ok(error_result(format!("Error reading file: {}", e))),
-                }
-            }),
-        ),
         AgentTool::new(
             "bash",
             "Run a shell command. Args: {\"command\": string}",

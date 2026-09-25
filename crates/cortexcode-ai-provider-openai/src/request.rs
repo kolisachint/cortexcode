@@ -60,7 +60,8 @@ pub fn build_request_body(
     });
 
     if !context.tools.is_empty() {
-        body["tools"] = serde_json::Value::Array(convert_tools(&context.tools));
+        body["tools"] =
+            serde_json::Value::Array(convert_tools(&context.tools, supports_strict_mode(model)));
     }
 
     if model.reasoning {
@@ -235,17 +236,47 @@ fn convert_messages(messages: &[Message]) -> Vec<serde_json::Value> {
     out
 }
 
-fn convert_tools(tools: &[Tool]) -> Vec<serde_json::Value> {
+/// `compat.supportsStrictMode`: an explicit override, else detected from the
+/// provider/base URL (Moonshot and Together reject the field). Part of
+/// `detectCompat`; the full compat port is 8.1/8.5.
+fn supports_strict_mode(model: &Model) -> bool {
+    if let Some(explicit) = model
+        .compat
+        .as_ref()
+        .and_then(|c| c.get("supportsStrictMode"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        return explicit;
+    }
+    let provider = model.provider.as_str();
+    let base_url = model.base_url.as_str();
+    let is_together = provider == "together"
+        || base_url.contains("api.together.ai")
+        || base_url.contains("api.together.xyz");
+    let is_moonshot = provider == "moonshotai"
+        || provider == "moonshotai-cn"
+        || base_url.contains("api.moonshot.");
+    !is_moonshot && !is_together
+}
+
+/// `convertTools`. Constrained decoding (`strict: true` with a closed schema)
+/// needs `constrainToolCalls`, which nothing requests yet, so `strict` is
+/// always false, and it is sent only where the provider accepts the field.
+fn convert_tools(tools: &[Tool], supports_strict_mode: bool) -> Vec<serde_json::Value> {
     tools
         .iter()
         .map(|t| {
+            let mut function = serde_json::json!({
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters,
+            });
+            if supports_strict_mode {
+                function["strict"] = serde_json::json!(false);
+            }
             serde_json::json!({
                 "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.parameters,
-                },
+                "function": function,
             })
         })
         .collect()
@@ -468,6 +499,36 @@ mod tests {
         );
         let body = build_request_body(&model, &context, &SimpleStreamOptions::default());
         assert_eq!(body["tools"][0]["function"]["name"], "read_file");
+        assert_eq!(body["tools"][0]["function"]["strict"], false);
+        assert_eq!(
+            body["tools"][0].to_string(),
+            r#"{"type":"function","function":{"name":"read_file","description":"reads a file","parameters":{"type":"object"},"strict":false}}"#
+        );
+    }
+
+    #[test]
+    fn test_strict_field_omitted_where_unsupported() {
+        let context = Context::new(
+            "".into(),
+            vec![],
+            vec![Tool {
+                name: "t".into(),
+                description: "d".into(),
+                parameters: serde_json::json!({"type": "object"}),
+            }],
+        );
+        let mut model = default_model();
+        model.provider = "moonshotai".into();
+        let body = build_request_body(&model, &context, &SimpleStreamOptions::default());
+        assert!(body["tools"][0]["function"].get("strict").is_none());
+        let mut model = default_model();
+        model.base_url = "https://api.together.xyz/v1".into();
+        let body = build_request_body(&model, &context, &SimpleStreamOptions::default());
+        assert!(body["tools"][0]["function"].get("strict").is_none());
+        let mut model = default_model();
+        model.compat = Some(serde_json::json!({"supportsStrictMode": false}));
+        let body = build_request_body(&model, &context, &SimpleStreamOptions::default());
+        assert!(body["tools"][0]["function"].get("strict").is_none());
     }
 
     #[test]
