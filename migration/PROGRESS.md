@@ -5,13 +5,31 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (expected: **7.3b**, async agent loop/core).
+- Next task: run `python3 migration/ledger.py next` (expected: **7.3c**).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
   (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
   as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 7.3b done (async agent loop + core)
+- agent-loop: `run_agent_loop`/`run_agent_loop_continue` and the turn/tool helpers are async.
+  The provider stream is consumed with `.next().await`. Tools (still sync `execute`) run on
+  `spawn_blocking` with the run's signal. Background-task waits use `tokio::sync::Notify`
+  instead of a Condvar.
+- agent-core: `prompt`/`continue` are async. Each run gets a fresh `AbortSignal`
+  (agent.ts `abortController`) in `AgentLoopConfig.signal`, so it reaches the provider stream
+  and the tools. `abort()` aborts it; the old `stop_requested` flag (which nothing read) is
+  gone. New test: `abort()` mid-stream against a stalling mock server ends the run with the
+  partial assistant message, `stopReason: aborted`.
+- code-cli drives the agent from one multi-thread tokio runtime (`async_runtime().block_on`);
+  providers spawn onto it. `next_blocking`/`result_blocking` are now test-only.
+- Harness: `cortex_cmd` always runs `cargo build` for the binary (a no-op when fresh).
+  Before, it only built when the binary was missing, so `verify` could compare a stale binary.
+- Next: **7.3c**: async `ai-oauth`/`ai-images`/`code-tools` HTTP (drop the last
+  `reqwest::blocking`), then move `cache_control` hints into anthropic request building
+  (TS `cache-retention.ts` + anthropic.ts) and delete the field.
 
 ### 2026-09-25: 7.3 split; 7.3a done (async provider streams)
 - Ledger: 7.3 split into 7.3a (streams + providers), 7.3b (async agent loop/core + consumers,

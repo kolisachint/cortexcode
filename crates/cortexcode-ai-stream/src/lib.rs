@@ -207,13 +207,13 @@ impl EventStream<AssistantMessageEvent, AssistantMessage> {
             })
     }
 
-    /// Blocking `next()` for synchronous callers (the agent loop until it
-    /// turns async in ledger 7.3b). Must not be called on a tokio worker.
+    /// Blocking `next()` for synchronous tests. Must not be called on a
+    /// tokio worker thread.
     pub fn next_blocking(&mut self) -> Option<AssistantMessageEvent> {
         futures_executor::block_on(self.next())
     }
 
-    /// Blocking [`Self::result`] for synchronous callers and tests.
+    /// Blocking [`Self::result`] for synchronous tests.
     pub fn result_blocking(&self) -> AssistantMessage {
         futures_executor::block_on(self.result())
     }

@@ -424,6 +424,18 @@ fn build_agent_with_gate(
     Ok((agent, subscription))
 }
 
+/// The tokio runtime the CLI drives the agent on. Provider streams spawn
+/// onto it (`spawn_producer` uses the current runtime).
+fn async_runtime() -> &'static tokio::runtime::Runtime {
+    static RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to start the tokio runtime")
+    })
+}
+
 /// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
@@ -486,7 +498,8 @@ pub fn run_print_mode(
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
-        if let Err(e) = agent.prompt(PromptInput::Messages(vec![text_message(prompt)])) {
+        let run = agent.prompt(PromptInput::Messages(vec![text_message(prompt)]));
+        if let Err(e) = async_runtime().block_on(run) {
             writeln!(err, "{e}")?;
             return Ok(1);
         }
@@ -563,7 +576,8 @@ pub fn run_interactive_mode(
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
                             let user_msg = text_message(line);
-                            match agent.prompt(PromptInput::Messages(vec![user_msg])) {
+                            let run = agent.prompt(PromptInput::Messages(vec![user_msg]));
+                            match async_runtime().block_on(run) {
                                 Ok(messages) => {
                                     let text = format_text_output(&messages);
                                     if !text.is_empty() {

@@ -291,10 +291,12 @@ dependencies = [
  "cortexcode-agent-loop",
  "cortexcode-agent-types",
  "cortexcode-ai-provider-faux",
+ "cortexcode-ai-provider-openai",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -313,8 +315,10 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "futures-util",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -578,6 +582,7 @@ dependencies = [
  "cortexcode-code-tools-fs",
  "crossterm",
  "serde_json",
+ "tokio",
  "url",
 ]
 

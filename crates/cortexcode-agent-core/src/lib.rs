@@ -181,8 +181,8 @@ pub struct Agent {
     next_listener_id: Arc<AtomicUsize>,
     steering_queue: Arc<Mutex<PendingMessageQueue>>,
     follow_up_queue: Arc<Mutex<PendingMessageQueue>>,
-    /// A flag used to signal that the agent should stop.
-    stop_requested: Arc<std::sync::atomic::AtomicBool>,
+    /// The running prompt's abort signal (agent.ts `abortController`).
+    active_signal: Arc<Mutex<Option<ai_types::AbortSignal>>>,
     permission_gate: Option<Arc<dyn PermissionGate>>,
     stream_fn: Option<SharedStreamFn>,
 }
@@ -224,7 +224,7 @@ impl Agent {
             follow_up_queue: Arc::new(Mutex::new(PendingMessageQueue::new(
                 options.follow_up_mode.unwrap_or_default(),
             ))),
-            stop_requested: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            active_signal: Arc::new(Mutex::new(None)),
             next_listener_id: Arc::new(AtomicUsize::new(1)),
             permission_gate: options.permission_gate,
             stream_fn: options.stream_fn.map(|b| b as _),
@@ -304,10 +304,23 @@ impl Agent {
     // Lifecycle
     // -----------------------------------------------------------------------
 
-    /// Abort the current run, if one is active.
+    /// Abort the current run, if one is active. The signal reaches the
+    /// provider stream (which ends with `stopReason: "aborted"`) and the tools.
     pub fn abort(&self) {
-        self.stop_requested
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(signal) = self.active_signal.lock().unwrap().as_ref() {
+            signal.abort();
+        }
+    }
+
+    /// A fresh abort signal for a run, registered so [`Agent::abort`] reaches it.
+    fn begin_run(&self) -> ai_types::AbortSignal {
+        let signal = ai_types::AbortSignal::new();
+        *self.active_signal.lock().unwrap() = Some(signal.clone());
+        signal
+    }
+
+    fn end_run(&self) {
+        *self.active_signal.lock().unwrap() = None;
     }
 
     /// Clear transcript state and queued messages.
@@ -323,9 +336,9 @@ impl Agent {
 
     /// Start a new prompt with one or more messages, or from text.
     ///
-    /// This is a synchronous call that processes the prompt and returns when done.
-    /// Events are emitted to subscribed listeners during processing.
-    pub fn prompt(
+    /// Resolves when the run is done. Events are emitted to subscribed
+    /// listeners during processing.
+    pub async fn prompt(
         &self,
         input: PromptInput,
     ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
@@ -339,7 +352,7 @@ impl Agent {
             )
         };
 
-        let config = self.build_loop_config()?;
+        let config = self.build_loop_config(self.begin_run())?;
 
         {
             let mut inner = self.inner.lock().unwrap();
@@ -351,7 +364,9 @@ impl Agent {
         // Build the event sink
         let mut emit = self.event_sink();
 
-        let result = run_agent_loop(messages, context, config, &mut emit)?;
+        let result = run_agent_loop(messages, context, config, &mut emit).await;
+        self.end_run();
+        let result = result?;
 
         // Append this run's messages to the transcript (agent.ts pushes each
         // message on `message_end`; the transcript is never replaced).
@@ -367,7 +382,7 @@ impl Agent {
     }
 
     /// Continue from the current transcript.
-    pub fn r#continue(
+    pub async fn r#continue(
         &self,
     ) -> Result<Vec<AgentMessage>, Box<dyn std::error::Error + Send + Sync>> {
         let context = {
@@ -385,11 +400,11 @@ impl Agent {
                 // Try steering/follow-up messages first
                 let steering = self.steering_queue.lock().unwrap().drain();
                 if !steering.is_empty() {
-                    return self.run_prompt_messages(steering, true);
+                    return self.run_prompt_messages(steering, true).await;
                 }
                 let follow_ups = self.follow_up_queue.lock().unwrap().drain();
                 if !follow_ups.is_empty() {
-                    return self.run_prompt_messages(follow_ups, false);
+                    return self.run_prompt_messages(follow_ups, false).await;
                 }
                 return Err("Cannot continue from message role: assistant".into());
             }
@@ -397,7 +412,7 @@ impl Agent {
             return Err("No messages to continue from".into());
         }
 
-        let config = self.build_loop_config()?;
+        let config = self.build_loop_config(self.begin_run())?;
 
         {
             let mut inner = self.inner.lock().unwrap();
@@ -407,7 +422,9 @@ impl Agent {
         let mut context_mut = context;
         let mut emit = self.event_sink();
 
-        let result = run_agent_loop_continue(&mut context_mut, &config, &mut emit)?;
+        let result = run_agent_loop_continue(&mut context_mut, &config, &mut emit).await;
+        self.end_run();
+        let result = result?;
 
         {
             let mut inner = self.inner.lock().unwrap();
@@ -431,7 +448,7 @@ impl Agent {
         }
     }
 
-    fn run_prompt_messages(
+    async fn run_prompt_messages(
         &self,
         messages: Vec<AgentMessage>,
         _skip_initial_steering: bool,
@@ -445,7 +462,7 @@ impl Agent {
             )
         };
 
-        let config = self.build_loop_config()?;
+        let config = self.build_loop_config(self.begin_run())?;
 
         {
             let mut inner = self.inner.lock().unwrap();
@@ -453,7 +470,9 @@ impl Agent {
         }
 
         let mut emit = self.event_sink();
-        let result = run_agent_loop(messages, context, config, &mut emit)?;
+        let result = run_agent_loop(messages, context, config, &mut emit).await;
+        self.end_run();
+        let result = result?;
 
         {
             let mut inner = self.inner.lock().unwrap();
@@ -466,6 +485,7 @@ impl Agent {
 
     fn build_loop_config(
         &self,
+        signal: ai_types::AbortSignal,
     ) -> Result<AgentLoopConfig, Box<dyn std::error::Error + Send + Sync>> {
         let inner = self.inner.lock().unwrap();
 
@@ -500,7 +520,7 @@ impl Agent {
                 .clone()
                 .map(|a| -> StreamFn { Box::new(move |m, c, o| (*a)(m, c, o)) }),
             tool_execution: ToolExecutionMode::Parallel,
-            signal: None,
+            signal: Some(signal),
             api_key: inner.api_key.clone(),
             session_id: None,
             max_retry_delay_ms: None,
@@ -600,8 +620,8 @@ mod transcript_tests {
         }
     }
 
-    #[test]
-    fn prompt_appends_to_the_transcript() {
+    #[tokio::test]
+    async fn prompt_appends_to_the_transcript() {
         let faux = Arc::new(FauxProvider::new());
         faux.set_responses(vec![
             FauxResponseStep::Message(faux_text_message("one", None)),
@@ -622,8 +642,8 @@ mod transcript_tests {
             stream_fn: Some(Arc::new(faux.stream_fn())),
             ..Default::default()
         });
-        agent.prompt(PromptInput::Text("a".into())).unwrap();
-        let second = agent.prompt(PromptInput::Text("b".into())).unwrap();
+        agent.prompt(PromptInput::Text("a".into())).await.unwrap();
+        let second = agent.prompt(PromptInput::Text("b".into())).await.unwrap();
         // The returned messages are only this run's; the transcript keeps both runs.
         assert_eq!(second.len(), 2);
         let roles: Vec<&str> = agent
@@ -660,8 +680,8 @@ mod transcript_tests {
         })
     }
 
-    #[test]
-    fn tool_results_match_hoocode_messages_and_events() {
+    #[tokio::test]
+    async fn tool_results_match_hoocode_messages_and_events() {
         let faux = Arc::new(FauxProvider::new());
         faux.set_responses(vec![
             FauxResponseStep::Message(faux_message(
@@ -704,7 +724,7 @@ mod transcript_tests {
                 sink.lock().unwrap().push(m.tool_call_id.clone());
             }
         });
-        agent.prompt(PromptInput::Text("go".into())).unwrap();
+        agent.prompt(PromptInput::Text("go".into())).await.unwrap();
 
         let results: Vec<_> = agent
             .state()
@@ -734,5 +754,63 @@ mod transcript_tests {
         assert!(results[2].is_error);
         // Each tool result is announced with message_start/message_end.
         assert_eq!(*ended.lock().unwrap(), ["c1", "c2", "c3"]);
+    }
+
+    /// `agent.abort()` mid-stream: the signal reaches the provider, which ends
+    /// the assistant message with `stopReason: "aborted"` and what streamed so far.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn abort_reaches_the_provider_stream() {
+        let head = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial \"}}]}\n\n";
+        let base_url = cortexcode_ai_stream::testing::serve_sse_then_hang(
+            head,
+            std::time::Duration::from_secs(30),
+        );
+        let mut m = model();
+        m.api = "openai-completions".into();
+        m.provider = "openai".into();
+        m.base_url = base_url;
+        let agent = Arc::new(Agent::with_options(AgentOptions {
+            initial_state: Some(AgentState {
+                system_prompt: String::new(),
+                model: m,
+                thinking_level: ThinkingLevel::Off,
+                tools: cortexcode_agent_types::AgentTools::new(Vec::new()),
+                messages: Vec::new(),
+                is_streaming: false,
+                streaming_message: None,
+                pending_tool_calls: Default::default(),
+                error_message: None,
+            }),
+            api_key: Some("sk-test".into()),
+            stream_fn: Some(Arc::new(Box::new(cortexcode_ai_provider_openai::stream))),
+            ..Default::default()
+        }));
+        let weak = Arc::downgrade(&agent);
+        let _sub = agent.subscribe(move |event| {
+            if let AgentEvent::MessageUpdate { .. } = event {
+                if let Some(agent) = weak.upgrade() {
+                    agent.abort();
+                }
+            }
+        });
+
+        let messages = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            agent.prompt(PromptInput::Text("go".into())),
+        )
+        .await
+        .expect("abort must end the run without waiting for the server")
+        .unwrap();
+
+        match messages.last() {
+            Some(AgentMessage::Assistant(a)) => {
+                assert_eq!(a.stop_reason, cortexcode_ai_types::StopReason::Aborted);
+                assert_eq!(a.content, vec![Content::text("partial ")]);
+            }
+            other => panic!("expected the aborted assistant message, got {other:?}"),
+        }
+        // The run is over; a later abort is a no-op.
+        agent.abort();
+        assert!(!agent.state().is_streaming);
     }
 }

@@ -526,7 +526,7 @@
    "id": "7.3b",
    "title": "Async agent loop + agent core on tokio (stream consumption, tool execution, CancellationToken abort reaching the provider stream); async consumers (code-cli runtime/print/rpc, subagents); remove the block_on bridge",
    "phase": 7,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a"
    ],
@@ -555,6 +555,18 @@
      "commit": "9ea58f3",
      "kind": "note",
      "text": "split from 7.3 (too big for one sitting: ~7.6K lines across ai-types, 4 providers, oauth, agent loop/core)"
+    },
+    {
+     "at": "2026-09-25T05:44:48Z",
+     "commit": "f11bae9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:48:25Z",
+     "commit": "f11bae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
     }
    ]
   },

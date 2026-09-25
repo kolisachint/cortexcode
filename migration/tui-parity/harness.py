@@ -70,10 +70,13 @@ def hoocode_cmd() -> list[str]:
 
 
 def cortex_cmd() -> list[str]:
-    exe = Path(os.environ.get("CORTEX_BIN", ROOT / "target" / "debug" / "cortex"))
-    if not exe.exists():
-        subprocess.run(["cargo", "build", "-q", "-p", "cortexcode-code-main", "--bin", "cortex"], cwd=ROOT, check=True)
-    return [str(exe)]
+    if "CORTEX_BIN" in os.environ:
+        return [os.environ["CORTEX_BIN"]]
+    # Always build (a no-op when up to date): `ledger.py verify` runs `cargo test`
+    # for the task's crates only, which does not rebuild the binary, and L2 must
+    # never run against a stale one.
+    subprocess.run(["cargo", "build", "-q", "-p", "cortexcode-code-main", "--bin", "cortex"], cwd=ROOT, check=True)
+    return [str(ROOT / "target" / "debug" / "cortex")]
 
 
 def app_cmd(app: str) -> list[str]:

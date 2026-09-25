@@ -9,6 +9,7 @@ use cortexcode_ai_types::{
     SimpleStreamOptions, StopReason, TextContent, ToolResultMessage,
 };
 
+use futures_util::StreamExt;
 use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
@@ -50,8 +51,8 @@ struct ExecutedToolCallBatch {
 struct BackgroundTaskManager {
     pending: Arc<std::sync::atomic::AtomicUsize>,
     results: Arc<Mutex<Vec<AgentMessage>>>,
-    /// Notified when a background task finishes.
-    notify: Arc<(Mutex<bool>, std::sync::Condvar)>,
+    /// Notified when a background task finishes (holds one permit if nobody waits).
+    notify: Arc<tokio::sync::Notify>,
 }
 
 impl BackgroundTaskManager {
@@ -59,7 +60,7 @@ impl BackgroundTaskManager {
         Self {
             pending: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             results: Arc::new(Mutex::new(Vec::new())),
-            notify: Arc::new((Mutex::new(false), std::sync::Condvar::new())),
+            notify: Arc::new(tokio::sync::Notify::new()),
         }
     }
 
@@ -74,13 +75,8 @@ impl BackgroundTaskManager {
     }
 
     /// Wait for at least one background task to complete.
-    fn wait_for_next(&self) {
-        let (lock, cvar) = &*self.notify;
-        let mut notified = lock.lock().unwrap();
-        while !*notified {
-            notified = cvar.wait(notified).unwrap();
-        }
-        *notified = false;
+    async fn wait_for_next(&self) {
+        self.notify.notified().await;
     }
 
     #[allow(clippy::type_complexity)]
@@ -128,10 +124,7 @@ impl BackgroundTaskManager {
                 let mut res = results.lock().unwrap();
                 res.push(msg);
             }
-            let (lock, cvar) = &*notify;
-            let mut notified = lock.lock().unwrap();
-            *notified = true;
-            cvar.notify_one();
+            notify.notify_one();
 
             let remaining = pending.fetch_sub(1, std::sync::atomic::Ordering::Relaxed) - 1;
             if let Some(ref cb) = on_count_change {
@@ -146,7 +139,7 @@ impl BackgroundTaskManager {
 // ---------------------------------------------------------------------------
 
 /// Stream an assistant response from the LLM.
-fn stream_assistant_response(
+async fn stream_assistant_response(
     context: &mut AgentContext,
     config: &AgentLoopConfig,
     emit: &mut AgentEventSink,
@@ -215,7 +208,7 @@ fn stream_assistant_response(
     let mut final_message: Option<AssistantMessage> = None;
 
     loop {
-        match event_stream.next_blocking() {
+        match event_stream.next().await {
             Some(AssistantMessageEvent::Start { partial }) => {
                 partial_message = Some(partial.clone());
                 context
@@ -389,6 +382,20 @@ fn execute_single_tool(
     (tool.execute)(tool_call_id.to_string(), args, None, None)
 }
 
+/// Run a tool's (synchronous) `execute` on tokio's blocking pool so file and
+/// process work doesn't stall the runtime. The tool gets the run's signal.
+async fn run_tool(
+    tool: &AgentTool,
+    tool_call_id: String,
+    args: serde_json::Value,
+    signal: Option<ai_types::AbortSignal>,
+) -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>> {
+    let execute = tool.execute.clone();
+    tokio::task::spawn_blocking(move || execute(tool_call_id, args, signal, None))
+        .await
+        .unwrap_or_else(|e| Err(format!("tool task failed: {e}").into()))
+}
+
 // ---------------------------------------------------------------------------
 // Tool execution modes
 // ---------------------------------------------------------------------------
@@ -397,7 +404,7 @@ fn execute_single_tool(
 /// tool result messages are announced after the whole batch, in call order,
 /// the way `executeToolCallsParallel` does (siblings never see each other's
 /// results); otherwise each one right after its tool (`executeToolCallsSequential`).
-fn execute_tool_calls_sequential(
+async fn execute_tool_calls_sequential(
     context: &mut AgentContext,
     assistant_message: &AssistantMessage,
     tool_calls: &[AgentToolCall],
@@ -490,7 +497,7 @@ fn execute_tool_calls_sequential(
             args: tc.arguments.clone(),
         });
 
-        let result = execute_single_tool_call(context, assistant_message, tc, config);
+        let result = execute_single_tool_call(context, assistant_message, tc, config).await;
 
         // Apply after_tool_call hook
         let (final_result, is_error, should_terminate) =
@@ -535,7 +542,7 @@ fn execute_tool_calls_sequential(
     }
 }
 
-fn execute_tool_calls_parallel(
+async fn execute_tool_calls_parallel(
     context: &mut AgentContext,
     assistant_message: &AssistantMessage,
     tool_calls: &[AgentToolCall],
@@ -554,6 +561,7 @@ fn execute_tool_calls_parallel(
         background,
         true,
     )
+    .await
 }
 
 /// `emitToolResultMessage`: announce a tool result as a message.
@@ -566,7 +574,7 @@ fn emit_tool_result_message(message: &AgentMessage, emit: &mut AgentEventSink) {
     });
 }
 
-fn execute_single_tool_call(
+async fn execute_single_tool_call(
     context: &AgentContext,
     assistant_message: &AssistantMessage,
     tool_call: &AgentToolCall,
@@ -575,7 +583,7 @@ fn execute_single_tool_call(
     let prepared = prepare_tool_call(context, assistant_message, tool_call, config);
     match prepared.kind {
         PreparedToolCallKind::Ready { tool, args } => {
-            (tool.execute)(tool_call.id.clone(), args, config.signal.clone(), None)
+            run_tool(&tool, tool_call.id.clone(), args, config.signal.clone()).await
         }
         // Immediate outcomes are error results (createErrorToolResult in agent-loop.ts).
         PreparedToolCallKind::Blocked { reason } => Err(reason.into()),
@@ -639,7 +647,7 @@ fn apply_after_tool_call(
 // ---------------------------------------------------------------------------
 
 /// Run the agent loop with new prompt messages.
-pub fn run_agent_loop(
+pub async fn run_agent_loop(
     prompts: Vec<AgentMessage>,
     mut context: AgentContext,
     config: AgentLoopConfig,
@@ -663,7 +671,7 @@ pub fn run_agent_loop(
         });
     }
 
-    run_loop(&mut context, &mut new_messages, &config, emit)?;
+    run_loop(&mut context, &mut new_messages, &config, emit).await?;
 
     emit(AgentEvent::AgentEnd {
         messages: new_messages.clone(),
@@ -673,7 +681,7 @@ pub fn run_agent_loop(
 }
 
 /// Run the agent loop continuing from existing context (no new prompt).
-pub fn run_agent_loop_continue(
+pub async fn run_agent_loop_continue(
     context: &mut AgentContext,
     config: &AgentLoopConfig,
     emit: &mut AgentEventSink,
@@ -691,7 +699,7 @@ pub fn run_agent_loop_continue(
     emit(AgentEvent::AgentStart);
     emit(AgentEvent::TurnStart);
 
-    run_loop(context, &mut new_messages, config, emit)?;
+    run_loop(context, &mut new_messages, config, emit).await?;
 
     emit(AgentEvent::AgentEnd {
         messages: new_messages.clone(),
@@ -701,7 +709,7 @@ pub fn run_agent_loop_continue(
 }
 
 /// Shared loop logic.
-fn run_loop(
+async fn run_loop(
     context: &mut AgentContext,
     new_messages: &mut Vec<AgentMessage>,
     config: &AgentLoopConfig,
@@ -734,7 +742,7 @@ fn run_loop(
         {
             // Nothing new to act on, but background work is in flight — wait for it
             if !has_more_tool_calls && pending_messages.is_empty() {
-                background.wait_for_next();
+                background.wait_for_next().await;
                 pending_messages = collect_pending(config, &mut background);
                 if pending_messages.is_empty() {
                     continue;
@@ -773,7 +781,7 @@ fn run_loop(
             }
 
             // Stream assistant response
-            let message = stream_assistant_response(context, config, emit)?;
+            let message = stream_assistant_response(context, config, emit).await?;
 
             new_messages.push(AgentMessage::from_message(Message::Assistant(
                 message.clone(),
@@ -818,6 +826,7 @@ fn run_loop(
                         &mut background,
                         false,
                     )
+                    .await
                 } else {
                     execute_tool_calls_parallel(
                         context,
@@ -827,6 +836,7 @@ fn run_loop(
                         emit,
                         &mut background,
                     )
+                    .await
                 };
 
                 tool_results.extend(batch.messages);
