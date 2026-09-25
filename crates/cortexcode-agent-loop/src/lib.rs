@@ -813,13 +813,18 @@ fn prepare_tool_call(
     }))
 }
 
-/// `validateToolArguments` (ledger 8.5): arguments pass through unchanged
-/// until the validator with hoocode's coercion rules is ported.
+/// `validateToolArguments`: TypeBox `Value.Convert` (or JSON-schema coercion
+/// for plain-schema tools), then validation with TypeBox's error text.
 fn validate_tool_arguments(
-    _tool: &AgentTool,
+    tool: &AgentTool,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    Ok(args)
+    let origin = if tool.plain_json_schema {
+        cortexcode_ai_util::SchemaOrigin::PlainJson
+    } else {
+        cortexcode_ai_util::SchemaOrigin::TypeBox
+    };
+    cortexcode_ai_util::validate_tool_arguments(&tool.name, &tool.parameters, &args, origin)
 }
 
 type UpdateSender = tokio::sync::mpsc::UnboundedSender<AgentEvent>;

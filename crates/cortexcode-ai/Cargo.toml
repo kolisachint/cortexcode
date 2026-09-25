@@ -22,6 +22,13 @@ cortexcode-ai-provider-azure = { workspace = true }
 cortexcode-ai-provider-faux = { workspace = true }
 cortexcode-ai-provider-google = { workspace = true }
 cortexcode-ai-provider-openai = { workspace = true }
+cortexcode-ai-provider-openai-responses = { workspace = true }
+cortexcode-ai-registry = { workspace = true }
 cortexcode-ai-stream = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-ai-util = { workspace = true }
+
+[dev-dependencies]
+cortexcode-ai-stream = { workspace = true, features = ["testing"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }

@@ -1,0 +1,61 @@
+{
+  "description": "Light mode (--light) print run where the model calls read with invalid arguments (no path, offset as a string, an extra key): the tool result is hoocode's validateToolArguments error (TypeBox messages) and the next request must carry it byte-for-byte.",
+  "compare_requests": true,
+  "request_fields": [
+    "messages",
+    "tools"
+  ],
+  "phase": "8.5b",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "-p",
+    "read something"
+  ],
+  "llm": [
+    {
+      "text": "Reading.",
+      "tool_calls": [
+        {
+          "id": "call_bad_1",
+          "name": "read",
+          "arguments": {
+            "offset": "two",
+            "extra": true
+          }
+        }
+      ]
+    },
+    {
+      "text": "The read call failed."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "The read call failed.",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

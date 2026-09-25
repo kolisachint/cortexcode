@@ -789,7 +789,7 @@
    "id": "8.2",
    "title": "All 31 known providers routed via api + compat; env-api-keys parity for every provider",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.1",
     "8.2a"
@@ -816,6 +816,18 @@
      "commit": "7b349fa",
      "kind": "note",
      "text": "8.1: port the env-key halves of fireworks-models.test.ts and together-models.test.ts (findEnvKeys/getEnvApiKey for FIREWORKS_API_KEY, TOGETHER_API_KEY)."
+    },
+    {
+     "at": "2026-09-25T14:54:27Z",
+     "commit": "912521f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:16:14Z",
+     "commit": "912521f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -823,7 +835,7 @@
    "id": "8.3",
    "title": "New crate ai-provider-openai-responses (extracted from azure); openai-responses API; azure depends on it",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a"
    ],
@@ -842,7 +854,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:16:35Z",
+     "commit": "eae3620",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:24:25Z",
+     "commit": "eae3620",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.4a",
@@ -867,7 +892,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:38:27Z",
+     "commit": "9538d63",
+     "kind": "note",
+     "text": "8.5a: utils/diagnostics.ts (createAssistantMessageDiagnostic, appendAssistantMessageDiagnostic, formatThrownValue) is used only by openai-codex-responses.ts; port it with this task (AssistantMessage.diagnostics is Vec<serde_json::Value>)."
+    }
+   ]
   },
   {
    "id": "8.4b",
@@ -920,10 +952,10 @@
    "log": []
   },
   {
-   "id": "8.5",
-   "title": "Provider utilities: transform-messages, overflow, retry-delay, param-fallback, tool-constraints, simple-options, validation via jsonschema, partial JSON",
+   "id": "8.5a",
+   "title": "Provider utilities: retry-delay + SDK retry policy (wired into openai-completions, openai-responses, azure, anthropic), overflow, json-parse/sanitize/diagnostics parity, cross-provider handoff (live)",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a"
    ],
@@ -932,18 +964,67 @@
     "cortexcode-ai"
    ],
    "sources": [
-    "packages/ai/src/providers/transform-messages.ts",
-    "packages/ai/src/utils/"
+    "packages/ai/src/utils/retry-delay.ts",
+    "packages/ai/src/utils/overflow.ts",
+    "packages/ai/src/utils/json-parse.ts",
+    "packages/ai/src/utils/diagnostics.ts",
+    "packages/ai/src/providers/transform-messages.ts"
    ],
    "ts_tests": [
-    "packages/ai/test/cross-provider-handoff.test.ts",
-    "packages/ai/test/overflow.test.ts",
     "packages/ai/test/retry-delay.test.ts",
+    "packages/ai/test/overflow.test.ts",
+    "packages/ai/test/cross-provider-handoff.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-retry"
+   ],
+   "notes": "Split from 8.5 (2026-09-25): too big for one sitting. transform-messages, tool-constraints and param-fallback were ported with 8.2.",
+   "log": [
+    {
+     "at": "2026-09-25T15:14:45Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: transform_messages, to_strict_json_schema, param_fallback (DROPPABLE_PARAMS, rejected_params_for, droppable_params_named_by) and copilot headers are already in ai-util (ported for openai-completions); port their TS tests here (cross-provider-handoff etc.). openai-completions still lacks the openai SDK's client retries (maxRetries 2, retryDelayCapFetch) and describeProviderError's retry-after suffix: wire both into crates/cortexcode-ai-provider-openai create_with_param_fallback once retry-delay lands."
+    },
+    {
+     "at": "2026-09-25T15:24:52Z",
+     "commit": "9538d63",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:38:42Z",
+     "commit": "9538d63",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-retry=pass"
+    }
+   ]
+  },
+  {
+   "id": "8.5b",
+   "title": "validateToolArguments (TypeBox Convert-style coercion + JSON-schema validation via jsonschema, TS error format) in ai-util; wire into agent-loop",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "8.5a"
+   ],
+   "crates": [
+    "cortexcode-ai-util",
+    "cortexcode-agent-loop"
+   ],
+   "sources": [
+    "packages/ai/src/utils/validation.ts",
+    "packages/ai/src/utils/typebox-helpers.ts"
+   ],
+   "ts_tests": [
     "packages/ai/test/validation.test.ts"
    ],
    "l1_cmds": [],
-   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "l2": [
+    "print-tool-invalid-light"
+   ],
+   "notes": "Split from 8.5 (2026-09-25).",
    "log": [
     {
      "at": "2026-09-25T12:02:10Z",
@@ -952,10 +1033,28 @@
      "text": "7.5a: agent-loop calls validate_tool_arguments() (crates/cortexcode-agent-loop), currently a pass-through; port validateToolArguments (TypeBox Convert + JSON-schema coercion, TS error format) and wire it there."
     },
     {
-     "at": "2026-09-25T12:14:48Z",
-     "commit": "7b349fa",
-     "kind": "note",
-     "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+     "at": "2026-09-25T15:39:02Z",
+     "commit": "8ff9654",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T15:46:56Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T15:47:02Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T15:47:16Z",
+     "commit": "8ff9654",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-invalid-light=pass"
     }
    ]
   },
@@ -965,7 +1064,8 @@
    "phase": 8,
    "status": "todo",
    "depends": [
-    "8.5"
+    "8.5a",
+    "8.5b"
    ],
    "crates": [
     "cortexcode-ai-provider-anthropic",
@@ -978,7 +1078,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:14:45Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: UserMessage.content is always blocks; TS keeps string content as a string (openai-completions sends it as a string, cache-control-format.test.ts asserts it; sessions store it). Needs a representation decision (enum or flag in ai-types) before the remaining provider/session tests can match byte-for-byte."
+    },
+    {
+     "at": "2026-09-25T12:14:48Z",
+     "commit": "7b349fa",
+     "kind": "note",
+     "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+    }
+   ]
   },
   {
    "id": "8.7",
@@ -1310,7 +1423,14 @@
     "print-continue"
    ],
    "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:16:00Z",
+     "commit": "912521f",
+     "kind": "note",
+     "text": "8.2: hoocode passes sessionId: sessionManager.getSessionId() into the agent (sdk.ts:423), so openai-completions sends prompt_cache_key; cortex code-cli build_agent (runtime.rs) sets no session id, so the key is missing from harness requests (all other non-message fields now match). Wire the session id into AgentOptions here."
+    }
+   ]
   },
   {
    "id": "10.4b",
@@ -1557,7 +1677,14 @@
     "mcp-tool-call"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T15:46:43Z",
+     "commit": "8ff9654",
+     "kind": "note",
+     "text": "8.5b: hoocode's mcp-loader rebuilds each MCP tool's parameters with TypeBox (buildMcpSchema: number/integer→Type.Number, boolean→Type.Boolean, else Type.String; Optional unless required), so validation takes the TypeBox Value.Convert path. cortex's agent-mcp build_schema passes the raw schema through; port buildMcpSchema here (AgentTool.plain_json_schema stays false)."
+    }
+   ]
   },
   {
    "id": "11.1",

@@ -296,6 +296,7 @@ dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "futures-util",
  "serde",
  "serde_json",
@@ -361,9 +362,13 @@ dependencies = [
  "cortexcode-ai-provider-faux",
  "cortexcode-ai-provider-google",
  "cortexcode-ai-provider-openai",
+ "cortexcode-ai-provider-openai-responses",
+ "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "cortexcode-ai-util",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -431,14 +436,12 @@ dependencies = [
 name = "cortexcode-ai-provider-azure"
 version = "0.0.1"
 dependencies = [
- "cortexcode-ai-sse",
+ "cortexcode-ai-models",
+ "cortexcode-ai-provider-openai-responses",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
- "cortexcode-ai-util",
- "futures-util",
  "reqwest",
  "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -470,6 +473,24 @@ dependencies = [
 name = "cortexcode-ai-provider-openai"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-env",
+ "cortexcode-ai-models",
+ "cortexcode-ai-sse",
+ "cortexcode-ai-stream",
+ "cortexcode-ai-types",
+ "cortexcode-ai-util",
+ "futures-util",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "cortexcode-ai-provider-openai-responses"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-env",
+ "cortexcode-ai-models",
  "cortexcode-ai-sse",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
@@ -490,6 +511,7 @@ dependencies = [
  "cortexcode-ai-provider-faux",
  "cortexcode-ai-provider-google",
  "cortexcode-ai-provider-openai",
+ "cortexcode-ai-provider-openai-responses",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "futures-util",
@@ -513,6 +535,7 @@ dependencies = [
  "cortexcode-ai-types",
  "futures-executor",
  "futures-util",
+ "serde_json",
  "tokio",
 ]
 
@@ -529,10 +552,13 @@ dependencies = [
 name = "cortexcode-ai-util"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-ai-types",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

@@ -43,6 +43,7 @@ FIELD_DEFAULTS = {
     ("Model", "compat"): "None",
     ("SessionInfo", "color"): "None",
     ("*", "cache_retention"): "None",
+    ("AgentTool", "plain_json_schema"): "false",
 }
 REMOVED = {"stop_sequence", "cache_control", "cache_control_format", "supports_long_cache_retention"}
 # expected type (as rustc prints it) -> replacement for a bare `None`

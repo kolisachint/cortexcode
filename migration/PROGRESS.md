@@ -5,14 +5,104 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`. 7.3 (async core) is complete; 7.5
-  (agent + loop parity), 8.3, 8.5, 8.7, 9.1 and 10.2b are unblocked by it.
+- Next task: run `python3 migration/ledger.py next`. Phase 8 now has 8.1, 8.2, 8.2a, 8.3,
+  8.5a and 8.5b done. Every HTTP provider (openai-completions, openai-responses, azure,
+  anthropic) has SDK-style client retries; still missing: openai-codex (8.4a), Copilot
+  (8.4b), gemini-cli/antigravity (8.4c), the OAuth split (8.7) and the remaining ai tests
+  (8.6, which also owns the claude-5-models request format and the UserMessage
+  string-content decision).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
-  light mode: `print-tool-read-light` (10.4d) passes on messages + tools. By user decision
-  (2026-09-25) the default-bundle scenarios (`print-tool-read`, `-paging`, `print-multi`) stay
-  as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger notes for what they wait on.
+  light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
+  `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
+  notes for what they wait on. New scenarios this session: `print-retry` (8.5a) and
+  `print-tool-invalid-light` (8.5b).
 
 ## Log
+
+### 2026-09-25: 8.5b done (validateToolArguments)
+- ai-util `validation`: `validate_tool_arguments(name, schema, args, SchemaOrigin)` =
+  validation.ts. `typebox_convert` ports TypeBox 1.1 `Value.Convert` (TryNumber/Boolean/
+  String/Null/Array, unions, literals, enums; StringEnum/Unsafe untouched) for hoocode's
+  TypeBox tools; `coerce_with_json_schema` for plain JSON schemas; a validator reporting
+  TypeBox's errors (keyword order, instance paths, en_US messages) and the TS error text.
+- `AgentTool.plain_json_schema` (default false; hoocode builds MCP schemas with TypeBox
+  too, noted on 10.11). agent-loop's `prepareToolCall` now validates for real.
+- Tests: validation.test.ts ported; `validation_fixture.json` recorded from the pinned
+  hoocode with node (TypeBox and plain paths); agent-loop conversion/error test.
+- New L2 scenario `print-tool-invalid-light` (read called without path): the tool-result
+  error text in the next request matches hoocode byte-for-byte.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 8.5 split; 8.5a done (retry-delay + SDK retries, overflow, partial JSON)
+- Ledger: 8.5 split into 8.5a (retry-delay, SDK retry policy, overflow, json-parse,
+  cross-provider handoff) and 8.5b (validation.ts + agent-loop wiring). The claude-5-models
+  request-format note moved to 8.6 (anthropic provider); diagnostics.ts noted on 8.4a.
+- ai-util `retry_delay`: parseRetryAfterMs, formatDelay, describeProviderError,
+  isLongRetryDelayError, the cap-fetch rule (`exceeds_retry_delay_cap`), and the SDK retry
+  loop (`send_with_sdk_retries` / `post_json_with_sdk_retries`: 2 retries on 408/409/429/5xx
+  and transport errors, x-should-retry, retry-after(-ms), 0.5..8s backoff with jitter, JS
+  timer clamp). Wired into openai-completions (inside each param-fallback pass), the
+  Responses driver (openai-responses + azure) and anthropic; final errors go through
+  describeProviderError; transport errors read "Connection error." / "Request timed out.".
+  `SimpleStreamOptions.max_retries` now reaches the providers.
+- anthropic: `api_error_message` follows @anthropic-ai/sdk (whole parsed body).
+- ai-util `partial_json`: port of the partial-json package (0.1.7, Allow.ALL);
+  `parse_streaming_json` now follows json-parse.ts (the old tolerant parse returned
+  `{"path":"README}"}` for `{"path":"README`).
+- overflow: Together AI pattern fixed (`model'?s`); overflow.test.ts ported.
+- cross-provider-handoff.test.ts ported as an `#[ignore]` live test in cortexcode-ai.
+- New L2 scenario `print-retry` (503 then an answer): passes, identical requests.
+- Next: 8.5b (validation.ts), via `ledger.py next`.
+
+### 2026-09-25: 8.3 done (openai-responses crate; azure on top of it)
+- New crate `ai-provider-openai-responses`: `shared` = openai-responses-shared.ts
+  (`convert_responses_messages` incl. foreign `fc_<hash>` item ids, different-model fc id
+  drop, TextSignatureV1 ids/phase, reasoning-item replay, image tool outputs;
+  `convert_responses_tools`; `ResponsesStreamState` = processResponsesStream with summary /
+  content-part tracking, refusals, arguments.done deltas, usage + cost, service-tier hook,
+  error/failed events; `run_responses_stream` HTTP driver). lib = openai-responses.ts
+  (`stream`, `stream_responses(ResponsesOptions)`, cache-affinity headers + compat,
+  reasoning off/none defaults, Copilot exception, service-tier pricing).
+- ai-provider-azure rewritten on the shared crate (request.rs gone): option/env/model base
+  URL resolution + normalization via `reqwest::Url`, deployment-name map, `api-key` header,
+  `{base}/responses?api-version=` with the query replaced (as the SDK's buildURL), config
+  errors surface as stream `error` events.
+- `openai-responses` registered in ai-registry; routing test no longer lists it as pending.
+  `openai_api_error_message` moved to ai-util (openai crate re-exports it).
+- Tests: copilot-provider, foreign-toolcall-id, partial-json-cleanup, tool-result-images
+  (conversion), azure-openai-base-url ported; the two live e2e files are `#[ignore]`d.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 8.2 done (openai-completions parity; env-api-keys parity; routing)
+- provider-openai is a port of openai-completions.ts: `getCompat`/`detectCompat`
+  (`request::ResolvedCompat`), `buildParams` (prompt_cache_key/retention, store,
+  stream_options, max_tokens field, tools/`tools: []` on tool history, tool_choice,
+  tool_stream, every thinking format, OpenRouter/Vercel routing), Anthropic-style cache
+  markers, promptSuffix, `convertMessages` (transformMessages, developer role, thinking
+  replay incl. signature field / thinking-as-text, reasoning_details, bridging assistant,
+  tool result names, batched tool-result images), strict tools via `to_strict_json_schema`,
+  client headers (model, Copilot dynamic, session affinity, caller overrides).
+  Streaming keeps content live in `partial` (as TS), coalesces tool calls by index then id,
+  responseId/responseModel, choice-usage fallback, cost via ai-models, param-fallback retry
+  loop, OpenRouter `metadata.raw` suffix. `stream()` resolves the key via ai-env and fails
+  with `No API key for provider: X`.
+- ai-util gains transform_messages, to_strict_json_schema, param_fallback, copilot headers
+  (8.5 still owns their TS tests). `SimpleStreamOptions` gains temperature, max_tokens,
+  headers, timeout_ms, metadata, constrain_tool_calls, tool_choice.
+- ai-env: dropped `mistral` (not in hoocode), empty values count as unset, GAC path does not
+  fall back to the default ADC file, OnceLock cache.
+- ai-stream testing: `serve_script` (scripted multi-response server that records requests).
+- Tests: all 9 openai-completions-*.test.ts files + env-api-keys.test.ts + fireworks/together
+  env halves (59 + 9 tests); `cortexcode-ai/tests/routing.rs` checks every catalog
+  (provider, api) pair dispatches through the registry, with openai-responses (8.3),
+  openai-codex-responses (8.4a), google-gemini-cli (8.4c) listed as pending.
+- Harness requests now match hoocode on every non-message field except `prompt_cache_key`
+  (`prompt_cache_retention: "24h"` and `store: false` were missing before). The key needs the
+  agent's session id, which code-cli doesn't set yet (noted on 10.3). Scenario results are
+  unchanged: everything owned by a done task passes.
+- Left: SDK client retries + retry-after suffix (noted on 8.5); UserMessage string content
+  (noted on 8.6).
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 8.1 done (model catalog at the pin)
 - New data crate `ai-models-catalog`: `data/models.json` (1224 models), `data/image-models.json`

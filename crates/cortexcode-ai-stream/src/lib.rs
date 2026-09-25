@@ -482,4 +482,130 @@ pub mod testing {
             vec![Part::Bytes(body.to_string())],
         )
     }
+
+    /// One request as received by [`serve_script`].
+    #[derive(Debug, Clone)]
+    pub struct Recorded {
+        /// Request target, e.g. `/v1/chat/completions`.
+        pub path: String,
+        /// Header names lower-cased, in received order.
+        pub headers: Vec<(String, String)>,
+        pub body: String,
+    }
+
+    impl Recorded {
+        /// The body parsed as JSON (`Null` when it is not JSON).
+        pub fn json(&self) -> serde_json::Value {
+            serde_json::from_str(&self.body).unwrap_or(serde_json::Value::Null)
+        }
+
+        /// The first header named `name` (case-insensitive).
+        pub fn header(&self, name: &str) -> Option<&str> {
+            self.headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+        }
+    }
+
+    /// A scripted server: answers each request with the next response and
+    /// records what it received.
+    pub struct ScriptedServer {
+        pub base_url: String,
+        requests: std::sync::Arc<std::sync::Mutex<Vec<Recorded>>>,
+    }
+
+    impl ScriptedServer {
+        /// The requests received so far.
+        pub fn requests(&self) -> Vec<Recorded> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    fn read_request(stream: &mut std::net::TcpStream) -> Option<Recorded> {
+        let mut data = Vec::new();
+        let mut buf = [0u8; 8192];
+        let header_end = loop {
+            let n = stream.read(&mut buf).ok()?;
+            if n == 0 {
+                return None;
+            }
+            data.extend_from_slice(&buf[..n]);
+            if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+                break pos + 4;
+            }
+        };
+        let head = String::from_utf8_lossy(&data[..header_end]).to_string();
+        let mut lines = head.split("\r\n");
+        let path = lines
+            .next()?
+            .split(' ')
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
+        let headers: Vec<(String, String)> = lines
+            .filter_map(|l| l.split_once(':'))
+            .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
+            .collect();
+        let length: usize = headers
+            .iter()
+            .find(|(k, _)| k == "content-length")
+            .and_then(|(_, v)| v.parse().ok())
+            .unwrap_or(0);
+        while data.len() < header_end + length {
+            let n = stream.read(&mut buf).ok()?;
+            if n == 0 {
+                break;
+            }
+            data.extend_from_slice(&buf[..n]);
+        }
+        let body = String::from_utf8_lossy(&data[header_end..]).to_string();
+        Some(Recorded {
+            path,
+            headers,
+            body,
+        })
+    }
+
+    /// Serve `responses` in order on `127.0.0.1`, one per connection, each as
+    /// `(status_line, content_type, body)`; requests past the script get a
+    /// 500. Every request is recorded.
+    pub fn serve_script(responses: Vec<(&str, &str, &str)>) -> ScriptedServer {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
+        let addr = listener.local_addr().unwrap();
+        let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = requests.clone();
+        let responses: Vec<(String, String, String)> = responses
+            .into_iter()
+            .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
+            .collect();
+        std::thread::spawn(move || {
+            let mut script = responses.into_iter();
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { return };
+                let Some(request) = read_request(&mut stream) else {
+                    continue;
+                };
+                recorded.lock().unwrap().push(request);
+                let (status, content_type, body) = script.next().unwrap_or_else(|| {
+                    (
+                        "HTTP/1.1 500 Internal Server Error".into(),
+                        "application/json".into(),
+                        r#"{"error":{"message":"mock script exhausted"}}"#.into(),
+                    )
+                });
+                let head = format!(
+                    "{status}\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(body.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        ScriptedServer {
+            base_url: format!("http://{addr}"),
+            requests,
+        }
+    }
 }
