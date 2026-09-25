@@ -306,7 +306,7 @@ struct PreparedToolCall {
 enum PreparedToolCallKind {
     /// The tool was prepared and can be executed.
     Ready {
-        tool: AgentTool,
+        tool: Box<AgentTool>,
         args: serde_json::Value,
     },
     /// The tool should return an immediate error result.
@@ -375,7 +375,7 @@ fn prepare_tool_call(
 
     PreparedToolCall {
         kind: PreparedToolCallKind::Ready {
-            tool: tool.clone(),
+            tool: Box::new(tool.clone()),
             args,
         },
     }
