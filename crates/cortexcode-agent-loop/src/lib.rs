@@ -385,7 +385,7 @@ fn prepare_tool_call(
 
     PreparedToolCall {
         kind: PreparedToolCallKind::Ready {
-            tool: tool.clone_via_fields(),
+            tool: tool.clone(),
             args,
         },
     }

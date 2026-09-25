@@ -117,6 +117,57 @@ pub fn write_text_output(
     Ok(())
 }
 
+/// What `--print` text mode writes once all prompts have run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextResult {
+    /// Written to stdout as-is.
+    pub stdout: String,
+    /// One line written to stderr (without the trailing newline).
+    pub stderr: Option<String>,
+    pub exit_code: i32,
+}
+
+/// The `mode === "text"` tail of `runPrintMode` (print-mode.ts), applied to the
+/// final transcript. When the last message is an assistant message:
+/// - `stopReason` `error`/`aborted`: `errorMessage || "Request <reason>"` on stderr, exit 1;
+/// - otherwise each text block followed by `\n` on stdout.
+///
+/// Any other last message prints nothing and exits 0.
+pub fn text_result(transcript: &[AgentMessage]) -> TextResult {
+    let mut result = TextResult {
+        stdout: String::new(),
+        stderr: None,
+        exit_code: 0,
+    };
+    if let Some(AgentMessage::Assistant(am)) = transcript.last() {
+        match am.stop_reason {
+            StopReason::Error | StopReason::Aborted => {
+                let reason = if am.stop_reason == StopReason::Error {
+                    "error"
+                } else {
+                    "aborted"
+                };
+                let message = am
+                    .error_message
+                    .clone()
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or_else(|| format!("Request {reason}"));
+                result.stderr = Some(message);
+                result.exit_code = 1;
+            }
+            _ => {
+                for content in &am.content {
+                    if let Content::Text(TextContent { text, .. }) = content {
+                        result.stdout.push_str(text);
+                        result.stdout.push('\n');
+                    }
+                }
+            }
+        }
+    }
+    result
+}
+
 /// JSON-serializable view of a tool result.
 #[derive(Debug, Serialize)]
 struct JsonToolResult {
@@ -378,6 +429,61 @@ impl PrintFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assistant(content: Vec<Content>, stop: StopReason, error: Option<&str>) -> AgentMessage {
+        AgentMessage::Assistant(cortexcode_ai_types::AssistantMessage {
+            content,
+            stop_reason: stop,
+            error_message: error.map(String::from),
+            ..Default::default()
+        })
+    }
+
+    fn text(t: &str) -> Content {
+        Content::Text(TextContent {
+            text: t.into(),
+            text_signature: None,
+            cache_control: None,
+        })
+    }
+
+    #[test]
+    fn text_result_prints_each_text_block_on_its_own_line() {
+        let r = text_result(&[assistant(
+            vec![text("a"), text("b")],
+            StopReason::Stop,
+            None,
+        )]);
+        assert_eq!(r.stdout, "a\nb\n");
+        assert_eq!((r.stderr, r.exit_code), (None, 0));
+    }
+
+    #[test]
+    fn text_result_reports_errors_on_stderr() {
+        let r = text_result(&[assistant(
+            vec![text("partial")],
+            StopReason::Error,
+            Some("boom"),
+        )]);
+        assert_eq!(
+            r,
+            TextResult {
+                stdout: String::new(),
+                stderr: Some("boom".into()),
+                exit_code: 1
+            }
+        );
+        let r = text_result(&[assistant(vec![], StopReason::Aborted, None)]);
+        assert_eq!(r.stderr.as_deref(), Some("Request aborted"));
+        let r = text_result(&[assistant(vec![], StopReason::Error, Some(""))]);
+        assert_eq!(r.stderr.as_deref(), Some("Request error"));
+    }
+
+    #[test]
+    fn text_result_ignores_a_non_assistant_last_message() {
+        let r = text_result(&[AgentMessage::user_text("hi")]);
+        assert_eq!((r.stdout.as_str(), r.stderr, r.exit_code), ("", None, 0));
+    }
     use cortexcode_agent_types::AgentEvent;
     use cortexcode_ai_types::{AssistantMessage, StopReason, TextContent, UserMessage};
 

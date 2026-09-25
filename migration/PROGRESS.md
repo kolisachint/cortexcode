@@ -5,11 +5,88 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (10.7a at the time of writing).
+- Next task: run `python3 migration/ledger.py next`.
 - Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
   pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
 
 ## Log
+
+### 2026-09-25: fix — tools never executed (agent-loop used a closure-less clone)
+- `prepare_tool_call` handed the loop `tool.clone_via_fields()`. That clone's `execute` always
+  returned "Cloned tool: execute not available", so every foreground tool call failed
+  (print-tool-read showed it as the tool result).
+- `AgentTool.execute` and `prepare_arguments` are now `Arc<dyn Fn + Send + Sync>`
+  (`ToolExecuteFn`, `PrepareArgumentsFn`), and `AgentTool: Clone` keeps the closure.
+  `clone_via_fields` is removed. `AgentTool::new` still takes a `Box` (it now needs `Sync`);
+  no caller had to change.
+- print-tool-read: stdout ✓, and the model requests now differ only in the system prompt
+  (10.4c). The simple read result is already byte-identical, but 10.2a (the full read port:
+  offset/limit, truncation, images, dedup) is still todo.
+
+### 2026-09-25: 10.8a done (print-mode text parity; M1 part 1 green)
+- `code-cli::runtime::run_print_mode` ports `runPrintMode` (text) plus `prepareInitialMessage`:
+  - initial message = piped stdin (trimmed) + `@file` text + first message;
+  - each remaining message is its own prompt on the same transcript;
+  - stdout gets each text block of the final assistant message, followed by `\n`;
+  - `error`/`aborted` writes `errorMessage || "Request <reason>"` to stderr and exits 1;
+  - exceptions go to stderr and exit 1.
+- `code-cli::initial_message` ports `initial-message.ts` and `file-processor.ts` (text files):
+  - `<file name="abs">` wrapping; empty files skipped;
+  - `Error: File not found: <abs>`;
+  - `expandPath`/`resolveReadPath`, minus the NFD variant (10.2).
+  Image `@file`s fail as not yet supported (resize needs code-media, 11.4).
+- `code-print::text_result` holds the text-mode tail as a pure function, with tests.
+- Bug fixes:
+  - `agent-core`: `Agent::prompt` replaced the transcript with only the new run's messages,
+    so a second prompt, and every interactive turn, lost history. It now appends (regression
+    test with faux).
+  - User prompts are no longer wrapped in "Please help me with the following coding
+    task:" (hoocode sends the raw text).
+  - openai provider: HTTP errors use the SDK's `APIError.makeMessage` (`400 <error.message>`).
+    User block content is always a parts array, and empty user messages are skipped
+    (`convertMessages`).
+- New L2 scenarios (all `selfcheck` stable):
+  - `print-error`: 400 from the provider gives stderr + exit 1. 10.8a gate, passes.
+  - `print-multi`: `-p q1 q2` checks the transcript. Its stdout passes; its requests differ
+    only in the system prompt, so it is listed as a 10.4c gate.
+- Next: `ledger.py next`. M1 part 2 is 10.2a (`read`; print-tool-read shows "Cloned tool:
+  execute not available") + 10.4c (system prompt).
+
+### 2026-09-25: 10.7a done (`code-cli`: exact port of the pinned CLI)
+- New crate `cortexcode-code-cli`:
+  - `args.rs` is an exact port of `cli/args.ts` `parseArgs`: every pinned flag, `-nt`/`-nbt`/`-nsc`
+    shorts, unknown `--flag [value]` captured as extension flags, `-p <prompt>` (incl. `---`
+    frontmatter), `parseInt` semantics. All of `args.test.ts` is ported with the same titles,
+    plus extra edge cases.
+  - `help_text.rs` is generated from `printHelp()` by `migration/tools/gen_help_text.py`
+    (branding hoocode → cortex). Re-run it after a pin bump.
+  - `lib.rs` ports the arg half of `main.ts`:
+    - `Error:`/`Warning:` diagnostics (chalk colors), exit 1 on errors;
+    - `--version` prints the bare version, and `--help` wins over later checks;
+    - `resolveAppMode` (rpc > json > print or non-TTY stdin > interactive);
+    - rpc rejects `@file`;
+    - unknown long flags get `Unknown option(s): --x` (no extensions registered yet).
+  - Flags that parse but aren't implemented fail with `Error: --flag is not yet supported by
+    cortex` (`unsupported_flags`); so do the `install|remove|update|list|config|resources`
+    subcommands.
+  - `runtime`/`auth`/`permission_dialog` moved here from code-main. The crossterm firewall
+    exception moved with them (still 11.1).
+- `code-main` is now a thin bin (`cortexcode_code_cli::main`). The umbrella re-exports `code::cli`.
+- Decision: **no `clap`**. It can't express the pinned grammar without behavior changes.
+  Design doc §3.4 and §10.7 are updated.
+- Removed cortex-only flags that hoocode doesn't have:
+  - `--login` (the OAuth driver `code_cli::auth::login` is kept for `/login` in 11.3);
+  - `--config`;
+  - `--mode subagent` (the subagent pool now spawns `--mode rpc --task-id`).
+- L2 fix (environment, not cortex): print-basic failed here for the pre-change binary too.
+  tmux 3.4 scrolls one row when it writes "Pane is dead", and hoocode's `embsearch` stderr
+  warning depends on PATH. `print-basic` and `print-tool-read` now set
+  `enableSemanticIndex: false` and snapshot with history. Both are `selfcheck` stable.
+  `print-tool-read` stdout matches; its requests still differ (system prompt, 10.4c).
+- Known flake (pre-existing, not fixed): `cortexcode-tui-keys`
+  `test_parse_key_alt_letter_legacy` sometimes fails under parallel tests. Other tests toggle
+  the global kitty-protocol flag. Fix with a test mutex when tui-keys is next touched.
+- Next: `ledger.py next` (10.8a print-mode parity closes M1 part 1; then 10.2a + 10.4c).
 
 ### 2026-09-24: 8.2a done; 10.4a done (first Level-2 green: `print-basic`)
 - New crate `cortexcode-ai-registry`, a port of `api-registry.ts` + `stream.ts`:

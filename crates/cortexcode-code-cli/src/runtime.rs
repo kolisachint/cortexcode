@@ -16,8 +16,8 @@ use cortexcode_ai_types::{
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 
 use cortexcode_code_config::Config;
-use cortexcode_code_print::{format_text_output, PrintFormatter, PrintMode};
-use cortexcode_code_prompts::{initial_user_prompt, system_prompt, Mode};
+use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_prompts::{system_prompt, Mode};
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ impl From<std::io::Error> for RuntimeError {
 /// Resolve the provider and model from CLI arguments, falling back to the
 /// persisted/migrated config file and finally to hardcoded defaults.
 fn resolve_provider_model(args: &Args) -> Result<(String, String), RuntimeError> {
-    let config = crate::config_or_default(args);
+    let config = crate::config_or_default();
     Ok(resolve_provider_model_with_config(args, &config))
 }
 
@@ -121,7 +121,7 @@ fn default_model_for_provider(provider: &str) -> String {
 
 /// Resolve the API key for the provider.
 fn resolve_api_key(provider: &str, args: &Args) -> Option<String> {
-    let config = crate::config_or_default(args);
+    let config = crate::config_or_default();
     resolve_api_key_with_config(provider, args, &config)
 }
 
@@ -147,7 +147,7 @@ fn resolve_api_key_with_config(provider: &str, args: &Args, config: &Config) -> 
     oauth_api_key(provider)
 }
 
-/// Fall back to an OAuth access token persisted by `cortex --login <provider>`,
+/// Fall back to an OAuth access token persisted by the OAuth login flow (`auth::login`),
 /// refreshing it first if it has expired.
 fn oauth_api_key(provider: &str) -> Option<String> {
     let store_key = match provider {
@@ -195,12 +195,9 @@ fn build_system_prompt(args: &Args) -> String {
     if let Some(prompt) = &args.system_prompt {
         return prompt.clone();
     }
-    let config = crate::config_or_default(args);
-    let mode = args
-        .mode
-        .as_deref()
-        .and_then(|m| m.parse::<Mode>().ok())
-        .unwrap_or_default();
+    let config = crate::config_or_default();
+    // Prompt modes (ask/plan/build) arrive with 10.5; `--mode` is the output mode.
+    let mode = Mode::default();
     system_prompt(mode, &config)
 }
 
@@ -211,8 +208,8 @@ fn build_tools() -> Vec<cortexcode_agent_types::AgentTool> {
 }
 
 /// Build the permission gate for the current CLI mode.
-fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGate> {
-    let config = crate::config_or_default(args);
+fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
+    let config = crate::config_or_default();
 
     if interactive {
         let inner = Arc::new(crate::permission_dialog::InteractivePermissionGate);
@@ -270,11 +267,9 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
             format!(
                 "No API key for provider '{}'.\n\
                  Set the environment variable:\n\
-                   export {}_API_KEY=your-key-here\n\n\
-                 Or run:  cortex --login {}",
+                   export {}_API_KEY=your-key-here",
                 provider,
-                provider.to_uppercase(),
-                provider
+                provider.to_uppercase()
             )
         } else {
             let list = supported.join(", ");
@@ -304,7 +299,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
         error_message: None,
     };
 
-    let permission_gate = Some(build_permission_gate(args, interactive));
+    let permission_gate = Some(build_permission_gate(interactive));
     let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
 
     let agent = Agent::with_options(AgentOptions {
@@ -318,32 +313,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
     Ok(agent)
 }
 
-/// Build the initial user messages from CLI arguments.
-fn build_user_messages(args: &Args) -> Vec<AgentMessage> {
-    let mode = args
-        .mode
-        .as_deref()
-        .and_then(|m| m.parse::<Mode>().ok())
-        .unwrap_or_default();
-
-    let mut messages = Vec::new();
-
-    // Add file args as user messages.
-    for path in &args.file_args {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            let text = format!("File {}:\n```\n{}\n```", path, content);
-            messages.push(text_message(&text));
-        }
-    }
-
-    // Add explicit prompt messages.
-    for text in &args.messages {
-        messages.push(text_message(&initial_user_prompt(mode, text)));
-    }
-
-    messages
-}
-
+/// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
 fn text_message(text: &str) -> AgentMessage {
     AgentMessage::from_message(Message::User(UserMessage {
         content: vec![Content::Text(TextContent {
@@ -355,15 +325,45 @@ fn text_message(text: &str) -> AgentMessage {
     }))
 }
 
-/// Run the agent once in print mode and write the result to `output`.
+/// `runPrintMode` (print-mode.ts) plus the `prepareInitialMessage` step of
+/// `main.ts`. Returns the process exit code.
 pub fn run_print_mode(
     args: &Args,
     mode: PrintMode,
+    stdin_content: Option<String>,
+    color: bool,
     output: &mut dyn Write,
-    _err: &mut dyn Write,
-) -> Result<(), RuntimeError> {
-    let agent = build_agent_with_gate(args, false)?;
-    let messages = build_user_messages(args);
+    err: &mut dyn Write,
+) -> std::io::Result<i32> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    let file_text = if args.file_args.is_empty() {
+        None
+    } else {
+        match crate::initial_message::process_file_arguments(&args.file_args, &cwd, &home) {
+            Ok(text) => Some(text),
+            Err(message) => {
+                writeln!(err, "{}", crate::red(color, &message))?;
+                return Ok(1);
+            }
+        }
+    };
+    let mut messages = args.messages.clone();
+    let initial_message = crate::initial_message::build_initial_message(
+        &mut messages,
+        file_text.as_deref(),
+        stdin_content.as_deref(),
+    );
+
+    let agent = match build_agent_with_gate(args, false) {
+        Ok(agent) => agent,
+        Err(e) => {
+            writeln!(err, "{e}")?;
+            return Ok(1);
+        }
+    };
 
     let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
     let formatter_for_sub = formatter.clone();
@@ -373,37 +373,36 @@ pub fn run_print_mode(
         }
     }));
 
-    let result = agent.prompt(PromptInput::Messages(messages))?;
+    // `session.prompt(initialMessage)` then each remaining message in turn.
+    for prompt in initial_message.iter().chain(messages.iter()) {
+        if let Err(e) = agent.prompt(PromptInput::Messages(vec![text_message(prompt)])) {
+            writeln!(err, "{e}")?;
+            return Ok(1);
+        }
+    }
 
     match mode {
         PrintMode::Text => {
-            writeln!(output, "{}", format_text_output(&result))?;
+            let result = text_result(&agent.state().messages);
+            output.write_all(result.stdout.as_bytes())?;
+            output.flush()?;
+            if let Some(message) = result.stderr {
+                writeln!(err, "{message}")?;
+            }
+            Ok(result.exit_code)
         }
+        // Event-stream parity is 10.8b; json mode never inspects the final message.
         PrintMode::Json => {
             let formatter = std::sync::Arc::try_unwrap(formatter)
                 .ok()
                 .and_then(|m| m.into_inner().ok())
                 .unwrap_or_default();
-            formatter.finalize(output)?;
+            formatter
+                .finalize(output)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            Ok(0)
         }
     }
-
-    if let Some(last) = result.last() {
-        if let Some(Message::Assistant(am)) = last.extract_message() {
-            if let Some(error) = &am.error_message {
-                return Err(RuntimeError::Agent(error.clone()));
-            }
-            if am.stop_reason == cortexcode_ai_types::StopReason::Error {
-                let msg = am
-                    .error_message
-                    .clone()
-                    .unwrap_or_else(|| "unknown error".into());
-                return Err(RuntimeError::Agent(msg));
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Run the agent in an interactive TUI loop.
@@ -452,13 +451,7 @@ pub fn run_interactive_mode(
                         }
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
-                            let user_msg = text_message(&initial_user_prompt(
-                                args.mode
-                                    .as_deref()
-                                    .and_then(|m| m.parse::<Mode>().ok())
-                                    .unwrap_or_default(),
-                                line,
-                            ));
+                            let user_msg = text_message(line);
                             match agent.prompt(PromptInput::Messages(vec![user_msg])) {
                                 Ok(messages) => {
                                     let text = format_text_output(&messages);

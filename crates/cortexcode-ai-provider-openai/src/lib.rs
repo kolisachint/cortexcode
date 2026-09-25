@@ -92,13 +92,9 @@ fn run_stream(
     };
 
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let text = response.text().unwrap_or_default();
-        fail(
-            &sender,
-            &template,
-            format!("OpenAI API returned {status}: {text}"),
-        );
+        fail(&sender, &template, api_error_message(status, &text));
         return;
     }
 
@@ -462,9 +458,62 @@ fn now_millis() -> i64 {
         .as_millis() as i64
 }
 
+/// The message of the `openai` SDK's `APIError` for a non-2xx response
+/// (`APIError.makeMessage` with the body parsed by `safeJSON`), which hoocode
+/// reports as the assistant `errorMessage`. The retry-after suffix of
+/// `describeProviderError` arrives with the retry utilities (8.5).
+pub fn api_error_message(status: u16, body: &str) -> String {
+    fn truthy(v: &serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => false,
+            serde_json::Value::Bool(b) => *b,
+            serde_json::Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+            serde_json::Value::String(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+    let parsed: Option<serde_json::Value> = serde_json::from_str(body).ok();
+    let error = parsed
+        .as_ref()
+        .and_then(|v| v.get("error"))
+        .filter(|e| truthy(e));
+    let msg = match error {
+        Some(e) => match e.get("message").filter(|m| truthy(m)) {
+            Some(serde_json::Value::String(m)) => m.clone(),
+            Some(m) => m.to_string(),
+            None => e.to_string(),
+        },
+        None if parsed.is_none() => body.to_string(),
+        None => String::new(),
+    };
+    if msg.is_empty() {
+        format!("{status} status code (no body)")
+    } else {
+        format!("{status} {msg}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_error_message_matches_the_openai_sdk() {
+        assert_eq!(
+            api_error_message(400, r#"{"error": {"message": "bad input"}}"#),
+            "400 bad input"
+        );
+        assert_eq!(
+            api_error_message(500, r#"{"error": {"code": 1}}"#),
+            r#"500 {"code":1}"#
+        );
+        assert_eq!(api_error_message(502, "upstream down"), "502 upstream down");
+        assert_eq!(
+            api_error_message(503, r#"{"detail": "x"}"#),
+            "503 status code (no body)"
+        );
+        assert_eq!(api_error_message(429, ""), "429 status code (no body)");
+    }
     use std::io::{Read, Write};
     use std::net::TcpListener;
 

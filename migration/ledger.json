@@ -235,7 +235,7 @@
    "id": "10.7a",
    "title": "New crate code-cli: clap-derived parser with exactly the pinned flag set; unported flags fail with a clear 'not yet supported'; code-main becomes a thin bin",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -255,13 +255,32 @@
     "print-basic"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T03:48:22Z",
+     "commit": "fb39301",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T03:54:08Z",
+     "commit": "fb39301",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=fail"
+    },
+    {
+     "at": "2026-09-25T03:58:50Z",
+     "commit": "fb39301",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
   },
   {
    "id": "10.8a",
    "title": "Print mode text output parity (-p): final assistant text, exit codes, stderr errors",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.4a",
     "8.2a",
@@ -276,10 +295,36 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "print-basic"
+    "print-basic",
+    "print-error"
    ],
    "notes": "M1 milestone: first L2 green scenario.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T04:01:16Z",
+     "commit": "3bbb90d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T04:06:58Z",
+     "commit": "3bbb90d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T04:07:01Z",
+     "commit": "3bbb90d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-25T04:07:11Z",
+     "commit": "3bbb90d",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-error=pass"
+    }
+   ]
   },
   {
    "id": "10.2a",
@@ -330,7 +375,8 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "print-tool-read"
+    "print-tool-read",
+    "print-multi"
    ],
    "notes": "print-tool-read compares requests.messages, which includes the system prompt.",
    "log": []

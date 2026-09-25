@@ -15,7 +15,7 @@ publish = true
 [dependencies]
 cortexcode-code-config = { workspace = true }
 cortexcode-code-extensions = { workspace = true }
-cortexcode-code-main = { workspace = true }
+cortexcode-code-cli = { workspace = true }
 cortexcode-code-print = { workspace = true }
 cortexcode-code-prompts = { workspace = true }
 cortexcode-code-resources = { workspace = true }

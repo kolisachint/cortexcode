@@ -1,0 +1,14 @@
+{
+  "description": "Print mode with two messages (-p first second): each is sent as its own prompt on one transcript, only the last answer is printed; the second request carries the first exchange.",
+  "phase": "10.8a",
+  "compare_requests": true,
+  "request_fields": ["messages"],
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "first question", "second question"],
+  "llm": [{"text": "First answer."}, {"text": "Second answer."}],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["Second answer.", "<exited status=0>"], "not_contains": ["First answer."]}
+  ]
+}

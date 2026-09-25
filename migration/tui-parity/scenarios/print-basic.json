@@ -2,10 +2,11 @@
   "description": "Non-interactive print mode (-p): streamed markdown answer is written to stdout and the process exits 0.",
   "phase": "10.8",
   "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
   "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "say hello"],
   "llm": [{"text": "Hello from the mock model. **bold** and `code`."}],
   "steps": [
     {"wait_exit": true, "timeout": 30},
-    {"snapshot": "stdout", "contains": ["Hello from the mock model", "<exited status=0>"]}
+    {"snapshot": "stdout", "history": true, "contains": ["Hello from the mock model", "<exited status=0>"]}
   ]
 }

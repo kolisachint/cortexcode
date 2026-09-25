@@ -327,16 +327,8 @@ pub struct AgentTool {
     pub description: String,
     pub label: String,
     pub parameters: serde_json::Value,
-    pub prepare_arguments: Option<Box<dyn Fn(serde_json::Value) -> serde_json::Value + Send>>,
-    pub execute: Box<
-        dyn Fn(
-                String,
-                serde_json::Value,
-                Option<cortexcode_ai_types::AbortSignal>,
-                Option<AgentToolUpdateCallback>,
-            ) -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
-            + Send,
-    >,
+    pub prepare_arguments: Option<PrepareArgumentsFn>,
+    pub execute: ToolExecuteFn,
     pub background: bool,
     pub execution_mode: Option<ToolExecutionMode>,
 }
@@ -406,7 +398,8 @@ impl AgentTool {
                     Option<AgentToolUpdateCallback>,
                 )
                     -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
-                + Send,
+                + Send
+                + Sync,
         >,
     ) -> Self {
         let name = name.into();
@@ -416,31 +409,43 @@ impl AgentTool {
             label: name,
             parameters,
             prepare_arguments: None,
-            execute,
+            execute: std::sync::Arc::from(execute),
             background: false,
             execution_mode: None,
         }
     }
+}
 
-    /// Clone the tool's identifying fields (not the closures).
-    /// Used when we need an owned copy for background dispatch.
-    pub fn clone_via_fields(&self) -> Self {
+impl Clone for AgentTool {
+    fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
             description: self.description.clone(),
             label: self.label.clone(),
             parameters: self.parameters.clone(),
-            prepare_arguments: None,
-            // The execute closure is moved, so we need to signal this is a copy
-            // In practice, tools should be constructed fresh for each use
-            execute: Box::new(|_id, _params, _signal, _update| {
-                Err("Cloned tool: execute not available".into())
-            }),
+            prepare_arguments: self.prepare_arguments.clone(),
+            execute: std::sync::Arc::clone(&self.execute),
             background: self.background,
             execution_mode: self.execution_mode.clone(),
         }
     }
 }
+
+/// A tool's `execute`. Shared so that cloning a tool keeps a working closure.
+pub type ToolExecuteFn = std::sync::Arc<
+    dyn Fn(
+            String,
+            serde_json::Value,
+            Option<cortexcode_ai_types::AbortSignal>,
+            Option<AgentToolUpdateCallback>,
+        ) -> Result<AgentToolResult, Box<dyn std::error::Error + Send + Sync>>
+        + Send
+        + Sync,
+>;
+
+/// A tool's `prepareArguments` compatibility shim.
+pub type PrepareArgumentsFn =
+    std::sync::Arc<dyn Fn(serde_json::Value) -> serde_json::Value + Send + Sync>;
 
 /// Callback used by tools to stream partial execution updates.
 pub type AgentToolUpdateCallback = Box<dyn Fn(AgentToolResult) + Send>;
