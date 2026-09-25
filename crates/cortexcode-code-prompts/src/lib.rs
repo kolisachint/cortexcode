@@ -1,101 +1,18 @@
 //! System and mode prompts for the cortex coding agent.
 //!
-//! Mirrors `core/{system-prompt,mode-prompts,prompt-templates}` from the
-//! TypeScript `packages/coding-agent` package.
+//! Mirrors `core/system-prompt.ts` (with the skills/agents/self-docs sections
+//! it appends) from the TypeScript `packages/coding-agent` package. Mode prompts
+//! arrive with 10.5b, prompt templates with 10.5.
 
-use cortexcode_agent_harness::SystemPromptBuilder;
-use cortexcode_code_config::Config;
 use std::collections::HashMap;
 
-/// Available agent modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Mode {
-    /// Default coding assistant mode.
-    #[default]
-    Code,
-    /// Focused review mode.
-    Review,
-    /// Explain/diagram mode.
-    Explain,
-}
+pub mod system_prompt;
 
-impl std::str::FromStr for Mode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "code" => Ok(Mode::Code),
-            "review" => Ok(Mode::Review),
-            "explain" => Ok(Mode::Explain),
-            _ => Err(format!("unknown mode: {}", s)),
-        }
-    }
-}
-
-/// Build the system prompt for a given mode and configuration.
-pub fn system_prompt(mode: Mode, config: &Config) -> String {
-    let mut builder = SystemPromptBuilder::new()
-        .identity("You are Cortex, a helpful coding assistant.")
-        .rules(&[
-            "Use the provided tools to read, edit, write, and search code.",
-            "Prefer small, focused changes and explain your reasoning briefly.",
-            "When editing files, use the exact edit tool with old_text/new_text.",
-            "Ask for clarification when requirements are ambiguous.",
-            "Do not expose secrets or credentials.",
-        ]);
-
-    if config.auto_approve_read_only() {
-        builder = builder.section(
-            "Read-only tools",
-            "Read-only tools (read, grep, find, ls) do not require explicit approval.",
-        );
-    }
-
-    if config.auto_approve_dangerous() {
-        builder = builder.section(
-            "Dangerous tools",
-            "Dangerous tools (bash, write, edit) are auto-approved; use them carefully.",
-        );
-    } else {
-        builder = builder.section(
-            "Dangerous tools",
-            "Dangerous tools (bash, write, edit) require explicit user approval before running.",
-        );
-    }
-
-    match mode {
-        Mode::Code => builder
-            .section(
-                "Mode: Code",
-                "Implement the user's request. Make minimal changes and verify with tests when possible.",
-            )
-            .build(),
-        Mode::Review => builder
-            .section(
-                "Mode: Review",
-                "Review the provided code. Identify bugs, style issues, and improvements. Do not modify files unless asked.",
-            )
-            .build(),
-        Mode::Explain => builder
-            .section(
-                "Mode: Explain",
-                "Explain the code or concept clearly. Use diagrams in plain text when helpful. Do not modify files.",
-            )
-            .build(),
-    }
-}
-
-/// Build the initial user prompt for a given mode from a user request.
-pub fn initial_user_prompt(mode: Mode, request: &str) -> String {
-    match mode {
-        Mode::Code => format!(
-            "Please help me with the following coding task:\n{}",
-            request
-        ),
-        Mode::Review => format!("Please review the following code or change:\n{}", request),
-        Mode::Explain => format!("Please explain the following:\n{}", request),
-    }
-}
+pub use system_prompt::{
+    build_system_prompt, format_agents_for_prompt, format_self_docs_for_prompt,
+    format_skills_for_prompt, list_self_docs, BuildSystemPromptOptions, ContextFile, PromptAgent,
+    PromptSkill, SelfDoc, APP_NAME,
+};
 
 /// Render a prompt template with variables.
 pub fn render_template(template: &str, vars: &HashMap<String, String>) -> String {
@@ -120,27 +37,6 @@ impl Templates {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_system_prompt_contains_identity() {
-        let config = Config::new();
-        let prompt = system_prompt(Mode::Code, &config);
-        assert!(prompt.contains("Cortex"));
-        assert!(prompt.contains("read"));
-    }
-
-    #[test]
-    fn test_mode_review_no_modify() {
-        let config = Config::new();
-        let prompt = system_prompt(Mode::Review, &config);
-        assert!(prompt.contains("Review"));
-        assert!(prompt.contains("Do not modify"));
-    }
-
-    #[test]
-    fn test_initial_user_prompt() {
-        assert!(initial_user_prompt(Mode::Code, "fix bug").contains("fix bug"));
-    }
 
     #[test]
     fn test_render_template() {

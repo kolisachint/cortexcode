@@ -11,6 +11,29 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-25: 10.4c l1_done (buildSystemPrompt port); M1 needs a decision
+- `code-prompts::system_prompt` ports `buildSystemPrompt` exactly (app name `cortex`, which
+  the harness normalizes), plus `formatSkillsForPrompt`, `formatAgentsForPrompt` (with
+  `summarizeAgentDescription`) and `listSelfDocs`/`formatSelfDocsForPrompt`.
+  `system-prompt.test.ts` is ported, plus exact-layout tests.
+- The cortex-only `Mode`/`system_prompt`/`initial_user_prompt` inventions are removed from
+  code-prompts. hoocode's modes arrive with 10.5b.
+- `code-tools::default_tool_definitions` returns `ToolDefinition`s. The runtime builds the
+  prompt from their snippets/guidelines (`_rebuildSystemPrompt`), then wraps them.
+  `--system-prompt` goes through `resolvePromptInput` (a file path means its contents).
+  Placeholder tools have no snippet, so they are unlisted, as in hoocode.
+- L2 is still red: the prompt's layout matches, but the default bundle's content comes from
+  other tasks (see the 10.4c notes in the ledger). One part, SearchHooCode (hoo-core
+  self-knowledge), only fits deferred Phase 12. The `# About hoocode itself` section lists
+  hoocode's installed docs, which cortex doesn't ship.
+- **Decision needed (asked the user):** M1 (`print-tool-read` green) is blocked behind
+  Phase 12 as scoped. Options:
+  (a) port hoocode's `--light` mode (`core/light.ts`: fixed terse prompt + date/cwd,
+      four core tools) as a small task and add light-mode print scenarios as the M1 gate;
+  (b) pull SearchHooCode + shipped docs forward from Phase 12;
+  (c) keep waiting for the full bundle.
+- Next: act on the decision; otherwise `ledger.py next`.
+
 ### 2026-09-25: 10.2a l1_done (read tool at pin semantics)
 - New crates:
   - `code-tool-api`: `truncate` (800 lines / 32KB, JS `toFixed` rounding in `format_size`),

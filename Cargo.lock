@@ -607,8 +607,8 @@ dependencies = [
 name = "cortexcode-code-prompts"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-agent-harness",
- "cortexcode-code-config",
  "serde",
  "serde_json",
 ]

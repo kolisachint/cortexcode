@@ -7,8 +7,10 @@
 
 use cortexcode_agent_types::{AgentTool, AgentToolResult};
 use cortexcode_ai_types::{Content, TextContent};
-use cortexcode_code_tool_api::ToolContextFactory;
-use cortexcode_code_tools_fs::{create_read_tool, ReadToolOptions};
+use cortexcode_code_tool_api::{
+    tool_definition_from_agent_tool, wrap_tool_definitions, ToolContextFactory, ToolDefinition,
+};
+use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
 use serde_json::json;
 use std::path::Path;
 
@@ -344,9 +346,35 @@ pub fn default_tools(cwd: std::path::PathBuf, permissions: PermissionPolicy) -> 
 /// [`default_tools`] with tool options and a context factory.
 pub fn default_tools_with(
     cwd: std::path::PathBuf,
-    _permissions: PermissionPolicy,
+    permissions: PermissionPolicy,
     options: DefaultToolsOptions,
 ) -> Vec<AgentTool> {
+    wrap_tool_definitions(
+        default_tool_definitions(cwd, permissions, options.read),
+        options.ctx_factory,
+    )
+}
+
+/// The default tools as definitions, carrying their system prompt snippets
+/// and guidelines. Tools not yet ported to their pinned behavior have neither,
+/// so the system prompt lists them the way hoocode lists a tool without a
+/// `promptSnippet` (not at all).
+pub fn default_tool_definitions(
+    cwd: std::path::PathBuf,
+    _permissions: PermissionPolicy,
+    read: ReadToolOptions,
+) -> Vec<ToolDefinition> {
+    let mut definitions = vec![create_read_tool_definition(cwd.clone(), read)];
+    definitions.extend(
+        placeholder_tools(cwd)
+            .into_iter()
+            .map(tool_definition_from_agent_tool),
+    );
+    definitions
+}
+
+/// The tools that still await their 10.2 ports.
+fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
     let cwd_bash = cwd.clone();
     let cwd_write = cwd.clone();
     let cwd_edit = cwd.clone();
@@ -355,7 +383,6 @@ pub fn default_tools_with(
     let cwd_ls = cwd.clone();
 
     vec![
-        create_read_tool(cwd, options.read, options.ctx_factory),
         AgentTool::new(
             "bash",
             "Run a shell command. Args: {\"command\": string}",

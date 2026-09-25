@@ -382,7 +382,7 @@
    "id": "10.4c",
    "title": "System prompt parity for the default tool bundle (same text the model sees, modulo app name)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
@@ -400,8 +400,21 @@
     "print-tool-read-paging",
     "print-multi"
    ],
-   "notes": "print-tool-read compares requests.messages, which includes the system prompt.",
-   "log": []
+   "notes": "print-tool-read compares requests.messages, which includes the system prompt. 10.4c ported buildSystemPrompt + skills/agents/self-docs formatters (L1). The default-bundle prompt's L2 then needs the bundle's content, owned elsewhere: tool snippets/guidelines of bash (10.2b), edit/write (10.2c), SearchCodebase (10.2d), ask_options/TodoWrite (10.2f), Task/TaskOutput + <available_agents> (10.9); the Task section from the built-in APPEND_SYSTEM template and the builtin artifact-design skill (10.5); the build-mode appendix (10.5b); SearchHooCode from the hoo-core self-knowledge extension (only 12.4 fits, deferred); the '# About <app> itself' docs section (cortex must ship docs; the listed paths/files must match modulo a path normalization rule). Decision pending with the user: see PROGRESS.md 2026-09-25.",
+   "log": [
+    {
+     "at": "2026-09-25T04:58:13Z",
+     "commit": "8be2e1f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T05:02:56Z",
+     "commit": "8be2e1f",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail, print-multi=fail"
+    }
+   ]
   },
   {
    "id": "7.3",
