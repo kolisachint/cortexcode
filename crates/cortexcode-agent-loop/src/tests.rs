@@ -401,9 +401,13 @@ fn gated_tool(name: &str, wait: Duration) -> (AgentTool, Arc<AtomicBool>) {
         match value_of(&args).as_str() {
             "first" => {
                 let guard = lock.lock().unwrap();
-                let _ = cvar
+                let (guard, _) = cvar
                     .wait_timeout_while(guard, wait, |released| !*released)
                     .unwrap();
+                drop(guard);
+                // In TS the released promise resumes only after "second"
+                // has returned; give "second" that head start here.
+                std::thread::sleep(Duration::from_millis(50));
                 first_resolved.store(true, Ordering::SeqCst);
             }
             "second" => {

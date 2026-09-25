@@ -1297,7 +1297,7 @@
    "id": "8.7",
    "title": "Split ai-oauth into core (PKCE, loopback server, types, refresh) + ai-oauth-anthropic + ai-oauth-github-copilot",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3c"
    ],
@@ -1316,7 +1316,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Each OAuth flow changes with its vendor: one crate per vendor.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T17:48:54Z",
+     "commit": "98f54e9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T18:00:23Z",
+     "commit": "98f54e9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.8",

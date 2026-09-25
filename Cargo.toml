@@ -10,6 +10,8 @@ members = [
     "crates/cortexcode-ai-models",
     "crates/cortexcode-ai-models-catalog",
     "crates/cortexcode-ai-oauth",
+    "crates/cortexcode-ai-oauth-anthropic",
+    "crates/cortexcode-ai-oauth-github-copilot",
     "crates/cortexcode-ai-provider-anthropic",
     "crates/cortexcode-ai-provider-azure",
     "crates/cortexcode-ai-provider-faux",
@@ -81,6 +83,8 @@ cortexcode-ai-images = { path = "crates/cortexcode-ai-images" }
 cortexcode-ai-models = { path = "crates/cortexcode-ai-models" }
 cortexcode-ai-models-catalog = { path = "crates/cortexcode-ai-models-catalog" }
 cortexcode-ai-oauth = { path = "crates/cortexcode-ai-oauth" }
+cortexcode-ai-oauth-anthropic = { path = "crates/cortexcode-ai-oauth-anthropic" }
+cortexcode-ai-oauth-github-copilot = { path = "crates/cortexcode-ai-oauth-github-copilot" }
 cortexcode-ai-provider-anthropic = { path = "crates/cortexcode-ai-provider-anthropic" }
 cortexcode-ai-provider-azure = { path = "crates/cortexcode-ai-provider-azure" }
 cortexcode-ai-provider-faux = { path = "crates/cortexcode-ai-provider-faux" }

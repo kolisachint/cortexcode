@@ -17,6 +17,8 @@ cortexcode-ai-env = { workspace = true }
 cortexcode-ai-images = { workspace = true }
 cortexcode-ai-models = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
+cortexcode-ai-oauth-anthropic = { workspace = true }
+cortexcode-ai-oauth-github-copilot = { workspace = true }
 cortexcode-ai-provider-anthropic = { workspace = true }
 cortexcode-ai-provider-azure = { workspace = true }
 cortexcode-ai-provider-faux = { workspace = true }

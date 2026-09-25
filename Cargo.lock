@@ -358,6 +358,8 @@ dependencies = [
  "cortexcode-ai-images",
  "cortexcode-ai-models",
  "cortexcode-ai-oauth",
+ "cortexcode-ai-oauth-anthropic",
+ "cortexcode-ai-oauth-github-copilot",
  "cortexcode-ai-provider-anthropic",
  "cortexcode-ai-provider-azure",
  "cortexcode-ai-provider-faux",
@@ -414,11 +416,38 @@ name = "cortexcode-ai-oauth"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "cortexcode-ai-types",
  "rand 0.8.8",
  "reqwest",
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "cortexcode-ai-oauth-anthropic"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-oauth",
+ "cortexcode-ai-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "cortexcode-ai-oauth-github-copilot"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-models",
+ "cortexcode-ai-oauth",
+ "cortexcode-ai-types",
+ "futures-util",
+ "serde",
+ "serde_json",
  "tokio",
  "url",
 ]
@@ -595,6 +624,8 @@ dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-env",
  "cortexcode-ai-oauth",
+ "cortexcode-ai-oauth-anthropic",
+ "cortexcode-ai-oauth-github-copilot",
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",

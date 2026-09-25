@@ -1,25 +1,23 @@
 //! Interactive OAuth login wiring for the `cortex` CLI.
 //!
-//! The pure OAuth request/response logic lives in `cortexcode-ai-oauth`; that
-//! crate deliberately leaves the interactive concerns — opening a browser,
-//! running a local HTTP callback server, prompting the user, and persisting
-//! the resulting tokens — to the CLI layer. This module implements exactly
-//! those pieces:
+//! The flows (callback server, device code, token exchange) live in
+//! `cortexcode-ai-oauth-anthropic` / `-github-copilot`; this module supplies
+//! the terminal side of their `OAuthLoginCallbacks`, opens the browser and
+//! persists the credentials:
 //!
 //! * [`open_browser`] — best-effort platform browser launcher.
-//! * [`run_callback_server`] — a tiny single-request `TcpListener` server that
-//!   captures the `code`/`state` from Anthropic's OAuth redirect.
 //! * [`CredentialStore`] — reads/writes `~/.cortexcode/auth.json`.
 //! * [`login`] — the top-level driver. hoocode has no `--login` flag (the pinned
 //!   flag set is exact); the `/login` selector (ledger 11.3) will call this.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::Arc;
 
-use cortexcode_ai_oauth::{anthropic, github_copilot, pkce, OAuthCredentials};
+use cortexcode_ai_oauth::{
+    BoxFuture, OAuthAuthInfo, OAuthCredentials, OAuthLoginCallbacks, OAuthPrompt, OAuthProvider,
+};
 
 /// Error type for interactive login operations.
 #[derive(Debug)]
@@ -145,186 +143,77 @@ pub fn open_browser(url: &str) -> std::io::Result<()> {
         .map(|_| ())
 }
 
-/// Parse the `code`/`state` query parameters out of an HTTP request target
-/// such as `/callback?code=abc&state=xyz`.
-fn parse_callback_target(target: &str) -> (Option<String>, Option<String>) {
-    let Some((_, query)) = target.split_once('?') else {
-        return (None, None);
-    };
-    let mut code = None;
-    let mut state = None;
-    for (k, v) in url::form_urlencoded::parse(query.as_bytes()) {
-        match k.as_ref() {
-            "code" => code = Some(v.into_owned()),
-            "state" => state = Some(v.into_owned()),
-            _ => {}
+/// Terminal callbacks: lines go to the caller's output through a channel
+/// (the flow runs on the async runtime), prompts read a line from stdin.
+struct CliCallbacks {
+    lines: std::sync::mpsc::Sender<String>,
+}
+
+impl OAuthLoginCallbacks for CliCallbacks {
+    fn on_auth(&self, info: OAuthAuthInfo) {
+        let mut text = format!("Open this URL to sign in:\n\n  {}\n", info.url);
+        if let Some(instructions) = &info.instructions {
+            text.push_str(&format!("\n{instructions}\n"));
         }
+        let _ = self.lines.send(text);
+        let _ = open_browser(&info.url);
     }
-    (code, state)
-}
 
-fn write_callback_response(stream: &mut TcpStream, body: &str) {
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        body.len(),
-        body
-    );
-    let _ = stream.write_all(response.as_bytes());
-    let _ = stream.flush();
-}
+    fn on_prompt(&self, prompt: OAuthPrompt) -> BoxFuture<'_, Result<String, String>> {
+        let _ = self.lines.send(format!("{} ", prompt.message));
+        Box::pin(async move {
+            tokio::task::spawn_blocking(|| {
+                let mut line = String::new();
+                std::io::stdin().read_line(&mut line).map(|_| line)
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            .map(|line| line.trim_end_matches(['\r', '\n']).to_string())
+            .map_err(|e| e.to_string())
+        })
+    }
 
-/// The `code`/`state` pair captured from an OAuth redirect.
-pub struct CallbackResult {
-    pub code: String,
-    pub state: Option<String>,
-}
-
-/// Run a single-request local HTTP server on `addr` and block until the
-/// OAuth provider redirects the browser to it with an authorization `code`.
-///
-/// The listener accepts connections until one carries a `code` query
-/// parameter (ignoring incidental requests such as `/favicon.ico`), replies
-/// with a small confirmation page, and returns the captured values.
-pub fn run_callback_server(addr: &str, timeout: Duration) -> Result<CallbackResult, AuthError> {
-    let listener = TcpListener::bind(addr)?;
-    listener.set_nonblocking(false)?;
-
-    let deadline = std::time::Instant::now() + timeout;
-    // Use a background-friendly accept loop with a per-accept timeout so the
-    // overall wait is bounded even if no redirect ever arrives.
-    listener.set_nonblocking(true)?;
-
-    loop {
-        if std::time::Instant::now() >= deadline {
-            return Err(AuthError::Flow(
-                "timed out waiting for the OAuth redirect".to_string(),
-            ));
-        }
-
-        match listener.accept() {
-            Ok((mut stream, _)) => {
-                stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-                let target = read_request_target(&stream);
-                let (code, state) = target
-                    .as_deref()
-                    .map(parse_callback_target)
-                    .unwrap_or((None, None));
-
-                if let Some(code) = code {
-                    write_callback_response(
-                        &mut stream,
-                        "<html><body style=\"font-family:sans-serif\"><h2>Login complete</h2>\
-                         <p>You can close this tab and return to the terminal.</p></body></html>",
-                    );
-                    return Ok(CallbackResult { code, state });
-                }
-
-                // Not the redirect we're waiting for (e.g. favicon); keep listening.
-                write_callback_response(
-                    &mut stream,
-                    "<html><body>Waiting for authorization…</body></html>",
-                );
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Err(e) => return Err(AuthError::Io(e)),
-        }
+    fn on_progress(&self, message: &str) {
+        let _ = self.lines.send(message.to_string());
     }
 }
 
-/// Read the request target (the path+query) from the first line of an HTTP
-/// request: `GET /callback?code=... HTTP/1.1`.
-fn read_request_target(stream: &TcpStream) -> Option<String> {
-    let mut reader = BufReader::new(stream);
-    let mut request_line = String::new();
-    // Read only the first line; that's all we need for the target.
-    if reader.read_line(&mut request_line).ok()? == 0 {
-        return None;
-    }
-    // Drain the rest of the headers so the client sees a clean response, but
-    // cap the work to avoid unbounded reads.
-    let mut sink = [0u8; 1024];
-    let _ = reader.get_mut().read(&mut sink);
-    let mut parts = request_line.split_whitespace();
-    let _method = parts.next()?;
-    parts.next().map(str::to_string)
-}
-
-/// Drive the Anthropic OAuth flow end to end: build the authorize URL, open
-/// the browser, run the local callback server, exchange the code for tokens,
-/// and persist them.
-fn login_anthropic(
-    store: &CredentialStore,
+/// Run `provider`'s login flow, streaming its messages to `output`.
+fn run_login(
+    provider: Arc<dyn OAuthProvider>,
     output: &mut dyn Write,
 ) -> Result<OAuthCredentials, AuthError> {
-    let pkce = pkce::generate_pkce();
-    let redirect_uri = anthropic::default_redirect_uri();
-    let authorize_url = anthropic::build_authorize_url(&pkce, &redirect_uri);
-
-    // The callback host/port must match `redirect_uri`.
-    let addr = redirect_uri
-        .strip_prefix("http://")
-        .and_then(|rest| rest.split('/').next())
-        .unwrap_or("localhost:53692")
-        .replace("localhost", "127.0.0.1");
-
-    writeln!(output, "Opening your browser to sign in with Anthropic…")?;
-    writeln!(
-        output,
-        "If it doesn't open, visit this URL manually:\n\n  {authorize_url}\n"
-    )?;
-    let _ = open_browser(&authorize_url);
-
-    let callback = run_callback_server(&addr, Duration::from_secs(300))?;
-    let state = callback.state.unwrap_or_else(|| pkce.verifier.clone());
-
-    let credentials = crate::runtime::async_runtime()
-        .block_on(anthropic::exchange_authorization_code(
-            &callback.code,
-            &state,
-            &pkce.verifier,
-            &redirect_uri,
-        ))
-        .map_err(AuthError::Flow)?;
-
-    store.save("anthropic", &credentials)?;
-    writeln!(
-        output,
-        "\nLogged in to Anthropic. Credentials saved to {}.",
-        store.path().display()
-    )?;
-    Ok(credentials)
+    let (lines, received) = std::sync::mpsc::channel();
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    crate::runtime::async_runtime().spawn(async move {
+        let callbacks = CliCallbacks { lines };
+        let result = provider.login(&callbacks).await;
+        let _ = done_tx.send(result);
+    });
+    // Forward messages until the flow finishes (its sender drops with it).
+    for line in received {
+        writeln!(output, "{line}")?;
+        output.flush()?;
+    }
+    done_rx
+        .recv()
+        .map_err(|_| AuthError::Flow("login task ended unexpectedly".into()))?
+        .map_err(AuthError::Flow)
 }
 
-/// Drive the GitHub Copilot device flow end to end: start the device flow,
-/// show the user the verification URL + code, poll for completion, exchange
-/// for a Copilot token, and persist it.
-fn login_github_copilot(
+/// Log in with `provider` and persist the credentials under `store_key`.
+fn login_with(
     store: &CredentialStore,
+    store_key: &str,
+    label: &str,
+    provider: Arc<dyn OAuthProvider>,
     output: &mut dyn Write,
 ) -> Result<OAuthCredentials, AuthError> {
-    let domain = "github.com";
-    let (auth, device) = crate::runtime::async_runtime()
-        .block_on(github_copilot::start_login(domain))
-        .map_err(AuthError::Flow)?;
-
+    let credentials = run_login(provider, output)?;
+    store.save(store_key, &credentials)?;
     writeln!(
         output,
-        "To sign in with GitHub Copilot, open:\n\n  {}\n\nand enter the code: {}\n",
-        auth.verification_uri, auth.user_code
-    )?;
-    let _ = open_browser(&auth.verification_uri);
-    writeln!(output, "Waiting for you to authorize…")?;
-
-    let credentials = crate::runtime::async_runtime()
-        .block_on(github_copilot::complete_login(domain, &device, None))
-        .map_err(AuthError::Flow)?;
-
-    store.save("github-copilot", &credentials)?;
-    writeln!(
-        output,
-        "\nLogged in to GitHub Copilot. Credentials saved to {}.",
+        "\nLogged in to {label}. Credentials saved to {}.",
         store.path().display()
     )?;
     Ok(credentials)
@@ -336,11 +225,15 @@ pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
     let store = CredentialStore::default_location();
     match provider {
         "anthropic" | "claude" => {
-            login_anthropic(&store, output)?;
+            let provider =
+                Arc::new(cortexcode_ai_oauth_anthropic::AnthropicOAuthProvider::default());
+            login_with(&store, "anthropic", "Anthropic", provider, output)?;
             Ok(())
         }
         "github-copilot" | "github" | "copilot" => {
-            login_github_copilot(&store, output)?;
+            let provider =
+                Arc::new(cortexcode_ai_oauth_github_copilot::GitHubCopilotOAuthProvider::default());
+            login_with(&store, "github-copilot", "GitHub Copilot", provider, output)?;
             Ok(())
         }
         other => Err(AuthError::UnknownProvider(other.to_string())),
@@ -352,26 +245,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_callback_target() {
-        let (code, state) = parse_callback_target("/callback?code=abc123&state=xyz789");
-        assert_eq!(code, Some("abc123".to_string()));
-        assert_eq!(state, Some("xyz789".to_string()));
-    }
-
-    #[test]
-    fn test_parse_callback_target_no_query() {
-        let (code, state) = parse_callback_target("/callback");
-        assert_eq!(code, None);
-        assert_eq!(state, None);
-    }
-
-    #[test]
-    fn test_parse_callback_target_url_encoded() {
-        let (code, _) = parse_callback_target("/callback?code=a%2Bb%2Fc");
-        assert_eq!(code, Some("a+b/c".to_string()));
-    }
-
-    #[test]
     fn test_credential_store_roundtrip() {
         let dir = std::env::temp_dir().join(format!("cortex-auth-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -379,25 +252,24 @@ mod tests {
 
         assert!(store.get("anthropic").is_none());
 
-        let creds = OAuthCredentials {
-            refresh: "r".into(),
-            access: "a".into(),
-            expires: 123,
-            extra: HashMap::new(),
-        };
+        let creds = OAuthCredentials::new("r", "a", 123);
         store.save("anthropic", &creds).unwrap();
         assert_eq!(store.get("anthropic"), Some(creds.clone()));
 
         // A second provider merges rather than overwriting the file.
-        let other = OAuthCredentials {
-            refresh: "r2".into(),
-            access: "a2".into(),
-            expires: 456,
-            extra: HashMap::new(),
-        };
+        let mut other = OAuthCredentials::new("r2", "a2", 456);
+        other
+            .extra
+            .insert("enterpriseUrl".into(), serde_json::json!("company.ghe.com"));
         store.save("github-copilot", &other).unwrap();
         assert_eq!(store.get("anthropic"), Some(creds));
         assert_eq!(store.get("github-copilot"), Some(other));
+
+        // hoocode's auth.json shape: flat entries.
+        let text = std::fs::read_to_string(dir.join("auth.json")).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(json["github-copilot"]["enterpriseUrl"], "company.ghe.com");
+        assert!(json["anthropic"].get("extra").is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -407,33 +279,6 @@ mod tests {
         let store = CredentialStore::at("/nonexistent/path/auth.json");
         assert!(store.load_all().is_empty());
         assert!(store.get("anthropic").is_none());
-    }
-
-    #[test]
-    fn test_run_callback_server_captures_code() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        drop(listener); // free the port; the server rebinds it below
-
-        let server_addr = addr.to_string();
-        let handle =
-            std::thread::spawn(move || run_callback_server(&server_addr, Duration::from_secs(5)));
-
-        // Give the server a moment to bind, then send a redirect request.
-        std::thread::sleep(Duration::from_millis(200));
-        let mut client = TcpStream::connect(addr).unwrap();
-        client
-            .write_all(
-                b"GET /callback?code=abc123&state=xyz789 HTTP/1.1\r\nHost: localhost\r\n\r\n",
-            )
-            .unwrap();
-        let mut response = String::new();
-        let _ = client.read_to_string(&mut response);
-
-        let result = handle.join().unwrap().unwrap();
-        assert_eq!(result.code, "abc123");
-        assert_eq!(result.state, Some("xyz789".to_string()));
-        assert!(response.contains("Login complete"));
     }
 
     #[test]

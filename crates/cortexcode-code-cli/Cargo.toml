@@ -25,6 +25,8 @@ cortexcode-code-tools = { workspace = true }
 cortexcode-code-tools-fs = { workspace = true }
 cortexcode-ai-env = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
+cortexcode-ai-oauth-anthropic = { workspace = true }
+cortexcode-ai-oauth-github-copilot = { workspace = true }
 cortexcode-ai-stream = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-agent-core = { workspace = true }

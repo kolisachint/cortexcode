@@ -10,13 +10,39 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
 - Still open in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity (8.4c),
-  the OAuth split (8.7), stream hooks (8.8).
+  stream hooks (8.8). 8.7 (OAuth split) is done.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.7 done (OAuth split: core + anthropic + github-copilot)
+- `cortexcode-ai-oauth` is the core: types (`OAuthCredentials` now serializes flat like
+  hoocode's auth.json — extra fields such as `enterpriseUrl`/`type` sit beside
+  refresh/access/expires), `OAuthLoginCallbacks` / `OAuthProvider` traits, PKCE, the OAuth
+  page HTML (oauth-page.ts), a tokio loopback `CallbackServer` (404/400/error pages, state
+  check, `cancelWait`), a `Fetch` seam (TS tests stub global fetch) with `ReqwestFetch`, and
+  the provider registry of index.ts (built-ins are installed by the composer with
+  `install_builtin_oauth_providers`, since they live in their own crates).
+- New `cortexcode-ai-oauth-anthropic` (anthropic.ts: authorize URL, callback server on 53692
+  + manual-paste race, prompt fallback, state checks, token exchange/refresh with the TS error
+  texts) and `cortexcode-ai-oauth-github-copilot` (github-copilot.ts: device flow with the
+  1.2x / 1.4x poll timing and slow_down handling, Copilot token refresh, model policy enabling,
+  base URL from the token, `modify_models`).
+- code-cli: `/login` plumbing now runs the provider flows through terminal callbacks; its own
+  callback server is gone; token refresh uses the new crates and reads `enterpriseUrl` (the
+  old code wrote `enterprise_url`, which hoocode never uses).
+- Tests: anthropic-oauth.test.ts and github-copilot-oauth.test.ts ported (the Copilot poll
+  times 6000/12000/26000 and 6000/20000/25000 reproduce under tokio's paused clock).
+- Also fixed a flaky agent-loop test (`emits_tool_execution_end_in_completion_order…`, ~50%
+  failures at the session's starting commit): the released tool now finishes 50 ms after
+  the releasing one, which is the order JS guarantees.
+- Note for future sessions: never share `CARGO_TARGET_DIR` with a second worktree of this
+  repo; cargo hashes path crates relative to the workspace root and the builds clobber
+  each other (fix: touch the sources and rebuild).
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 8.6e done (cross-provider suites); 8.8 added
 - Non-live ports: constrain-tool-calls (ai-util strict schema, completions + responses
