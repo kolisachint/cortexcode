@@ -941,3 +941,75 @@ fn pipe_separated_tool_call_ids_are_normalized_for_other_models() {
     assert_eq!(messages[0]["tool_calls"][0]["id"], "call_abc");
     assert_eq!(messages[1]["tool_call_id"], "call_abc");
 }
+
+// --- constrain-tool-calls.test.ts: openai-completions ---
+
+/// The TypeBox `editTool` of the TS test.
+fn edit_tool() -> Tool {
+    Tool {
+        defer_loading: None,
+        name: "edit".into(),
+        description: "Replace exact text".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "path": {"description": "File path", "minLength": 1, "type": "string"},
+                "oldText": {"type": "string"},
+                "newText": {"type": "string"},
+                "replaceAll": {"default": false, "type": "boolean"}
+            },
+            "required": ["path", "oldText", "newText"]
+        }),
+    }
+}
+
+fn sent_edit_tool(model: &Model, constrain: Option<bool>) -> Value {
+    let context = Context::new(
+        String::new(),
+        vec![user("edit the file")],
+        vec![edit_tool()],
+    );
+    let options = SimpleStreamOptions {
+        constrain_tool_calls: constrain,
+        ..Default::default()
+    };
+    payload(model, &context, options)["tools"][0]["function"].clone()
+}
+
+#[test]
+fn constrained_tool_calls_send_strict_closed_schemas() {
+    let tool = sent_edit_tool(&completions("openai", "gpt-4o-mini"), Some(true));
+    assert_eq!(tool["strict"], true);
+    assert_eq!(tool["parameters"]["additionalProperties"], false);
+    assert_eq!(
+        tool["parameters"]["required"],
+        json!(["path", "oldText", "newText", "replaceAll"])
+    );
+    assert_eq!(
+        tool["parameters"]["properties"]["replaceAll"]["type"],
+        json!(["boolean", "null"])
+    );
+}
+
+#[test]
+fn constrained_tool_calls_stay_loose_when_compat_says_none_or_unset() {
+    let mut model = completions("openai", "gpt-4o-mini");
+    model.compat = Some(json!({"toolCallConstraint": "none"}));
+    let tool = sent_edit_tool(&model, Some(true));
+    assert_eq!(tool["strict"], false);
+    assert!(tool["parameters"].get("additionalProperties").is_none());
+
+    let tool = sent_edit_tool(&completions("openai", "gpt-4o-mini"), None);
+    assert_eq!(tool["strict"], false);
+    assert!(tool["parameters"].get("additionalProperties").is_none());
+}
+
+#[test]
+fn constrained_tool_calls_honor_a_compat_opt_in_for_local_runtimes() {
+    let mut model = completions("openai", "gpt-4o-mini");
+    model.base_url = "http://localhost:8000/v1".into();
+    model.compat = Some(json!({"toolCallConstraint": "strict"}));
+    let tool = sent_edit_tool(&model, Some(true));
+    assert_eq!(tool["strict"], true);
+    assert_eq!(tool["parameters"]["additionalProperties"], false);
+}

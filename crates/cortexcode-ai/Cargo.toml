@@ -30,5 +30,8 @@ cortexcode-ai-util = { workspace = true }
 
 [dev-dependencies]
 cortexcode-ai-stream = { workspace = true, features = ["testing"] }
+base64 = "0.22"
+futures-util = { version = "0.3", default-features = false }
+regex = "1"
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

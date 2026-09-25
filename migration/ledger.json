@@ -1240,13 +1240,18 @@
    "id": "8.6e",
    "title": "Cross-provider suites (mostly live-key, #[ignore]): context-overflow, empty, image-tool-result, responseid, tokens, total-tokens, tool-call-id-normalization, tool-call-without-result, unicode-surrogate, cache-retention, constrain-tool-calls, xhigh/supports-xhigh, zen, openrouter-*, lazy-module-load",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.6c",
     "8.6d"
    ],
    "crates": [
-    "cortexcode-ai"
+    "cortexcode-ai",
+    "cortexcode-ai-util",
+    "cortexcode-ai-images",
+    "cortexcode-ai-models",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-responses"
    ],
    "sources": [
     "packages/ai/src/stream.ts"
@@ -1272,8 +1277,21 @@
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7.",
-   "log": []
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7. lazy-module-load.test.ts checks Node's lazy import of provider SDKs; Rust links providers statically, so it has no counterpart. openrouter-cache-write-repro.test.ts needs onPayload (8.8).",
+   "log": [
+    {
+     "at": "2026-09-25T17:39:21Z",
+     "commit": "7b002f9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:48:45Z",
+     "commit": "7b002f9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.7",
@@ -1298,6 +1316,36 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Each OAuth flow changes with its vendor: one crate per vendor.",
+   "log": []
+  },
+  {
+   "id": "8.8",
+   "title": "onPayload/onResponse hooks in stream options (typed callbacks, every provider) + openrouter-cache-write-repro live test",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.6e"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-responses",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-azure",
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-images"
+   ],
+   "sources": [
+    "packages/ai/src/types.ts",
+    "packages/agent/src/harness/agent-harness.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/openrouter-cache-write-repro.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Added 2026-09-25 (from 8.6e). SimpleStreamOptions.on_payload/on_response are String placeholders; TS onPayload(params, model) may replace the payload and onResponse({status, headers}, model) is awaited after the response. The agent harness maps them to the before_provider_request / after_provider_response hooks (9.4).",
    "log": []
   },
   {
@@ -1379,7 +1427,8 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5b"
+    "7.5b",
+    "8.8"
    ],
    "crates": [
     "cortexcode-agent-harness"

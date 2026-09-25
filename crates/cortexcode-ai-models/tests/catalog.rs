@@ -195,3 +195,38 @@ fn models_round_trip_through_the_hoocode_json_shape() {
     let anthropic: AnthropicMessagesCompat = model("anthropic", "claude-opus-5").compat_as();
     assert_eq!(anthropic, AnthropicMessagesCompat::default());
 }
+
+// --- supports-xhigh.test.ts ---
+
+#[test]
+fn supported_thinking_levels_include_xhigh_where_hoocode_does() {
+    for (provider, id) in [
+        ("anthropic", "claude-opus-4-6"),
+        ("anthropic", "claude-opus-4-7"),
+        ("openai-codex", "gpt-5.4"),
+        ("openai-codex", "gpt-5.5"),
+        ("openrouter", "anthropic/claude-opus-4.6"),
+    ] {
+        assert!(supports_xhigh(model(provider, id)), "{provider}/{id}");
+    }
+    assert!(!supports_xhigh(model("anthropic", "claude-sonnet-4-5")));
+}
+
+#[test]
+fn deepseek_v4_flash_offers_only_off_high_and_xhigh() {
+    for (provider, id) in [
+        ("deepseek", "deepseek-v4-flash"),
+        ("opencode-go", "deepseek-v4-flash"),
+        ("openrouter", "deepseek/deepseek-v4-flash"),
+    ] {
+        assert_eq!(
+            get_supported_thinking_levels(model(provider, id)),
+            [
+                ThinkingLevel::Off,
+                ThinkingLevel::High,
+                ThinkingLevel::XHigh
+            ],
+            "{provider}/{id}"
+        );
+    }
+}

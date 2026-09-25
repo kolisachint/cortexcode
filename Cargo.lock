@@ -353,6 +353,7 @@ dependencies = [
 name = "cortexcode-ai"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "cortexcode-ai-env",
  "cortexcode-ai-images",
  "cortexcode-ai-models",
@@ -367,6 +368,8 @@ dependencies = [
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "cortexcode-ai-util",
+ "futures-util",
+ "regex",
  "serde_json",
  "tokio",
 ]
@@ -382,8 +385,10 @@ dependencies = [
 name = "cortexcode-ai-images"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-ai-env",
  "cortexcode-ai-models-catalog",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "reqwest",
  "serde",
  "serde_json",

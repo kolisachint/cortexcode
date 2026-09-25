@@ -5,20 +5,38 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`. 8.6 was split (too big: 41 of 68 ai
-  test files unported) into 8.6a (faux, done), 8.6b (UserMessage string content, done),
-  8.6c (anthropic, done), 8.6d (google, done), 8.6e (next)
-  (cross-provider suites, mostly live `#[ignore]`). Codex/Copilot/gemini-cli/OAuth test
-  files stay with 8.4a/8.4b/8.4c/8.7; transform-messages-copilot-openai-to-anthropic was
-  added to 8.4b.
-- Still missing in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity
-  (8.4c), the OAuth split (8.7).
+- Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
+  ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
+  8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
+  lazy-module-load has no Rust counterpart).
+- Still open in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity (8.4c),
+  the OAuth split (8.7), stream hooks (8.8).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.6e done (cross-provider suites); 8.8 added
+- Non-live ports: constrain-tool-calls (ai-util strict schema, completions + responses
+  tools), supports-xhigh (ai-models catalog), openrouter-images (ai-images), cache-retention
+  (`cortexcode-ai/tests/cache_retention.rs`, payload builders instead of onPayload; the
+  key-gated env-default cases only inspect the payload, so they run unconditionally).
+- ai-images brought to openrouter.ts: `response_id`, `signal`/`timeout_ms`/`max_retries`
+  options, SDK client retries, getEnvApiKey, TS error texts (`No API key available for
+  provider: …`, openai APIError message), stricter data-URI match, and a `generate_images`
+  dispatcher (`No API provider registered for api: …`).
+- Live (`#[ignore]`, key-gated) in `cortexcode-ai/tests/live_matrix.rs`: context-overflow,
+  empty, image-tool-result (fixture copied to `tests/data/red-circle.png`), responseid,
+  tokens (abort usage), total-tokens, tool-call-without-result, unicode-surrogate (the lone
+  surrogate case sends the sanitized text; Rust strings cannot hold one),
+  tool-call-id-normalization (prefilled OpenRouter case), xhigh, zen. Copilot/Codex cases
+  and local Ollama/LM Studio/llama.cpp cases are not included (see the file header).
+- New ledger task 8.8: typed onPayload/onResponse hooks for every provider (the
+  SimpleStreamOptions fields are String placeholders) + openrouter-cache-write-repro; 9.4
+  depends on it.
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 8.6d done (google.ts / google-vertex.ts / google-shared.ts re-port)
 - ai-provider-google rebuilt: shared.rs = google-shared.ts (convertMessages with

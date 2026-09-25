@@ -178,4 +178,80 @@ mod tests {
         );
         assert_eq!(to_strict_json_schema(&json!(null)), json!({}));
     }
+
+    // --- constrain-tool-calls.test.ts: toStrictJsonSchema ---
+
+    /// The TypeBox `editSchema` of the TS test, as JSON.
+    fn edit_schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "path": {"description": "File path", "minLength": 1, "type": "string"},
+                "oldText": {"type": "string"},
+                "newText": {"type": "string"},
+                "replaceAll": {"default": false, "type": "boolean"}
+            },
+            "required": ["path", "oldText", "newText"]
+        })
+    }
+
+    #[test]
+    fn edit_schema_is_closed_with_nullable_optionals() {
+        let strict = to_strict_json_schema(&edit_schema());
+        assert_eq!(strict["additionalProperties"], false);
+        assert_eq!(
+            strict["required"],
+            json!(["path", "oldText", "newText", "replaceAll"])
+        );
+        let properties = &strict["properties"];
+        assert_eq!(properties["replaceAll"]["type"], json!(["boolean", "null"]));
+        assert_eq!(properties["path"]["type"], "string");
+        assert!(properties["path"].get("minLength").is_none());
+        assert!(properties["replaceAll"].get("default").is_none());
+        assert_eq!(properties["path"]["description"], "File path");
+    }
+
+    #[test]
+    fn recurses_into_arrays_and_nested_objects() {
+        let nested = json!({
+            "type": "object",
+            "properties": {"edits": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "oldText": {"type": "string"},
+                    "newText": {"type": "string"},
+                    "replaceAll": {"type": "boolean"}
+                },
+                "required": ["oldText", "newText"]
+            }}},
+            "required": ["edits"]
+        });
+        let items = &to_strict_json_schema(&nested)["properties"]["edits"]["items"];
+        assert_eq!(items["additionalProperties"], false);
+        assert_eq!(
+            items["required"],
+            json!(["oldText", "newText", "replaceAll"])
+        );
+        assert_eq!(
+            items["properties"]["replaceAll"]["type"],
+            json!(["boolean", "null"])
+        );
+    }
+
+    #[test]
+    fn enum_and_any_of_become_nullable_without_widening_type() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "mode": {"enum": ["a", "b"]},
+                "value": {"anyOf": [{"type": "string"}, {"type": "number"}]}
+            }
+        });
+        let properties = &to_strict_json_schema(&schema)["properties"];
+        assert_eq!(properties["mode"]["enum"], json!(["a", "b", null]));
+        assert_eq!(
+            properties["value"]["anyOf"],
+            json!([{"type": "string"}, {"type": "number"}, {"type": "null"}])
+        );
+    }
 }

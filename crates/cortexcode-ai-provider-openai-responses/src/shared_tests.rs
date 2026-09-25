@@ -535,3 +535,44 @@ fn text_signatures_round_trip() {
     );
     assert_eq!(parse_text_signature(None), None);
 }
+
+// --- constrain-tool-calls.test.ts: openai-responses ---
+
+fn edit_tool() -> Tool {
+    Tool {
+        defer_loading: None,
+        name: "edit".into(),
+        description: "Replace exact text".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "path": {"description": "File path", "minLength": 1, "type": "string"},
+                "oldText": {"type": "string"},
+                "newText": {"type": "string"},
+                "replaceAll": {"default": false, "type": "boolean"}
+            },
+            "required": ["path", "oldText", "newText"]
+        }),
+    }
+}
+
+#[test]
+fn responses_tools_are_strict_and_closed_when_constrained() {
+    let tool = &convert_responses_tools(&[edit_tool()], None, true)[0];
+    assert_eq!(tool["type"], "function");
+    assert_eq!(tool["strict"], true);
+    let parameters = &tool["parameters"];
+    assert_eq!(parameters["additionalProperties"], false);
+    assert_eq!(
+        parameters["required"],
+        json!(["path", "oldText", "newText", "replaceAll"])
+    );
+    assert_eq!(
+        parameters["properties"]["replaceAll"]["type"],
+        json!(["boolean", "null"])
+    );
+
+    let loose = &convert_responses_tools(&[edit_tool()], None, false)[0];
+    assert_eq!(loose["strict"], false);
+    assert!(loose["parameters"].get("additionalProperties").is_none());
+}
