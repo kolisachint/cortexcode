@@ -2,7 +2,7 @@
 //!
 //! Mirrors `core/subagent-pool.ts` and `core/tools/subagent.ts` from the
 //! TypeScript `packages/coding-agent` package. The pool spawns child processes
-//! running `cortex --mode subagent --task-id <id>` and communicates with them
+//! running `cortex --mode rpc --task-id <id>` and communicates with them
 //! via line-delimited JSON-RPC over stdin/stdout.
 
 use cortexcode_agent_types::{AgentTool, AgentToolResult};
@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 pub struct SubagentOptions {
     /// Command to spawn (typically the `cortex` binary path).
     pub command: PathBuf,
-    /// Extra arguments to pass before the standard `--mode subagent` args.
+    /// Extra arguments to pass before the standard `--mode rpc` args.
     pub args: Vec<String>,
     /// Environment variables to set for the child process.
     pub env: HashMap<String, String>,
@@ -155,7 +155,7 @@ impl SubagentPool {
     fn spawn(&self, task_id: &str) -> Result<SubagentHandle, SubagentError> {
         let mut cmd = Command::new(&self.options.command);
         cmd.arg("--mode")
-            .arg("subagent")
+            .arg("rpc")
             .arg("--task-id")
             .arg(task_id)
             .args(&self.options.args)

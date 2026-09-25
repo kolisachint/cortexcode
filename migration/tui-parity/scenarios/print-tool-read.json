@@ -4,6 +4,7 @@
   "request_fields": ["messages"],
   "phase": "10.2",
   "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
   "files": {"notes.txt": "alpha\nbeta\ngamma\n"},
   "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "read notes.txt"],
   "llm": [
@@ -12,6 +13,6 @@
   ],
   "steps": [
     {"wait_exit": true, "timeout": 30},
-    {"snapshot": "stdout", "contains": ["three lines", "<exited status=0>"]}
+    {"snapshot": "stdout", "history": true, "contains": ["three lines", "<exited status=0>"]}
   ]
 }

@@ -5,11 +5,47 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next` (10.7a at the time of writing).
+- Next task: run `python3 migration/ledger.py next`.
 - Milestone M1 (first Level-2 green): 10.4a + 8.2a + 10.7a → 10.8a makes `print-basic`
   pass; 10.2a + 10.4c make `print-tool-read` pass, including identical model requests.
 
 ## Log
+
+### 2026-09-25: 10.7a done (`code-cli`: exact port of the pinned CLI)
+- New crate `cortexcode-code-cli`:
+  - `args.rs` is an exact port of `cli/args.ts` `parseArgs`: every pinned flag, `-nt`/`-nbt`/`-nsc`
+    shorts, unknown `--flag [value]` captured as extension flags, `-p <prompt>` (incl. `---`
+    frontmatter), `parseInt` semantics. All of `args.test.ts` is ported with the same titles,
+    plus extra edge cases.
+  - `help_text.rs` is generated from `printHelp()` by `migration/tools/gen_help_text.py`
+    (branding hoocode → cortex). Re-run it after a pin bump.
+  - `lib.rs` ports the arg half of `main.ts`:
+    - `Error:`/`Warning:` diagnostics (chalk colors), exit 1 on errors;
+    - `--version` prints the bare version, and `--help` wins over later checks;
+    - `resolveAppMode` (rpc > json > print or non-TTY stdin > interactive);
+    - rpc rejects `@file`;
+    - unknown long flags get `Unknown option(s): --x` (no extensions registered yet).
+  - Flags that parse but aren't implemented fail with `Error: --flag is not yet supported by
+    cortex` (`unsupported_flags`); so do the `install|remove|update|list|config|resources`
+    subcommands.
+  - `runtime`/`auth`/`permission_dialog` moved here from code-main. The crossterm firewall
+    exception moved with them (still 11.1).
+- `code-main` is now a thin bin (`cortexcode_code_cli::main`). The umbrella re-exports `code::cli`.
+- Decision: **no `clap`**. It can't express the pinned grammar without behavior changes.
+  Design doc §3.4 and §10.7 are updated.
+- Removed cortex-only flags that hoocode doesn't have:
+  - `--login` (the OAuth driver `code_cli::auth::login` is kept for `/login` in 11.3);
+  - `--config`;
+  - `--mode subagent` (the subagent pool now spawns `--mode rpc --task-id`).
+- L2 fix (environment, not cortex): print-basic failed here for the pre-change binary too.
+  tmux 3.4 scrolls one row when it writes "Pane is dead", and hoocode's `embsearch` stderr
+  warning depends on PATH. `print-basic` and `print-tool-read` now set
+  `enableSemanticIndex: false` and snapshot with history. Both are `selfcheck` stable.
+  `print-tool-read` stdout matches; its requests still differ (system prompt, 10.4c).
+- Known flake (pre-existing, not fixed): `cortexcode-tui-keys`
+  `test_parse_key_alt_letter_legacy` sometimes fails under parallel tests. Other tests toggle
+  the global kitty-protocol flag. Fix with a test mutex when tui-keys is next touched.
+- Next: `ledger.py next` (10.8a print-mode parity closes M1 part 1; then 10.2a + 10.4c).
 
 ### 2026-09-24: 8.2a done; 10.4a done (first Level-2 green: `print-basic`)
 - New crate `cortexcode-ai-registry`, a port of `api-registry.ts` + `stream.ts`:

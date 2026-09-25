@@ -235,7 +235,7 @@
    "id": "10.7a",
    "title": "New crate code-cli: clap-derived parser with exactly the pinned flag set; unported flags fail with a clear 'not yet supported'; code-main becomes a thin bin",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -255,7 +255,26 @@
     "print-basic"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-25T03:48:22Z",
+     "commit": "fb39301",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T03:54:08Z",
+     "commit": "fb39301",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=fail"
+    },
+    {
+     "at": "2026-09-25T03:58:50Z",
+     "commit": "fb39301",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
   },
   {
    "id": "10.8a",

@@ -79,7 +79,7 @@ impl From<std::io::Error> for RuntimeError {
 /// Resolve the provider and model from CLI arguments, falling back to the
 /// persisted/migrated config file and finally to hardcoded defaults.
 fn resolve_provider_model(args: &Args) -> Result<(String, String), RuntimeError> {
-    let config = crate::config_or_default(args);
+    let config = crate::config_or_default();
     Ok(resolve_provider_model_with_config(args, &config))
 }
 
@@ -121,7 +121,7 @@ fn default_model_for_provider(provider: &str) -> String {
 
 /// Resolve the API key for the provider.
 fn resolve_api_key(provider: &str, args: &Args) -> Option<String> {
-    let config = crate::config_or_default(args);
+    let config = crate::config_or_default();
     resolve_api_key_with_config(provider, args, &config)
 }
 
@@ -147,7 +147,7 @@ fn resolve_api_key_with_config(provider: &str, args: &Args, config: &Config) -> 
     oauth_api_key(provider)
 }
 
-/// Fall back to an OAuth access token persisted by `cortex --login <provider>`,
+/// Fall back to an OAuth access token persisted by the OAuth login flow (`auth::login`),
 /// refreshing it first if it has expired.
 fn oauth_api_key(provider: &str) -> Option<String> {
     let store_key = match provider {
@@ -195,12 +195,9 @@ fn build_system_prompt(args: &Args) -> String {
     if let Some(prompt) = &args.system_prompt {
         return prompt.clone();
     }
-    let config = crate::config_or_default(args);
-    let mode = args
-        .mode
-        .as_deref()
-        .and_then(|m| m.parse::<Mode>().ok())
-        .unwrap_or_default();
+    let config = crate::config_or_default();
+    // Prompt modes (ask/plan/build) arrive with 10.5; `--mode` is the output mode.
+    let mode = Mode::default();
     system_prompt(mode, &config)
 }
 
@@ -211,8 +208,8 @@ fn build_tools() -> Vec<cortexcode_agent_types::AgentTool> {
 }
 
 /// Build the permission gate for the current CLI mode.
-fn build_permission_gate(args: &Args, interactive: bool) -> Arc<dyn PermissionGate> {
-    let config = crate::config_or_default(args);
+fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
+    let config = crate::config_or_default();
 
     if interactive {
         let inner = Arc::new(crate::permission_dialog::InteractivePermissionGate);
@@ -270,11 +267,9 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
             format!(
                 "No API key for provider '{}'.\n\
                  Set the environment variable:\n\
-                   export {}_API_KEY=your-key-here\n\n\
-                 Or run:  cortex --login {}",
+                   export {}_API_KEY=your-key-here",
                 provider,
-                provider.to_uppercase(),
-                provider
+                provider.to_uppercase()
             )
         } else {
             let list = supported.join(", ");
@@ -304,7 +299,7 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
         error_message: None,
     };
 
-    let permission_gate = Some(build_permission_gate(args, interactive));
+    let permission_gate = Some(build_permission_gate(interactive));
     let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
 
     let agent = Agent::with_options(AgentOptions {
@@ -320,11 +315,8 @@ fn build_agent_with_gate(args: &Args, interactive: bool) -> Result<Agent, Runtim
 
 /// Build the initial user messages from CLI arguments.
 fn build_user_messages(args: &Args) -> Vec<AgentMessage> {
-    let mode = args
-        .mode
-        .as_deref()
-        .and_then(|m| m.parse::<Mode>().ok())
-        .unwrap_or_default();
+    // Prompt modes (ask/plan/build) arrive with 10.5; `--mode` is the output mode.
+    let mode = Mode::default();
 
     let mut messages = Vec::new();
 
@@ -452,13 +444,8 @@ pub fn run_interactive_mode(
                         }
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
-                            let user_msg = text_message(&initial_user_prompt(
-                                args.mode
-                                    .as_deref()
-                                    .and_then(|m| m.parse::<Mode>().ok())
-                                    .unwrap_or_default(),
-                                line,
-                            ));
+                            let user_msg =
+                                text_message(&initial_user_prompt(Mode::default(), line));
                             match agent.prompt(PromptInput::Messages(vec![user_msg])) {
                                 Ok(messages) => {
                                     let text = format_text_output(&messages);

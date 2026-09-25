@@ -227,7 +227,7 @@ rather than hand-writing or keeping a hand-written version.
 | `extract-zip`, `hosted-git-info` | `zip`, own parser | none | Phase 12 (package manager) |
 | `jiti` (TS extensions) | none. Needs a redesign (§10.7) | `wasmtime` prototype | Phase 12 |
 | `@anthropic-ai/sandbox-runtime` (example extension) | none. Out of scope | — | — |
-| CLI parsing (`cli/args.ts`) | **`clap` 4** derive | hand-written parser | Adopt, keeping the pinned flag names exactly (10.7) |
+| CLI parsing (`cli/args.ts`) | `clap` 4 derive (rejected in 10.7a) | exact port of the hand-written parser | Keep own. The pinned grammar has multi-letter short aliases (`-nt`, `-nsc`), captures unknown `--flags` with a greedy value as extension flags, lets `-p` take the next arg as the prompt, and silently drops invalid values. `clap` would change observable behavior (10.7a) |
 | OAuth PKCE + loopback server | keep own (`ai-oauth`) + **`open` 5** for browser launch | own + ad-hoc `open`/`xdg-open` | Adopt `open`; `oauth2` isn't worth it (provider quirks) |
 | cron (`core/scheduler.ts`) | **`croner` 4** | none | Phase 12 |
 | BM25 (capability retrieval) | **`bm25` 2.x** | none | Phase 12 |
@@ -653,7 +653,7 @@ vendor service) may be a dependency of **only its adapter crate(s)**, which expo
 cortexcode-owned types. The list is in `migration/dep-firewall.json`, and
 `migration/check_dep_firewall.py` enforces it in CI and in `ledger.py verify`. Current
 exceptions are listed under `pending` with the ledger task that removes them. Examples:
-`rmcp` → `agent-mcp`, `wasmtime` → `code-extensions`, `clap` → `code-cli`,
+`rmcp` → `agent-mcp`, `wasmtime` → `code-extensions`,
 `crossterm` → `tui-terminal`, `syntect` → `tui-highlight`, `grep-*` → `code-tool-search`.
 
 ### 5.6 Migration operations: ledger, two-level done, resuming
@@ -1204,7 +1204,7 @@ Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with 
 - [ ] **10.4 Models and auth.** Port `model-registry.ts` (built-ins + user `models.json` custom providers), `model-resolver.ts` (`provider/model` patterns, `--models` scoping, fuzzy match), `auth-storage.ts` (`auth.json` format-compatible; OAuth refresh with a lock), and `auth-guidance.ts`.
 - [ ] **10.5 Resources.** Port `resource-loader.ts`, `skills.ts`, `builtin-skills.ts`, `prompt-templates.ts`, `context-files.ts` (AGENTS.md/CLAUDE.md walk-up), `slash-commands.ts`, `mode-prompts.ts` and the ask/plan/build/debug mode system (`extensions/core/modes.ts`), plus `agent-frontmatter`/`agent-registry` (`--agent`). Parse frontmatter with `serde_yaml_ng`. Discovery honors `.hoocode/` and `.cortexcode/`.
 - [ ] **10.6 Permission gate.** Port the `extensions/core/permission-gate.ts` policy (hard tool/command policy, `--disallowed-tools`, per-session approvals). Keep the trait from `agent-types`.
-- [ ] **10.7 CLI.** Rebuild `code-main` args on `clap` derive with **exactly** the pinned flag set (`cli/args.ts`, 50+ flags incl. `--continue/--resume/--session/--fork/--no-session`, `--models`, `--thinking`, `--tools/--no-tools`, `--list-models`, `--export`, `--offline`, `--print-token-surface`). Also port `initial-message.ts`, `file-processor.ts` (`@file` args) and `list-models.ts`.
+- [ ] **10.7 CLI.** Move `code-main` args into `code-cli` as an exact port of the hand-written `args.ts` parser (not `clap`; see §3.4) with **exactly** the pinned flag set (`cli/args.ts`, 50+ flags incl. `--continue/--resume/--session/--fork/--no-session`, `--models`, `--thinking`, `--tools/--no-tools`, `--list-models`, `--export`, `--offline`, `--print-token-surface`). Also port `initial-message.ts`, `file-processor.ts` (`@file` args) and `list-models.ts`.
 - [ ] **10.8 Print and RPC protocol parity.** `--mode json` must emit the same event objects as `print-mode.ts`. Replace the generic JSON-RPC server with hoocode's RPC protocol (`modes/rpc/{rpc-types,rpc-mode,jsonl}.ts`: commands, events, extension UI requests). Port `rpc-client.ts` as a Rust client so subagents and tests can use it.
 - [ ] **10.9 Subagents.** Port `subagent-pool.ts`, `tools/subagent.ts`, `subagent-{depth,events,inbox,result}.ts`, `lifeguard.ts` (heartbeat/timeout) and `dispatch-evaluator.ts` (depth guard) on the 10.8 RPC protocol. The warm pool goes to Phase 12.
 - [ ] **10.10 Small core modules.** `bash-executor`, `exec`, `event-bus`, `git-branch`, `format-*`, `token-budget`, `timings`, `diagnostics`, `output-guard`/`output-verifier`, `resolve-config-value` (`!cmd` / env interpolation), `utils/{paths,git,mime,tls-ca}`. `--ca-cert`/`--use-system-ca` map to `reqwest` rustls roots.

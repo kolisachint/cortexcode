@@ -10,7 +10,8 @@
 //! * [`run_callback_server`] — a tiny single-request `TcpListener` server that
 //!   captures the `code`/`state` from Anthropic's OAuth redirect.
 //! * [`CredentialStore`] — reads/writes `~/.cortexcode/auth.json`.
-//! * [`login`] — the top-level driver dispatched from `--login <provider>`.
+//! * [`login`] — the top-level driver. hoocode has no `--login` flag (the pinned
+//!   flag set is exact); the `/login` selector (ledger 11.3) will call this.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};

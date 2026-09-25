@@ -80,7 +80,7 @@
   },
   "pending": {
     "crossterm": {
-      "cortexcode-code-main": "11.1 (interactive mode moves onto tui-render)"
+      "cortexcode-code-cli": "11.1 (interactive mode moves onto tui-render)"
     }
   }
 }

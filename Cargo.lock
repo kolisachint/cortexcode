@@ -487,9 +487,9 @@ dependencies = [
 name = "cortexcode-code"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-code-cli",
  "cortexcode-code-config",
  "cortexcode-code-extensions",
- "cortexcode-code-main",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
  "cortexcode-code-resources",
@@ -497,6 +497,27 @@ dependencies = [
  "cortexcode-code-session",
  "cortexcode-code-subagents",
  "cortexcode-code-tools",
+]
+
+[[package]]
+name = "cortexcode-code-cli"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-agent-core",
+ "cortexcode-agent-types",
+ "cortexcode-ai-env",
+ "cortexcode-ai-oauth",
+ "cortexcode-ai-registry",
+ "cortexcode-ai-types",
+ "cortexcode-code-config",
+ "cortexcode-code-models",
+ "cortexcode-code-print",
+ "cortexcode-code-prompts",
+ "cortexcode-code-rpc",
+ "cortexcode-code-tools",
+ "crossterm",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -521,28 +542,7 @@ dependencies = [
 name = "cortexcode-code-main"
 version = "0.0.1"
 dependencies = [
- "cortexcode-agent-core",
- "cortexcode-agent-tools",
- "cortexcode-agent-types",
- "cortexcode-ai-env",
- "cortexcode-ai-models",
- "cortexcode-ai-oauth",
- "cortexcode-ai-provider-anthropic",
- "cortexcode-ai-provider-azure",
- "cortexcode-ai-provider-google",
- "cortexcode-ai-provider-openai",
- "cortexcode-ai-registry",
- "cortexcode-ai-types",
- "cortexcode-code-config",
- "cortexcode-code-models",
- "cortexcode-code-print",
- "cortexcode-code-prompts",
- "cortexcode-code-resources",
- "cortexcode-code-rpc",
- "cortexcode-code-tools",
- "crossterm",
- "serde_json",
- "url",
+ "cortexcode-code-cli",
 ]
 
 [[package]]

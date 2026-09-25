@@ -8,7 +8,7 @@
 //! (`tools/list`, `tools/call`).
 //!
 //! The transport is line-delimited JSON (`\n` separated), which is the same
-//! wire format used by the subagent pool (`--mode subagent`) and the
+//! wire format used by the subagent pool (`--mode rpc --task-id`) and the
 //! stdio-based MCP client.
 
 use cortexcode_agent_tools::ToolRegistry;

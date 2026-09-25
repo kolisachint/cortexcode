@@ -41,3 +41,9 @@ Rules:
    scenario-specific randomness, and document why.
 4. A scenario is owned by exactly one ledger task (`phase`), but may be listed as an
    L2 gate by several tasks.
+5. Print-mode scenarios (`wait_exit`) snapshot with `"history": true` and set
+   `"settings": {"enableSemanticIndex": false}`. On exit tmux 3.4 writes its
+   "Pane is dead" line and scrolls the screen by one row. hoocode also prints an
+   `embsearch` warning to stderr unless the semantic index is off, and whether it
+   prints depends on the host's PATH. Without both settings, what stays visible
+   depends on the environment.
