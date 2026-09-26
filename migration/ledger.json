@@ -1565,7 +1565,7 @@
    "id": "9.3b",
    "title": "Harness skill + prompt-template loaders over ExecutionEnv (loadSkills, loadSourcedSkills, loadPromptTemplates) and executeShellWithCapture",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "9.3a",
     "9.4a"
@@ -1585,7 +1585,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Split from 9.3 (2026-09-26). Needs gitignore matching (ignore package) and YAML frontmatter.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:34:33Z",
+     "commit": "59c420f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:38:00Z",
+     "commit": "59c420f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "9.4a",

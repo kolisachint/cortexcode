@@ -66,6 +66,7 @@
       "cortexcode-tui-terminal"
     ],
     "serde_yaml_ng": [
+      "cortexcode-agent-harness",
       "cortexcode-code-resources"
     ],
     "croner": [

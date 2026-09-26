@@ -5,6 +5,7 @@
 //! `@kolisachint/hoocode-agent-core` package.
 
 pub mod env;
+pub mod frontmatter;
 pub mod messages;
 pub mod prompt_templates;
 pub mod skills;

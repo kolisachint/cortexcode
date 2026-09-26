@@ -1,12 +1,16 @@
 //! Shell output capture: hoocode `harness/utils/shell-output.ts` (v0.5.89).
 //! [`ShellCapture`] is the accumulator `executeShellWithCapture` feeds
 //! stdout/stderr chunks into (sanitized, `\r` dropped, a rolling window of
-//! ~100KB, and a temp file once the output passes 50KB); running the command
-//! through an `ExecutionEnv` is ledger 9.3b.
+//! ~100KB, and a temp file once the output passes 50KB), and
+//! [`execute_shell_with_capture`] runs a command through an
+//! [`ExecutionEnv`](crate::env::ExecutionEnv) with it.
 
 use std::collections::VecDeque;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
+use crate::env::{ChunkCallback, ExecOptions, ExecutionEnv};
 
 use super::truncate::{truncate_tail, TruncationOptions, DEFAULT_MAX_BYTES};
 
@@ -116,6 +120,43 @@ impl ShellCapture {
             full_output_path: self
                 .temp_file_path
                 .map(|p| p.to_string_lossy().into_owned()),
+        }
+    }
+}
+
+/// `executeShellWithCapture`: run `command` with stdout and stderr fed
+/// through one [`ShellCapture`] (`on_chunk` sees the sanitized text). An
+/// aborted command returns what was captured with `cancelled`; other
+/// failures are errors.
+pub async fn execute_shell_with_capture(
+    env: &dyn ExecutionEnv,
+    command: &str,
+    mut options: ExecOptions,
+    on_chunk: Option<ChunkCallback>,
+) -> Result<ShellCaptureResult, String> {
+    let capture = Arc::new(Mutex::new(ShellCapture::new()));
+    let feed = {
+        let capture = capture.clone();
+        Arc::new(move |chunk: &str| {
+            let text = capture.lock().unwrap().push(chunk);
+            if let Some(callback) = &on_chunk {
+                callback(&text);
+            }
+        }) as ChunkCallback
+    };
+    options.on_stdout = Some(feed.clone());
+    options.on_stderr = Some(feed);
+    let signal = options.signal.clone();
+    let result = env.exec(command, options).await;
+    let cancelled = signal.as_ref().is_some_and(|s| s.aborted());
+    let capture = std::mem::take(&mut *capture.lock().unwrap());
+    match result {
+        Ok(result) => Ok(capture.finish(Some(result.exit_code), cancelled)),
+        Err(_) if cancelled => Ok(capture.finish(None, true)),
+        Err(error) => {
+            // The temp file (if any) is closed, as the TS stream is ended.
+            drop(capture);
+            Err(error)
         }
     }
 }

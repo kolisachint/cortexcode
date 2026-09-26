@@ -18,6 +18,28 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 9.3b done (skill + prompt-template loaders, executeShellWithCapture)
+- cortexcode-agent-harness: `frontmatter::parse_frontmatter` (YAML via serde_yaml_ng -> JSON
+  object) and `locale_compare`; `load_skills` / `load_sourced_skills` (SKILL.md makes a
+  directory one skill, root `.md` files are skills, ignore files via the `ignore` crate with
+  rules rebased on the root as in TS, dot entries / node_modules skipped, symlinks resolved,
+  name/description diagnostics); `load_prompt_templates` / `load_sourced_prompt_templates`
+  (non-recursive, 60-char first-line description); `utils::shell_output::
+  execute_shell_with_capture` over ExecutionEnv. Sourced results use `Sourced { item, source }`;
+  TS's optional map callbacks are left to the caller.
+- dep-firewall: `serde_yaml_ng` owners now `cortexcode-agent-harness` + `code-resources`
+  (the TS harness parses frontmatter with `yaml` too). 10.5 can reuse
+  `cortexcode_agent_harness::parse_frontmatter` instead of a second YAML adapter.
+- Deviations: a non-string `description`/`name` counts as missing (TS would throw a TypeError
+  diagnostic); YAML error texts are serde_yaml_ng's; localeCompare is the case-insensitive
+  approximation code-prompts already uses.
+- Tests: skills.test.ts and prompt-templates.test.ts (all cases, unix) + ignore files, name
+  validation, long descriptions, shell capture.
+- Disk: stale test executables in target/debug/deps grew to 21G and filled the session disk;
+  `find target/debug/deps -maxdepth 1 -type f -perm -u+x ! -name '*.so' ! -name '*.rlib'
+  ! -name '*.rmeta' ! -name '*.d' -delete` frees it (they are relinked on demand).
+- Next: 9.4b (agent-harness.ts).
+
 ### 2026-09-26: 9.4a done (ExecutionEnv + the local tokio env)
 - cortexcode-agent-harness `env`: `ExecutionEnv` trait (BoxFuture methods: exec, read/write,
   file_info/list_dir without following symlinks, real_path, exists, create_dir, remove,

@@ -1,14 +1,163 @@
-//! Prompt templates: hoocode `harness/prompt-templates.ts` (v0.5.89)
-//! argument handling ([`parse_command_args`], [`substitute_args`],
-//! [`format_prompt_template_invocation`]; the loaders are ledger 9.3b), plus
-//! the `{{variable}}` [`render`] helpers `cortexcode-code-prompts` uses.
+//! Prompt templates: hoocode `harness/prompt-templates.ts` (v0.5.89):
+//! loading `.md` templates through an [`ExecutionEnv`] and argument handling
+//! ([`parse_command_args`], [`substitute_args`],
+//! [`format_prompt_template_invocation`]), plus the `{{variable}}`
+//! [`render`] helpers `cortexcode-code-prompts` uses.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use regex::{Captures, Regex};
 
+use crate::env::{ExecutionEnv, FileKind};
+use crate::frontmatter::{locale_compare, parse_frontmatter};
+use crate::skills::{basename_env_path, resolve_kind, Sourced};
 use crate::types::PromptTemplate;
+
+/// `PromptTemplateDiagnostic` (always a warning).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromptTemplateDiagnostic {
+    pub message: String,
+    pub path: String,
+}
+
+/// `loadPromptTemplates`' result.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LoadedPromptTemplates {
+    pub prompt_templates: Vec<PromptTemplate>,
+    pub diagnostics: Vec<PromptTemplateDiagnostic>,
+}
+
+/// `loadSourcedPromptTemplates`' result.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourcedPromptTemplates<S> {
+    pub prompt_templates: Vec<Sourced<PromptTemplate, S>>,
+    pub diagnostics: Vec<Sourced<PromptTemplateDiagnostic, S>>,
+}
+
+/// `str.slice(0, n)` in UTF-16 code units.
+fn js_slice(text: &str, n: usize) -> String {
+    let units: Vec<u16> = text.encode_utf16().take(n).collect();
+    String::from_utf16_lossy(&units)
+}
+
+/// `loadTemplateFromFile`: the name is the file name without `.md`; the
+/// description is the frontmatter's, else the first non-blank body line
+/// (cut to 60 characters with `...`).
+async fn load_template_from_file(
+    env: &dyn ExecutionEnv,
+    file_path: &str,
+) -> Result<PromptTemplate, PromptTemplateDiagnostic> {
+    let warn = |message: String| PromptTemplateDiagnostic {
+        message,
+        path: file_path.to_string(),
+    };
+    let raw = env
+        .read_text_file(file_path)
+        .await
+        .map_err(|e| warn(e.message))?;
+    let (frontmatter, body) = parse_frontmatter(&raw).map_err(warn)?;
+    let mut description = frontmatter
+        .get("description")
+        .and_then(|d| d.as_str())
+        .unwrap_or("")
+        .to_string();
+    if description.is_empty() {
+        if let Some(first_line) = body.split('\n').find(|l| !l.trim().is_empty()) {
+            description = js_slice(first_line, 60);
+            if first_line.encode_utf16().count() > 60 {
+                description.push_str("...");
+            }
+        }
+    }
+    let name = basename_env_path(file_path);
+    let name = match name.len().checked_sub(3) {
+        Some(cut) if name[cut..].eq_ignore_ascii_case(".md") => name[..cut].to_string(),
+        _ => name,
+    };
+    Ok(PromptTemplate {
+        name,
+        description: Some(description),
+        content: body,
+    })
+}
+
+async fn push_template(env: &dyn ExecutionEnv, path: &str, result: &mut LoadedPromptTemplates) {
+    match load_template_from_file(env, path).await {
+        Ok(template) => result.prompt_templates.push(template),
+        Err(diagnostic) => result.diagnostics.push(diagnostic),
+    }
+}
+
+/// `loadPromptTemplates`: a directory loads its direct `.md` children (not
+/// recursively), a file input loads that `.md` file; missing paths and other
+/// files are skipped.
+pub async fn load_prompt_templates(
+    env: &dyn ExecutionEnv,
+    paths: &[&str],
+) -> LoadedPromptTemplates {
+    let mut result = LoadedPromptTemplates::default();
+    for path in paths {
+        let Ok(info) = env.file_info(path).await else {
+            continue;
+        };
+        match resolve_kind(env, &info).await {
+            Some(FileKind::Directory) => {
+                let mut entries = match env.list_dir(&info.path).await {
+                    Ok(entries) => entries,
+                    Err(e) => {
+                        result.diagnostics.push(PromptTemplateDiagnostic {
+                            message: e.message,
+                            path: info.path.clone(),
+                        });
+                        continue;
+                    }
+                };
+                entries.sort_by(|a, b| locale_compare(&a.name, &b.name));
+                for entry in entries {
+                    if resolve_kind(env, &entry).await == Some(FileKind::File)
+                        && entry.name.ends_with(".md")
+                    {
+                        push_template(env, &entry.path, &mut result).await;
+                    }
+                }
+            }
+            Some(FileKind::File) if info.name.ends_with(".md") => {
+                push_template(env, &info.path, &mut result).await;
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
+/// `loadSourcedPromptTemplates`: [`load_prompt_templates`] per input,
+/// tagged with its source.
+pub async fn load_sourced_prompt_templates<S: Clone>(
+    env: &dyn ExecutionEnv,
+    inputs: &[(String, S)],
+) -> SourcedPromptTemplates<S> {
+    let mut result = SourcedPromptTemplates {
+        prompt_templates: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    for (path, source) in inputs {
+        let loaded = load_prompt_templates(env, &[path.as_str()]).await;
+        result
+            .prompt_templates
+            .extend(loaded.prompt_templates.into_iter().map(|item| Sourced {
+                item,
+                source: source.clone(),
+            }));
+        result
+            .diagnostics
+            .extend(loaded.diagnostics.into_iter().map(|item| Sourced {
+                item,
+                source: source.clone(),
+            }));
+    }
+    result
+}
 
 /// `parseCommandArgs`: split on spaces and tabs, honoring single and double
 /// quotes (which are dropped).
