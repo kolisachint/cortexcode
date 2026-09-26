@@ -364,7 +364,7 @@ async fn stream_assistant_response(
         reasoning: settings.reasoning.clone(),
         thinking_budgets: config.thinking_budgets.clone(),
         thinking_display: config.thinking_display.clone(),
-        transport: config.transport.clone(),
+        transport: config.transport,
         cache_retention: config.cache_retention,
         send_session_affinity_headers: config.send_session_affinity_headers,
         prompt_suffix: config.prompt_suffix.clone(),

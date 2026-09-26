@@ -15,10 +15,7 @@ use std::collections::BTreeMap;
 
 /// APIs in the catalog whose providers are not ported yet, with the ledger
 /// task that ports them. Remove an entry when its task registers the API.
-const PENDING_APIS: &[(&str, &str)] = &[
-    ("openai-codex-responses", "8.4a"),
-    ("google-gemini-cli", "8.4c"),
-];
+const PENDING_APIS: &[(&str, &str)] = &[("google-gemini-cli", "8.4c")];
 
 /// One catalog model per (provider, api) pair, in catalog order.
 fn one_model_per_provider_api() -> Vec<Model> {
@@ -30,6 +27,14 @@ fn one_model_per_provider_api() -> Vec<Model> {
         }
     }
     seen.into_values().collect()
+}
+
+/// An access token carrying a ChatGPT account id (`aaa.<payload>.bbb`).
+fn codex_token() -> String {
+    // base64 of {"https://api.openai.com/auth":{"chatgpt_account_id":"acc"}}
+    let payload =
+        "eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjIn19";
+    format!("aaa.{payload}.bbb")
 }
 
 fn hi() -> Context {
@@ -73,14 +78,27 @@ fn every_registered_provider_streams_through_its_api() {
         if get_api_provider(&model.api).is_none() {
             continue;
         }
+        let codex = model.api == "openai-codex-responses";
+        // Codex retries every failure but a usage limit, needs a ChatGPT JWT
+        // (it reads the account id from it) and defaults to WebSocket.
+        let error_body = if codex {
+            r#"{"error":{"code":"usage_limit_reached","message":"routed"}}"#
+        } else {
+            r#"{"error":{"message":"routed"}}"#
+        };
         let server = serve_script(vec![(
             "HTTP/1.1 400 Bad Request",
             "application/json",
-            r#"{"error":{"message":"routed"}}"#,
+            error_body,
         )]);
         model.base_url = server.base_url.clone();
         let options = SimpleStreamOptions {
-            api_key: Some("test-key".into()),
+            api_key: Some(if codex {
+                codex_token()
+            } else {
+                "test-key".into()
+            }),
+            transport: codex.then_some(cortexcode_ai::types::Transport::Sse),
             ..Default::default()
         };
         let label = format!("{}/{} ({})", model.provider, model.id, model.api);
@@ -106,6 +124,7 @@ fn every_registered_provider_streams_through_its_api() {
             "anthropic-messages" => "/messages",
             "google-generative-ai" | "google-vertex" => ":streamGenerateContent",
             "openai-responses" | "azure-openai-responses" => "/responses",
+            "openai-codex-responses" => "/codex/responses",
             other => panic!("{label}: no expected path for {other}"),
         };
         assert!(path.contains(expected), "{label}: {path}");

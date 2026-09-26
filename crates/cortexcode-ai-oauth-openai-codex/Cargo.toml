@@ -1,0 +1,24 @@
+[package]
+name = "cortexcode-ai-oauth-openai-codex"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "OpenAI Codex (ChatGPT Plus/Pro) OAuth flow for cortex AI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-oauth = { workspace = true }
+base64 = "0.22"
+serde_json = "1"
+tokio = { version = "1", features = ["macros"] }
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

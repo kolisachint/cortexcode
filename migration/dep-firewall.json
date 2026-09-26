@@ -76,6 +76,9 @@
     ],
     "notify": [
       "cortexcode-code-watch"
+    ],
+    "tokio-tungstenite": [
+      "cortexcode-ai-provider-openai-codex"
     ]
   },
   "pending": {

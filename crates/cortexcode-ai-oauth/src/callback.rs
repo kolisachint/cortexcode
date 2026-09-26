@@ -15,8 +15,21 @@ pub struct CallbackServerOptions {
     pub port: u16,
     pub path: String,
     pub expected_state: String,
-    /// The flow's name in the error page, e.g. `Anthropic`.
+    /// The flow's name in the pages, e.g. `Anthropic`.
     pub label: String,
+    pub validation: CallbackValidation,
+}
+
+/// How a flow validates the redirect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CallbackValidation {
+    /// `error` → "did not complete", then both `code` and `state` required,
+    /// then the state compared (anthropic.ts).
+    #[default]
+    CodeAndState,
+    /// State compared first, then `code` required; `error` is not looked at
+    /// (openai-codex.ts).
+    StateThenCode,
 }
 
 /// `{ code, state }` from the redirect.
@@ -150,6 +163,35 @@ fn respond(options: &CallbackServerOptions, head: &str) -> Response {
             .find(|(k, _)| k == name)
             .map(|(_, v)| v.into_owned())
     };
+    if options.validation == CallbackValidation::StateThenCode {
+        if param("state").as_deref() != Some(options.expected_state.as_str()) {
+            return (
+                "400 Bad Request",
+                HTML,
+                oauth_error_html("State mismatch.", None),
+                None,
+            );
+        }
+        let Some(code) = param("code").filter(|c| !c.is_empty()) else {
+            return (
+                "400 Bad Request",
+                HTML,
+                oauth_error_html("Missing authorization code.", None),
+                None,
+            );
+        };
+        let message = format!(
+            "{} authentication completed. You can close this window.",
+            options.label
+        );
+        let state = options.expected_state.clone();
+        return (
+            "200 OK",
+            HTML,
+            oauth_success_html(&message),
+            Some(CallbackCode { code, state }),
+        );
+    }
     if let Some(error) = param("error") {
         let message = format!("{} authentication did not complete.", options.label);
         return (
@@ -201,6 +243,7 @@ mod tests {
             path: "/callback".into(),
             expected_state: "s1".into(),
             label: "Test".into(),
+            validation: Default::default(),
         }
     }
 
@@ -242,6 +285,32 @@ mod tests {
                 state: "s1".into()
             })
         );
+    }
+
+    #[tokio::test]
+    async fn state_then_code_validation_matches_openai_codex() {
+        let mut server = CallbackServer::start(CallbackServerOptions {
+            path: "/auth/callback".into(),
+            label: "OpenAI".into(),
+            validation: CallbackValidation::StateThenCode,
+            ..options()
+        })
+        .await
+        .unwrap();
+        let port = server.port();
+        assert!(get(port, "/callback?code=c&state=s1")
+            .await
+            .contains("Callback route not found."));
+        assert!(get(port, "/auth/callback?error=access_denied&code=c")
+            .await
+            .contains("State mismatch."));
+        let missing = get(port, "/auth/callback?state=s1&error=access_denied").await;
+        assert!(
+            missing.starts_with("HTTP/1.1 400") && missing.contains("Missing authorization code.")
+        );
+        let ok = get(port, "/auth/callback?code=c1&state=s1").await;
+        assert!(ok.contains("OpenAI authentication completed. You can close this window."));
+        assert_eq!(server.wait_for_code().await.unwrap().code, "c1");
     }
 
     #[tokio::test]

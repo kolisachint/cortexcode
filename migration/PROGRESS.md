@@ -9,14 +9,40 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
-- Still open in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity (8.4c),
-  stream hooks (8.8). 8.7 (OAuth split) is done.
+- Still open in phase 8: Copilot (8.4b), gemini-cli/antigravity (8.4c), stream hooks (8.8).
+  8.4a (openai-codex) and 8.7 (OAuth split) are done.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 8.4a done (openai-codex provider + ChatGPT OAuth)
+- New `cortexcode-ai-provider-openai-codex` (openai-codex-responses.ts): request body in TS key
+  order (`instructions`, `text.verbosity`, `strict: null` tools, reasoning via thinkingLevelMap),
+  SSE/WebSocket headers (`originator: pi` + `pi (<platform> <release>; <arch>)` UA, account id
+  from the JWT), SSE path with the TS retry loop (every failure but a usage limit, 1/2/4 s) and
+  friendly usage-limit errors, `mapCodexEvents` (stops at the terminal event, so a body that
+  stays open still completes), and the WebSocket transport: per-session connection cache with
+  5 min idle expiry, `previous_response_id` delta continuation, per-session SSE fallback with a
+  `provider_transport_failure` diagnostic, debug stats. WebSocket = `tokio-tungstenite` (owned by
+  this crate in dep-firewall.json; rustls/ring, same as reqwest).
+- New `cortexcode-ai-oauth-openai-codex` (openai-codex.ts): PKCE + state, callback server on 1455
+  (new `CallbackValidation::StateThenCode` in the core server), manual-paste race, prompt
+  fallback, token exchange/refresh with the TS error texts, `accountId` stored flat in auth.json.
+  Wired into code-cli `login` ("openai-codex"/"codex"/"chatgpt") and token refresh.
+- `Transport` enum is now hoocode's (`sse`/`websocket`/`websocket-cached`/`auto`, serde kebab);
+  the unused Stdio/StreamableHttp variants are gone. `ResponsesStreamOptions` gained
+  `resolve_service_tier`. `utils/diagnostics.ts` ported into ai-util.
+- `session-resources.ts` ported as `cortexcode_ai_registry::session_resources` (codex cleanup
+  built in); ledger note on 10.3: `AgentSession.dispose()` must call it.
+- Tests: openai-codex-stream.test.ts (all cases; local HTTP + WebSocket mock servers instead of
+  stubbed globals), openai-codex-oauth.test.ts, cache-affinity e2e (`#[ignore]`, needs
+  `OPENAI_CODEX_OAUTH_TOKEN`), plus fallback/error/retry cases. Routing test covers codex.
+- Deviations: onPayload/onResponse (8.8); JSON parse errors use serde's text; diagnostics have no
+  stack; `os.release()` is empty on non-unix.
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 8.7 done (OAuth split: core + anthropic + github-copilot)
 - `cortexcode-ai-oauth` is the core: types (`OAuthCredentials` now serializes flat like

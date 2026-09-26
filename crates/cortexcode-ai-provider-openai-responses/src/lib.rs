@@ -149,6 +149,7 @@ pub fn stream_responses(
     };
     let stream_options = ResponsesStreamOptions {
         service_tier: options.service_tier.clone(),
+        resolve_service_tier: None,
         apply_service_tier_pricing: Some(apply_service_tier_pricing),
     };
     run_responses_stream(model, Ok(request), options.signal, stream_options)

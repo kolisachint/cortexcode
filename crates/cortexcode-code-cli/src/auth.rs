@@ -1,7 +1,8 @@
 //! Interactive OAuth login wiring for the `cortex` CLI.
 //!
 //! The flows (callback server, device code, token exchange) live in
-//! `cortexcode-ai-oauth-anthropic` / `-github-copilot`; this module supplies
+//! `cortexcode-ai-oauth-anthropic` / `-github-copilot` / `-openai-codex`; this
+//! module supplies
 //! the terminal side of their `OAuthLoginCallbacks`, opens the browser and
 //! persists the credentials:
 //!
@@ -36,7 +37,7 @@ impl std::fmt::Display for AuthError {
             AuthError::Flow(e) => write!(f, "login failed: {}", e),
             AuthError::UnknownProvider(p) => write!(
                 f,
-                "unknown login provider: {} (expected 'anthropic' or 'github-copilot')",
+                "unknown login provider: {} (expected 'anthropic', 'github-copilot' or 'openai-codex')",
                 p
             ),
         }
@@ -234,6 +235,18 @@ pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
             let provider =
                 Arc::new(cortexcode_ai_oauth_github_copilot::GitHubCopilotOAuthProvider::default());
             login_with(&store, "github-copilot", "GitHub Copilot", provider, output)?;
+            Ok(())
+        }
+        "openai-codex" | "codex" | "chatgpt" => {
+            let provider =
+                Arc::new(cortexcode_ai_oauth_openai_codex::OpenAICodexOAuthProvider::default());
+            login_with(
+                &store,
+                "openai-codex",
+                "ChatGPT Plus/Pro (Codex Subscription)",
+                provider,
+                output,
+            )?;
             Ok(())
         }
         other => Err(AuthError::UnknownProvider(other.to_string())),

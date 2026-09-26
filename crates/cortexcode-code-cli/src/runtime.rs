@@ -156,6 +156,7 @@ fn oauth_api_key(provider: &str) -> Option<String> {
     let store_key = match provider {
         "anthropic" | "claude" => "anthropic",
         "github-copilot" | "github" | "copilot" => "github-copilot",
+        "openai-codex" => "openai-codex",
         _ => return None,
     };
     let store = crate::auth::CredentialStore::default_location();
@@ -184,6 +185,14 @@ fn oauth_api_key(provider: &str) -> Option<String> {
                     &cortexcode_ai_oauth::ReqwestFetch,
                     &credentials.refresh,
                     credentials.extra_str("enterpriseUrl"),
+                ),
+            )
+            .ok(),
+        "openai-codex" => async_runtime()
+            .block_on(
+                cortexcode_ai_oauth_openai_codex::refresh_openai_codex_token(
+                    &cortexcode_ai_oauth::ReqwestFetch,
+                    &credentials.refresh,
                 ),
             )
             .ok(),

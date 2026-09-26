@@ -873,7 +873,7 @@
    "id": "8.4a",
    "title": "openai-codex-responses provider crate + ChatGPT OAuth crate ai-oauth-openai-codex",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.3",
     "8.7"
@@ -898,6 +898,18 @@
      "commit": "9538d63",
      "kind": "note",
      "text": "8.5a: utils/diagnostics.ts (createAssistantMessageDiagnostic, appendAssistantMessageDiagnostic, formatThrownValue) is used only by openai-codex-responses.ts; port it with this task (AssistantMessage.diagnostics is Vec<serde_json::Value>)."
+    },
+    {
+     "at": "2026-09-26T03:17:22Z",
+     "commit": "3b28ba0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:31:52Z",
+     "commit": "3b28ba0",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -1673,6 +1685,12 @@
      "commit": "912521f",
      "kind": "note",
      "text": "8.2: hoocode passes sessionId: sessionManager.getSessionId() into the agent (sdk.ts:423), so openai-completions sends prompt_cache_key; cortex code-cli build_agent (runtime.rs) sets no session id, so the key is missing from harness requests (all other non-message fields now match). Wire the session id into AgentOptions here."
+    },
+    {
+     "at": "2026-09-26T20:30:34Z",
+     "commit": "3b28ba0",
+     "kind": "note",
+     "text": "8.4a: AgentSession.dispose() must call cortexcode_ai_registry::session_resources::cleanup_session_resources(Some(session_id)) (TS cleanupSessionResources) so cached openai-codex WebSockets are closed."
     }
    ]
   },

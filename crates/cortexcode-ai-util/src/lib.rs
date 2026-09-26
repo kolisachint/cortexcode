@@ -5,6 +5,7 @@
 //! `utils/`.
 
 mod copilot_headers;
+mod diagnostics;
 mod param_fallback;
 mod partial_json;
 mod retry_delay;
@@ -14,6 +15,9 @@ mod validation;
 
 pub use copilot_headers::{
     build_copilot_dynamic_headers, has_copilot_vision_input, infer_copilot_initiator,
+};
+pub use diagnostics::{
+    append_assistant_message_diagnostic, create_assistant_message_diagnostic, DiagnosticError,
 };
 pub use param_fallback::{
     droppable_params_named_by, note_rejected_params, rejected_params_for, reset_rejected_params,

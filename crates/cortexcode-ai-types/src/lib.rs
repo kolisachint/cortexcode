@@ -379,14 +379,18 @@ pub struct ThinkingBudgets {
 /// Mapping from `ThinkingLevel` to provider-specific values.
 pub type ThinkingLevelMap = HashMap<String, serde_json::Value>;
 
-/// Transport preference for streaming.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// Transport preference for providers with more than one (hoocode
+/// `Transport`: `"sse" | "websocket" | "websocket-cached" | "auto"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Transport {
+    Sse,
+    #[serde(rename = "websocket")]
+    WebSocket,
+    #[serde(rename = "websocket-cached")]
+    WebSocketCached,
     #[default]
     Auto,
-    Sse,
-    Stdio,
-    StreamableHttp,
 }
 
 /// Model definition (hoocode `Model`; same JSON shape as the catalog and
