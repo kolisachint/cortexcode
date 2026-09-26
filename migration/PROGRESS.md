@@ -18,6 +18,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 9.4a done (ExecutionEnv + the local tokio env)
+- cortexcode-agent-harness `env`: `ExecutionEnv` trait (BoxFuture methods: exec, read/write,
+  file_info/list_dir without following symlinks, real_path, exists, create_dir, remove,
+  temp dir/file, cleanup), `FileInfo`, `FileKind`, `FileError` + `FileErrorCode` (io
+  ErrorKind -> the TS codes), `ExecOptions` (cwd, env, timeout seconds, AbortSignal,
+  on_stdout/on_stderr), and `LocalExecutionEnv` (alias `NodeExecutionEnv`): shell from
+  getShellConfig (/bin/bash, which bash, sh; Git Bash on Windows), own process group killed
+  with SIGKILL on abort/timeout (`aborted` / `timeout:<s>` errors), UTF-8 chunk streaming that
+  holds back split characters, mkdtemp-style temp dirs.
+- Deviations: FileError messages are the OS text (Node's read `ENOENT: ..., lstat '...'`);
+  rm on a directory without recursive gives Node's ERR_FS_EISDIR text with code `unknown`,
+  as toFileError maps it.
+- Tests: nodejs-env.test.ts (all cases, unix) + timeout / exit code / rm / custom shell.
+- Next: 9.3b (skill + prompt-template loaders, executeShellWithCapture over ExecutionEnv).
+
 ### 2026-09-26: 9.2 split; 9.2a done (harness compaction + branch summarization)
 - Ledger: 9.2 -> 9.2a (harness/compaction/*, both compaction test files) + 9.2b
   (agent-session-compaction.ts: auto-compaction thresholds, /compact, the `compact-command` L2

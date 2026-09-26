@@ -1591,7 +1591,7 @@
    "id": "9.4a",
    "title": "ExecutionEnv trait + FileInfo/FileError (harness/types.ts) and the tokio env (env/nodejs.ts)",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.5b",
     "8.8"
@@ -1610,7 +1610,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Split from 9.4 (2026-09-26).",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:29:48Z",
+     "commit": "e8ee46e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:33:06Z",
+     "commit": "e8ee46e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "9.4b",
