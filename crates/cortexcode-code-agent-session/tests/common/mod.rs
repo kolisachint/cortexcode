@@ -6,7 +6,8 @@ use std::sync::{Arc, Mutex};
 use cortexcode_agent_core::{Agent, AgentOptions};
 use cortexcode_agent_types::{AgentMessage, AgentState, AgentToolResult, AgentTools};
 use cortexcode_ai_provider_faux::{
-    FauxModelDefinition, FauxProvider, FauxResponseStep, RegisterFauxProviderOptions,
+    register_faux_provider, FauxModelDefinition, FauxProvider, FauxProviderRegistration,
+    FauxResponseStep, RegisterFauxProviderOptions,
 };
 use cortexcode_ai_types::{Content, Message};
 use cortexcode_code_agent_session::{
@@ -50,15 +51,18 @@ pub struct Harness {
     pub events: Arc<Mutex<Vec<AgentSessionEvent>>>,
     pub temp_dir: tempfile::TempDir,
     _subscription: SessionSubscription,
+    registration: FauxProviderRegistration,
 }
 
 impl Harness {
     pub fn new(options: HarnessOptions) -> Self {
         let temp_dir = tempfile::tempdir().unwrap();
-        let faux = FauxProvider::with_options(RegisterFauxProviderOptions {
+        // Registered on the API registry so compaction summaries reach it too.
+        let registration = register_faux_provider(RegisterFauxProviderOptions {
             models: options.models,
             ..Default::default()
         });
+        let faux = registration.provider().clone();
         let model = faux.get_model();
         let agent = Arc::new(Agent::with_options(AgentOptions {
             initial_state: Some(AgentState {
@@ -113,6 +117,7 @@ impl Harness {
             events,
             temp_dir,
             _subscription: subscription,
+            registration,
         }
     }
 
@@ -172,6 +177,7 @@ impl Harness {
 impl Drop for Harness {
     fn drop(&mut self) {
         self.session.dispose();
+        self.registration.unregister();
     }
 }
 

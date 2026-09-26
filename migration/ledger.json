@@ -1519,7 +1519,14 @@
     "compact-command"
    ],
    "notes": "Split from 9.2 (2026-09-26). Needs AgentSession, ExtensionRunner, ModelRegistry, SettingsManager.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: AgentSession::{compact, run_auto_compaction, check_compaction, plan_compaction, abort_compaction, is_compacting, set_auto_compaction_enabled} and the CompactionStart/End events exist (crates/cortexcode-code-agent-session/src/compaction.rs); /compact and threshold UI build on them."
+    }
+   ]
   },
   {
    "id": "9.3a",
@@ -2143,7 +2150,7 @@
    "id": "10.3b",
    "title": "AgentSession retry and auto-compaction (agent-session-retry.ts, agent-session-compaction.ts)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a",
     "9.2a"
@@ -2171,6 +2178,18 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: AgentSession (crates/cortexcode-code-agent-session/src/session.rs) leaves the hooks marked '(10.3b)': process_agent_event on agent_end (retry isRetryableError/handleRetryableError, markProviderExhausted, compaction.checkCompaction), message_end resets (resetOverflowRecovery, onSuccessfulAssistantResponse, clearProviderExhaustion), prompt() pre-send checkCompaction on the last assistant + waitForRetry after agent.prompt, abort() retry.abort, isCompacting/isRetrying getters, and the AgentSessionEvent variants compaction_start/end + auto_retry_start/end. Retry controller needs a synchronously created promise per agent_end (TS createPromiseForAgentEnd); events are processed synchronously in the agent listener already."
+    },
+    {
+     "at": "2026-09-26T23:42:53Z",
+     "commit": "74e6c23",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:53:46Z",
+     "commit": "74e6c23",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-retry=pass"
     }
    ]
   },
@@ -2444,6 +2463,12 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
+    },
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: AgentSession skips provider-health bookkeeping (markProviderExhausted on exhausted quota errors after retries, clearProviderExhaustion on a good response); add it with the subagent pool."
     }
    ]
   },
@@ -2705,6 +2730,12 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: AgentSession takes Option<Arc<dyn ExtensionHooks>> (has_command/run_command/emit_error only). Not wired yet: extension event emission before listeners (_emitExtensionEvent incl. message_end replacement), before/after tool call hooks, input handlers, before_agent_start (custom messages + system prompt), model_select/thinking_level_select, session_start/shutdown, getAllRegisteredTools (tool registry treats custom_tools as the only extension tools), onPayload/onResponse/context hooks in services. Tests left for here: suite/agent-session-model-extension (tool_call/tool_result/context/input/before_agent_start/bindExtensions), agent-session-concurrent (tool_call ordering, slow message_end handlers), agent-session-dynamic-provider, dynamic-tools 'registered after initialization' + 'hidden_tool'."
+    },
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: compaction skips the session_before_compact / session_compact hooks (summaries always come from the model); retry-events 'emits extension events before public subscribers' and 'prompt waits for retry when message_end handling is delayed', and compaction 'extension-provided summary' / 'extension cancel' are left for here."
     }
    ]
   },

@@ -12,7 +12,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
-  block); 9.2b waits for 10.3b (AgentSession retry + compaction).
+  block); 9.2b is unblocked (10.3b done).
 - 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
   (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
@@ -23,6 +23,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.3b done (AgentSession retry + auto-compaction)
+- `code-agent-session::retry` (agent-session-retry.ts): retry is armed synchronously on
+  `agent_end` (a pending flag + `Notify`, waited on by `prompt()`), exponential backoff with an
+  abortable sleep (the abort signal is installed before `auto_retry_start` so a listener can
+  cancel), the error dropped from the context, then `continue()` once the agent is idle.
+- `code-agent-session::compaction` (agent-session-compaction.ts): manual `compact()` (abort,
+  disconnect, summarize through the API registry, persist, reload context), `plan_compaction`
+  (the decision half of `checkCompaction`: one-shot overflow recovery, threshold with the
+  error-message usage estimate, stale pre-compaction guards) and `run_auto_compaction` (retry
+  the turn after overflow, or kick queued messages, after 100ms).
+- The `agent_end` tail runs as a spawned task (TS's async event queue); the pre-prompt check
+  runs in `prompt()`. New events: CompactionStart/End, AutoRetryStart/End.
+- Tests: 13 retry/event-order + 12 compaction (TS spies on `_runAutoCompaction` become
+  `plan_compaction` assertions; extension-hook cases noted on 12.3). L2 print-retry passes.
 
 ### 2026-09-26: 10.3a done (AgentSession core)
 - New crate `cortexcode-code-agent-session`: `session.rs` (agent-session.ts core: event

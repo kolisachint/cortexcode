@@ -32,8 +32,11 @@ use cortexcode_code_tool_bash::{
 };
 
 use crate::auth_guidance::{format_no_api_key_found_message, format_no_model_selected_message};
+use crate::compaction::{CompactionReason, CompactionState};
 use crate::hooks::{ExtensionError, ExtensionHooks, NoExtensions, ResourceLoader, TemplateKind};
+use crate::retry::RetryState;
 use crate::stats::{self, ContextUsage, ForkableMessage, SessionStats, TranscriptSelection};
+use cortexcode_agent_compaction::CompactionResult;
 
 /// `DEFAULT_THINKING_LEVEL`.
 pub const DEFAULT_THINKING_LEVEL: ThinkingLevel = ThinkingLevel::Off;
@@ -84,6 +87,27 @@ pub enum AgentSessionEvent {
     },
     ThinkingLevelChanged {
         level: ThinkingLevel,
+    },
+    CompactionStart {
+        reason: CompactionReason,
+    },
+    CompactionEnd {
+        reason: CompactionReason,
+        result: Option<CompactionResult>,
+        aborted: bool,
+        will_retry: bool,
+        error_message: Option<String>,
+    },
+    AutoRetryStart {
+        attempt: u64,
+        max_attempts: u64,
+        delay_ms: u64,
+        error_message: String,
+    },
+    AutoRetryEnd {
+        success: bool,
+        attempt: u64,
+        final_error: Option<String>,
     },
 }
 
@@ -259,6 +283,9 @@ struct Inner {
     listeners: Mutex<Vec<(usize, SessionListener)>>,
     next_listener_id: Mutex<usize>,
     agent_subscription: Mutex<Option<Subscription>>,
+    retry: Mutex<RetryState>,
+    retry_notify: tokio::sync::Notify,
+    compaction: Mutex<CompactionState>,
 }
 
 /// The session branch as tools see it (`ctx.sessionManager.getBranch()`).
@@ -387,6 +414,9 @@ impl AgentSession {
             listeners: Mutex::new(Vec::new()),
             next_listener_id: Mutex::new(1),
             agent_subscription: Mutex::new(None),
+            retry: Mutex::new(RetryState::default()),
+            retry_notify: tokio::sync::Notify::new(),
+            compaction: Mutex::new(CompactionState::default()),
         });
         let session = Self { inner };
         session.connect_to_agent();
@@ -426,7 +456,45 @@ impl AgentSession {
     // Event subscription
     // ------------------------------------------------------------------
 
-    fn connect_to_agent(&self) {
+    pub(crate) fn retry_state(&self) -> MutexGuard<'_, RetryState> {
+        lock(&self.inner.retry)
+    }
+
+    pub(crate) fn retry_notify(&self) -> &tokio::sync::Notify {
+        &self.inner.retry_notify
+    }
+
+    pub(crate) fn compaction_state(&self) -> MutexGuard<'_, CompactionState> {
+        lock(&self.inner.compaction)
+    }
+
+    pub(crate) fn auth(&self) -> &Arc<dyn AuthLookup + Send + Sync> {
+        &self.inner.auth
+    }
+
+    /// Run session work in the background (the TS event queue's async tail).
+    pub(crate) fn spawn<F>(&self, future: F)
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                handle.spawn(future);
+            }
+            Err(_) => {
+                // No runtime (a synchronous caller): run it to completion here.
+                let _ = std::thread::spawn(move || {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map(|rt| rt.block_on(future))
+                })
+                .join();
+            }
+        }
+    }
+
+    pub(crate) fn connect_to_agent(&self) {
         let mut slot = lock(&self.inner.agent_subscription);
         if slot.is_some() {
             return;
@@ -439,11 +507,11 @@ impl AgentSession {
         }));
     }
 
-    fn disconnect_from_agent(&self) {
+    pub(crate) fn disconnect_from_agent(&self) {
         lock(&self.inner.agent_subscription).take();
     }
 
-    fn emit(&self, event: AgentSessionEvent) {
+    pub(crate) fn emit(&self, event: AgentSessionEvent) {
         let listeners: Vec<SessionListener> = lock(&self.inner.listeners)
             .iter()
             .map(|(_, l)| l.clone())
@@ -467,13 +535,18 @@ impl AgentSession {
         });
     }
 
-    /// `_processAgentEvent`, run synchronously as the agent emits.
+    /// `_processAgentEvent`, run synchronously as the agent emits; the
+    /// `agent_end` tail (retry backoff, compaction) runs in the background.
     fn process_agent_event(&self, event: &AgentEvent) {
+        if let AgentEvent::AgentEnd { messages } = event {
+            self.arm_retry_for_agent_end(messages);
+        }
         // A queued user message leaves its queue before listeners see it start.
         if let AgentEvent::MessageStart {
             message: AgentMessage::User(user),
         } = event
         {
+            self.reset_overflow_recovery();
             let text = user_text(user);
             if !text.is_empty() {
                 let removed = {
@@ -520,13 +593,33 @@ impl AgentSession {
             }
             if let AgentMessage::Assistant(assistant) = message {
                 lock(&self.inner.state).last_assistant_message = Some(assistant.clone());
+                if assistant.stop_reason != cortexcode_ai_types::StopReason::Error {
+                    self.reset_overflow_recovery();
+                    // Provider-exhaustion bookkeeping arrives with subagents (10.9).
+                    self.on_successful_assistant_response();
+                }
             }
         }
 
         if let AgentEvent::AgentEnd { .. } = event {
-            // Retry and auto-compaction checks on the last assistant message (10.3b).
-            lock(&self.inner.state).last_assistant_message.take();
+            let last = lock(&self.inner.state).last_assistant_message.take();
+            if let Some(message) = last {
+                let session = self.clone();
+                self.spawn(async move { session.after_agent_end(message).await });
+            }
         }
+    }
+
+    /// The `agent_end` tail: retry a transient error, else check compaction.
+    async fn after_agent_end(&self, message: AssistantMessage) {
+        let model = self.model();
+        if crate::retry::is_retryable_error(&message, model.as_ref())
+            && self.handle_retryable_error(&message).await
+        {
+            return;
+        }
+        self.resolve_retry();
+        self.check_compaction(&message, true).await;
     }
 
     /// Subscribe to session events. Persistence is internal (messages are
@@ -974,7 +1067,16 @@ impl AgentSession {
             }
             return err(format_no_api_key_found_message(&model.provider));
         }
-        // Compaction check on the last assistant message (10.3b).
+        // Compact first if the last response (aborted ones included) calls for it.
+        let last_assistant = self.inner.agent.with_state(|s| {
+            s.messages.iter().rev().find_map(|m| match m {
+                AgentMessage::Assistant(a) => Some(a.clone()),
+                _ => None,
+            })
+        });
+        if let Some(last_assistant) = last_assistant {
+            self.check_compaction(&last_assistant, false).await;
+        }
 
         let mut messages = Vec::new();
         let user_message_text = match expanded.template {
@@ -1018,7 +1120,7 @@ impl AgentSession {
             .prompt(messages)
             .await
             .map_err(|e| AgentSessionError(e.0))?;
-        // Auto-retry wait (10.3b).
+        self.wait_for_retry().await;
         Ok(())
     }
 
@@ -1186,6 +1288,7 @@ impl AgentSession {
 
     /// Abort the current run and wait until the agent is idle.
     pub async fn abort(&self) {
+        self.abort_retry();
         self.inner.agent.abort();
         self.inner.agent.wait_for_idle().await;
     }

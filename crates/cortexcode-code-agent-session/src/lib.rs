@@ -4,11 +4,14 @@
 //! and `agent-session-services.ts` with the session-building part of `sdk.ts`.
 
 pub mod auth_guidance;
+pub mod compaction;
 pub mod hooks;
+pub mod retry;
 pub mod services;
 pub mod session;
 pub mod stats;
 
+pub use compaction::{CompactionPlan, CompactionReason};
 pub use hooks::{
     CommandFuture, ExpandedInput, ExtensionError, ExtensionHooks, NoExtensions, ResourceLoader,
     StaticResourceLoader, TemplateKind,
