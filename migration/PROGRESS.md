@@ -9,14 +9,30 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
-- Still open in phase 8: Copilot (8.4b), gemini-cli/antigravity (8.4c), stream hooks (8.8).
-  8.4a (openai-codex) and 8.7 (OAuth split) are done.
+- Still open in phase 8: gemini-cli/antigravity (8.4c), stream hooks (8.8).
+  8.4a (openai-codex), 8.4b (Copilot) and 8.7 (OAuth split) are done.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 8.4b done (GitHub Copilot routing)
+- No production code change: Copilot routing was already in place (catalog models on
+  `anthropic-messages` / `openai-responses` / `openai-completions` with the static Copilot
+  headers; Bearer auth + `buildCopilotDynamicHeaders` in all three providers; env key
+  `COPILOT_GITHUB_TOKEN` only; OAuth device flow + token refresh from 8.7). This task adds the
+  missing test coverage in `crates/cortexcode-ai/tests/github_copilot.rs`:
+  github-copilot-anthropic.test.ts (Bearer + static/dynamic headers, no fine-grained beta,
+  Opus 4.8 adaptive thinking, interleaved beta), transform-messages-copilot-openai-to-anthropic
+  .test.ts (all 4 cases), and a routing check that each Copilot backend sends Bearer auth, the
+  catalog headers, `X-Initiator` user/agent and `Copilot-Vision-Request` for image input.
+- Already ported elsewhere: github-copilot-oauth.test.ts (ai-oauth-github-copilot, 8.7),
+  openai-responses-copilot-provider.test.ts (ai-provider-openai-responses, 8.3).
+- Not in this task: applying `modifyModels` (token `proxy-ep` -> model baseUrl for
+  business/enterprise accounts) when models are listed; that is model-registry work (10.4b).
+- Next: `ledger.py next` (8.4c).
 
 ### 2026-09-26: 8.4a done (openai-codex provider + ChatGPT OAuth)
 - New `cortexcode-ai-provider-openai-codex` (openai-codex-responses.ts): request body in TS key

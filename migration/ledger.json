@@ -917,7 +917,7 @@
    "id": "8.4b",
    "title": "GitHub Copilot routing (anthropic + openai backends) via compat/headers",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.2",
     "8.7"
@@ -936,7 +936,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:40:38Z",
+     "commit": "b5982c2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:43:42Z",
+     "commit": "b5982c2",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.4c",
@@ -1720,7 +1733,14 @@
     "list-models"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:44:05Z",
+     "commit": "b5982c2",
+     "kind": "note",
+     "text": "8.4b: apply OAuth modifyModels when building the registry (github-copilot: token proxy-ep -> baseUrl via cortexcode_ai_oauth_github_copilot modify_models; model-registry.ts:397). Today code-cli uses the catalog baseUrl, so Copilot business/enterprise accounts hit the individual endpoint."
+    }
+   ]
   },
   {
    "id": "10.5",
