@@ -18,6 +18,28 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 9.2 split; 9.2a done (harness compaction + branch summarization)
+- Ledger: 9.2 -> 9.2a (harness/compaction/*, both compaction test files) + 9.2b
+  (agent-session-compaction.ts: auto-compaction thresholds, /compact, the `compact-command` L2
+  scenario; depends on 10.3). 9.4b now depends on 9.2a. Remaining phase-9 order: 9.4a -> 9.3b
+  -> 9.4b (9.1 blocked on the rmcp decision).
+- cortexcode-agent-compaction rewritten as the port (the old KeepRecent/Summary strategies were
+  unused placeholders): `utils` (file ops, serializeConversation with the 2000-char tool-result
+  cap, SUMMARIZATION_SYSTEM_PROMPT), `compaction` (token estimates in UTF-16 chars/4,
+  shouldCompact with maxContextRatio, findCutPoint/findTurnStartIndex, prepareCompaction,
+  generateSummary / turn-prefix summary via `cortexcode_ai_registry::complete_simple`, compact
+  with parallel split-turn summaries and tokensAfter), `branch_summarization`
+  (collectEntriesForBranchSummary over a `BranchEntrySource` trait, prepareBranchEntries,
+  generateBranchSummary). Works on `cortexcode_agent_session::FileEntry`.
+- API shape: TS positional (apiKey, headers, signal, thinkingLevel) -> `SummarizeOptions`;
+  `turn_start_index: Option<usize>` for TS -1. Deviation: tool-call args serialize with serde
+  (an integral float prints `1.0`, JS `1`).
+- Tests: agent/test/harness/compaction.test.ts and coding-agent/test/compaction.test.ts (incl.
+  the v1 large-session.jsonl fixture read from target/hoocode-pin, migrated by code-session;
+  the live LLM case is `#[ignore]`, ANTHROPIC_OAUTH_TOKEN), plus split-turn and branch cases.
+- Disk: target/debug/incremental hit the session's disk allowance (11G); deleted it.
+- Next: 9.4a.
+
 ### 2026-09-26: 9.3/9.4 split; 9.3a done (harness utils without an ExecutionEnv)
 - Ledger: 9.3 -> 9.3a (env-free utils) + 9.3b (skill/prompt-template loaders and
   executeShellWithCapture over ExecutionEnv); 9.4 -> 9.4a (ExecutionEnv trait + tokio env,

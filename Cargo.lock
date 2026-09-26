@@ -258,10 +258,18 @@ dependencies = [
 name = "cortexcode-agent-compaction"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-agent-harness",
+ "cortexcode-agent-session",
  "cortexcode-agent-types",
+ "cortexcode-ai-models",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-registry",
  "cortexcode-ai-types",
+ "cortexcode-code-session",
+ "futures-util",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
