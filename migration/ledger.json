@@ -1961,7 +1961,7 @@
    "id": "10.2e",
    "title": "webfetch + websearch: new crate code-tool-web (htmd, dom_smoothie)",
    "phase": 10,
-   "status": "todo",
+   "status": "blocked",
    "depends": [
     "10.2a"
    ],
@@ -1977,7 +1977,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T22:58:36Z",
+     "commit": "89768c1",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:59:21Z",
+     "commit": "89768c1",
+     "kind": "block",
+     "text": "Design decision needed: hoocode's webfetch/websearch shell out to the external webtools binary (kolisachint/webtools, Rust, downloaded by tools-manager) and parse its --json output. Options: (A) port the tool layer exactly (args, .webtoolsignore, 15-min cache, result formatting, texts) and run the same webtools binary from PATH / ~/.cortexcode/bin, giving output identical to hoocode (deviates from the design doc's htmd+dom_smoothie row); (B) the design doc's in-process htmd + dom_smoothie extraction, only approximately matching the binary's output (its source was not readable here; add_repo was denied); (C) depend on webtools as a library crate (needs access to that repo). Asked the user 2026-09-26."
+    }
+   ]
   },
   {
    "id": "10.2f",

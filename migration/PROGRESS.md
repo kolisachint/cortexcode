@@ -22,6 +22,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2e blocked on a design question (webtools)
+- hoocode's webfetch/websearch do no HTML work themselves: they run the external `webtools`
+  binary (kolisachint/webtools, Rust, downloaded by tools-manager) and format its `--json`
+  output. The design doc planned in-process `htmd` + `dom_smoothie`, which can only
+  approximate that binary; its source was not readable here (add_repo was denied). Asked the
+  user to pick: (A) port the tool layer exactly and run the same binary, (B) in-process as
+  planned, (C) depend on webtools as a library. Continuing with 10.2f meanwhile.
+
 ### 2026-09-26: 10.2d l1_done (SearchCodebase); default bundle is now hoocode's five tools
 - New crate `cortexcode-code-tool-search` (tools/search.ts + the runtime half of core/search/):
   query plan, mode resolution, lexical retriever, grep→chunk adapter, RRF, deterministic
