@@ -2039,7 +2039,7 @@
    "id": "10.2g",
    "title": "Context GC: evictSupersededReads (stub superseded read results in the outgoing context) + transformContext wiring",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
@@ -2060,8 +2060,27 @@
    "l2": [
     "print-tool-read-paging"
    ],
-   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c. From 10.2c: port the 'keeps GC evicting the superseded read once the loop has moved on' case of edit-encoding-recovery-loop.test.ts here (needs evictSupersededReads); the rest of that file is in code-tools-fs/tests/edit_write.rs.",
-   "log": []
+   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c. From 10.2c: port the 'keeps GC evicting the superseded read once the loop has moved on' case of edit-encoding-recovery-loop.test.ts here (needs evictSupersededReads); the rest of that file is in code-tools-fs/tests/edit_write.rs. Done 2026-09-26: context_gc in code-tools-fs, wired as the CLI's transform_context when contextGc.enabled (budget pressure from estimate_context_tokens with the high-water latch). print-tool-read-paging: every tool result (incl. superseded stubs) now matches hoocode; only the default-bundle system prompt differs (10.4c).",
+   "log": [
+    {
+     "at": "2026-09-26T23:07:31Z",
+     "commit": "71fd6c6",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:11:56Z",
+     "commit": "71fd6c6",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T23:12:34Z",
+     "commit": "71fd6c6",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read-paging=fail"
+    }
+   ]
   },
   {
    "id": "10.3",

@@ -731,6 +731,7 @@ name = "cortexcode-code-cli"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "cortexcode-agent-compaction",
  "cortexcode-agent-core",
  "cortexcode-agent-types",
  "cortexcode-ai-env",

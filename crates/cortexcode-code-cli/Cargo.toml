@@ -35,6 +35,7 @@ cortexcode-ai-oauth-openai-codex = { workspace = true }
 cortexcode-ai-stream = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-agent-core = { workspace = true }
+cortexcode-agent-compaction = { workspace = true }
 cortexcode-agent-types = { workspace = true }
 crossterm = "0.28"
 serde_json = "1"

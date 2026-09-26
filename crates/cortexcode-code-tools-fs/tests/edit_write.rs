@@ -713,7 +713,13 @@ impl Harness {
     }
     fn call(&mut self, name: &str, args: Value) -> String {
         self.seq += 1;
-        let id = format!("{name}-{}", self.seq);
+        // Unique across tests: read-dedup keeps a process-wide per-call-id stamp.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let id = format!(
+            "{name}-{}-{}",
+            self.seq,
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        );
         self.msgs.lock().unwrap().push(json!({"role": "assistant", "content": [{"type": "toolCall", "id": id, "name": name, "arguments": args}]}));
         id
     }

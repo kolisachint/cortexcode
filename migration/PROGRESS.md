@@ -22,6 +22,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2g l1_done (context GC)
+- `code-tools-fs::context_gc` (context-gc.ts): superseded-read stubs (later successful
+  edit/write, or a later overlapping read; disjoint ranges coexist; dedup pointers neither
+  supersede nor get stubbed; failed edits never evict) and pressure-gated bash eviction (>= 0.6
+  for outputs over 2000 UTF-16 units, >= 0.8 always; side-effecting commands never), returning
+  `None` when nothing changed. `BudgetPressureLatch` is sdk.ts's high-water latch.
+- CLI: `transform_context` runs it when `contextGc.enabled`, with pressure from
+  `estimate_context_tokens` over the model's context window (the extension `context` hook part
+  of sdk.ts's transformContext waits for the extension runtime).
+- Tests: context-gc.test.ts, read-dedup.test.ts's GC x pointer cases, the full 258-sequence
+  read/edit/GC matrix, and the recovery-loop GC case from 10.2c (8 tests). The tests give
+  every tool call a process-unique id: read-dedup's content stamps are keyed by call id in a
+  process-wide map, and Rust runs tests in parallel (vitest runs a file sequentially), which
+  made two tests that both used `call-1` flaky. edit_write.rs's harness got the same fix.
+- L2: `print-tool-read-paging` now matches hoocode in every tool result, superseded stubs
+  included; only the default-bundle system prompt differs → 10.4c.
+
 ### 2026-09-26: 10.2f l1_done (TodoWrite, ask_options, task store)
 - New crate `cortexcode-code-task-store` (task-store.ts): tasks + owning agents, batched change
   notifications (listeners run outside the lock), version counter, create/update (clearable

@@ -468,11 +468,39 @@ fn build_agent_with_gate(
     let permission_gate = Some(build_permission_gate(interactive));
     let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
 
+    // Context GC on the outgoing copy (sdk.ts transformContext), when
+    // `contextGc.enabled`; bash eviction follows the latched budget pressure.
+    let context_window = state.model.context_window;
+    let transform_context: Option<cortexcode_agent_core::TransformContextFn> =
+        settings.context_gc_enabled().then(|| {
+            let latch = std::sync::Mutex::new(cortexcode_code_tools_fs::BudgetPressureLatch::new());
+            let gc_cwd = cwd.clone();
+            let hook: cortexcode_agent_core::TransformContextFn =
+                Arc::new(move |messages, _signal| {
+                    let tokens =
+                        cortexcode_agent_compaction::estimate_context_tokens(&messages).tokens;
+                    let budget_pressure = latch
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .update(tokens, context_window);
+                    let options = cortexcode_code_tools_fs::ContextGcOptions {
+                        cwd: gc_cwd.clone(),
+                        budget_pressure,
+                    };
+                    Ok(
+                        cortexcode_code_tools_fs::evict_superseded_reads(&messages, &options)
+                            .unwrap_or(messages),
+                    )
+                });
+            hook
+        });
+
     let agent = Agent::with_options(AgentOptions {
         initial_state: Some(state),
         api_key,
         permission_gate,
         stream_fn,
+        transform_context,
         ..Default::default()
     });
     let subscription = transcript.follow(&agent);
