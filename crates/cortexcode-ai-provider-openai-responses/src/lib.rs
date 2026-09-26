@@ -5,8 +5,7 @@
 //! `providers/openai-responses-shared.ts` (v0.5.89).
 //!
 //! Client retries follow the `openai` SDK (see
-//! `cortexcode_ai_util::send_with_sdk_retries`). Known deviation: the
-//! `onPayload` / `onResponse` hooks are not supported.
+//! `cortexcode_ai_util::send_with_sdk_retries`).
 
 pub mod shared;
 
@@ -14,8 +13,8 @@ use std::collections::{HashMap, HashSet};
 
 use cortexcode_ai_stream::AssistantMessageEventStream;
 use cortexcode_ai_types::{
-    AbortSignal, CacheRetention, Context, Model, OpenAIResponsesCompat, SimpleStreamOptions,
-    ThinkingLevel, Usage,
+    AbortSignal, CacheRetention, Context, Model, OnPayload, OnResponse, OpenAIResponsesCompat,
+    SimpleStreamOptions, ThinkingLevel, Usage,
 };
 use cortexcode_ai_util::{
     build_copilot_dynamic_headers, has_copilot_vision_input, resolve_cache_retention,
@@ -52,6 +51,8 @@ pub struct ResponsesOptions {
     pub reasoning_summary: Option<String>,
     /// `service_tier` (`auto`, `default`, `flex`, `scale`, `priority`).
     pub service_tier: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 fn level_key(level: &ThinkingLevel) -> &'static str {
@@ -95,6 +96,8 @@ pub fn simple_options(
         reasoning_effort,
         reasoning_summary: None,
         service_tier: None,
+        on_payload: options.on_payload.clone(),
+        on_response: options.on_response.clone(),
     }
 }
 
@@ -146,6 +149,8 @@ pub fn stream_responses(
         timeout_ms: options.timeout_ms,
         max_retries: options.max_retries,
         max_retry_delay_ms: options.max_retry_delay_ms,
+        on_payload: options.on_payload.clone(),
+        on_response: options.on_response.clone(),
     };
     let stream_options = ResponsesStreamOptions {
         service_tier: options.service_tier.clone(),

@@ -19,7 +19,7 @@ use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model,
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model, OnPayload,
     SimpleStreamOptions, StopReason, TextContent, ThinkingBudgets, ThinkingContent, ThinkingLevel,
     ToolCallContent, Usage,
 };
@@ -77,6 +77,7 @@ pub struct GeminiCliOptions {
     pub tool_choice: Option<String>,
     /// Gemini 2.x: `budget_tokens`; Gemini 3: `level`.
     pub thinking: Option<GoogleThinking>,
+    pub on_payload: Option<OnPayload>,
 }
 
 /// `streamSimpleGoogleGeminiCli`: fails before streaming without an API key.
@@ -110,6 +111,7 @@ pub fn simple_options(
         session_id: options.session_id.clone(),
         headers: options.headers.clone(),
         max_retry_delay_ms: options.max_retry_delay_ms,
+        on_payload: options.on_payload.clone(),
         ..Default::default()
     };
     let effort = match options.reasoning.clone() {
@@ -677,7 +679,10 @@ async fn drive(
     let (access_token, project_id) = parse_credentials(options.api_key.as_deref())?;
     let is_antigravity = model.provider == "google-antigravity";
     let endpoints = endpoints(model);
-    let body = build_request(model, context, &project_id, options, is_antigravity).to_string();
+    let body = build_request(model, context, &project_id, options, is_antigravity);
+    let body = OnPayload::apply(options.on_payload.as_ref(), body, model)
+        .await
+        .to_string();
     let headers = build_headers(model, &access_token, options);
     let client = reqwest::Client::new();
 

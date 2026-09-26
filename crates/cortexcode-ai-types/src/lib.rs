@@ -518,6 +518,137 @@ impl Context {
 // Stream options
 // ---------------------------------------------------------------------------
 
+/// A boxed, sendable future (the hooks below may be async, as in TS).
+pub type HookFuture<T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
+
+/// `ProviderResponse`: the HTTP status and headers of a provider response
+/// (`headersToRecord`: lower-case names in sorted order, repeated headers
+/// joined with `, `).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ProviderResponse {
+    pub status: u16,
+    pub headers: std::collections::BTreeMap<String, String>,
+}
+
+impl ProviderResponse {
+    /// From raw header pairs, as `headersToRecord(response.headers)` sees
+    /// them.
+    pub fn from_pairs(status: u16, pairs: impl IntoIterator<Item = (String, String)>) -> Self {
+        let mut headers = std::collections::BTreeMap::<String, String>::new();
+        for (name, value) in pairs {
+            headers
+                .entry(name.to_ascii_lowercase())
+                .and_modify(|existing| {
+                    existing.push_str(", ");
+                    existing.push_str(&value);
+                })
+                .or_insert(value);
+        }
+        Self { status, headers }
+    }
+}
+
+/// `onPayload(payload, model)`: inspect or replace the provider request
+/// body before it is sent; `None` keeps it unchanged. `M` is the model type
+/// the hook sees ([`Model`], or the images API's model).
+pub struct OnPayload<M = Model>(
+    std::sync::Arc<
+        dyn Fn(serde_json::Value, M) -> HookFuture<Option<serde_json::Value>> + Send + Sync,
+    >,
+);
+
+impl<M: Clone + Send + Sync + 'static> OnPayload<M> {
+    /// An async hook.
+    pub fn new<F, Fut>(hook: F) -> Self
+    where
+        F: Fn(serde_json::Value, M) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Option<serde_json::Value>> + Send + 'static,
+    {
+        Self(std::sync::Arc::new(move |payload, model| {
+            Box::pin(hook(payload, model))
+        }))
+    }
+
+    /// A synchronous hook.
+    pub fn sync(
+        hook: impl Fn(&serde_json::Value, &M) -> Option<serde_json::Value> + Send + Sync + 'static,
+    ) -> Self {
+        Self::new(move |payload, model| std::future::ready(hook(&payload, &model)))
+    }
+
+    /// Run the hook: its replacement, or `payload` when it returns `None`.
+    pub async fn apply(
+        hook: Option<&OnPayload<M>>,
+        payload: serde_json::Value,
+        model: &M,
+    ) -> serde_json::Value {
+        match hook {
+            Some(hook) => (hook.0)(payload.clone(), model.clone())
+                .await
+                .unwrap_or(payload),
+            None => payload,
+        }
+    }
+}
+
+impl<M> Clone for OnPayload<M> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<M> std::fmt::Debug for OnPayload<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OnPayload(..)")
+    }
+}
+
+/// `onResponse(response, model)`: awaited after the HTTP response arrives
+/// and before its body is read.
+pub struct OnResponse<M = Model>(
+    std::sync::Arc<dyn Fn(ProviderResponse, M) -> HookFuture<()> + Send + Sync>,
+);
+
+impl<M: Clone + Send + Sync + 'static> OnResponse<M> {
+    /// An async hook.
+    pub fn new<F, Fut>(hook: F) -> Self
+    where
+        F: Fn(ProviderResponse, M) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        Self(std::sync::Arc::new(move |response, model| {
+            Box::pin(hook(response, model))
+        }))
+    }
+
+    /// A synchronous hook.
+    pub fn sync(hook: impl Fn(&ProviderResponse, &M) + Send + Sync + 'static) -> Self {
+        Self::new(move |response, model| {
+            hook(&response, &model);
+            std::future::ready(())
+        })
+    }
+
+    /// Run the hook when there is one.
+    pub async fn notify(hook: Option<&OnResponse<M>>, response: ProviderResponse, model: &M) {
+        if let Some(hook) = hook {
+            (hook.0)(response, model.clone()).await;
+        }
+    }
+}
+
+impl<M> Clone for OnResponse<M> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<M> std::fmt::Debug for OnResponse<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OnResponse(..)")
+    }
+}
+
 /// Stream options used by the low-level provider `stream` method.
 #[derive(Debug, Clone)]
 pub struct StreamOptions {
@@ -529,8 +660,8 @@ pub struct StreamOptions {
     pub thinking_budgets: Option<ThinkingBudgets>,
     pub thinking_display: Option<ThinkingDisplay>,
     pub transport: Option<Transport>,
-    pub on_payload: Option<String>,
-    pub on_response: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
     pub headers: Option<HashMap<String, String>>,
     /// `cacheRetention`: prompt cache retention preference (default: long).
     pub cache_retention: Option<CacheRetention>,
@@ -563,8 +694,8 @@ pub struct SimpleStreamOptions {
     pub thinking_budgets: Option<ThinkingBudgets>,
     pub thinking_display: Option<ThinkingDisplay>,
     pub transport: Option<Transport>,
-    pub on_payload: Option<String>,
-    pub on_response: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
     /// `cacheRetention`: prompt cache retention preference (default: long).
     pub cache_retention: Option<CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
@@ -595,8 +726,8 @@ pub struct ProviderStreamOptions {
     pub cache_retention: Option<CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
     pub prompt_suffix: Option<String>,
-    pub on_payload: Option<String>,
-    pub on_response: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 // ---------------------------------------------------------------------------

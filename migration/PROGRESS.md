@@ -9,14 +9,36 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
-- Still open in phase 8: stream hooks (8.8). Every catalog API is now registered
-  (8.4a codex, 8.4b Copilot, 8.4c gemini-cli/antigravity, 8.7 OAuth split are done).
+- Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
+  typed onPayload/onResponse hooks.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 8.8 done (typed onPayload / onResponse); phase 8 complete
+- `cortexcode_ai_types`: `OnPayload<M = Model>` / `OnResponse<M = Model>` (Arc'd async closures
+  with `new` / `sync` constructors, `apply` / `notify` helpers), `ProviderResponse {status,
+  headers}` (`from_pairs` = `headersToRecord`: lower-case, sorted, repeats joined with ", "),
+  `HookFuture`. The `Option<String>` placeholders in SimpleStreamOptions / StreamOptions /
+  ProviderStreamOptions are gone. `cortexcode_ai_util::provider_response(&reqwest::Response)`.
+- Wired as in TS: openai-completions, openai-responses, azure (via `ResponsesRequest`),
+  anthropic (`stream: true` re-forced after the hook), codex (onPayload before the transport
+  choice; onResponse for every SSE response, failures included), google / vertex / gemini-cli
+  (onPayload only; google's hook sees the SDK params), faux (onResponse with a synthetic 200),
+  images/openrouter (`OnPayload<ImagesModel>`). The SDK-backed providers call onResponse only for
+  a successful response (the SDK throws first), as in TS.
+- Tests: `crates/cortexcode-ai/tests/stream_hooks.rs` (onPayload replacement reaches the wire for
+  every registered API; onResponse status/headers; failures skip it; codex reports a 400),
+  faux and images hook tests, and openrouter-cache-write-repro.test.ts as an `#[ignore]` live
+  test (OPENROUTER_API_KEY) plus an offline check of its cache-marker transform.
+- Hook closures need their parameter types written (`|payload: &Value, model: &Model|`): the
+  default model type parameter is not used for inference.
+- Ledger note on 9.4: agent-types' `Box<dyn Fn(String)>` hook placeholders still need mapping
+  onto these.
+- Next: `ledger.py next` (phase 9/10).
 
 ### 2026-09-26: 8.4c done (Cloud Code Assist: gemini-cli + antigravity)
 - New `cortexcode-ai-provider-google-gemini-cli` (google-gemini-cli.ts), registered for the

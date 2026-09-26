@@ -8,8 +8,8 @@
 use std::collections::HashMap;
 
 use cortexcode_ai_types::{
-    AbortSignal, CacheRetention, Content, Context, Message, Model, OpenAICompletionsCompat,
-    SimpleStreamOptions, ThinkingLevel, Tool,
+    AbortSignal, CacheRetention, Content, Context, Message, Model, OnPayload, OnResponse,
+    OpenAICompletionsCompat, SimpleStreamOptions, ThinkingLevel, Tool,
 };
 use cortexcode_ai_util::{
     build_copilot_dynamic_headers, has_copilot_vision_input, rejected_params_for,
@@ -197,6 +197,8 @@ pub struct CompletionsOptions {
     pub tool_choice: Option<Value>,
     /// `minimal` .. `xhigh`, already clamped to what the model supports.
     pub reasoning_effort: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 fn level_key(level: &ThinkingLevel) -> &'static str {
@@ -240,6 +242,8 @@ pub fn simple_options(
         constrain_tool_calls: options.constrain_tool_calls == Some(true),
         tool_choice: options.tool_choice.clone(),
         reasoning_effort,
+        on_payload: options.on_payload.clone(),
+        on_response: options.on_response.clone(),
     }
 }
 

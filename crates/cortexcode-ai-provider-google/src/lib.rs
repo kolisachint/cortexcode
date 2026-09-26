@@ -156,6 +156,8 @@ async fn drive(
         gemini_client_config(model, &api_key, options)
     };
     let params = build_params(model, context, options, vertex)?;
+    let params =
+        cortexcode_ai_types::OnPayload::apply(options.on_payload.as_ref(), params, model).await;
     let endpoint = config.endpoint(&model.id);
     let body = sdk_body(&params, vertex);
 

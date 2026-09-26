@@ -5,7 +5,9 @@
 
 use std::collections::HashMap;
 
-use cortexcode_ai_types::{AbortSignal, Content, Cost, ModelCost, StopReason, Usage};
+use cortexcode_ai_types::{
+    AbortSignal, Content, Cost, ModelCost, OnPayload, OnResponse, StopReason, Usage,
+};
 
 /// An image-generation model definition (hoocode `ImagesModel`, same JSON shape).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -43,6 +45,8 @@ pub struct ImagesOptions {
     pub timeout_ms: Option<u64>,
     /// SDK client retries (default 2).
     pub max_retries: Option<u32>,
+    pub on_payload: Option<OnPayload<ImagesModel>>,
+    pub on_response: Option<OnResponse<ImagesModel>>,
 }
 
 /// Result of an image-generation request.

@@ -11,7 +11,7 @@ use cortexcode_ai_stream::{
 };
 use cortexcode_ai_types::{
     AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Message, Model,
-    StopReason, TextContent, ThinkingContent, Tool, ToolCallContent, Usage,
+    OnPayload, OnResponse, StopReason, TextContent, ThinkingContent, Tool, ToolCallContent, Usage,
 };
 use cortexcode_ai_util::{
     describe_provider_error, openai_api_error_message, parse_streaming_json,
@@ -783,6 +783,8 @@ pub struct ResponsesRequest {
     /// SDK client retries (default 2).
     pub max_retries: Option<u32>,
     pub max_retry_delay_ms: Option<u64>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 /// Run a Responses API request as the TS providers' `stream*` functions do:
@@ -859,11 +861,12 @@ async fn drive(
     let client = builder
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let body = OnPayload::apply(request.on_payload.as_ref(), request.body.clone(), model).await;
     let response = post_json_with_sdk_retries(
         &client,
         &request.url,
         &request.headers,
-        &request.body,
+        &body,
         request.max_retries,
         request.max_retry_delay_ms,
     )
@@ -879,6 +882,12 @@ async fn drive(
             request.max_retry_delay_ms,
         ));
     }
+    OnResponse::notify(
+        request.on_response.as_ref(),
+        cortexcode_ai_util::provider_response(&response),
+        model,
+    )
+    .await;
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),
     });

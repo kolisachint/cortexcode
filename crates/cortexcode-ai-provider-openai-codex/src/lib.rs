@@ -7,9 +7,8 @@
 //! and the SSE fallback with its own retry loop. Events go through the shared
 //! Responses stream processor of `cortexcode-ai-provider-openai-responses`.
 //!
-//! Known deviations: the `onPayload` / `onResponse` hooks are not supported
-//! (ledger task 8.8), errors carry no JS stack in their diagnostics, and a JSON
-//! parse failure reads with serde's message instead of V8's.
+//! Known deviations: errors carry no JS stack in their diagnostics, and a
+//! JSON parse failure reads with serde's message instead of V8's.
 
 mod websocket;
 
@@ -26,7 +25,8 @@ use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessageEvent, Context, Model, SimpleStreamOptions, StopReason, Transport,
+    AbortSignal, AssistantMessageEvent, Context, Model, OnPayload, OnResponse, SimpleStreamOptions,
+    StopReason, Transport,
 };
 use cortexcode_ai_util::{
     append_assistant_message_diagnostic, create_assistant_message_diagnostic, DiagnosticError,
@@ -78,6 +78,9 @@ pub struct CodexOptions {
     pub service_tier: Option<String>,
     /// `low` (default), `medium` or `high`.
     pub text_verbosity: Option<String>,
+    pub on_payload: Option<OnPayload>,
+    /// Called for every SSE response, retried failures included.
+    pub on_response: Option<OnResponse>,
 }
 
 // =============================================================================
@@ -162,6 +165,8 @@ pub fn stream(
         headers: options.headers.clone(),
         transport: options.transport,
         reasoning_effort: base.reasoning_effort,
+        on_payload: options.on_payload.clone(),
+        on_response: options.on_response.clone(),
         ..CodexOptions::default()
     };
     Ok(stream_codex_responses(model, context, options))
@@ -227,6 +232,7 @@ async fn run(
         .ok_or_else(|| CodexError::other(format!("No API key for provider: {}", model.provider)))?;
     let account_id = extract_account_id(&api_key)?;
     let body = build_request_body(model, context, options);
+    let body = OnPayload::apply(options.on_payload.as_ref(), body, model).await;
     let websocket_request_id = options
         .session_id
         .clone()
@@ -310,7 +316,14 @@ async fn run(
         }
     }
 
-    let response = fetch_with_retries(model, &sse_headers, body_json, signal).await?;
+    let response = fetch_with_retries(
+        model,
+        &sse_headers,
+        body_json,
+        signal,
+        options.on_response.as_ref(),
+    )
+    .await?;
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),
     });
@@ -367,6 +380,7 @@ async fn fetch_with_retries(
     headers: &[(String, String)],
     body_json: String,
     signal: Option<&AbortSignal>,
+    on_response: Option<&OnResponse>,
 ) -> Result<reqwest::Response, CodexError> {
     let client = reqwest::Client::builder()
         .build()
@@ -380,7 +394,16 @@ async fn fetch_with_retries(
         for (k, v) in headers {
             request = request.header(k.as_str(), v.as_str());
         }
-        let error = match abortable(signal, request.send()).await? {
+        let sent = abortable(signal, request.send()).await?;
+        if let Ok(response) = &sent {
+            let provider_response = cortexcode_ai_util::provider_response(response);
+            abortable(
+                signal,
+                OnResponse::notify(on_response, provider_response, model),
+            )
+            .await?;
+        }
+        let error = match sent {
             Err(e) => CodexError::other(format!("fetch failed: {e}")),
             Ok(response) if response.status().is_success() => return Ok(response),
             Ok(response) => {

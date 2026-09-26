@@ -89,6 +89,8 @@ pub fn stream_azure(
             timeout_ms: options.base.timeout_ms,
             max_retries: options.base.max_retries,
             max_retry_delay_ms: options.base.max_retry_delay_ms,
+            on_payload: options.base.on_payload.clone(),
+            on_response: options.base.on_response.clone(),
         }
     });
     run_responses_stream(

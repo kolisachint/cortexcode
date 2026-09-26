@@ -5,7 +5,9 @@
 //! endpoint with `modalities: ["image", ...]` — a single non-streaming
 //! request/response, unlike the text providers' SSE streams.
 
-use cortexcode_ai_types::{Content, Cost, ImageContent, StopReason, TextContent, Usage};
+use cortexcode_ai_types::{
+    Content, Cost, ImageContent, OnPayload, OnResponse, StopReason, TextContent, Usage,
+};
 
 use crate::types::{
     calculate_image_cost, AssistantImages, ImagesContext, ImagesModel, ImagesOptions,
@@ -147,6 +149,7 @@ async fn request(
         headers.extend(extra.iter().map(|(k, v)| (k.clone(), v.clone())));
     }
     let body = build_request_body(model, context);
+    let body = OnPayload::apply(options.on_payload.as_ref(), body, model).await;
     let response = cortexcode_ai_util::post_json_with_sdk_retries(
         &client,
         &url,
@@ -158,6 +161,11 @@ async fn request(
     .await
     .map_err(|failure| failure.message().to_string())?;
     let status = response.status().as_u16();
+    // `.withResponse()` throws on an error status before the hook runs.
+    if (200..300).contains(&status) {
+        let provider_response = cortexcode_ai_util::provider_response(&response);
+        OnResponse::notify(options.on_response.as_ref(), provider_response, model).await;
+    }
     let text = response
         .text()
         .await
@@ -420,5 +428,50 @@ mod tests {
         let result = generate_images(&model, &context, &options).await;
         assert_eq!(result.stop_reason, StopReason::Error);
         assert!(result.error_message.unwrap().starts_with("429 "));
+    }
+
+    #[tokio::test]
+    async fn on_payload_replaces_the_body_and_on_response_sees_the_status() {
+        let base_url = spawn_mock_server(
+            "HTTP/1.1 200 OK",
+            r#"{"id":"gen-1","choices":[{"message":{"content":"done"}}]}"#,
+        );
+        let model = test_model(base_url);
+        let context = ImagesContext {
+            input: vec![Content::Text(TextContent {
+                text_signature: None,
+                text: "a cat".into(),
+            })],
+        };
+        let payloads = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let statuses = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (p, r) = (payloads.clone(), statuses.clone());
+        let options = ImagesOptions {
+            api_key: Some("k".into()),
+            on_payload: Some(OnPayload::sync(
+                move |payload: &serde_json::Value, model: &ImagesModel| {
+                    p.lock().unwrap().push((payload.clone(), model.id.clone()));
+                    None
+                },
+            )),
+            on_response: Some(OnResponse::sync(
+                move |response: &cortexcode_ai_types::ProviderResponse, _: &ImagesModel| {
+                    r.lock().unwrap().push(response.status);
+                },
+            )),
+            ..Default::default()
+        };
+        let result = generate_images(&model, &context, &options).await;
+        assert_eq!(
+            result.stop_reason,
+            StopReason::Stop,
+            "{:?}",
+            result.error_message
+        );
+        let payloads = payloads.lock().unwrap();
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0].0["modalities"], serde_json::json!(["image"]));
+        assert_eq!(payloads[0].1, "openrouter/some-image-model");
+        assert_eq!(*statuses.lock().unwrap(), [200]);
     }
 }

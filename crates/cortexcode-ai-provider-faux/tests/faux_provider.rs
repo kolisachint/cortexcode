@@ -728,3 +728,31 @@ async fn unregisters_the_provider() {
         format!("No API provider registered for api: {}", registration.api())
     );
 }
+
+#[tokio::test]
+async fn awaits_on_response_with_a_synthetic_200_before_responding() {
+    let registration = register(Default::default());
+    registration.set_responses(vec![msg("hello")]);
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let record = seen.clone();
+    let options = SimpleStreamOptions {
+        on_response: Some(cortexcode_ai_types::OnResponse::sync(
+            move |response: &cortexcode_ai_types::ProviderResponse, model: &Model| {
+                record
+                    .lock()
+                    .unwrap()
+                    .push((response.clone(), model.id.clone()));
+            },
+        )),
+        ..Default::default()
+    };
+    let response = complete_simple(registration.get_model(), hi(), options)
+        .await
+        .unwrap();
+    assert_eq!(response.stop_reason, StopReason::Stop);
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].0.status, 200);
+    assert!(seen[0].0.headers.is_empty());
+    assert_eq!(seen[0].1, registration.get_model().id);
+}

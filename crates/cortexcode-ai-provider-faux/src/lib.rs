@@ -437,7 +437,15 @@ impl FauxProvider {
         context: Context,
         options: SimpleStreamOptions,
     ) {
-        // `onResponse` is not modelled in SimpleStreamOptions yet.
+        cortexcode_ai_types::OnResponse::notify(
+            options.on_response.as_ref(),
+            cortexcode_ai_types::ProviderResponse {
+                status: 200,
+                headers: Default::default(),
+            },
+            &model,
+        )
+        .await;
         let Some(step) = step else {
             let mut message = self.error_message("No more faux responses queued", &model);
             message.usage = self.usage_estimate(&message, &context, &options);
