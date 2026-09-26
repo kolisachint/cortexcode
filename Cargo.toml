@@ -43,7 +43,6 @@ members = [
     # Code namespace
     "crates/cortexcode-code",
     "crates/cortexcode-code-cli",
-    "crates/cortexcode-code-config",
     "crates/cortexcode-code-paths",
     "crates/cortexcode-code-settings",
     "crates/cortexcode-code-extensions",
@@ -120,7 +119,6 @@ cortexcode-agent-types = { path = "crates/cortexcode-agent-types" }
 
 cortexcode-code = { path = "crates/cortexcode-code" }
 cortexcode-code-cli = { path = "crates/cortexcode-code-cli" }
-cortexcode-code-config = { path = "crates/cortexcode-code-config" }
 cortexcode-code-paths = { path = "crates/cortexcode-code-paths" }
 cortexcode-code-settings = { path = "crates/cortexcode-code-settings" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }

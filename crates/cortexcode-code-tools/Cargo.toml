@@ -15,7 +15,6 @@ publish = true
 [dependencies]
 cortexcode-agent-types = { workspace = true }
 cortexcode-ai-types = { workspace = true }
-cortexcode-code-config = { workspace = true }
 cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tools-fs = { workspace = true }
 serde = { version = "1", features = ["derive"] }

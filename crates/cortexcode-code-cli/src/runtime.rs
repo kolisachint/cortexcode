@@ -13,9 +13,9 @@ use cortexcode_ai_env::get_env_api_key;
 use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
 use cortexcode_ai_types::{Context, Model as AiModel, SimpleStreamOptions};
 
-use cortexcode_code_config::Config;
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
 use cortexcode_code_prompts::BuildSystemPromptOptions;
+use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tool_api::{
     wrap_tool_definitions, SessionBranch, ToolContext, ToolContextFactory, ToolDefinition,
 };
@@ -80,29 +80,24 @@ impl From<std::io::Error> for RuntimeError {
 }
 
 /// Resolve the provider and model from CLI arguments, falling back to the
-/// persisted/migrated config file and finally to hardcoded defaults.
-fn resolve_provider_model(args: &Args) -> Result<(String, String), RuntimeError> {
-    let config = crate::config_or_default();
-    Ok(resolve_provider_model_with_config(args, &config))
-}
-
-/// Pure variant of [`resolve_provider_model`] taking an explicit config, so
-/// the fallback precedence can be unit-tested without touching the
-/// filesystem.
-fn resolve_provider_model_with_config(args: &Args, config: &Config) -> (String, String) {
+/// `defaultProvider` / `defaultModel` settings and finally to hardcoded
+/// defaults.
+fn resolve_provider_model(args: &Args, settings: &SettingsManager) -> (String, String) {
     let provider = args
         .provider
         .clone()
-        .or_else(|| config.provider.clone())
+        .or_else(|| settings.default_provider())
         .unwrap_or_else(|| "anthropic".to_string());
     let model = args
         .model
         .clone()
         .or_else(|| {
-            // Only trust the config's model if it was paired with the same
+            // Only trust the default model if it was paired with the same
             // provider (or no provider override was requested at all).
-            if args.provider.is_none() || args.provider.as_deref() == config.provider.as_deref() {
-                config.model.clone()
+            if args.provider.is_none()
+                || args.provider.as_deref() == settings.default_provider().as_deref()
+            {
+                settings.default_model()
             } else {
                 None
             }
@@ -122,26 +117,10 @@ fn default_model_for_provider(provider: &str) -> String {
     }
 }
 
-/// Resolve the API key for the provider.
+/// Resolve the API key for the provider: CLI flag, then the environment,
+/// then a stored OAuth token (auth.json precedence arrives with 10.4b).
 fn resolve_api_key(provider: &str, args: &Args) -> Option<String> {
-    let config = crate::config_or_default();
-    resolve_api_key_with_config(provider, args, &config)
-}
-
-/// Pure variant of [`resolve_api_key`] taking an explicit config, so the
-/// fallback precedence (CLI flag > per-provider config > global config >
-/// environment variable) can be unit-tested without touching the
-/// filesystem.
-fn resolve_api_key_with_config(provider: &str, args: &Args, config: &Config) -> Option<String> {
     if let Some(key) = &args.api_key {
-        return Some(key.clone());
-    }
-    if let Some(provider_config) = config.providers.get(provider) {
-        if let Some(key) = &provider_config.api_key {
-            return Some(key.clone());
-        }
-    }
-    if let Some(key) = &config.api_key {
         return Some(key.clone());
     }
     if let Some(key) = get_env_api_key(provider) {
@@ -314,12 +293,18 @@ impl SessionBranch for LiveTranscript {
     }
 }
 
-/// The default coding tools as definitions. Tool options use hoocode's default
-/// settings (`toolOutput` 32KB/800 lines, `images.autoResize`, `contextGc.enabled`
-/// gating read-dedup) until settings are ported (10.1).
-fn build_tool_definitions(cwd: &std::path::Path) -> Vec<ToolDefinition> {
+/// The default coding tools as definitions. The read tool takes its caps from
+/// `toolOutput`, image resizing from `images.autoResize`, and read-dedup from
+/// `contextGc.enabled`.
+fn build_tool_definitions(
+    cwd: &std::path::Path,
+    settings: &SettingsManager,
+) -> Vec<ToolDefinition> {
     let read = ReadToolOptions {
-        dedup_reads: true,
+        auto_resize_images: settings.image_auto_resize(),
+        max_output_bytes: settings.tool_output_max_bytes() as usize,
+        max_output_lines: settings.tool_output_max_lines() as usize,
+        dedup_reads: settings.context_gc_enabled(),
         ..Default::default()
     };
     cortexcode_code_tools::default_tool_definitions(
@@ -344,15 +329,14 @@ fn wrap_tools(
     wrap_tool_definitions(definitions, Some(ctx_factory))
 }
 
-/// Build the permission gate for the current CLI mode.
+/// Build the permission gate for the current CLI mode. Read-only tools are
+/// always auto-approved.
 fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
-    let config = crate::config_or_default();
-
     if interactive {
         let inner = Arc::new(crate::permission_dialog::InteractivePermissionGate);
         return Arc::new(PolicyPermissionGate::new(
             PermissionPolicy::Ask,
-            config.auto_approve_read_only(),
+            true,
             Some(inner),
         ));
     }
@@ -360,7 +344,7 @@ fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
     // Non-interactive (print) mode: auto-approve dangerous tools.
     Arc::new(PolicyPermissionGate::new(
         PermissionPolicy::Auto,
-        config.auto_approve_read_only(),
+        true,
         None,
     ))
 }
@@ -379,7 +363,8 @@ fn build_agent_with_gate(
     args: &Args,
     interactive: bool,
 ) -> Result<(Agent, Subscription), RuntimeError> {
-    let (provider, model_id) = resolve_provider_model(args)?;
+    let settings = crate::load_settings();
+    let (provider, model_id) = resolve_provider_model(args, &settings);
     // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
     let registry = match cortexcode_code_models::default_models_json_path() {
         Some(path) => cortexcode_code_models::ModelRegistry::create(path),
@@ -417,7 +402,7 @@ fn build_agent_with_gate(
             let list = supported.join(", ");
             format!(
                 "Provider '{}' is not supported. Use one of: {}\n\
-                 Edit ~/.cortexcode/config.json and set \"provider\" to one of the above,\n\
+                 Set \"defaultProvider\" in ~/.cortexcode/settings.json to one of the above,\n\
                  then set the corresponding API key, e.g.:\n\
                    export ANTHROPIC_API_KEY=your-key-here",
                 provider, list
@@ -427,13 +412,13 @@ fn build_agent_with_gate(
     }
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    // Light preset (--light): the four light tools and the terse prompt. The
-    // "light" setting needs settings (10.1).
-    let light = args.light == Some(true);
+    // Light preset (--light, else the "light" setting): the four light tools
+    // and the terse prompt.
+    let light = args.light.unwrap_or_else(|| settings.light());
     let definitions = if light {
         cortexcode_code_tools::light::light_tool_definitions(cwd.clone())
     } else {
-        build_tool_definitions(&cwd)
+        build_tool_definitions(&cwd, &settings)
     };
     let system_prompt = build_system_prompt(args, &cwd, &definitions, light);
     let transcript = Arc::new(LiveTranscript::default());
@@ -688,7 +673,12 @@ mod tests {
     fn default_prompt_lists_tools_with_snippets() {
         let args = crate::args::parse_args(&[]);
         let cwd = std::path::Path::new("/w");
-        let prompt = build_system_prompt(&args, cwd, &build_tool_definitions(cwd), false);
+        let prompt = build_system_prompt(
+            &args,
+            cwd,
+            &build_tool_definitions(cwd, &SettingsManager::in_memory(Default::default())),
+            false,
+        );
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains("Available tools:\n- read: Read file contents\n\nGuidelines:"));
     }
@@ -704,61 +694,58 @@ mod tests {
         assert!(msg.extract_message().is_some());
     }
 
+    fn settings(provider: Option<&str>, model: Option<&str>) -> SettingsManager {
+        let mut map = serde_json::Map::new();
+        if let Some(provider) = provider {
+            map.insert("defaultProvider".into(), provider.into());
+        }
+        if let Some(model) = model {
+            map.insert("defaultModel".into(), model.into());
+        }
+        SettingsManager::in_memory(map)
+    }
+
     #[test]
-    fn test_resolve_provider_model_cli_args_win_over_config() {
+    fn test_resolve_provider_model_cli_args_win_over_settings() {
         let args = Args {
             provider: Some("openai".into()),
             model: Some("gpt-4".into()),
             ..Default::default()
         };
-        let config = Config {
-            provider: Some("anthropic".into()),
-            model: Some("claude-sonnet-4".into()),
-            ..Default::default()
-        };
         assert_eq!(
-            resolve_provider_model_with_config(&args, &config),
+            resolve_provider_model(&args, &settings(Some("anthropic"), Some("claude-sonnet-4"))),
             ("openai".to_string(), "gpt-4".to_string())
         );
     }
 
     #[test]
-    fn test_resolve_provider_model_falls_back_to_config() {
-        let args = Args::default();
-        let config = Config {
-            provider: Some("anthropic".into()),
-            model: Some("claude-opus-4".into()),
-            ..Default::default()
-        };
+    fn test_resolve_provider_model_falls_back_to_settings() {
         assert_eq!(
-            resolve_provider_model_with_config(&args, &config),
+            resolve_provider_model(
+                &Args::default(),
+                &settings(Some("anthropic"), Some("claude-opus-4"))
+            ),
             ("anthropic".to_string(), "claude-opus-4".to_string())
         );
     }
 
     #[test]
-    fn test_resolve_provider_model_ignores_mismatched_config_model() {
-        // Config's default model belongs to a different provider than the
-        // one requested on the CLI, so it must not leak across providers.
+    fn test_resolve_provider_model_ignores_mismatched_default_model() {
+        // The default model belongs to a different provider than the one
+        // requested on the CLI, so it must not leak across providers.
         let args = Args {
             provider: Some("openai".into()),
             ..Default::default()
         };
-        let config = Config {
-            provider: Some("anthropic".into()),
-            model: Some("claude-opus-4".into()),
-            ..Default::default()
-        };
-        let (provider, model) = resolve_provider_model_with_config(&args, &config);
+        let (provider, model) =
+            resolve_provider_model(&args, &settings(Some("anthropic"), Some("claude-opus-4")));
         assert_eq!(provider, "openai");
         assert_eq!(model, default_model_for_provider("openai"));
     }
 
     #[test]
-    fn test_resolve_provider_model_no_args_no_config_uses_defaults() {
-        let args = Args::default();
-        let config = Config::default();
-        let (provider, model) = resolve_provider_model_with_config(&args, &config);
+    fn test_resolve_provider_model_no_args_no_settings_uses_defaults() {
+        let (provider, model) = resolve_provider_model(&Args::default(), &settings(None, None));
         assert_eq!(provider, "anthropic");
         assert_eq!(model, default_model_for_provider("anthropic"));
     }
@@ -769,46 +756,9 @@ mod tests {
             api_key: Some("cli-key".into()),
             ..Default::default()
         };
-        let config = Config {
-            api_key: Some("config-key".into()),
-            ..Default::default()
-        };
         assert_eq!(
-            resolve_api_key_with_config("anthropic", &args, &config),
+            resolve_api_key("anthropic", &args),
             Some("cli-key".to_string())
-        );
-    }
-
-    #[test]
-    fn test_resolve_api_key_prefers_provider_specific_config() {
-        let args = Args::default();
-        let mut config = Config {
-            api_key: Some("global-key".into()),
-            ..Default::default()
-        };
-        config.providers.insert(
-            "anthropic".into(),
-            cortexcode_code_config::ProviderConfig {
-                api_key: Some("provider-key".into()),
-                ..Default::default()
-            },
-        );
-        assert_eq!(
-            resolve_api_key_with_config("anthropic", &args, &config),
-            Some("provider-key".to_string())
-        );
-    }
-
-    #[test]
-    fn test_resolve_api_key_falls_back_to_global_config() {
-        let args = Args::default();
-        let config = Config {
-            api_key: Some("global-key".into()),
-            ..Default::default()
-        };
-        assert_eq!(
-            resolve_api_key_with_config("anthropic", &args, &config),
-            Some("global-key".to_string())
         );
     }
 }

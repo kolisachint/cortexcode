@@ -13,14 +13,34 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
   block); 9.2b waits for 10.3 (AgentSession).
-- Phase 10: 10.1 split into 10.1a (code-paths, done) / 10.1b (code-settings, done) / 10.1c (CLI
-  wiring, retire the invented `Config`).
+- Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
+  reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 10.1c done (CLI on code-paths + code-settings; code-config deleted)
+- `cortexcode-code-config` is deleted: its invented `~/.cortexcode/config.json` schema
+  (provider/model/api_key/providers/auto_approve_*) and the `migrate.rs` one-shot copy from
+  `~/.hoocode/settings.json` are replaced by code-settings, which reads the real
+  `settings.json` with the `.hoocode` fallback. The design doc's "keep the migrate.rs
+  one-shot copy" is superseded; the doc's crate tables are updated.
+- code-cli: default provider/model come from `defaultProvider` / `defaultModel`; `--light`
+  falls back to the `light` setting; the read tool takes `toolOutput.maxBytes/maxLines`,
+  `images.autoResize` and `contextGc.enabled`. API keys: CLI flag, env, stored OAuth (the
+  config-file keys, which hoocode never had, are gone; auth.json precedence is 10.4b).
+  Read-only tools stay auto-approved (was the `auto_approve_read_only` config default).
+- Auth store path is `code_paths::auth_path()`; session dirs come from
+  `code_paths::sessions_dir()` (both now honor `*_CODING_AGENT_DIR`). The `cortexcode-code`
+  umbrella re-exports `paths` and `settings` instead of `config`.
+- Ledger bookkeeping: 10.1c's crate list now names `cortexcode-code` instead of the deleted
+  `cortexcode-code-config` (noted on the task).
+- Checks: workspace tests + clippy clean; L2 `print-basic` pass. Full harness: print-basic,
+  print-error, print-retry, print-tool-read-light, print-tool-invalid-light pass; the other
+  failures belong to later tasks (10.2/10.2a/10.3/10.8a/11.x), as before.
 
 ### 2026-09-26: 10.1b done (code-settings)
 - New crate `cortexcode-code-settings` (settings-{types,defaults,storage,manager}.ts). Settings

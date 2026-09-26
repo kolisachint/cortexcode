@@ -1775,15 +1775,15 @@
    "id": "10.1c",
    "title": "Move code-cli (and session/auth paths) from code-config onto code-paths + code-settings; retire the invented Config",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1a",
     "10.1b"
    ],
    "crates": [
-    "cortexcode-code-config",
     "cortexcode-code-cli",
-    "cortexcode-code-session"
+    "cortexcode-code-session",
+    "cortexcode-code"
    ],
    "sources": [
     "packages/coding-agent/src/config.ts",
@@ -1794,8 +1794,27 @@
    "l2": [
     "print-basic"
    ],
-   "notes": "Split from 10.1 (2026-09-26); keeps the print-basic L2 scenario.",
-   "log": []
+   "notes": "Split from 10.1 (2026-09-26); keeps the print-basic L2 scenario. The crate list names the crates that remain: cortexcode-code-config is deleted by this task, and the umbrella cortexcode-code now re-exports paths/settings.",
+   "log": [
+    {
+     "at": "2026-09-26T22:03:37Z",
+     "commit": "53233ad",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:06:07Z",
+     "commit": "53233ad",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:06:49Z",
+     "commit": "53233ad",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
   },
   {
    "id": "10.2b",

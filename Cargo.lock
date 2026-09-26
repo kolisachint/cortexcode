@@ -713,13 +713,14 @@ name = "cortexcode-code"
 version = "0.0.1"
 dependencies = [
  "cortexcode-code-cli",
- "cortexcode-code-config",
  "cortexcode-code-extensions",
+ "cortexcode-code-paths",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
  "cortexcode-code-resources",
  "cortexcode-code-rpc",
  "cortexcode-code-session",
+ "cortexcode-code-settings",
  "cortexcode-code-subagents",
  "cortexcode-code-tools",
 ]
@@ -740,12 +741,13 @@ dependencies = [
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
- "cortexcode-code-config",
  "cortexcode-code-media",
  "cortexcode-code-models",
+ "cortexcode-code-paths",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
  "cortexcode-code-rpc",
+ "cortexcode-code-settings",
  "cortexcode-code-tool-api",
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
@@ -753,14 +755,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
-]
-
-[[package]]
-name = "cortexcode-code-config"
-version = "0.0.1"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -854,7 +848,7 @@ dependencies = [
  "cortexcode-agent-session",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
- "cortexcode-code-config",
+ "cortexcode-code-paths",
  "serde",
  "serde_json",
 ]
@@ -902,7 +896,6 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
- "cortexcode-code-config",
  "cortexcode-code-prompts",
  "cortexcode-code-tool-api",
  "cortexcode-code-tools-fs",

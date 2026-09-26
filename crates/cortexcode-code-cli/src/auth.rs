@@ -70,7 +70,7 @@ impl CredentialStore {
     /// Create a store backed by the default `~/.cortexcode/auth.json` path.
     pub fn default_location() -> Self {
         Self {
-            path: cortexcode_code_config::default_config_dir().join("auth.json"),
+            path: cortexcode_code_paths::auth_path(),
         }
     }
 

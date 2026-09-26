@@ -14,7 +14,8 @@ publish = false
 
 [dependencies]
 cortexcode-code-print = { workspace = true }
-cortexcode-code-config = { workspace = true }
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-settings = { workspace = true }
 cortexcode-code-models = { workspace = true }
 cortexcode-ai-registry = { workspace = true }
 cortexcode-code-prompts = { workspace = true }

@@ -70,14 +70,12 @@ pub use cortexcode_agent_session::encode_cwd;
 
 /// Default session directory for a project.
 pub fn default_session_dir(cwd: &str) -> PathBuf {
-    cortexcode_code_config::default_config_dir()
-        .join("sessions")
-        .join(encode_cwd(cwd))
+    default_sessions_root().join(encode_cwd(cwd))
 }
 
 /// Root session directory containing per-project subdirectories.
 pub fn default_sessions_root() -> PathBuf {
-    cortexcode_code_config::default_config_dir().join("sessions")
+    cortexcode_code_paths::sessions_dir()
 }
 
 /// Make an ISO 8601 timestamp suitable for file names.
