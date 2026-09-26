@@ -1502,7 +1502,7 @@
    "status": "todo",
    "depends": [
     "9.2a",
-    "10.3"
+    "10.3b"
    ],
    "crates": [
     "cortexcode-agent-compaction"
@@ -2083,8 +2083,8 @@
    ]
   },
   {
-   "id": "10.3",
-   "title": "New crate code-agent-session: AgentSession orchestrator (persist, retry, auto-compact, stats, tree navigation, model/thinking switch)",
+   "id": "10.3a",
+   "title": "New crate code-agent-session: AgentSession core (event processing + session persistence, prompt/steer/follow-up queues, abort, model/thinking switch and cycling, active tools + system prompt rebuild, bash execution records, stats, services); print mode runs on it",
    "phase": 10,
    "status": "todo",
    "depends": [
@@ -2097,21 +2097,21 @@
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session.ts",
-    "packages/coding-agent/src/core/agent-session-runtime.ts",
     "packages/coding-agent/src/core/agent-session-services.ts",
-    "packages/coding-agent/src/core/agent-session-retry.ts",
-    "packages/coding-agent/src/core/agent-session-stats.ts",
-    "packages/coding-agent/src/core/agent-session-tree-navigation.ts"
+    "packages/coding-agent/src/core/agent-session-stats.ts"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/agent-session*.test.ts",
-    "packages/coding-agent/test/suite/"
+    "packages/coding-agent/test/agent-session*.test.ts (non-retry, non-compaction, non-tree)",
+    "packages/coding-agent/test/suite/agent-session-prompt.test.ts",
+    "packages/coding-agent/test/suite/agent-session-queue.test.ts",
+    "packages/coding-agent/test/suite/agent-session-bash-persistence.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
-    "print-continue"
+    "print-basic",
+    "print-tool-read-light"
    ],
-   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
+   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it. Split from 10.3 (2026-09-26, ~4.5K source + ~2.8K test lines). Extension-runner hooks are an optional trait until the extension runtime exists; the L2 scenarios guard that print mode keeps parity once it runs through AgentSession.",
    "log": [
     {
      "at": "2026-09-25T15:16:00Z",
@@ -2126,6 +2126,58 @@
      "text": "8.4a: AgentSession.dispose() must call cortexcode_ai_registry::session_resources::cleanup_session_resources(Some(session_id)) (TS cleanupSessionResources) so cached openai-codex WebSockets are closed."
     }
    ]
+  },
+  {
+   "id": "10.3b",
+   "title": "AgentSession retry and auto-compaction (agent-session-retry.ts, agent-session-compaction.ts)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3a",
+    "9.2a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/agent-session-retry.ts",
+    "packages/coding-agent/src/core/agent-session-compaction.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/agent-session-retry-events.test.ts",
+    "packages/coding-agent/test/suite/agent-session-compaction.test.ts",
+    "packages/coding-agent/test/agent-session*retry*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-retry"
+   ],
+   "notes": "Split from 10.3 (2026-09-26). 9.2b (auto-compaction thresholds, /compact) builds on this.",
+   "log": []
+  },
+  {
+   "id": "10.3c",
+   "title": "AgentSession tree navigation, fork and runtime rebuild (agent-session-tree-navigation.ts, agent-session-runtime.ts)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/agent-session-tree-navigation.ts",
+    "packages/coding-agent/src/core/agent-session-runtime.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/agent-session-runtime.test.ts",
+    "packages/coding-agent/test/agent-session*tree*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; exercised by /tree (phase 11) and --fork (10.7b)",
+   "notes": "Split from 10.3 (2026-09-26). L2 n/a: exercised through /tree and --fork (11.x, 10.7b).",
+   "log": []
   },
   {
    "id": "10.4b",
@@ -2219,7 +2271,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-permissions"
@@ -2241,8 +2293,9 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3",
-    "10.4b"
+    "10.4b",
+    "10.3a",
+    "10.3c"
    ],
    "crates": [
     "cortexcode-code-cli"
@@ -2267,7 +2320,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-print"
@@ -2290,7 +2343,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-rpc"
@@ -2340,7 +2393,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-agent-session",
@@ -2363,7 +2416,7 @@
    "status": "todo",
    "depends": [
     "9.1",
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-mcp"
@@ -2394,8 +2447,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "10.3",
-    "10.1c"
+    "10.1c",
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -2527,7 +2580,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-plugins"
@@ -2547,7 +2600,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-packages"
@@ -2567,7 +2620,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-extensions"
@@ -2587,7 +2640,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-capabilities"
@@ -2607,7 +2660,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-scheduler"
@@ -2627,7 +2680,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-subagents"
@@ -2647,7 +2700,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-extras"

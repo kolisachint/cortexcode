@@ -22,6 +22,13 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.3 split into 10.3a/b/c
+- 10.3 (AgentSession: ~4.5K source + ~2.8K test lines) is now 10.3a core (agent-session.ts
+  core, services, stats; print mode on AgentSession; L2 guards print-basic and
+  print-tool-read-light), 10.3b retry + auto-compaction (L2 print-retry; 9.2b now depends on
+  it), and 10.3c tree navigation, fork and runtime rebuild (L2 n/a). Tasks that depended on
+  10.3 now depend on 10.3a (10.7b on 10.3a + 10.3c).
+
 ### 2026-09-26: 10.2g l1_done (context GC)
 - `code-tools-fs::context_gc` (context-gc.ts): superseded-read stubs (later successful
   edit/write, or a later overlapping read; disjoint ranges coexist; dedup pointers neither
