@@ -323,6 +323,7 @@ cortexcode/
     ├── cortexcode-agent-core/         # [leaf] Agent struct + orchestration
     ├── cortexcode-agent-loop/         # [leaf] agent turn loop
     ├── cortexcode-agent-harness/      # [leaf] messages, system prompt, templates
+    ├── cortexcode-agent-orchestrator/ # AgentHarness (agent + session + compaction)
     ├── cortexcode-agent-session/      # [leaf] session persistence
     ├── cortexcode-agent-compaction/   # [leaf] context compaction
     ├── cortexcode-agent-tools/        # [leaf] tool registry
@@ -520,6 +521,7 @@ This allows `use cortexcode_ai::types::*` without specifying the leaf crate dire
 | `cortexcode-agent-core` | `cortexcode::agent::core` | `agent.ts` (Agent struct), `agent-loop.ts` (loop) | T0 | ✅ |
 | `cortexcode-agent-loop` | `cortexcode::agent::loop` | `agent-loop.ts` (standalone loop impl) | T0 | ✅ |
 | `cortexcode-agent-harness` | `cortexcode::agent::harness` | `harness/{messages,system-prompt,prompt-templates,skills}` | T1 | ✅ |
+| `cortexcode-agent-orchestrator` | `cortexcode::agent::orchestrator` | `harness/agent-harness.ts` (AgentHarness; above compaction, which depends on agent-harness) | T1 | ✅ |
 | `cortexcode-agent-session` | `cortexcode::agent::session` | `harness/session/*`, execution environment | T1 | ✅ |
 | `cortexcode-agent-compaction` | `cortexcode::agent::compaction` | `harness/compaction/*` | T1 | ✅ |
 | `cortexcode-agent-tools` | `cortexcode::agent::tools` | `tools/default-tools.ts` | T1 | ✅ |

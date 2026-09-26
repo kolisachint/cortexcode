@@ -259,6 +259,7 @@ dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-agent-loop",
  "cortexcode-agent-mcp",
+ "cortexcode-agent-orchestrator",
  "cortexcode-agent-session",
  "cortexcode-agent-tools",
  "cortexcode-agent-types",
@@ -339,6 +340,23 @@ dependencies = [
  "rand 0.8.8",
  "reqwest",
  "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "cortexcode-agent-orchestrator"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-agent-compaction",
+ "cortexcode-agent-core",
+ "cortexcode-agent-harness",
+ "cortexcode-agent-session",
+ "cortexcode-agent-types",
+ "cortexcode-ai-models",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-registry",
+ "cortexcode-ai-types",
  "serde_json",
  "tokio",
 ]

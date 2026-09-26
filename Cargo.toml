@@ -33,6 +33,7 @@ members = [
     "crates/cortexcode-agent-core",
     "crates/cortexcode-agent-compaction",
     "crates/cortexcode-agent-harness",
+    "crates/cortexcode-agent-orchestrator",
     "crates/cortexcode-agent-loop",
     "crates/cortexcode-agent-mcp",
     "crates/cortexcode-agent-session",
@@ -108,6 +109,7 @@ cortexcode-agent = { path = "crates/cortexcode-agent" }
 cortexcode-agent-core = { path = "crates/cortexcode-agent-core" }
 cortexcode-agent-compaction = { path = "crates/cortexcode-agent-compaction" }
 cortexcode-agent-harness = { path = "crates/cortexcode-agent-harness" }
+cortexcode-agent-orchestrator = { path = "crates/cortexcode-agent-orchestrator" }
 cortexcode-agent-loop = { path = "crates/cortexcode-agent-loop" }
 cortexcode-agent-mcp = { path = "crates/cortexcode-agent-mcp" }
 cortexcode-agent-session = { path = "crates/cortexcode-agent-session" }

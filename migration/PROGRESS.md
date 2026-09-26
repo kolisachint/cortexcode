@@ -11,12 +11,41 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   lazy-module-load has no Rust counterpart).
 - Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
   typed onPayload/onResponse hooks.
+- Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
+  block); 9.2b waits for 10.3 (AgentSession).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 9.4b done (AgentHarness); phase 9 done except 9.1 (blocked) and 9.2b (needs 10.3)
+- New crate `cortexcode-agent-orchestrator` (re-exported as `cortexcode_agent::orchestrator`):
+  AgentHarness from harness/agent-harness.ts. It cannot live in agent-harness because
+  agent-compaction depends on agent-harness; ledger 9.4b and the design doc crate table say so.
+  Drives `Agent` over `Session<S>`: prepareNextTurn rebuilds the context from the session
+  (system prompt text or callback), message_end appends to the session, mid-turn writes wait
+  for the save point (turn_end), agent_end settles. prompt / skill / prompt_from_template /
+  steer / follow_up / next_turn / append_message / compact / navigate_tree / set_model /
+  set_thinking_level / set_active_tools / set_tools / resources / abort / wait_for_idle /
+  subscribe, and typed `on_*` hooks (before_agent_start, context, before_provider_request,
+  tool_call, tool_result, session_before_compact, session_before_tree; last result wins).
+  App resource types via `SkillLike` / `PromptTemplateLike`.
+- Agent changes: `AgentTool` doc fixed (it is Clone), Agent `set_get_api_key`,
+  `set_on_payload` / `set_on_response` + `AgentOptions.on_payload/on_response`, and
+  AgentLoopConfig's `Box<dyn Fn(String)>` placeholders are now the typed hooks, passed into the
+  loop's SimpleStreamOptions. The harness sets the agent's stream fn to
+  `cortexcode_ai_registry::stream_simple` (TS's default).
+- Deviations: hooks, system-prompt and auth callbacks are synchronous (the agent's hooks are);
+  steer/follow-up queue matching is by equality, not object identity; session append failures
+  inside agent events are dropped. Kept from TS: compact()/navigateTree() errors after the phase
+  is set (no auth, nothing to compact, unknown entry) leave the phase non-idle.
+- Tests: agent-harness.test.ts (both cases) + turns (session writes, events, next-turn and
+  before_agent_start messages, system prompt callback), errors, model/thinking writes,
+  compaction (hook cancel, session_compact), navigate_tree (editor text, leaf move), tool_call
+  block + context hook, all against the faux provider.
+- Next: `ledger.py next` (phase 10). Open question for the user: 9.1 rmcp decision.
 
 ### 2026-09-26: 9.3b done (skill + prompt-template loaders, executeShellWithCapture)
 - cortexcode-agent-harness: `frontmatter::parse_frontmatter` (YAML via serde_yaml_ng -> JSON

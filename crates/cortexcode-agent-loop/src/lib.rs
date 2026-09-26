@@ -368,6 +368,8 @@ async fn stream_assistant_response(
         cache_retention: config.cache_retention,
         send_session_affinity_headers: config.send_session_affinity_headers,
         prompt_suffix: config.prompt_suffix.clone(),
+        on_payload: config.on_payload.clone(),
+        on_response: config.on_response.clone(),
         ..Default::default()
     };
 

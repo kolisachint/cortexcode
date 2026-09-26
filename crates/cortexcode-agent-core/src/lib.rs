@@ -169,6 +169,8 @@ struct RunSettings {
     transport: Option<Transport>,
     max_retry_delay_ms: Option<u64>,
     tool_execution: ToolExecutionMode,
+    on_payload: Option<cortexcode_ai_types::OnPayload>,
+    on_response: Option<cortexcode_ai_types::OnResponse>,
 }
 
 #[derive(Clone, Default)]
@@ -342,6 +344,8 @@ impl Agent {
                 transport: options.transport,
                 max_retry_delay_ms: options.max_retry_delay_ms,
                 tool_execution: options.tool_execution.unwrap_or_default(),
+                on_payload: options.on_payload,
+                on_response: options.on_response,
             }),
         }
     }
@@ -406,6 +410,16 @@ impl Agent {
         self.settings.lock().unwrap().max_retry_delay_ms = ms;
     }
 
+    /// `agent.onPayload`: inspect or replace each provider request body.
+    pub fn set_on_payload(&self, hook: Option<cortexcode_ai_types::OnPayload>) {
+        self.settings.lock().unwrap().on_payload = hook;
+    }
+
+    /// `agent.onResponse`: see each provider response's status and headers.
+    pub fn set_on_response(&self, hook: Option<cortexcode_ai_types::OnResponse>) {
+        self.settings.lock().unwrap().on_response = hook;
+    }
+
     /// `agent.prepareNextTurn = …`. Takes effect for the running prompt too:
     /// the loop always calls through to the current hook.
     pub fn set_prepare_next_turn(&self, hook: Option<PrepareNextTurnFn>) {
@@ -422,6 +436,11 @@ impl Agent {
 
     pub fn set_transform_context(&self, hook: Option<TransformContextFn>) {
         self.shared.hooks.lock().unwrap().transform_context = hook;
+    }
+
+    /// `agent.getApiKey = …`: resolve the key per request.
+    pub fn set_get_api_key(&self, hook: Option<GetApiKeyFn>) {
+        self.shared.hooks.lock().unwrap().get_api_key = hook;
     }
 
     pub fn set_stream_fn(&self, stream_fn: Option<SharedStreamFn>) {
@@ -714,6 +733,8 @@ impl Agent {
         config.thinking_display = settings.thinking_display;
         config.max_retry_delay_ms = settings.max_retry_delay_ms;
         config.tool_execution = settings.tool_execution;
+        config.on_payload = settings.on_payload;
+        config.on_response = settings.on_response;
         config.api_key = settings.api_key;
         config.signal = Some(signal);
         config.permission_gate = hooks.permission_gate;
@@ -808,6 +829,10 @@ pub struct AgentOptions {
     pub transport: Option<Transport>,
     pub max_retry_delay_ms: Option<u64>,
     pub tool_execution: Option<ToolExecutionMode>,
+    /// `onPayload`, passed to every provider request.
+    pub on_payload: Option<cortexcode_ai_types::OnPayload>,
+    /// `onResponse`, passed to every provider request.
+    pub on_response: Option<cortexcode_ai_types::OnResponse>,
     /// cortex: key used when `get_api_key` yields none.
     pub api_key: Option<String>,
     /// cortex: gate consulted before `before_tool_call`.

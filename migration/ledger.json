@@ -1642,14 +1642,18 @@
    "id": "9.4b",
    "title": "Agent harness (agent-harness.ts) over ExecutionEnv",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "9.4a",
     "9.3b",
     "9.2a"
    ],
    "crates": [
-    "cortexcode-agent-harness"
+    "cortexcode-agent-harness",
+    "cortexcode-agent-orchestrator",
+    "cortexcode-agent-core",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-types"
    ],
    "sources": [
     "packages/agent/src/harness/agent-harness.ts"
@@ -1659,13 +1663,25 @@
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "Split from 9.4 (2026-09-26).",
+   "notes": "Split from 9.4 (2026-09-26). AgentHarness lives in the new crate cortexcode-agent-orchestrator: it needs agent-compaction, which depends on agent-harness (cycle otherwise).",
    "log": [
     {
      "at": "2026-09-26T21:06:45Z",
      "commit": "e460389",
      "kind": "note",
      "text": "8.8: SimpleStreamOptions.on_payload/on_response are typed now (cortexcode_ai_types::OnPayload / OnResponse, async-capable, every provider). cortexcode-agent-types AgentLoopConfig still has Box<dyn Fn(String)> placeholders; map the before_provider_request / after_provider_response hooks onto the typed ones here."
+    },
+    {
+     "at": "2026-09-26T21:39:57Z",
+     "commit": "eca7009",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:49:24Z",
+     "commit": "eca7009",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

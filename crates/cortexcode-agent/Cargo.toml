@@ -18,6 +18,7 @@ cortexcode-agent-compaction = { workspace = true }
 cortexcode-agent-harness = { workspace = true }
 cortexcode-agent-loop = { workspace = true }
 cortexcode-agent-mcp = { workspace = true }
+cortexcode-agent-orchestrator = { workspace = true }
 cortexcode-agent-session = { workspace = true }
 cortexcode-agent-tools = { workspace = true }
 cortexcode-agent-types = { workspace = true }
