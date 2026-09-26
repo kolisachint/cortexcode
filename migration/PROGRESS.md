@@ -18,6 +18,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 9.1 blocked on a design decision (rmcp)
+- Found while starting 9.1: rmcp 3.4.1 parses every result into typed structs (tools/call ->
+  `CallToolResult`), while hoocode feeds the model `JSON.stringify(rawResult, null, 2)`, so tool
+  output would be re-serialized from rmcp's structs (unknown fields dropped, rmcp key order;
+  identical for plain `{content:[{type:"text",text}]}`). And rmcp 3.x has no legacy HTTP+SSE
+  client, which hoocode still uses (`type: "sse"` and the 4xx fallback).
+- Options (in the ledger block): (1) rmcp for stdio + streamable HTTP + OAuth, hand-written
+  legacy SSE, document the re-serialization deviation (recommended); (2) keep the hand-rolled
+  transport, make it async with raw JSON, add streamable-HTTP sessions + OAuth by hand.
+- Also: the `mcp-tool-call` L2 scenario needs app-side MCP loading, which is 10.11, so 9.1 can
+  reach only `l1_done` on its own.
+- Waiting on the user; continuing with 9.2.
+
 ### 2026-09-26: 8.8 done (typed onPayload / onResponse); phase 8 complete
 - `cortexcode_ai_types`: `OnPayload<M = Model>` / `OnResponse<M = Model>` (Arc'd async closures
   with `new` / `sync` constructors, `apply` / `notify` helpers), `ProviderResponse {status,

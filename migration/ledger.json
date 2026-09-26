@@ -1416,7 +1416,7 @@
    "id": "9.1",
    "title": "MCP on rmcp (stdio, streamable HTTP, SSE, OAuth); keep mcp.json loader + tool naming",
    "phase": 9,
-   "status": "todo",
+   "status": "blocked",
    "depends": [
     "7.3b",
     "7.1"
@@ -1437,7 +1437,20 @@
     "mcp-tool-call"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:09:08Z",
+     "commit": "80c5a94",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:10:54Z",
+     "commit": "80c5a94",
+     "kind": "block",
+     "text": "Design decision: rmcp 3.4.1 (a) parses results into typed structs (ServerResult is an untagged union; tools/call -> CallToolResult), so the tool-result text hoocode sends the model (JSON.stringify of the server's raw result) would be re-serialized from rmcp's structs: unknown fields dropped, keys in rmcp's order; identical for plain {content:[{type:text,text}]} results. (b) rmcp 3.x no longer has a legacy HTTP+SSE client, which hoocode still supports (type:sse and the 4xx fallback), so that transport stays hand-written either way. Options: (1) rmcp for stdio + streamable HTTP + OAuth (auth feature), hand-written legacy SSE, accept the result re-serialization deviation; (2) keep the hand-rolled transport (make it async, raw JSON), add streamable-HTTP session handling + OAuth by hand, no rmcp. Recommendation: (1), plan section 3.4 intent, with the deviation documented."
+    }
+   ]
   },
   {
    "id": "9.2",
