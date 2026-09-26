@@ -6,41 +6,22 @@
 //! actual LLM-backed sessions.
 
 use crate::Args;
-use cortexcode_agent_core::PromptInput;
-use cortexcode_agent_core::{Agent, AgentOptions, Subscription};
-use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentState, PermissionGate};
+use cortexcode_agent_types::PermissionGate;
 use cortexcode_ai_env::get_env_api_key;
-use cortexcode_ai_types::{Content, Message, TextContent, UserMessage};
-use cortexcode_ai_types::{Context, Model as AiModel, SimpleStreamOptions};
 
-use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
-use cortexcode_code_prompts::BuildSystemPromptOptions;
-use cortexcode_code_settings::SettingsManager;
-use cortexcode_code_tool_api::{
-    wrap_tool_definitions, SessionBranch, ToolContext, ToolContextFactory, ToolDefinition,
+use cortexcode_code_agent_session::{
+    create_agent_session, AgentSession, AgentSessionEvent, AgentSessionServices, BaseTools,
+    CreateAgentSessionOptions, PromptOptions, StaticResourceLoader,
 };
-use cortexcode_code_tool_bash::BashToolOptions;
+use cortexcode_code_models::AuthLookup;
+use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_session::SessionManager;
+use cortexcode_code_settings::SettingsManager;
+use cortexcode_code_tool_api::ToolDefinition;
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
-use cortexcode_code_tools_fs::ReadToolOptions;
-
-// ---------------------------------------------------------------------------
-// Type aliases
-// ---------------------------------------------------------------------------
-
-/// Function type for creating an AI stream.
-type StreamFn = Box<
-    dyn Fn(
-            AiModel,
-            Context,
-            SimpleStreamOptions,
-        ) -> Result<
-            cortexcode_ai_stream::AssistantMessageEventStream,
-            Box<dyn std::error::Error + Send + Sync>,
-        > + Send
-        + Sync,
->;
+use std::collections::HashMap;
 use std::io::Write;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Error type for runtime operations.
 #[derive(Debug)]
@@ -120,9 +101,9 @@ fn default_model_for_provider(provider: &str) -> String {
 
 /// Resolve the API key for the provider: CLI flag, then the environment,
 /// then a stored OAuth token (auth.json precedence arrives with 10.4b).
-fn resolve_api_key(provider: &str, args: &Args) -> Option<String> {
-    if let Some(key) = &args.api_key {
-        return Some(key.clone());
+fn resolve_api_key(provider: &str, cli_key: Option<&str>) -> Option<String> {
+    if let Some(key) = cli_key {
+        return Some(key.to_string());
     }
     if let Some(key) = get_env_api_key(provider) {
         return Some(key);
@@ -232,130 +213,66 @@ fn resolve_prompt_input(input: Option<&str>, description: &str) -> Option<String
     Some(input.to_string())
 }
 
-/// `AgentSession._rebuildSystemPrompt`: the built-in prompt (or `--system-prompt`)
-/// over the active tools' snippets and guidelines. Skills and context files
-/// (10.5), agents (10.9) and shipped docs are not loaded yet.
-fn build_system_prompt(
-    args: &Args,
-    cwd: &std::path::Path,
-    tools: &[ToolDefinition],
-    light: bool,
-) -> String {
+/// The resource loader until 10.5: `--system-prompt` (a file or text), else
+/// the light preset's terse prompt. Skills and context files are not loaded yet.
+fn resource_loader(args: &Args, light: bool) -> StaticResourceLoader {
     // main.ts: `systemPrompt: parsed.systemPrompt ?? (lightMode ? LIGHT_SYSTEM_PROMPT : undefined)`
-    let system_prompt_source = args
+    let source = args
         .system_prompt
         .as_deref()
         .or(light.then_some(cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT));
-    let mut tool_snippets = Vec::new();
-    let mut prompt_guidelines = Vec::new();
-    for tool in tools {
-        if let Some(snippet) = &tool.prompt_snippet {
-            tool_snippets.push((tool.name.clone(), snippet.clone()));
+    StaticResourceLoader {
+        system_prompt: resolve_prompt_input(source, "system prompt"),
+        append_system_prompt: Vec::new(),
+    }
+}
+
+/// Credentials by provider: `--api-key`, the environment, then stored OAuth
+/// tokens (auth.json storage arrives with 10.4b). Resolved once per provider.
+struct CliAuth {
+    api_key: Option<String>,
+    cache: Mutex<HashMap<String, Option<String>>>,
+}
+
+impl CliAuth {
+    fn new(args: &Args) -> Self {
+        Self {
+            api_key: args.api_key.clone(),
+            cache: Mutex::new(HashMap::new()),
         }
-        prompt_guidelines.extend(tool.prompt_guidelines.iter().cloned());
-    }
-    cortexcode_code_prompts::build_system_prompt(&BuildSystemPromptOptions {
-        custom_prompt: resolve_prompt_input(system_prompt_source, "system prompt"),
-        selected_tools: Some(tools.iter().map(|t| t.name.clone()).collect()),
-        tool_snippets,
-        prompt_guidelines,
-        cwd: cwd.to_string_lossy().into_owned(),
-        ..Default::default()
-    })
-}
-
-/// The messages of this run as the session manager would persist them: each
-/// one is appended on `message_end`. Stands in for the session branch that
-/// tools see (read-dedup) until the session port (10.3).
-#[derive(Default)]
-struct LiveTranscript(std::sync::Mutex<Vec<serde_json::Value>>);
-
-impl LiveTranscript {
-    /// Record every message the agent ends. Keep the returned handle alive.
-    fn follow(self: &Arc<Self>, agent: &Agent) -> Subscription {
-        let transcript = self.clone();
-        agent.subscribe(move |event, _signal| {
-            if let AgentEvent::MessageEnd { message } = event {
-                if let Ok(value) = serde_json::to_value(message) {
-                    transcript
-                        .0
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .push(value);
-                }
-            }
-        })
     }
 }
 
-impl SessionBranch for LiveTranscript {
-    fn get_branch(&self) -> Vec<serde_json::Value> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+impl AuthLookup for CliAuth {
+    fn api_key(&self, provider: &str) -> Option<String> {
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        cache
+            .entry(provider.to_string())
+            .or_insert_with(|| resolve_api_key(provider, self.api_key.as_deref()))
+            .clone()
     }
 }
 
-/// The default coding tools as definitions. The read tool takes its caps from
-/// `toolOutput`, image resizing from `images.autoResize`, and read-dedup from
-/// `contextGc.enabled`; bash takes `shellCommandPrefix`, `shellPath` and the
-/// same caps.
-fn build_tool_definitions(
-    args: &Args,
-    cwd: &std::path::Path,
-    settings: &SettingsManager,
-) -> Vec<ToolDefinition> {
-    let read = ReadToolOptions {
-        auto_resize_images: settings.image_auto_resize(),
-        max_output_bytes: settings.tool_output_max_bytes() as usize,
-        max_output_lines: settings.tool_output_max_lines() as usize,
-        dedup_reads: settings.context_gc_enabled(),
-        ..Default::default()
-    };
-    let bash = BashToolOptions {
-        command_prefix: settings.shell_command_prefix(),
-        shell_path: settings.shell_path(),
-        max_output_bytes: Some(settings.tool_output_max_bytes() as usize),
-        max_output_lines: Some(settings.tool_output_max_lines() as usize),
-        ..Default::default()
-    };
-    let mut definitions = cortexcode_code_tools::default_tool_definitions(
-        cwd.to_path_buf(),
-        PermissionPolicy::default(),
-        read,
-        bash,
-    );
-    // The core ask_options extension tool (no UI in print mode: it says so).
-    definitions.push(
-        cortexcode_code_tools_optin::create_ask_options_tool_definition(std::sync::Arc::new(
+/// Extension-registered tools in hoocode, SDK tools here: ask_options always
+/// (no UI in print mode: it says so), TodoWrite with `--enable-todowrite` or
+/// the `enableTodoWrite` setting.
+fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> {
+    let mut tools = vec![
+        cortexcode_code_tools_optin::create_ask_options_tool_definition(Arc::new(
             cortexcode_code_tools_optin::NoUi,
         )),
-    );
-    // TodoWrite: `--enable-todowrite`, else the `enableTodoWrite` setting.
+    ];
     if args
         .todo_write
         .unwrap_or_else(|| settings.enable_todo_write())
     {
-        definitions.push(
+        tools.push(
             cortexcode_code_tools_optin::create_todo_write_tool_definition(
                 cortexcode_code_tools_optin::StoreRef::Global,
             ),
         );
     }
-    definitions
-}
-
-/// Wrap the definitions for the agent loop; tools see the model and the live
-/// transcript through their context.
-fn wrap_tools(
-    definitions: Vec<ToolDefinition>,
-    model: &AiModel,
-    transcript: Arc<LiveTranscript>,
-) -> Vec<cortexcode_agent_types::AgentTool> {
-    let model = model.clone();
-    let ctx_factory: ToolContextFactory = Arc::new(move || ToolContext {
-        model: Some(model.clone()),
-        session_manager: Some(transcript.clone()),
-    });
-    wrap_tool_definitions(definitions, Some(ctx_factory))
+    tools
 }
 
 /// Build the permission gate for the current CLI mode. Read-only tools are
@@ -378,20 +295,10 @@ fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
     ))
 }
 
-/// Create the streaming function for a given provider.
-/// Streams are dispatched on `model.api` through the API registry (ledger 8.2a),
-/// so any provider whose models use a registered API works.
-fn make_stream_fn() -> StreamFn {
-    Box::new(cortexcode_ai_registry::stream_simple)
-}
-
-/// Build an `Agent` from CLI arguments with a configured permission gate.
-/// Build the agent. The returned subscription keeps the tools' live
-/// transcript current; hold it as long as the agent.
-fn build_agent_with_gate(
-    args: &Args,
-    interactive: bool,
-) -> Result<(Agent, Subscription), RuntimeError> {
+/// Build the session for a CLI run (`createAgentSession` in main.ts): the
+/// model from the flags or settings, the default or light tools, the
+/// permission gate for the mode, and a persisted session unless `--no-session`.
+fn build_session(args: &Args, interactive: bool) -> Result<AgentSession, RuntimeError> {
     let settings = crate::load_settings();
     let (provider, model_id) = resolve_provider_model(args, &settings);
     // Built-in catalog + models.json custom providers/overrides (ledger 10.4a).
@@ -399,24 +306,13 @@ fn build_agent_with_gate(
         Some(path) => cortexcode_code_models::ModelRegistry::create(path),
         None => cortexcode_code_models::ModelRegistry::in_memory(),
     };
-    let mut model = registry
+    let model = registry
         .find(&provider, &model_id)
         .cloned()
         .ok_or_else(|| RuntimeError::Setup(format!("unknown model {}:{}", provider, model_id)))?;
 
-    // CLI/config/env/OAuth first (existing behavior), then models.json request auth.
-    // Full auth.json precedence arrives with code-auth (ledger 10.4b).
-    let request_auth = registry
-        .get_api_key_and_headers(&model, &cortexcode_code_models::NoAuth)
-        .map_err(RuntimeError::Setup)?;
-    if let Some(headers) = request_auth.headers {
-        model
-            .headers
-            .get_or_insert_with(Default::default)
-            .extend(headers);
-    }
-    let api_key = resolve_api_key(&provider, args).or(request_auth.api_key);
-    if api_key.is_none() {
+    let auth = Arc::new(CliAuth::new(args));
+    if !registry.has_configured_auth(&model, auth.as_ref()) {
         let supported = ["anthropic", "openai", "opencode", "google", "azure"];
         let is_known = supported.contains(&provider.as_str());
         let hint = if is_known {
@@ -441,71 +337,79 @@ fn build_agent_with_gate(
     }
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    // Light preset (--light, else the "light" setting): the four light tools
-    // and the terse prompt.
-    let light = args.light.unwrap_or_else(|| settings.light());
-    let definitions = if light {
-        cortexcode_code_tools::light::light_tool_definitions(cwd.clone())
+    // Session flags beyond --no-session / --session-dir arrive with 10.7b.
+    let cwd_str = cwd.to_string_lossy().into_owned();
+    let session_manager = if args.no_session == Some(true) {
+        SessionManager::in_memory(cwd_str)
     } else {
-        build_tool_definitions(args, &cwd, &settings)
+        SessionManager::create(cwd_str, args.session_dir.as_ref().map(Into::into))
     };
-    let system_prompt = build_system_prompt(args, &cwd, &definitions, light);
-    let transcript = Arc::new(LiveTranscript::default());
-    let tools = wrap_tools(definitions, &model, transcript.clone());
+    Ok(assemble_session(
+        args,
+        cwd,
+        settings,
+        registry,
+        auth,
+        session_manager,
+        Some(model),
+        interactive,
+    ))
+}
 
-    let state = AgentState {
-        system_prompt,
-        model,
-        thinking_level: cortexcode_ai_types::ThinkingLevel::Off,
-        tools: cortexcode_agent_types::AgentTools::new(tools),
-        messages: Vec::new(),
-        is_streaming: false,
-        streaming_message: None,
-        pending_tool_calls: std::collections::HashSet::new(),
-        error_message: None,
+/// The session over resolved parts. Light preset (`--light`, else the
+/// `light` setting): the four light tools and the terse prompt.
+#[allow(clippy::too_many_arguments)]
+fn assemble_session(
+    args: &Args,
+    cwd: std::path::PathBuf,
+    settings: SettingsManager,
+    registry: cortexcode_code_models::ModelRegistry,
+    auth: Arc<dyn AuthLookup + Send + Sync>,
+    session_manager: SessionManager,
+    model: Option<cortexcode_ai_types::Model>,
+    interactive: bool,
+) -> AgentSession {
+    let light = args.light.unwrap_or_else(|| settings.light());
+    // main.ts: the light preset is an allowlist of the four short-schema tools
+    // (their order is the active order), which also keeps extension tools off.
+    let (base_tools, custom, tools) = if light {
+        (
+            Some(BaseTools::Override(
+                cortexcode_code_tools::light::light_tool_definitions(cwd.clone()),
+            )),
+            Vec::new(),
+            Some(
+                cortexcode_code_tools::light::LIGHT_TOOL_NAMES
+                    .map(String::from)
+                    .to_vec(),
+            ),
+        )
+    } else {
+        (None, custom_tools(args, &settings), None)
     };
-
-    let permission_gate = Some(build_permission_gate(interactive));
-    let stream_fn = Some(std::sync::Arc::new(make_stream_fn()));
-
-    // Context GC on the outgoing copy (sdk.ts transformContext), when
-    // `contextGc.enabled`; bash eviction follows the latched budget pressure.
-    let context_window = state.model.context_window;
-    let transform_context: Option<cortexcode_agent_core::TransformContextFn> =
-        settings.context_gc_enabled().then(|| {
-            let latch = std::sync::Mutex::new(cortexcode_code_tools_fs::BudgetPressureLatch::new());
-            let gc_cwd = cwd.clone();
-            let hook: cortexcode_agent_core::TransformContextFn =
-                Arc::new(move |messages, _signal| {
-                    let tokens =
-                        cortexcode_agent_compaction::estimate_context_tokens(&messages).tokens;
-                    let budget_pressure = latch
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .update(tokens, context_window);
-                    let options = cortexcode_code_tools_fs::ContextGcOptions {
-                        cwd: gc_cwd.clone(),
-                        budget_pressure,
-                    };
-                    Ok(
-                        cortexcode_code_tools_fs::evict_superseded_reads(&messages, &options)
-                            .unwrap_or(messages),
-                    )
-                });
-            hook
-        });
-
-    let agent = Agent::with_options(AgentOptions {
-        initial_state: Some(state),
-        api_key,
-        permission_gate,
-        stream_fn,
-        transform_context,
-        ..Default::default()
-    });
-    let subscription = transcript.follow(&agent);
-
-    Ok((agent, subscription))
+    let services = AgentSessionServices {
+        cwd,
+        agent_dir: cortexcode_code_paths::agent_dir(),
+        auth,
+        settings: Arc::new(Mutex::new(settings)),
+        model_registry: Arc::new(registry),
+        resource_loader: Arc::new(resource_loader(args, light)),
+        diagnostics: Vec::new(),
+    };
+    create_agent_session(
+        &services,
+        session_manager,
+        CreateAgentSessionOptions {
+            model,
+            thinking_level: args.thinking.clone(),
+            tools,
+            custom_tools: custom,
+            base_tools,
+            permission_gate: Some(build_permission_gate(interactive)),
+            ..Default::default()
+        },
+    )
+    .session
 }
 
 /// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider
@@ -518,18 +422,6 @@ pub(crate) fn async_runtime() -> &'static tokio::runtime::Runtime {
             .build()
             .expect("failed to start the tokio runtime")
     })
-}
-
-/// A user message as `session.prompt(text)` sends it: one text block, no wrapping.
-fn text_message(text: &str) -> AgentMessage {
-    AgentMessage::from_message(Message::User(UserMessage {
-        content: vec![Content::Text(TextContent {
-            text_signature: None,
-            text: text.to_string(),
-        })]
-        .into(),
-        timestamp: cortexcode_ai_types::now_ms(),
-    }))
 }
 
 /// `runPrintMode` (print-mode.ts) plus the `prepareInitialMessage` step of
@@ -564,34 +456,39 @@ pub fn run_print_mode(
         stdin_content.as_deref(),
     );
 
-    let (agent, _transcript) = match build_agent_with_gate(args, false) {
-        Ok(built) => built,
+    let session = match build_session(args, false) {
+        Ok(session) => session,
         Err(e) => {
             writeln!(err, "{e}")?;
             return Ok(1);
         }
     };
 
-    let formatter = std::sync::Arc::new(std::sync::Mutex::new(PrintFormatter::new(mode)));
+    let formatter = Arc::new(Mutex::new(PrintFormatter::new(mode)));
     let formatter_for_sub = formatter.clone();
-    let _sub = agent.subscribe(move |event, _signal| {
-        if let Ok(mut fmt) = formatter_for_sub.lock() {
-            fmt.record(event.clone());
+    // Session-level events join the JSON stream with 10.8b.
+    let _sub = session.subscribe(move |event| {
+        if let AgentSessionEvent::Agent(event) = event {
+            if let Ok(mut fmt) = formatter_for_sub.lock() {
+                fmt.record(event.clone());
+            }
         }
     });
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
-        let run = agent.prompt(PromptInput::Messages(vec![text_message(prompt)]));
+        let run = session.prompt(prompt, PromptOptions::default());
         if let Err(e) = async_runtime().block_on(run) {
             writeln!(err, "{e}")?;
+            session.dispose();
             return Ok(1);
         }
     }
+    session.dispose();
 
     match mode {
         PrintMode::Text => {
-            let result = text_result(&agent.state().messages);
+            let result = text_result(&session.messages());
             output.write_all(result.stdout.as_bytes())?;
             output.flush()?;
             if let Some(message) = result.stderr {
@@ -601,7 +498,8 @@ pub fn run_print_mode(
         }
         // Event-stream parity is 10.8b; json mode never inspects the final message.
         PrintMode::Json => {
-            let formatter = std::sync::Arc::try_unwrap(formatter)
+            drop(_sub);
+            let formatter = Arc::try_unwrap(formatter)
                 .ok()
                 .and_then(|m| m.into_inner().ok())
                 .unwrap_or_default();
@@ -626,7 +524,7 @@ pub fn run_interactive_mode(
     };
     use std::io::Write as _;
 
-    let (agent, _transcript) = build_agent_with_gate(args, true)?;
+    let session = build_session(args, true)?;
     let mut stdout = std::io::stdout();
     terminal::enable_raw_mode().map_err(|e| RuntimeError::Setup(e.to_string()))?;
     let _ = stdout
@@ -659,12 +557,11 @@ pub fn run_interactive_mode(
                         }
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;
-                            let user_msg = text_message(line);
-                            let before = agent.state().messages.len();
-                            let run = agent.prompt(PromptInput::Messages(vec![user_msg]));
+                            let before = session.messages().len();
+                            let run = session.prompt(line, PromptOptions::default());
                             match async_runtime().block_on(run) {
                                 Ok(()) => {
-                                    let messages = agent.state().messages;
+                                    let messages = session.messages();
                                     let text = format_text_output(&messages[before..]);
                                     if !text.is_empty() {
                                         writeln!(output, "Cortex: {}\n", text)?;
@@ -701,12 +598,25 @@ pub fn run_interactive_mode(
 mod tests {
     use super::*;
 
+    /// A session over in-memory settings, models and session, in `/w`.
+    fn prompt_for(argv: &[&str]) -> (String, Vec<String>) {
+        let args = crate::args::parse_args(&argv.iter().map(|a| a.to_string()).collect::<Vec<_>>());
+        let session = assemble_session(
+            &args,
+            std::path::PathBuf::from("/w"),
+            SettingsManager::in_memory(Default::default()),
+            cortexcode_code_models::ModelRegistry::in_memory(),
+            Arc::new(CliAuth::new(&args)),
+            SessionManager::in_memory("/w"),
+            None,
+            false,
+        );
+        (session.system_prompt(), session.get_active_tool_names())
+    }
+
     #[test]
     fn light_mode_uses_the_terse_prompt_and_the_four_light_tools() {
-        let args = crate::args::parse_args(&["--light".to_string()]);
-        let cwd = std::path::Path::new("/w");
-        let tools = cortexcode_code_tools::light::light_tool_definitions(cwd.to_path_buf());
-        let prompt = build_system_prompt(&args, cwd, &tools, true);
+        let (prompt, tools) = prompt_for(&["--light"]);
         let date = chrono::Local::now().format("%Y-%m-%d");
         assert_eq!(
             prompt,
@@ -715,42 +625,36 @@ mod tests {
                 cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT
             )
         );
+        assert_eq!(tools, cortexcode_code_tools::light::LIGHT_TOOL_NAMES);
         // --system-prompt still wins over the preset.
-        let args = crate::args::parse_args(&[
-            "--light".to_string(),
-            "--system-prompt".to_string(),
-            "Custom.".to_string(),
-        ]);
-        assert!(
-            build_system_prompt(&args, cwd, &tools, true).starts_with("Custom.\n\nCurrent date: ")
-        );
+        let (prompt, _) = prompt_for(&["--light", "--system-prompt", "Custom."]);
+        assert!(prompt.starts_with("Custom.\n\nCurrent date: "));
     }
 
     #[test]
     fn default_prompt_lists_tools_with_snippets() {
-        let args = crate::args::parse_args(&[]);
-        let cwd = std::path::Path::new("/w");
-        let prompt = build_system_prompt(
-            &args,
-            cwd,
-            &build_tool_definitions(&args, cwd, &SettingsManager::in_memory(Default::default())),
-            false,
-        );
+        let (prompt, tools) = prompt_for(&[]);
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains(
             "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
         ));
+        assert_eq!(
+            tools,
+            [
+                "read",
+                "bash",
+                "edit",
+                "write",
+                "SearchCodebase",
+                "ask_options",
+                "TodoWrite"
+            ]
+        );
     }
 
     #[test]
     fn test_default_model_for_provider() {
         assert!(!default_model_for_provider("anthropic").is_empty());
-    }
-
-    #[test]
-    fn test_text_message() {
-        let msg = text_message("hello");
-        assert!(msg.extract_message().is_some());
     }
 
     fn settings(provider: Option<&str>, model: Option<&str>) -> SettingsManager {
@@ -816,7 +720,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            resolve_api_key("anthropic", &args),
+            resolve_api_key("anthropic", args.api_key.as_deref()),
             Some("cli-key".to_string())
         );
     }

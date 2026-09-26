@@ -7,6 +7,7 @@
 
 pub mod context;
 pub mod entry;
+pub mod identity;
 pub mod manager;
 
 pub use context::{build_session_context, ModelRef, SessionContext};

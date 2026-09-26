@@ -231,6 +231,10 @@ pub trait AuthLookup {
     fn has_auth(&self, provider: &str) -> bool {
         self.api_key(provider).is_some()
     }
+    /// Whether the stored credential is an OAuth token (`isUsingOAuth`).
+    fn is_oauth(&self, _provider: &str) -> bool {
+        false
+    }
 }
 
 /// No stored credentials.

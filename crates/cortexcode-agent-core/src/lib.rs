@@ -359,6 +359,12 @@ impl Agent {
         self.shared.state.lock().unwrap().clone()
     }
 
+    /// Read the live state without cloning it (the TS `agent.state.x` getters).
+    /// `f` must not call back into the agent.
+    pub fn with_state<R>(&self, f: impl FnOnce(&AgentState) -> R) -> R {
+        f(&self.shared.state.lock().unwrap())
+    }
+
     pub fn set_system_prompt(&self, system_prompt: impl Into<String>) {
         self.shared.state.lock().unwrap().system_prompt = system_prompt.into();
     }

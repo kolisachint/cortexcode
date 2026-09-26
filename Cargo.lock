@@ -727,6 +727,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-agent-session"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "cortexcode-agent-compaction",
+ "cortexcode-agent-core",
+ "cortexcode-agent-harness",
+ "cortexcode-agent-types",
+ "cortexcode-ai-models",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-registry",
+ "cortexcode-ai-types",
+ "cortexcode-code-models",
+ "cortexcode-code-paths",
+ "cortexcode-code-prompts",
+ "cortexcode-code-session",
+ "cortexcode-code-settings",
+ "cortexcode-code-tool-api",
+ "cortexcode-code-tool-bash",
+ "cortexcode-code-tools",
+ "cortexcode-code-tools-fs",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "cortexcode-code-cli"
 version = "0.0.1"
 dependencies = [
@@ -743,12 +771,14 @@ dependencies = [
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
  "cortexcode-code-media",
  "cortexcode-code-models",
  "cortexcode-code-paths",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
  "cortexcode-code-rpc",
+ "cortexcode-code-session",
  "cortexcode-code-settings",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
@@ -803,6 +833,7 @@ name = "cortexcode-code-paths"
 version = "0.0.1"
 dependencies = [
  "dirs",
+ "tempfile",
 ]
 
 [[package]]

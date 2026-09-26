@@ -6,6 +6,8 @@
 //! fallback. Env overrides take `CORTEXCODE_`, `CORTEX_` or hoocode's
 //! `HOOCODE_` prefix, in that order.
 
+pub mod git_branch;
+
 use std::path::{Component, Path, PathBuf};
 
 /// `APP_NAME`.
@@ -127,6 +129,23 @@ pub fn auth_path() -> PathBuf {
 /// `getBinDir`: managed binaries (fd, rg).
 pub fn bin_dir() -> PathBuf {
     agent_dir().join("bin")
+}
+
+/// `getPackageDir`: the `*_PACKAGE_DIR` override (tilde-expanded), else the
+/// directory holding the executable (hoocode's Bun-binary layout).
+pub fn package_dir() -> PathBuf {
+    if let Some(dir) = env_override("PACKAGE_DIR") {
+        return expand_tilde_path(&dir);
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// `getDocsPath`: the shipped docs next to the package.
+pub fn docs_path() -> PathBuf {
+    std::path::absolute(package_dir().join("docs")).unwrap_or_else(|_| package_dir().join("docs"))
 }
 
 /// `getSessionsDir`.

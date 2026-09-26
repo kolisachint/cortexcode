@@ -12,7 +12,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
-  block); 9.2b waits for 10.3 (AgentSession).
+  block); 9.2b waits for 10.3b (AgentSession retry + compaction).
+- 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
+  (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
   reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
@@ -21,6 +23,36 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 10.3a done (AgentSession core)
+- New crate `cortexcode-code-agent-session`: `session.rs` (agent-session.ts core: event
+  processing with session persistence on `message_end`, queue bookkeeping removed before
+  listeners see `message_start`, prompt/steer/followUp/sendCustomMessage/sendUserMessage,
+  abort, setModel/cycleModel (scoped + available), thinking level set/cycle/clamp, tool
+  registry with allow/deny lists and SDK tools, `_rebuildSystemPrompt`, `prepareNextTurn`
+  refresh, executeBash/recordBashResult with deferred flush, session name/colour, stats,
+  JSONL export, dispose -> `cleanup_session_resources`), `stats.rs` (agent-session-stats.ts),
+  `services.rs` (agent-session-services.ts + sdk.ts `createAgentSession`: model/thinking
+  restore, harness `convert_to_llm` + blockImages, context GC transform, per-request auth and
+  headers from the model registry, OpenRouter attribution, session id on the agent),
+  `hooks.rs` (`ResourceLoader` and `ExtensionHooks` traits until 10.5 / 12.3),
+  `auth_guidance.rs`.
+- Tests: 49 ported (suite/agent-session-prompt, -queue, -bash-persistence; the model/thinking
+  cases of suite/agent-session-model-extension; agent-session-stats; the SDK-tool case of
+  agent-session-dynamic-tools; the non-extension agent-session-concurrent cases) plus registry,
+  session-info, export and tool-context checks. Extension-handler cases are noted on 12.3,
+  runtime-events/branching on 10.3c, skill expansion on 10.5.
+- code-cli: `build_session` replaces `build_agent_with_gate`/`LiveTranscript`; tools see the
+  real session branch. Light mode is hoocode's allowlist `[read, write, edit, bash]` over the
+  light override (active order now matches). `--no-session`, `--session-dir`, `--thinking`
+  wired; sessions persist under `sessions_dir()` otherwise, as in hoocode.
+- The 8.2 note is resolved: both sides now send `prompt_cache_key`.
+- Also: `code-session` gained session identity (session-identity.ts: slug, colour slot, colour
+  names; `append_session_info(name, color)`; `session_name` skips colour-only entries) and
+  records `Header.branch` via the new `code-paths::git_branch` (git-branch.ts);
+  `code-paths::{package_dir, docs_path}`; `Agent::with_state`; `AuthLookup::is_oauth`.
+- Default-bundle scenarios (print-tool-search, print-todo-write, print-tool-read-paging) are
+  unchanged: identical tools and messages, only the system prompt differs (10.4c).
 
 ### 2026-09-26: 10.3 split into 10.3a/b/c
 - 10.3 (AgentSession: ~4.5K source + ~2.8K test lines) is now 10.3a core (agent-session.ts

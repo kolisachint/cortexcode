@@ -2086,7 +2086,7 @@
    "id": "10.3a",
    "title": "New crate code-agent-session: AgentSession core (event processing + session persistence, prompt/steer/follow-up queues, abort, model/thinking switch and cycling, active tools + system prompt rebuild, bash execution records, stats, services); print mode runs on it",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.5b",
     "7.4",
@@ -2124,6 +2124,18 @@
      "commit": "3b28ba0",
      "kind": "note",
      "text": "8.4a: AgentSession.dispose() must call cortexcode_ai_registry::session_resources::cleanup_session_resources(Some(session_id)) (TS cleanupSessionResources) so cached openai-codex WebSockets are closed."
+    },
+    {
+     "at": "2026-09-26T23:15:10Z",
+     "commit": "6441f47",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:41:52Z",
+     "commit": "6441f47",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
     }
    ]
   },
@@ -2153,7 +2165,14 @@
     "print-retry"
    ],
    "notes": "Split from 10.3 (2026-09-26). 9.2b (auto-compaction thresholds, /compact) builds on this.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession (crates/cortexcode-code-agent-session/src/session.rs) leaves the hooks marked '(10.3b)': process_agent_event on agent_end (retry isRetryableError/handleRetryableError, markProviderExhausted, compaction.checkCompaction), message_end resets (resetOverflowRecovery, onSuccessfulAssistantResponse, clearProviderExhaustion), prompt() pre-send checkCompaction on the last assistant + waitForRetry after agent.prompt, abort() retry.abort, isCompacting/isRetrying getters, and the AgentSessionEvent variants compaction_start/end + auto_retry_start/end. Retry controller needs a synchronously created promise per agent_end (TS createPromiseForAgentEnd); events are processed synchronously in the agent listener already."
+    }
+   ]
   },
   {
    "id": "10.3c",
@@ -2177,7 +2196,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal; exercised by /tree (phase 11) and --fork (10.7b)",
    "notes": "Split from 10.3 (2026-09-26). L2 n/a: exercised through /tree and --fork (11.x, 10.7b).",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: port test/agent-session-runtime-events.test.ts and test/agent-session-branching.test.ts here (both skipped in 10.3a). AgentSession has no reload()/runtime rebuild yet: build_runtime/refresh_tool_registry exist (session.rs) and BaseTools::Factory re-reads settings, so reload = settings.reload + build_runtime(active names)."
+    }
+   ]
   },
   {
    "id": "10.4b",
@@ -2211,6 +2237,12 @@
      "commit": "b5982c2",
      "kind": "note",
      "text": "8.4b: apply OAuth modifyModels when building the registry (github-copilot: token proxy-ep -> baseUrl via cortexcode_ai_oauth_github_copilot modify_models; model-registry.ts:397). Today code-cli uses the catalog baseUrl, so Copilot business/enterprise accounts hit the individual endpoint."
+    },
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: services::create_agent_session only picks the defaultProvider/defaultModel setting when no model is given; port findInitialModel there. code-cli runtime.rs CliAuth (AuthLookup: --api-key, env, OAuth store, cached per provider) is the stand-in for AuthStorage; AuthLookup::is_oauth defaults false and must report OAuth credentials (AgentSession.prompt's 'Authentication failed' message). --api-key should become a runtime key for the chosen provider only (main.ts setRuntimeApiKey)."
     }
    ]
   },
@@ -2240,7 +2272,14 @@
     "print-context-files"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: implement cortexcode_code_agent_session::ResourceLoader (hooks.rs) for the real loader: system_prompt/append_system_prompt/skills/context_files feed _rebuildSystemPrompt, and expand_input must do _expandSkillCommand then tryExpandPromptTemplate returning ExpandedInput{text, template kind, args} (AgentSession.prompt handles user/system/context kinds). Port the skill-expansion case of test/suite/agent-session-prompt.test.ts against it. code-cli runtime.rs resource_loader() is the StaticResourceLoader stand-in to replace."
+    }
+   ]
   },
   {
    "id": "10.5b",
@@ -2312,7 +2351,14 @@
     "list-models"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: code-cli build_session handles --no-session (in-memory) and --session-dir, and passes --thinking into create_agent_session; --tools/--no-tools/--no-builtin-tools/--disallowed-tools and the disabledTools setting map to CreateAgentSessionOptions {tools, no_tools, disallowed_tools}. --continue/--resume/--session/--fork are not wired."
+    }
+   ]
   },
   {
    "id": "10.8b",
@@ -2335,7 +2381,14 @@
     "json-basic"
    ],
    "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: print JSON mode now subscribes to AgentSession but only records AgentSessionEvent::Agent events; session-level events (queue_update, session_info_changed, thinking_level_changed, later compaction/retry) need serializing in hoocode's shape."
+    }
+   ]
   },
   {
    "id": "10.8c",
@@ -2385,7 +2438,14 @@
     "subagent-task"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
+    }
+   ]
   },
   {
    "id": "10.10",
@@ -2407,7 +2467,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: git-branch.ts is ported (cortexcode_code_paths::git_branch: find_git_paths, read_branch_from_head, resolve_branch_with_git, read_git_branch); SessionManager records Header.branch with it. The footer's live branch watcher is still open."
+    }
+   ]
   },
   {
    "id": "10.11",
@@ -2632,7 +2699,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession takes Option<Arc<dyn ExtensionHooks>> (has_command/run_command/emit_error only). Not wired yet: extension event emission before listeners (_emitExtensionEvent incl. message_end replacement), before/after tool call hooks, input handlers, before_agent_start (custom messages + system prompt), model_select/thinking_level_select, session_start/shutdown, getAllRegisteredTools (tool registry treats custom_tools as the only extension tools), onPayload/onResponse/context hooks in services. Tests left for here: suite/agent-session-model-extension (tool_call/tool_result/context/input/before_agent_start/bindExtensions), agent-session-concurrent (tool_call ordering, slow message_end handlers), agent-session-dynamic-provider, dynamic-tools 'registered after initialization' + 'hidden_tool'."
+    }
+   ]
   },
   {
    "id": "12.4",
