@@ -283,10 +283,13 @@ dependencies = [
 name = "cortexcode-agent-harness"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "regex",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

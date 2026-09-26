@@ -18,6 +18,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 9.3/9.4 split; 9.3a done (harness utils without an ExecutionEnv)
+- Ledger: 9.3 -> 9.3a (env-free utils) + 9.3b (skill/prompt-template loaders and
+  executeShellWithCapture over ExecutionEnv); 9.4 -> 9.4a (ExecutionEnv trait + tokio env,
+  nodejs-env.test.ts) + 9.4b (agent-harness.ts). The loaders' tests use NodeExecutionEnv, which
+  is 9.4's port. 9.2 (compaction) now depends on 9.3a (it needs messages.ts + compressGeneral);
+  its earlier `start` was undone as a bookkeeping fix (noted on the task). Order from here:
+  9.4a -> 9.3b -> 9.2 -> 9.4b.
+- cortexcode-agent-harness: `types` (Skill, PromptTemplate), `messages` (create*SummaryMessage,
+  createCustomMessage with ISO timestamps, summarizeArgs, describeBackgroundTool,
+  createBackgroundPlaceholderText, createBackgroundTaskMessage), `prompt_templates`
+  (parseCommandArgs, substituteArgs with String.replace `$&`/`$$` semantics,
+  formatPromptTemplateInvocation), `skills` (formatSkillInvocation, name/description rules, env
+  path helpers), `system_prompt::format_skills_for_system_prompt`, `utils::{truncate,
+  output_compression, shell_output}` (ShellCapture = executeShellWithCapture's accumulator).
+  JS details kept: UTF-16 lengths, JS trim whitespace, toFixed half-up, ASCII `\b`.
+- The old invented `{{var}}` template struct is now `TextTemplate` (code-prompts still uses
+  `render`); `SystemPromptBuilder` is untouched.
+- Tests: resource-formatting.test.ts and system-prompt.test.ts, plus unit tests for each util.
+- Next: 9.4a.
+
 ### 2026-09-26: 9.1 blocked on a design decision (rmcp)
 - Found while starting 9.1: rmcp 3.4.1 parses every result into typed structs (tools/call ->
   `CallToolResult`), while hoocode feeds the model `JSON.stringify(rawResult, null, 2)`, so tool

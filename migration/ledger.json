@@ -1458,7 +1458,8 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5b"
+    "7.5b",
+    "9.3a"
    ],
    "crates": [
     "cortexcode-agent-compaction"
@@ -1473,13 +1474,20 @@
     "compact-command"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:11:49Z",
+     "commit": "0a5c769",
+     "kind": "note",
+     "text": "Bookkeeping fix (2026-09-26): added dependency on 9.3 and reset to todo. compaction/utils.ts imports compressGeneral (harness/utils/output-compression.ts) and compaction.ts uses harness/messages.ts (convertToLlm, create*SummaryMessage), both 9.3 sources. Also: agent-session-compaction.ts needs AgentSession/ExtensionRunner/ModelRegistry/SettingsManager (10.x), so the compact-command L2 scenario will wait for the interactive app."
+    }
+   ]
   },
   {
-   "id": "9.3",
-   "title": "Harness utils: skills, prompt-templates, messages, truncate, shell-output, output-compression (deltas since 0.4.x)",
+   "id": "9.3a",
+   "title": "Harness utils without an ExecutionEnv: messages deltas, truncate, output-compression, shell-output capture, skill/prompt-template/system-prompt formatting",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -1487,20 +1495,63 @@
     "cortexcode-agent-harness"
    ],
    "sources": [
-    "packages/agent/src/harness/"
+    "packages/agent/src/harness/messages.ts",
+    "packages/agent/src/harness/utils/",
+    "packages/agent/src/harness/system-prompt.ts",
+    "packages/agent/src/harness/skills.ts",
+    "packages/agent/src/harness/prompt-templates.ts"
    ],
    "ts_tests": [
-    "packages/agent/test/harness/",
-    "packages/agent/test/utils/"
+    "packages/agent/test/harness/resource-formatting.test.ts",
+    "packages/agent/test/harness/system-prompt.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "notes": "Split from 9.3 (2026-09-26): skills.ts/prompt-templates.ts loaders and shell-output executeShellWithCapture take an ExecutionEnv (harness/types.ts, NodeExecutionEnv = 9.4a), so only their env-free parts are here.",
+   "log": [
+    {
+     "at": "2026-09-26T21:11:49Z",
+     "commit": "0a5c769",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:18:22Z",
+     "commit": "0a5c769",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "9.3b",
+   "title": "Harness skill + prompt-template loaders over ExecutionEnv (loadSkills, loadSourcedSkills, loadPromptTemplates) and executeShellWithCapture",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "9.3a",
+    "9.4a"
+   ],
+   "crates": [
+    "cortexcode-agent-harness"
+   ],
+   "sources": [
+    "packages/agent/src/harness/skills.ts",
+    "packages/agent/src/harness/prompt-templates.ts",
+    "packages/agent/src/harness/utils/shell-output.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/skills.test.ts",
+    "packages/agent/test/harness/prompt-templates.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 9.3 (2026-09-26). Needs gitignore matching (ignore package) and YAML frontmatter.",
    "log": []
   },
   {
-   "id": "9.4",
-   "title": "Agent harness + execution environment (env/nodejs.ts -> tokio)",
+   "id": "9.4a",
+   "title": "ExecutionEnv trait + FileInfo/FileError (harness/types.ts) and the tokio env (env/nodejs.ts)",
    "phase": 9,
    "status": "todo",
    "depends": [
@@ -1511,13 +1562,40 @@
     "cortexcode-agent-harness"
    ],
    "sources": [
-    "packages/agent/src/harness/agent-harness.ts",
-    "packages/agent/src/harness/env/nodejs.ts"
+    "packages/agent/src/harness/types.ts",
+    "packages/agent/src/harness/env/nodejs.ts",
+    "packages/agent/src/harness/execution-env.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/agent/test/harness/nodejs-env.test.ts"
+   ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "notes": "Split from 9.4 (2026-09-26).",
+   "log": []
+  },
+  {
+   "id": "9.4b",
+   "title": "Agent harness (agent-harness.ts) over ExecutionEnv",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "9.4a",
+    "9.3b",
+    "9.2"
+   ],
+   "crates": [
+    "cortexcode-agent-harness"
+   ],
+   "sources": [
+    "packages/agent/src/harness/agent-harness.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/agent-harness.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 9.4 (2026-09-26).",
    "log": [
     {
      "at": "2026-09-26T21:06:45Z",
