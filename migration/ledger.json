@@ -1820,13 +1820,14 @@
    "id": "10.2b",
    "title": "bash tool: new crate code-tool-bash (process-wrap groups, timeout, abort, output accumulator, shell resolution)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a",
     "7.3b"
    ],
    "crates": [
-    "cortexcode-code-tool-bash"
+    "cortexcode-code-tool-bash",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/bash.ts",
@@ -1834,14 +1835,31 @@
     "packages/coding-agent/src/core/tools/output-accumulator.ts",
     "packages/coding-agent/src/utils/shell.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/tools.test.ts",
+    "packages/coding-agent/test/bash-prompt-snippet.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
+    "print-tool-bash-light",
     "print-tool-bash",
     "tool-bash"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenarios written 2026-09-26. print-tool-bash-light passes now (tool results identical). print-tool-bash differs only in the default-bundle system prompt (10.4c), like print-tool-read. tool-bash needs interactive mode (tool execution rendering, phase 11); hoocode's build mode asks to allow each command, which the scenario answers.",
+   "log": [
+    {
+     "at": "2026-09-26T22:11:02Z",
+     "commit": "e760fc9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:27:03Z",
+     "commit": "e760fc9",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-bash-light=pass, print-tool-bash=fail, tool-bash=fail"
+    }
+   ]
   },
   {
    "id": "10.2c",

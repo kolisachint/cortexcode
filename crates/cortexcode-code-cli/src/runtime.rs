@@ -19,6 +19,7 @@ use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tool_api::{
     wrap_tool_definitions, SessionBranch, ToolContext, ToolContextFactory, ToolDefinition,
 };
+use cortexcode_code_tool_bash::BashToolOptions;
 use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
 use cortexcode_code_tools_fs::ReadToolOptions;
 
@@ -295,7 +296,8 @@ impl SessionBranch for LiveTranscript {
 
 /// The default coding tools as definitions. The read tool takes its caps from
 /// `toolOutput`, image resizing from `images.autoResize`, and read-dedup from
-/// `contextGc.enabled`.
+/// `contextGc.enabled`; bash takes `shellCommandPrefix`, `shellPath` and the
+/// same caps.
 fn build_tool_definitions(
     cwd: &std::path::Path,
     settings: &SettingsManager,
@@ -307,10 +309,18 @@ fn build_tool_definitions(
         dedup_reads: settings.context_gc_enabled(),
         ..Default::default()
     };
+    let bash = BashToolOptions {
+        command_prefix: settings.shell_command_prefix(),
+        shell_path: settings.shell_path(),
+        max_output_bytes: Some(settings.tool_output_max_bytes() as usize),
+        max_output_lines: Some(settings.tool_output_max_lines() as usize),
+        ..Default::default()
+    };
     cortexcode_code_tools::default_tool_definitions(
         cwd.to_path_buf(),
         PermissionPolicy::default(),
         read,
+        bash,
     )
 }
 
@@ -680,7 +690,9 @@ mod tests {
             false,
         );
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
-        assert!(prompt.contains("Available tools:\n- read: Read file contents\n\nGuidelines:"));
+        assert!(prompt.contains(
+            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n\nGuidelines:"
+        ));
     }
 
     #[test]

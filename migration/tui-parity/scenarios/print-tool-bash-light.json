@@ -1,0 +1,72 @@
+{
+  "description": "Light mode (--light) print run with three bash calls in one turn: output piped through sort, a non-zero exit (stdout kept, 'Command exited with code 3'), and a timeout ('Command timed out after 1 seconds'). Model requests must be identical: the tool results (text and error flags) and the four light tool schemas.",
+  "compare_requests": true,
+  "request_fields": [
+    "messages",
+    "tools"
+  ],
+  "phase": "10.2b",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "-p",
+    "run the commands"
+  ],
+  "llm": [
+    {
+      "text": "Running them.",
+      "tool_calls": [
+        {
+          "id": "call_bash_1",
+          "name": "bash",
+          "arguments": {
+            "command": "printf 'alpha\\nbeta\\ngamma\\n' | sort -r"
+          }
+        },
+        {
+          "id": "call_bash_2",
+          "name": "bash",
+          "arguments": {
+            "command": "echo boom; exit 3"
+          }
+        },
+        {
+          "id": "call_bash_3",
+          "name": "bash",
+          "arguments": {
+            "command": "echo waiting; sleep 5",
+            "timeout": 1
+          }
+        }
+      ]
+    },
+    {
+      "text": "Sorted, failed with 3, and timed out."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "timed out",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

@@ -22,6 +22,33 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2b l1_done (bash tool); print-tool-bash-light green
+- New crate `cortexcode-code-tool-bash` (bash.ts, bash-executor.ts, output-accumulator.ts,
+  utils/shell.ts): shell resolution (`shellPath`, /bin/bash, bash on PATH, sh; Git Bash on
+  Windows), `get_shell_env` (bin dir first on PATH), sanitize + strip-ansi (ansi-regex 6.2
+  pattern), process-tree kill and detached-child tracking. `LocalBashOperations` spawns
+  through process-wrap (process group on Unix, job object on Windows), kills the group on
+  abort/timeout (`aborted` / `timeout:<s>` errors), and waits at most 100 ms for pipes held
+  by backgrounded children after the shell exits (waitForChildProcess). `OutputAccumulator`:
+  streaming UTF-8 decode, bounded tail, temp-file spill, final compression. The tool keeps
+  hoocode's texts (truncation notices, exit/timeout/abort statuses, allowed/denied command
+  patterns, command prefix, spawn hook) and 100 ms update throttling (a flusher thread
+  plays the timer). `execute_bash_with_operations` is the user-`!` executor.
+- Wiring: code-tools' default bundle and light preset use the real bash tool (placeholder
+  and `bash()`/`format_output` helpers removed); the CLI passes `shellCommandPrefix`,
+  `shellPath` and the `toolOutput` caps (agent-session.ts `_buildRuntime`).
+- Deviations: temp files are `cortex-bash-<16 random alnum>.log` (hoocode: `hoocode-bash-<hex>`);
+  numeric exit only (a signal-killed shell is a success, as in hoocode); after the grace
+  period a reader thread may linger until the orphan closes the pipe (Node destroys the
+  stream).
+- Tests: tools.test.ts bash section + bash-prompt-snippet.test.ts ported (19 integration +
+  7 unit tests, including tree kill on abort and the pipe-holding background child).
+- L2: new `print-tool-bash-light` (pass, selfcheck stable; tool results identical incl. exit 3
+  and timeout texts). New `print-tool-bash` (differs only in the default-bundle system
+  prompt → passes with 10.4c) and `tool-bash` (interactive; hoocode's build mode asks to
+  allow each command, the scenario answers it; needs phase 11 rendering). Both stable on
+  hoocode. 10.2b stays l1_done until they pass, as 10.2a does.
+
 ### 2026-09-26: 10.1c done (CLI on code-paths + code-settings; code-config deleted)
 - `cortexcode-code-config` is deleted: its invented `~/.cortexcode/config.json` schema
   (provider/model/api_key/providers/auto_approve_*) and the `migrate.rs` one-shot copy from

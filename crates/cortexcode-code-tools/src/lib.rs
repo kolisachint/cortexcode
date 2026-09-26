@@ -1,7 +1,8 @@
 //! Core CLI tools: read, bash, edit, write, grep, find, ls.
 //!
-//! `read` is the pinned port from `cortexcode-code-tools-fs` (10.2a); the
-//! others are placeholders until their 10.2 tasks land.
+//! `read` is the pinned port from `cortexcode-code-tools-fs` (10.2a) and `bash`
+//! from `cortexcode-code-tool-bash` (10.2b); the others are placeholders until
+//! their 10.2 tasks land.
 //!
 //! Mirrors `core/tools/` from the TypeScript `packages/coding-agent` package.
 
@@ -10,6 +11,7 @@ use cortexcode_ai_types::{Content, TextContent};
 use cortexcode_code_tool_api::{
     tool_definition_from_agent_tool, wrap_tool_definitions, ToolContextFactory, ToolDefinition,
 };
+use cortexcode_code_tool_bash::{create_bash_tool_definition, BashToolOptions};
 use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
 use serde_json::json;
 use std::path::Path;
@@ -109,44 +111,6 @@ impl From<std::io::Error> for EditError {
     fn from(e: std::io::Error) -> Self {
         EditError::Io(e)
     }
-}
-
-/// Execute a shell command and return stdout/stderr.
-pub fn bash(command: &str, cwd: Option<&Path>) -> Result<std::process::Output, std::io::Error> {
-    let mut cmd = if cfg!(target_os = "windows") {
-        let mut c = std::process::Command::new("cmd");
-        c.args(["/C", command]);
-        c
-    } else {
-        let mut c = std::process::Command::new("sh");
-        c.args(["-c", command]);
-        c
-    };
-    if let Some(dir) = cwd {
-        cmd.current_dir(dir);
-    }
-    cmd.output()
-}
-
-/// Format command output as a string.
-pub fn format_output(output: &std::process::Output) -> String {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let mut result = String::new();
-    if !stdout.is_empty() {
-        result.push_str(&stdout);
-    }
-    if !stderr.is_empty() {
-        if !result.is_empty() {
-            result.push('\n');
-        }
-        result.push_str("stderr:\n");
-        result.push_str(&stderr);
-    }
-    if result.is_empty() {
-        result.push_str("(no output)");
-    }
-    result
 }
 
 /// Search file contents for a regex pattern.
@@ -347,6 +311,8 @@ pub fn todo_action(
 pub struct DefaultToolsOptions {
     /// Options for the `read` tool (output caps, image resize, dedup).
     pub read: ReadToolOptions,
+    /// Options for the `bash` tool (shell, command prefix, output caps).
+    pub bash: BashToolOptions,
     /// Supplies the model and session branch to context-aware tools.
     pub ctx_factory: Option<ToolContextFactory>,
 }
@@ -363,7 +329,7 @@ pub fn default_tools_with(
     options: DefaultToolsOptions,
 ) -> Vec<AgentTool> {
     wrap_tool_definitions(
-        default_tool_definitions(cwd, permissions, options.read),
+        default_tool_definitions(cwd, permissions, options.read, options.bash),
         options.ctx_factory,
     )
 }
@@ -376,8 +342,12 @@ pub fn default_tool_definitions(
     cwd: std::path::PathBuf,
     _permissions: PermissionPolicy,
     read: ReadToolOptions,
+    bash: BashToolOptions,
 ) -> Vec<ToolDefinition> {
-    let mut definitions = vec![create_read_tool_definition(cwd.clone(), read)];
+    let mut definitions = vec![
+        create_read_tool_definition(cwd.clone(), read),
+        create_bash_tool_definition(cwd.clone(), bash),
+    ];
     definitions.extend(
         placeholder_tools(cwd)
             .into_iter()
@@ -388,7 +358,6 @@ pub fn default_tool_definitions(
 
 /// The tools that still await their 10.2 ports.
 pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
-    let cwd_bash = cwd.clone();
     let cwd_write = cwd.clone();
     let cwd_edit = cwd.clone();
     let cwd_grep = cwd.clone();
@@ -396,24 +365,6 @@ pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
     let cwd_ls = cwd.clone();
 
     vec![
-        AgentTool::new(
-            "bash",
-            "Run a shell command. Args: {\"command\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "command": { "type": "string" }
-                },
-                "required": ["command"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let command = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                match bash(command, Some(&cwd_bash)) {
-                    Ok(output) => Ok(text_result(format_output(&output))),
-                    Err(e) => Ok(error_result(format!("Error running command: {}", e))),
-                }
-            }),
-        ),
         AgentTool::new(
             "write",
             "Write contents to a file. Args: {\"path\": string, \"content\": string}",
@@ -670,12 +621,6 @@ mod tests {
         let found = find(&dir, "*.rs").unwrap();
         assert_eq!(found.len(), 2);
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_bash_echo() {
-        let output = bash("echo hello", None).unwrap();
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hello"));
     }
 
     #[test]

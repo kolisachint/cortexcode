@@ -24,6 +24,7 @@ cortexcode-code-media = { workspace = true }
 cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tools = { workspace = true }
 cortexcode-code-tools-fs = { workspace = true }
+cortexcode-code-tool-bash = { workspace = true }
 cortexcode-ai-env = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
 cortexcode-ai-oauth-anthropic = { workspace = true }

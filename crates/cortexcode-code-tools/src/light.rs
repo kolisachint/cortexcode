@@ -7,6 +7,7 @@
 use crate::placeholder_tools;
 use cortexcode_agent_types::AgentTool;
 use cortexcode_code_tool_api::{tool_definition_from_agent_tool, ToolDefinition};
+use cortexcode_code_tool_bash::{create_bash_tool, BashToolOptions};
 use cortexcode_code_tools_fs::{create_read_tool, ReadToolOptions};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -24,9 +25,9 @@ fn take(tools: &mut Vec<AgentTool>, name: &str) -> AgentTool {
 }
 
 /// `createLightTools`: the real tools wearing short descriptions and stripped
-/// parameter schemas (same shapes, no per-property descriptions). The read
-/// tool gets default options and no context, as hoocode's `createReadTool(cwd)`
-/// behind `baseToolsOverride` does.
+/// parameter schemas (same shapes, no per-property descriptions). read and
+/// bash get default options and no context, as hoocode's `createReadTool(cwd)`
+/// and `createBashTool(cwd)` behind `baseToolsOverride` do.
 pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
     let mut read = create_read_tool(cwd.clone(), ReadToolOptions::default(), None);
     read.description = "Read a file. args: path, offset?, limit?".into();
@@ -40,6 +41,7 @@ pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
         }
     });
 
+    let cwd_bash = cwd.clone();
     let mut placeholders = placeholder_tools(cwd);
     let mut write = take(&mut placeholders, "write");
     write.description = "Write file (overwrites). args: path, content".into();
@@ -77,7 +79,7 @@ pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
         inner(id, args, signal, on_update)
     });
 
-    let mut bash = take(&mut placeholders, "bash");
+    let mut bash = create_bash_tool(cwd_bash, BashToolOptions::default(), None);
     bash.description = "Run a shell command. args: command, timeout?".into();
     bash.parameters = json!({
         "type": "object",
