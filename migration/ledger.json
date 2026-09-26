@@ -918,7 +918,8 @@
     "packages/ai/src/utils/oauth/github-copilot.ts"
    ],
    "ts_tests": [
-    "packages/ai/test/github-copilot-*.test.ts"
+    "packages/ai/test/github-copilot-*.test.ts",
+    "packages/ai/test/transform-messages-copilot-openai-to-anthropic.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
@@ -1059,25 +1060,63 @@
    ]
   },
   {
-   "id": "8.6",
-   "title": "Port remaining ai test files (ledger of 68); live-key e2e tests as #[ignore]",
+   "id": "8.6a",
+   "title": "Faux provider: full faux.ts port (registerFauxProvider on the API registry, prompt-cache usage estimate, error event on empty queue, tokensPerSecond pacing, abort)",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.5a",
     "8.5b"
    ],
    "crates": [
-    "cortexcode-ai-provider-anthropic",
-    "cortexcode-ai-provider-google"
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-registry"
    ],
    "sources": [
-    "packages/ai/test/"
+    "packages/ai/src/providers/faux.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/ai/test/faux-provider.test.ts"
+   ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7. The faux provider diverges from faux.ts: no promptCache (cacheRead/cacheWrite), an empty queue returns Err instead of an error event, no tokensPerSecond, no abort handling. Port faux.ts fully together with faux-provider.test.ts.",
+   "log": [
+    {
+     "at": "2026-09-25T16:58:32Z",
+     "commit": "0292ad2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:04:40Z",
+     "commit": "0292ad2",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "8.6b",
+   "title": "UserMessage string content kept as a string (ai-types representation) + byte parity in providers/sessions",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "8.6a"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-ai-provider-openai"
+   ],
+   "sources": [
+    "packages/ai/src/types.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/openai-completions-cache-control-format.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7.",
    "log": [
     {
      "at": "2026-09-25T15:14:45Z",
@@ -1086,10 +1125,171 @@
      "text": "8.2: UserMessage.content is always blocks; TS keeps string content as a string (openai-completions sends it as a string, cache-control-format.test.ts asserts it; sessions store it). Needs a representation decision (enum or flag in ai-types) before the remaining provider/session tests can match byte-for-byte."
     },
     {
+     "at": "2026-09-25T17:06:59Z",
+     "commit": "15b9888",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:14:05Z",
+     "commit": "15b9888",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "8.6c",
+   "title": "Anthropic provider tests: claude-5 request format (adaptive thinking, output_config.effort), eager tool input, SSE parsing, thinking disable, tool-name normalization, tool search; e2e as #[ignore]",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "8.6b"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-anthropic"
+   ],
+   "sources": [
+    "packages/ai/src/providers/anthropic.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/claude-5-models.test.ts",
+    "packages/ai/test/anthropic-eager-tool-input-compat.test.ts",
+    "packages/ai/test/anthropic-sse-parsing.test.ts",
+    "packages/ai/test/anthropic-thinking-disable.test.ts",
+    "packages/ai/test/anthropic-tool-name-normalization.test.ts",
+    "packages/ai/test/anthropic-tool-search.test.ts",
+    "packages/ai/test/anthropic-eager-tool-input-e2e.test.ts",
+    "packages/ai/test/anthropic-long-cache-retention-e2e.test.ts",
+    "packages/ai/test/anthropic-opus-4-7-smoke.test.ts",
+    "packages/ai/test/interleaved-thinking.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7.",
+   "log": [
+    {
      "at": "2026-09-25T12:14:48Z",
      "commit": "7b349fa",
      "kind": "note",
      "text": "8.1: claude-5-models.test.ts request-format cases (adaptive thinking {type: adaptive, display}, output_config.effort, Copilot auth headers) and openai-completions-response-model.test.ts are left for this task. Typed compat views exist: Model::compat_as::<OpenAICompletionsCompat|OpenAIResponsesCompat|AnthropicMessagesCompat>()."
+    },
+    {
+     "at": "2026-09-25T17:09:10Z",
+     "commit": "15b9888",
+     "kind": "note",
+     "text": "8.6b: anthropic request.rs convert_messages is not a faithful port of convertMessages: it merges every same-role turn and maps string user content to one text block (TS sends it as a string, converted to a text block only when it gets the cache marker). Port convertMessages as is."
+    },
+    {
+     "at": "2026-09-25T17:17:37Z",
+     "commit": "041b0e3",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:28:03Z",
+     "commit": "041b0e3",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "8.6d",
+   "title": "Google provider tests: convert-tools, gemini3 unsigned tool call, image tool-result routing, thinking signature/disable, vertex API-key resolution",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "8.6b"
+   ],
+   "crates": [
+    "cortexcode-ai-provider-google"
+   ],
+   "sources": [
+    "packages/ai/src/providers/google-shared.ts",
+    "packages/ai/src/providers/google.ts",
+    "packages/ai/src/providers/google-vertex.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/google-shared-convert-tools.test.ts",
+    "packages/ai/test/google-shared-gemini3-unsigned-tool-call.test.ts",
+    "packages/ai/test/google-shared-image-tool-result-routing.test.ts",
+    "packages/ai/test/google-thinking-signature.test.ts",
+    "packages/ai/test/google-thinking-disable.test.ts",
+    "packages/ai/test/google-vertex-api-key-resolution.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7.",
+   "log": [
+    {
+     "at": "2026-09-25T17:28:39Z",
+     "commit": "1854935",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:39:12Z",
+     "commit": "1854935",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "8.6e",
+   "title": "Cross-provider suites (mostly live-key, #[ignore]): context-overflow, empty, image-tool-result, responseid, tokens, total-tokens, tool-call-id-normalization, tool-call-without-result, unicode-surrogate, cache-retention, constrain-tool-calls, xhigh/supports-xhigh, zen, openrouter-*, lazy-module-load",
+   "phase": 8,
+   "status": "done",
+   "depends": [
+    "8.6c",
+    "8.6d"
+   ],
+   "crates": [
+    "cortexcode-ai",
+    "cortexcode-ai-util",
+    "cortexcode-ai-images",
+    "cortexcode-ai-models",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-responses"
+   ],
+   "sources": [
+    "packages/ai/src/stream.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/context-overflow.test.ts",
+    "packages/ai/test/empty.test.ts",
+    "packages/ai/test/image-tool-result.test.ts",
+    "packages/ai/test/responseid.test.ts",
+    "packages/ai/test/tokens.test.ts",
+    "packages/ai/test/total-tokens.test.ts",
+    "packages/ai/test/tool-call-id-normalization.test.ts",
+    "packages/ai/test/tool-call-without-result.test.ts",
+    "packages/ai/test/unicode-surrogate.test.ts",
+    "packages/ai/test/cache-retention.test.ts",
+    "packages/ai/test/constrain-tool-calls.test.ts",
+    "packages/ai/test/xhigh.test.ts",
+    "packages/ai/test/supports-xhigh.test.ts",
+    "packages/ai/test/zen.test.ts",
+    "packages/ai/test/openrouter-cache-write-repro.test.ts",
+    "packages/ai/test/openrouter-images.test.ts",
+    "packages/ai/test/lazy-module-load.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 8.6 (2026-09-25): 41 of the 68 ai test files were unported; too big for one sitting. Codex/Copilot/gemini-cli/OAuth test files stay with 8.4a/8.4b/8.4c/8.7. lazy-module-load.test.ts checks Node's lazy import of provider SDKs; Rust links providers statically, so it has no counterpart. openrouter-cache-write-repro.test.ts needs onPayload (8.8).",
+   "log": [
+    {
+     "at": "2026-09-25T17:39:21Z",
+     "commit": "7b002f9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T17:48:45Z",
+     "commit": "7b002f9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -1097,7 +1297,7 @@
    "id": "8.7",
    "title": "Split ai-oauth into core (PKCE, loopback server, types, refresh) + ai-oauth-anthropic + ai-oauth-github-copilot",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3c"
    ],
@@ -1116,6 +1316,49 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Each OAuth flow changes with its vendor: one crate per vendor.",
+   "log": [
+    {
+     "at": "2026-09-25T17:48:54Z",
+     "commit": "98f54e9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-25T18:00:23Z",
+     "commit": "98f54e9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "8.8",
+   "title": "onPayload/onResponse hooks in stream options (typed callbacks, every provider) + openrouter-cache-write-repro live test",
+   "phase": 8,
+   "status": "todo",
+   "depends": [
+    "8.6e"
+   ],
+   "crates": [
+    "cortexcode-ai-types",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-responses",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-azure",
+    "cortexcode-ai-provider-faux",
+    "cortexcode-ai-images"
+   ],
+   "sources": [
+    "packages/ai/src/types.ts",
+    "packages/agent/src/harness/agent-harness.ts"
+   ],
+   "ts_tests": [
+    "packages/ai/test/openrouter-cache-write-repro.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Added 2026-09-25 (from 8.6e). SimpleStreamOptions.on_payload/on_response are String placeholders; TS onPayload(params, model) may replace the payload and onResponse({status, headers}, model) is awaited after the response. The agent harness maps them to the before_provider_request / after_provider_response hooks (9.4).",
    "log": []
   },
   {
@@ -1197,7 +1440,8 @@
    "phase": 9,
    "status": "todo",
    "depends": [
-    "7.5b"
+    "7.5b",
+    "8.8"
    ],
    "crates": [
     "cortexcode-agent-harness"

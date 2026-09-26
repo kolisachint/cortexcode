@@ -15,7 +15,11 @@ pub fn infer_copilot_initiator(messages: &[Message]) -> &'static str {
 /// `hasCopilotVisionInput`: any user or tool-result message carries an image.
 pub fn has_copilot_vision_input(messages: &[Message]) -> bool {
     messages.iter().any(|msg| match msg {
-        Message::User(m) => m.content.iter().any(|c| matches!(c, Content::Image(_))),
+        Message::User(m) => m
+            .content
+            .blocks()
+            .iter()
+            .any(|c| matches!(c, Content::Image(_))),
         Message::ToolResult(m) => m.content.iter().any(|c| matches!(c, Content::Image(_))),
         Message::Assistant(_) => false,
     })

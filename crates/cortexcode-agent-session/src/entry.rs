@@ -5,7 +5,6 @@
 //! that form an append-only conversation history.
 
 use cortexcode_agent_types::AgentMessage;
-use cortexcode_ai_types::Content;
 use serde::{Deserialize, Serialize};
 
 /// Current session file format version.
@@ -32,34 +31,8 @@ pub struct Header {
     pub branch: Option<String>,
 }
 
-/// Content of a `custom_message` entry, mirroring the TypeScript
-/// `string | (TextContent | ImageContent)[]` union.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CustomMessageContent {
-    /// Plain text content.
-    Text(String),
-    /// Structured content blocks.
-    Blocks(Vec<Content>),
-}
-
-impl From<String> for CustomMessageContent {
-    fn from(value: String) -> Self {
-        CustomMessageContent::Text(value)
-    }
-}
-
-impl From<&str> for CustomMessageContent {
-    fn from(value: &str) -> Self {
-        CustomMessageContent::Text(value.to_string())
-    }
-}
-
-impl From<Vec<Content>> for CustomMessageContent {
-    fn from(value: Vec<Content>) -> Self {
-        CustomMessageContent::Blocks(value)
-    }
-}
+/// Content of a `custom_message` entry: TS `string | (TextContent | ImageContent)[]`.
+pub type CustomMessageContent = cortexcode_ai_types::UserContent;
 
 /// A single line in a session file.
 ///
@@ -264,7 +237,7 @@ mod tests {
     #[test]
     fn message_entry_roundtrips() {
         let msg = AgentMessage::from_message(Message::User(UserMessage {
-            content: vec![],
+            content: vec![].into(),
             timestamp: 0,
         }));
         let entry = FileEntry::Message {

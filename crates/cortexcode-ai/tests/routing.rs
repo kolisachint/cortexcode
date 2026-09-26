@@ -36,7 +36,7 @@ fn hi() -> Context {
     Context::new(
         String::new(),
         vec![Message::User(UserMessage {
-            content: vec![Content::Text(TextContent::new("hi"))],
+            content: vec![Content::Text(TextContent::new("hi"))].into(),
             timestamp: 0,
         })],
         vec![],

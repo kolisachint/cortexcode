@@ -340,6 +340,7 @@ async fn stream_assistant_response(
             .tools
             .iter()
             .map(|t| ai_types::Tool {
+                defer_loading: None,
                 name: t.name.clone(),
                 description: t.description.clone(),
                 parameters: t.parameters.clone(),
@@ -1006,7 +1007,7 @@ fn create_default_background_result_message(finalized: &FinalizedOutcome) -> Age
     let mut content = vec![Content::text(header)];
     content.extend(finalized.result.content.iter().cloned());
     AgentMessage::User(UserMessage {
-        content,
+        content: content.into(),
         timestamp: ai_types::now_ms(),
     })
 }
@@ -1052,7 +1053,8 @@ fn background_result_message(
         SettledBackgroundTask::Failed(message) => AgentMessage::User(UserMessage {
             content: vec![Content::text(format!(
                 "A background tool failed unexpectedly: {message}"
-            ))],
+            ))]
+            .into(),
             timestamp: ai_types::now_ms(),
         }),
     }

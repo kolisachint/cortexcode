@@ -545,7 +545,8 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.to_string(),
-            })],
+            })]
+            .into(),
             timestamp: 0,
         }))
     }

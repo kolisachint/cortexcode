@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use cortexcode_ai_types::{Content, Cost, ModelCost, StopReason, Usage};
+use cortexcode_ai_types::{AbortSignal, Content, Cost, ModelCost, StopReason, Usage};
 
 /// An image-generation model definition (hoocode `ImagesModel`, same JSON shape).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -34,11 +34,15 @@ pub struct ImagesContext {
     pub input: Vec<Content>,
 }
 
-/// Options for an image-generation request.
+/// Options for an image-generation request (`ProviderImagesOptions`).
 #[derive(Debug, Clone, Default)]
 pub struct ImagesOptions {
     pub api_key: Option<String>,
     pub headers: Option<HashMap<String, String>>,
+    pub signal: Option<AbortSignal>,
+    pub timeout_ms: Option<u64>,
+    /// SDK client retries (default 2).
+    pub max_retries: Option<u32>,
 }
 
 /// Result of an image-generation request.
@@ -48,6 +52,7 @@ pub struct AssistantImages {
     pub provider: String,
     pub model: String,
     pub output: Vec<Content>,
+    pub response_id: Option<String>,
     pub stop_reason: StopReason,
     pub error_message: Option<String>,
     pub usage: Option<Usage>,

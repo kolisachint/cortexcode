@@ -36,7 +36,10 @@ pub fn bash_execution_to_text(msg: &BashExecutionMessage) -> String {
 }
 
 fn user(content: Vec<Content>, timestamp: i64) -> Message {
-    Message::User(UserMessage { content, timestamp })
+    Message::User(UserMessage {
+        content: content.into(),
+        timestamp,
+    })
 }
 
 /// `convertToLlm()`: harness messages become user messages; `!!` bash runs are dropped.
@@ -54,7 +57,8 @@ pub fn convert_to_llm(messages: &[AgentMessage]) -> Vec<Message> {
                     ))
                 }
             }
-            AgentMessage::Custom(c) => Some(user(c.content.clone(), c.timestamp)),
+            // A string becomes one text block, as in TS.
+            AgentMessage::Custom(c) => Some(user(c.content.clone().into_blocks(), c.timestamp)),
             AgentMessage::BranchSummary(b) => Some(user(
                 vec![Content::text(format!(
                     "{BRANCH_SUMMARY_PREFIX}{}{BRANCH_SUMMARY_SUFFIX}",
@@ -92,7 +96,7 @@ pub fn to_text(messages: &[AgentMessage]) -> String {
         .iter()
         .filter_map(|msg| msg.extract_message())
         .map(|m| match m {
-            Message::User(u) => content_to_text(&u.content),
+            Message::User(u) => content_to_text(&u.content.blocks()),
             Message::Assistant(a) => content_to_text(&a.content),
             Message::ToolResult(t) => content_to_text(&t.content),
         })
@@ -211,7 +215,7 @@ mod tests {
         messages.push(AgentMessage::Custom(
             cortexcode_agent_types::CustomMessage {
                 custom_type: "note".into(),
-                content: vec![Content::text("hidden")],
+                content: vec![Content::text("hidden")].into(),
                 display: true,
                 details: None,
                 timestamp: 1,
@@ -243,7 +247,7 @@ mod tests {
             bash(Some(true), Some(0)),
             AgentMessage::Custom(CustomMessage {
                 custom_type: BACKGROUND_TASK_CUSTOM_TYPE.into(),
-                content: vec![Content::text("done")],
+                content: vec![Content::text("done")].into(),
                 display: true,
                 details: None,
                 timestamp: 6,
@@ -261,7 +265,7 @@ mod tests {
             }),
         ];
         let text_of = |m: &Message| match m {
-            Message::User(u) => match &u.content[0] {
+            Message::User(u) => match &u.content.blocks()[0] {
                 Content::Text(t) => t.text.clone(),
                 _ => panic!(),
             },

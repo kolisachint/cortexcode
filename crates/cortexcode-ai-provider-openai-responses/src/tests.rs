@@ -358,6 +358,7 @@ fn live_cache_affinity() {
 fn live_skips_reasoning_only_history_after_an_aborted_turn() {
     let (model, key) = live_model("gpt-5-mini").expect("OPENAI_API_KEY");
     let tool = cortexcode_ai_types::Tool {
+        defer_loading: None,
         name: "double_number".into(),
         description: "Doubles a number and returns the result".into(),
         parameters: json!({"type": "object", "properties": {"value": {"type": "number", "description": "A number to double"}}, "required": ["value"]}),

@@ -1,109 +1,185 @@
-//! Shared request/response conversion for Google Generative AI and Vertex AI.
-//!
-//! Ported from TypeScript `@kolisachint/hoocode-ai` →
-//! `providers/google-shared.ts`.
+//! Port of hoocode `providers/google-shared.ts` (v0.5.89): message and tool
+//! conversion shared by Google Generative AI and Vertex AI. Values are the
+//! `@google/genai` request objects (`Content[]`, `Tool[]`); the SDK's REST
+//! mapping is in `request::sdk_body`.
 
-use cortexcode_ai_types::{Content, Context, Message, Model, StopReason, Tool};
+use cortexcode_ai_types::{
+    AssistantMessage, Content, Context, Message, Model, StopReason, Tool, UserContent,
+};
+use cortexcode_ai_util::transform_messages;
+use serde_json::{json, Map, Value};
 
-/// Whether a model requires explicit tool-call IDs in function calls/responses
-/// (non-Gemini models proxied through Google's Cloud Code Assist API).
+/// `isThinkingPart`: only `thought: true` marks thinking; a
+/// `thoughtSignature` can ride on any part.
+pub fn is_thinking_part(part: &Value) -> bool {
+    part["thought"] == Value::Bool(true)
+}
+
+/// `retainThoughtSignature`: keep the last non-empty signature of a block.
+pub fn retain_thought_signature(
+    existing: Option<String>,
+    incoming: Option<&str>,
+) -> Option<String> {
+    match incoming {
+        Some(signature) if !signature.is_empty() => Some(signature.to_string()),
+        _ => existing,
+    }
+}
+
+/// Thought signatures must be base64 (`TYPE_BYTES`):
+/// `/^[A-Za-z0-9+/]+={0,2}$/` with a length that is a multiple of 4.
+fn is_valid_thought_signature(signature: Option<&str>) -> bool {
+    let Some(signature) = signature.filter(|s| !s.is_empty()) else {
+        return false;
+    };
+    if signature.len() % 4 != 0 {
+        return false;
+    }
+    let body = signature.trim_end_matches('=');
+    signature.len() - body.len() <= 2
+        && !body.is_empty()
+        && body
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/')
+}
+
+/// `resolveThoughtSignature`: only same provider/model, valid base64.
+fn resolve_thought_signature(
+    same_provider_and_model: bool,
+    signature: Option<&str>,
+) -> Option<String> {
+    (same_provider_and_model && is_valid_thought_signature(signature))
+        .then(|| signature.unwrap_or_default().to_string())
+}
+
+/// `requiresToolCallId`: models behind Google APIs that need explicit ids.
 pub fn requires_tool_call_id(model_id: &str) -> bool {
     model_id.starts_with("claude-") || model_id.starts_with("gpt-oss-")
 }
 
-fn normalize_tool_call_id(model_id: &str, id: &str) -> String {
-    if !requires_tool_call_id(model_id) {
-        return id.to_string();
-    }
-    let sanitized: String = id
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    sanitized.chars().take(64).collect()
-}
-
-fn gemini_major_version(model_id: &str) -> Option<u32> {
+/// `getGeminiMajorVersion`: `/^gemini(?:-live)?-(\d+)/` on the lowercased id.
+pub(crate) fn gemini_major_version(model_id: &str) -> Option<u32> {
     let lower = model_id.to_lowercase();
-    let rest = lower
-        .strip_prefix("gemini-live-")
-        .or_else(|| lower.strip_prefix("gemini-"))?;
+    let rest = lower.strip_prefix("gemini-")?;
+    let rest = rest
+        .strip_prefix("live-")
+        .filter(|r| r.starts_with(|c: char| c.is_ascii_digit()))
+        .unwrap_or(rest);
     let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse().ok()
 }
 
 fn supports_multimodal_function_response(model_id: &str) -> bool {
-    match gemini_major_version(model_id) {
-        Some(v) => v >= 3,
-        None => true,
-    }
+    gemini_major_version(model_id).is_none_or(|v| v >= 3)
 }
 
-/// Convert cortex messages into Gemini `Content[]` JSON.
-pub fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Value> {
-    let mut contents: Vec<serde_json::Value> = Vec::new();
+fn inline_data(media_type: &str, data: &str) -> Value {
+    json!({"inlineData": {"mimeType": media_type, "data": data}})
+}
 
-    for msg in &context.messages {
-        match msg {
-            Message::User(m) => {
-                let parts: Vec<serde_json::Value> = m
-                    .content
-                    .iter()
-                    .filter_map(|c| match c {
-                        Content::Text(t) => Some(serde_json::json!({"text": t.text})),
-                        Content::Image(img) => Some(serde_json::json!({
-                            "inlineData": {"mimeType": img.media_type, "data": img.data}
-                        })),
-                        Content::Thinking(_) | Content::ToolCall(_) => None,
-                    })
-                    .collect();
-                if parts.is_empty() {
+fn with_signature(mut part: Value, signature: Option<String>) -> Value {
+    if let Some(signature) = signature {
+        part["thoughtSignature"] = json!(signature);
+    }
+    part
+}
+
+fn assistant_parts(message: &AssistantMessage, model: &Model) -> Vec<Value> {
+    // Thinking stays thinking only for the same provider and model.
+    let same = message.provider == model.provider && message.model == model.id;
+    let mut parts = Vec::new();
+    for block in &message.content {
+        match block {
+            Content::Text(t) => {
+                if t.text.trim().is_empty() {
                     continue;
                 }
-                contents.push(serde_json::json!({"role": "user", "parts": parts}));
+                let signature = resolve_thought_signature(same, t.text_signature.as_deref());
+                parts.push(with_signature(json!({"text": t.text}), signature));
             }
-            Message::Assistant(m) => {
-                let mut parts: Vec<serde_json::Value> = Vec::new();
-                for block in &m.content {
-                    match block {
-                        Content::Text(t) => {
-                            if t.text.trim().is_empty() {
-                                continue;
-                            }
-                            parts.push(serde_json::json!({"text": t.text}));
-                        }
-                        Content::Thinking(th) => {
-                            if th.thinking.trim().is_empty() {
-                                continue;
-                            }
-                            // Thought signatures are only meaningful on a replay to the
-                            // same provider/model; we don't track message provenance
-                            // here, so thinking blocks round-trip as plain thought parts.
-                            parts.push(serde_json::json!({"thought": true, "text": th.thinking}));
-                        }
-                        Content::ToolCall(tc) => {
-                            let mut fc = serde_json::json!({"name": tc.name, "args": tc.arguments});
-                            if requires_tool_call_id(&model.id) {
-                                fc["id"] =
-                                    serde_json::json!(normalize_tool_call_id(&model.id, &tc.id));
-                            }
-                            parts.push(serde_json::json!({"functionCall": fc}));
-                        }
-                        Content::Image(_) => {}
+            Content::Thinking(t) => {
+                if t.thinking.trim().is_empty() {
+                    continue;
+                }
+                if same {
+                    let signature = resolve_thought_signature(same, t.signature.as_deref());
+                    parts.push(with_signature(
+                        json!({"thought": true, "text": t.thinking}),
+                        signature,
+                    ));
+                } else {
+                    // Plain text, no tags, so the model does not mimic them.
+                    parts.push(json!({"text": t.thinking}));
+                }
+            }
+            Content::ToolCall(call) => {
+                let signature = resolve_thought_signature(same, call.thought_signature.as_deref());
+                let args = if call.arguments.is_null() {
+                    json!({})
+                } else {
+                    call.arguments.clone()
+                };
+                let mut function_call = json!({"name": call.name, "args": args});
+                if requires_tool_call_id(&model.id) {
+                    function_call["id"] = json!(call.id);
+                }
+                parts.push(with_signature(
+                    json!({"functionCall": function_call}),
+                    signature,
+                ));
+            }
+            Content::Image(_) => {}
+        }
+    }
+    parts
+}
+
+/// `convertMessages`: internal messages to Gemini `Content[]`.
+pub fn convert_messages(model: &Model, context: &Context) -> Vec<Value> {
+    let needs_ids = requires_tool_call_id(&model.id);
+    let normalize = move |id: &str, _: &Model, _: &AssistantMessage| -> String {
+        if !needs_ids {
+            return id.to_string();
+        }
+        id.encode_utf16()
+            .map(|unit| match char::from_u32(unit as u32) {
+                Some(c) if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+                _ => '_',
+            })
+            .take(64)
+            .collect()
+    };
+    let transformed = transform_messages(&context.messages, model, Some(&normalize));
+    let mut contents: Vec<Value> = Vec::new();
+
+    for msg in &transformed {
+        match msg {
+            Message::User(m) => match &m.content {
+                UserContent::Text(text) => {
+                    contents.push(json!({"role": "user", "parts": [{"text": text}]}));
+                }
+                UserContent::Blocks(blocks) => {
+                    let parts: Vec<Value> = blocks
+                        .iter()
+                        .filter_map(|item| match item {
+                            Content::Text(t) => Some(json!({"text": t.text})),
+                            Content::Image(img) => Some(inline_data(&img.media_type, &img.data)),
+                            _ => None,
+                        })
+                        .collect();
+                    if !parts.is_empty() {
+                        contents.push(json!({"role": "user", "parts": parts}));
                     }
                 }
-                if parts.is_empty() {
-                    continue;
+            },
+            Message::Assistant(m) => {
+                let parts = assistant_parts(m, model);
+                if !parts.is_empty() {
+                    contents.push(json!({"role": "model", "parts": parts}));
                 }
-                contents.push(serde_json::json!({"role": "model", "parts": parts}));
             }
             Message::ToolResult(m) => {
-                let text_result: String = m
+                let text_result = m
                     .content
                     .iter()
                     .filter_map(|c| match c {
@@ -112,75 +188,62 @@ pub fn convert_messages(model: &Model, context: &Context) -> Vec<serde_json::Val
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                let image_parts: Vec<serde_json::Value> =
-                    if model.input.iter().any(|s| s == "image") {
-                        m.content
-                            .iter()
-                            .filter_map(|c| match c {
-                                Content::Image(img) => Some(serde_json::json!({
-                                    "inlineData": {"mimeType": img.media_type, "data": img.data}
-                                })),
-                                _ => None,
-                            })
-                            .collect()
-                    } else {
-                        vec![]
-                    };
-
-                let has_text = !text_result.is_empty();
+                let image_parts: Vec<Value> = if model.input.iter().any(|i| i == "image") {
+                    m.content
+                        .iter()
+                        .filter_map(|c| match c {
+                            Content::Image(img) => Some(inline_data(&img.media_type, &img.data)),
+                            _ => None,
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 let has_images = !image_parts.is_empty();
-                let response_value = if has_text {
+                // Gemini 3+ nests images in the function response; older
+                // Gemini and non-Gemini models get a separate user turn.
+                let multimodal = supports_multimodal_function_response(&model.id);
+                let value = if !text_result.is_empty() {
                     text_result
                 } else if has_images {
                     "(see attached image)".to_string()
                 } else {
                     String::new()
                 };
-
-                let response_key = if m.is_error { "error" } else { "output" };
-                let mut function_response = serde_json::json!({
-                    "name": m.tool_name,
-                    "response": {response_key: response_value},
-                });
-                let supports_multimodal = supports_multimodal_function_response(&model.id);
-                if has_images && supports_multimodal {
-                    function_response["parts"] = serde_json::Value::Array(image_parts.clone());
+                let key = if m.is_error { "error" } else { "output" };
+                let mut response = Map::new();
+                response.insert(key.to_string(), json!(value));
+                let mut function_response = json!({"name": m.tool_name, "response": response});
+                if has_images && multimodal {
+                    function_response["parts"] = json!(image_parts);
                 }
-                if requires_tool_call_id(&model.id) {
-                    function_response["id"] =
-                        serde_json::json!(normalize_tool_call_id(&model.id, &m.tool_call_id));
+                if needs_ids {
+                    function_response["id"] = json!(m.tool_call_id);
                 }
-                let function_response_part =
-                    serde_json::json!({"functionResponse": function_response});
+                let part = json!({"functionResponse": function_response});
 
-                // Cloud Code Assist requires all function responses in a single user turn.
-                let merged = if let Some(last) = contents.last_mut() {
-                    if last["role"] == "user"
+                // Cloud Code Assist wants all function responses in one user turn.
+                let merge = contents.last().is_some_and(|last| {
+                    last["role"] == "user"
                         && last["parts"].as_array().is_some_and(|parts| {
                             parts.iter().any(|p| p.get("functionResponse").is_some())
                         })
+                });
+                if merge {
+                    if let Some(parts) = contents
+                        .last_mut()
+                        .and_then(|last| last["parts"].as_array_mut())
                     {
-                        last["parts"]
-                            .as_array_mut()
-                            .unwrap()
-                            .push(function_response_part.clone());
-                        true
-                    } else {
-                        false
+                        parts.push(part);
                     }
                 } else {
-                    false
-                };
-                if !merged {
-                    contents.push(
-                        serde_json::json!({"role": "user", "parts": [function_response_part]}),
-                    );
+                    contents.push(json!({"role": "user", "parts": [part]}));
                 }
 
-                if has_images && !supports_multimodal {
-                    let mut parts = vec![serde_json::json!({"text": "Tool result image:"})];
+                if has_images && !multimodal {
+                    let mut parts = vec![json!({"text": "Tool result image:"})];
                     parts.extend(image_parts);
-                    contents.push(serde_json::json!({"role": "user", "parts": parts}));
+                    contents.push(json!({"role": "user", "parts": parts}));
                 }
             }
         }
@@ -200,48 +263,77 @@ const JSON_SCHEMA_META_DECLARATIONS: &[&str] = &[
     "definitions",
 ];
 
-fn sanitize_for_openapi(schema: &serde_json::Value) -> serde_json::Value {
+/// `sanitizeForOpenApi`: drop meta declarations, recursively through objects
+/// (arrays are left as they are).
+fn sanitize_for_open_api(schema: &Value) -> Value {
     match schema {
-        serde_json::Value::Object(map) => {
-            let mut result = serde_json::Map::new();
-            for (k, v) in map {
-                if JSON_SCHEMA_META_DECLARATIONS.contains(&k.as_str()) {
-                    continue;
-                }
-                result.insert(k.clone(), sanitize_for_openapi(v));
-            }
-            serde_json::Value::Object(result)
-        }
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .filter(|(k, _)| !JSON_SCHEMA_META_DECLARATIONS.contains(&k.as_str()))
+                .map(|(k, v)| (k.clone(), sanitize_for_open_api(v)))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
 
-/// Convert tools to Gemini `functionDeclarations` format.
-///
-/// `use_parameters` selects the legacy OpenAPI-3.03 `parameters` field
-/// (needed for Cloud Code Assist proxying to non-Gemini models) instead of
-/// the default `parametersJsonSchema` field.
-pub fn convert_tools(tools: &[Tool], use_parameters: bool) -> Option<serde_json::Value> {
+/// `convertTools`: `parametersJsonSchema`, or the legacy (sanitized)
+/// `parameters` when `use_parameters`. `None` without tools.
+pub fn convert_tools(tools: &[Tool], use_parameters: bool) -> Option<Value> {
     if tools.is_empty() {
         return None;
     }
-    let declarations: Vec<serde_json::Value> = tools
+    let declarations: Vec<Value> = tools
         .iter()
-        .map(|t| {
-            let mut v = serde_json::json!({"name": t.name, "description": t.description});
+        .map(|tool| {
+            let mut decl = json!({"name": tool.name, "description": tool.description});
             if use_parameters {
-                v["parameters"] = sanitize_for_openapi(&t.parameters);
+                decl["parameters"] = sanitize_for_open_api(&tool.parameters);
             } else {
-                v["parametersJsonSchema"] = t.parameters.clone();
+                decl["parametersJsonSchema"] = tool.parameters.clone();
             }
-            v
+            decl
         })
         .collect();
-    Some(serde_json::json!([{"functionDeclarations": declarations}]))
+    Some(json!([{"functionDeclarations": declarations}]))
 }
 
-/// Map a Gemini `finishReason` string to a cortex `StopReason`.
-pub fn map_stop_reason(reason: &str) -> StopReason {
+/// `mapToolChoice`: the `FunctionCallingConfigMode`.
+pub fn map_tool_choice(choice: &str) -> &'static str {
+    match choice {
+        "none" => "NONE",
+        "any" => "ANY",
+        _ => "AUTO",
+    }
+}
+
+/// `mapStopReason` over `FinishReason`: STOP and MAX_TOKENS map, every other
+/// known reason is an error, unknown values throw.
+pub fn map_stop_reason(reason: &str) -> Result<StopReason, String> {
+    Ok(match reason {
+        "STOP" => StopReason::Stop,
+        "MAX_TOKENS" => StopReason::Length,
+        "BLOCKLIST"
+        | "PROHIBITED_CONTENT"
+        | "SPII"
+        | "SAFETY"
+        | "IMAGE_SAFETY"
+        | "IMAGE_PROHIBITED_CONTENT"
+        | "IMAGE_RECITATION"
+        | "IMAGE_OTHER"
+        | "RECITATION"
+        | "FINISH_REASON_UNSPECIFIED"
+        | "OTHER"
+        | "LANGUAGE"
+        | "MALFORMED_FUNCTION_CALL"
+        | "UNEXPECTED_TOOL_CALL"
+        | "NO_IMAGE" => StopReason::Error,
+        other => return Err(format!("Unhandled stop reason: {other}")),
+    })
+}
+
+/// `mapStopReasonString` (raw API responses).
+pub fn map_stop_reason_string(reason: &str) -> StopReason {
     match reason {
         "STOP" => StopReason::Stop,
         "MAX_TOKENS" => StopReason::Length,
@@ -250,264 +342,5 @@ pub fn map_stop_reason(reason: &str) -> StopReason {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use cortexcode_ai_types::{
-        AssistantMessage, ImageContent, TextContent, ToolCallContent, ToolResultMessage,
-        UserMessage,
-    };
-
-    fn model(id: &str, input: &[&str]) -> Model {
-        Model {
-            compat: None,
-            id: id.into(),
-            name: id.into(),
-            api: "google-generative-ai".into(),
-            provider: "google".into(),
-            base_url: "https://generativelanguage.googleapis.com/v1beta".into(),
-            reasoning: false,
-            thinking_level_map: None,
-            input: input.iter().map(|s| s.to_string()).collect(),
-            cost: cortexcode_ai_types::ModelCost::default(),
-            context_window: 1_000_000,
-            max_tokens: 8192,
-            headers: None,
-        }
-    }
-
-    #[test]
-    fn test_requires_tool_call_id() {
-        assert!(requires_tool_call_id("claude-sonnet-5"));
-        assert!(requires_tool_call_id("gpt-oss-120b"));
-        assert!(!requires_tool_call_id("gemini-2.0-flash"));
-    }
-
-    #[test]
-    fn test_gemini_major_version() {
-        assert_eq!(gemini_major_version("gemini-3-pro"), Some(3));
-        assert_eq!(gemini_major_version("gemini-2.5-flash"), Some(2));
-        assert_eq!(gemini_major_version("claude-sonnet-5"), None);
-    }
-
-    #[test]
-    fn test_convert_messages_user_text() {
-        let m = model("gemini-2.0-flash", &["text"]);
-        let ctx = Context::new(
-            "".into(),
-            vec![Message::User(UserMessage {
-                content: vec![Content::Text(TextContent {
-                    text_signature: None,
-                    text: "hi".into(),
-                })],
-                timestamp: 0,
-            })],
-            vec![],
-        );
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(out[0]["role"], "user");
-        assert_eq!(out[0]["parts"][0]["text"], "hi");
-    }
-
-    #[test]
-    fn test_convert_messages_assistant_tool_call() {
-        let m = model("gemini-2.0-flash", &["text"]);
-        let ctx = Context::new(
-            "".into(),
-            vec![Message::Assistant(AssistantMessage {
-                api: String::new(),
-                provider: String::new(),
-                model: String::new(),
-                response_model: None,
-                response_id: None,
-                diagnostics: None,
-                content: vec![Content::ToolCall(ToolCallContent {
-                    thought_signature: None,
-                    id: "call_1".into(),
-                    name: "read_file".into(),
-                    arguments: serde_json::json!({"path": "a.rs"}),
-                })],
-                stop_reason: StopReason::Stop,
-
-                usage: Default::default(),
-                timestamp: 0,
-                error_message: None,
-            })],
-            vec![],
-        );
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(out[0]["role"], "model");
-        assert_eq!(out[0]["parts"][0]["functionCall"]["name"], "read_file");
-        // Gemini models don't need explicit tool-call IDs on the wire.
-        assert!(out[0]["parts"][0]["functionCall"].get("id").is_none());
-    }
-
-    #[test]
-    fn test_convert_messages_assistant_tool_call_claude_needs_id() {
-        let m = model("claude-sonnet-5", &["text"]);
-        let ctx = Context::new(
-            "".into(),
-            vec![Message::Assistant(AssistantMessage {
-                api: String::new(),
-                provider: String::new(),
-                model: String::new(),
-                response_model: None,
-                response_id: None,
-                diagnostics: None,
-                content: vec![Content::ToolCall(ToolCallContent {
-                    thought_signature: None,
-                    id: "call_1".into(),
-                    name: "read_file".into(),
-                    arguments: serde_json::json!({}),
-                })],
-                stop_reason: StopReason::Stop,
-
-                usage: Default::default(),
-                timestamp: 0,
-                error_message: None,
-            })],
-            vec![],
-        );
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(out[0]["parts"][0]["functionCall"]["id"], "call_1");
-    }
-
-    #[test]
-    fn test_convert_messages_tool_result_merges_into_single_user_turn() {
-        let m = model("gemini-2.0-flash", &["text"]);
-        let messages = vec![
-            Message::ToolResult(ToolResultMessage {
-                details: None,
-                content: vec![Content::Text(TextContent {
-                    text_signature: None,
-                    text: "result 1".into(),
-                })],
-                tool_call_id: "call_1".into(),
-                tool_name: "read_file".into(),
-                is_error: false,
-                timestamp: 0,
-            }),
-            Message::ToolResult(ToolResultMessage {
-                details: None,
-                content: vec![Content::Text(TextContent {
-                    text_signature: None,
-                    text: "result 2".into(),
-                })],
-                tool_call_id: "call_2".into(),
-                tool_name: "read_file".into(),
-                is_error: false,
-                timestamp: 0,
-            }),
-        ];
-        let ctx = Context::new("".into(), messages, vec![]);
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(out.len(), 1);
-        assert_eq!(out[0]["parts"].as_array().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_convert_messages_tool_result_error() {
-        let m = model("gemini-2.0-flash", &["text"]);
-        let messages = vec![Message::ToolResult(ToolResultMessage {
-            details: None,
-            content: vec![Content::Text(TextContent {
-                text_signature: None,
-                text: "boom".into(),
-            })],
-            tool_call_id: "call_1".into(),
-            tool_name: "read_file".into(),
-            is_error: true,
-            timestamp: 0,
-        })];
-        let ctx = Context::new("".into(), messages, vec![]);
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(
-            out[0]["parts"][0]["functionResponse"]["response"]["error"],
-            "boom"
-        );
-    }
-
-    #[test]
-    fn test_convert_messages_tool_result_with_image_gemini3_inline() {
-        let m = model("gemini-3-pro", &["text", "image"]);
-        let messages = vec![Message::ToolResult(ToolResultMessage {
-            details: None,
-            content: vec![Content::Image(ImageContent {
-                data: "abc".into(),
-                media_type: "image/png".into(),
-            })],
-            tool_call_id: "call_1".into(),
-            tool_name: "read_file".into(),
-            is_error: false,
-            timestamp: 0,
-        })];
-        let ctx = Context::new("".into(), messages, vec![]);
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(
-            out.len(),
-            1,
-            "gemini 3 inlines images in functionResponse.parts"
-        );
-        assert!(out[0]["parts"][0]["functionResponse"]["parts"][0]["inlineData"].is_object());
-    }
-
-    #[test]
-    fn test_convert_messages_tool_result_with_image_gemini2_separate_turn() {
-        let m = model("gemini-2.0-flash", &["text", "image"]);
-        let messages = vec![Message::ToolResult(ToolResultMessage {
-            details: None,
-            content: vec![Content::Image(ImageContent {
-                data: "abc".into(),
-                media_type: "image/png".into(),
-            })],
-            tool_call_id: "call_1".into(),
-            tool_name: "read_file".into(),
-            is_error: false,
-            timestamp: 0,
-        })];
-        let ctx = Context::new("".into(), messages, vec![]);
-        let out = convert_messages(&m, &ctx);
-        assert_eq!(
-            out.len(),
-            2,
-            "gemini < 3 sends images in a separate user turn"
-        );
-        assert!(out[1]["parts"][1]["inlineData"].is_object());
-    }
-
-    #[test]
-    fn test_convert_tools() {
-        let tools = vec![Tool {
-            name: "read_file".into(),
-            description: "reads a file".into(),
-            parameters: serde_json::json!({"type": "object", "$schema": "x"}),
-        }];
-        let v = convert_tools(&tools, false).unwrap();
-        assert_eq!(v[0]["functionDeclarations"][0]["name"], "read_file");
-        assert!(v[0]["functionDeclarations"][0]["parametersJsonSchema"]["$schema"].is_string());
-    }
-
-    #[test]
-    fn test_convert_tools_use_parameters_strips_schema_meta() {
-        let tools = vec![Tool {
-            name: "read_file".into(),
-            description: "reads a file".into(),
-            parameters: serde_json::json!({"type": "object", "$schema": "x"}),
-        }];
-        let v = convert_tools(&tools, true).unwrap();
-        assert!(v[0]["functionDeclarations"][0]["parameters"]
-            .get("$schema")
-            .is_none());
-    }
-
-    #[test]
-    fn test_convert_tools_empty() {
-        assert!(convert_tools(&[], false).is_none());
-    }
-
-    #[test]
-    fn test_map_stop_reason() {
-        assert_eq!(map_stop_reason("STOP"), StopReason::Stop);
-        assert_eq!(map_stop_reason("MAX_TOKENS"), StopReason::Length);
-        assert_eq!(map_stop_reason("SAFETY"), StopReason::Error);
-    }
-}
+#[path = "shared_tests.rs"]
+mod tests;

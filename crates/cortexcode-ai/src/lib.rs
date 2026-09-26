@@ -7,6 +7,8 @@ pub use cortexcode_ai_env as env;
 pub use cortexcode_ai_images as images;
 pub use cortexcode_ai_models as models;
 pub use cortexcode_ai_oauth as oauth;
+pub use cortexcode_ai_oauth_anthropic as oauth_anthropic;
+pub use cortexcode_ai_oauth_github_copilot as oauth_github_copilot;
 pub use cortexcode_ai_provider_anthropic as provider_anthropic;
 pub use cortexcode_ai_provider_azure as provider_azure;
 pub use cortexcode_ai_provider_faux as provider_faux;

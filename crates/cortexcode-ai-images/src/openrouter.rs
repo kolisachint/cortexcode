@@ -11,20 +11,6 @@ use crate::types::{
     calculate_image_cost, AssistantImages, ImagesContext, ImagesModel, ImagesOptions,
 };
 
-fn resolve_credentials(options: &ImagesOptions) -> Result<String, String> {
-    if let Some(key) = &options.api_key {
-        if !key.is_empty() {
-            return Ok(key.clone());
-        }
-    }
-    if let Ok(key) = std::env::var("OPENROUTER_API_KEY") {
-        if !key.is_empty() {
-            return Ok(key);
-        }
-    }
-    Err("no OpenRouter credentials found (set OPENROUTER_API_KEY)".into())
-}
-
 fn build_request_body(model: &ImagesModel, context: &ImagesContext) -> serde_json::Value {
     let content: Vec<serde_json::Value> = context
         .input
@@ -55,8 +41,13 @@ fn build_request_body(model: &ImagesModel, context: &ImagesContext) -> serde_jso
 
 /// Parse a `data:` URI into `(media_type, base64_data)`.
 fn parse_data_uri(uri: &str) -> Option<(String, String)> {
+    // /^data:([^;]+);base64,(.+)$/
     let rest = uri.strip_prefix("data:")?;
-    let (media_type, data) = rest.split_once(";base64,")?;
+    let (media_type, data) = rest.split_once(';')?;
+    let data = data.strip_prefix("base64,")?;
+    if media_type.is_empty() || data.is_empty() || data.contains('\n') {
+        return None;
+    }
     Some((media_type.to_string(), data.to_string()))
 }
 
@@ -90,7 +81,8 @@ fn parse_usage(usage: &serde_json::Value, model: &ImagesModel) -> Usage {
     u
 }
 
-/// Generate images via OpenRouter's Chat Completions API.
+/// `generateImagesOpenRouter`: every failure is reported on the result
+/// (`stopReason` `error`, or `aborted` when the signal fired).
 pub async fn generate_images(
     model: &ImagesModel,
     context: &ImagesContext,
@@ -101,105 +93,107 @@ pub async fn generate_images(
         provider: model.provider.clone(),
         model: model.id.clone(),
         output: vec![],
+        response_id: None,
         stop_reason: StopReason::Stop,
         error_message: None,
         usage: None,
         timestamp: now_millis(),
     };
-
-    let api_key = match resolve_credentials(options) {
-        Ok(k) => k,
-        Err(e) => {
-            output.stop_reason = StopReason::Error;
-            output.error_message = Some(e);
-            return output;
-        }
+    let result = match &options.signal {
+        Some(signal) => tokio::select! {
+            biased;
+            _ = signal.cancelled() => Err("Request was aborted".to_string()),
+            r = request(model, context, options, &mut output) => r,
+        },
+        None => request(model, context, options, &mut output).await,
     };
-
-    let result: Result<(), String> = async {
-        let client = reqwest::Client::builder()
-            .build()
-            .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-
-        let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
-        let mut request = client
-            .post(&url)
-            .header("content-type", "application/json")
-            .header("authorization", format!("Bearer {api_key}"));
-        if let Some(extra) = &model.headers {
-            for (k, v) in extra {
-                request = request.header(k, v);
-            }
-        }
-        if let Some(extra) = &options.headers {
-            for (k, v) in extra {
-                request = request.header(k, v);
-            }
-        }
-
-        let body = build_request_body(model, context);
-        let response = request
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("request to OpenRouter API failed: {e}"))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(format!("OpenRouter API returned {status}: {text}"));
-        }
-
-        let text = response
-            .text()
-            .await
-            .map_err(|e| format!("failed to read response body: {e}"))?;
-        let value: serde_json::Value = serde_json::from_str(&text)
-            .map_err(|e| format!("invalid JSON response: {e}; body={text}"))?;
-
-        if let Some(usage) = value.get("usage") {
-            output.usage = Some(parse_usage(usage, model));
-        }
-
-        let Some(choice) = value["choices"].get(0) else {
-            return Ok(());
+    if let Err(message) = result {
+        output.stop_reason = if options.signal.as_ref().is_some_and(|s| s.aborted()) {
+            StopReason::Aborted
+        } else {
+            StopReason::Error
         };
-        let message = &choice["message"];
-
-        if let Some(text) = message["content"].as_str() {
-            if !text.is_empty() {
-                output.output.push(Content::Text(TextContent {
-                    text_signature: None,
-                    text: text.to_string(),
-                }));
-            }
-        }
-
-        if let Some(images) = message["images"].as_array() {
-            for image in images {
-                let image_url = image["image_url"]
-                    .as_str()
-                    .or_else(|| image["image_url"]["url"].as_str());
-                let Some(image_url) = image_url else { continue };
-                let Some((media_type, data)) = parse_data_uri(image_url) else {
-                    continue;
-                };
-                output
-                    .output
-                    .push(Content::Image(ImageContent { media_type, data }));
-            }
-        }
-
-        Ok(())
+        output.error_message = Some(message);
     }
-    .await;
-
-    if let Err(e) = result {
-        output.stop_reason = StopReason::Error;
-        output.error_message = Some(e);
-    }
-
     output
+}
+
+async fn request(
+    model: &ImagesModel,
+    context: &ImagesContext,
+    options: &ImagesOptions,
+    output: &mut AssistantImages,
+) -> Result<(), String> {
+    let api_key = options
+        .api_key
+        .clone()
+        .filter(|k| !k.is_empty())
+        .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
+        .ok_or_else(|| format!("No API key available for provider: {}", model.provider))?;
+
+    let mut builder = reqwest::Client::builder();
+    if let Some(ms) = options.timeout_ms {
+        builder = builder.timeout(std::time::Duration::from_millis(ms));
+    }
+    let client = builder
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
+    let mut headers = vec![
+        ("content-type".to_string(), "application/json".to_string()),
+        ("authorization".to_string(), format!("Bearer {api_key}")),
+    ];
+    for extra in [&model.headers, &options.headers].into_iter().flatten() {
+        headers.extend(extra.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+    let body = build_request_body(model, context);
+    let response = cortexcode_ai_util::post_json_with_sdk_retries(
+        &client,
+        &url,
+        &headers,
+        &body,
+        options.max_retries,
+        None,
+    )
+    .await
+    .map_err(|failure| failure.message().to_string())?;
+    let status = response.status().as_u16();
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("failed to read response body: {e}"))?;
+    if !(200..300).contains(&status) {
+        return Err(cortexcode_ai_util::openai_api_error_message(status, &text));
+    }
+    let value: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("invalid JSON response: {e}; body={text}"))?;
+
+    output.response_id = value["id"].as_str().map(str::to_string);
+    if let Some(usage) = value.get("usage").filter(|u| !u.is_null()) {
+        output.usage = Some(parse_usage(usage, model));
+    }
+    let Some(choice) = value["choices"].get(0) else {
+        return Ok(());
+    };
+    let message = &choice["message"];
+    if let Some(text) = message["content"].as_str().filter(|t| !t.is_empty()) {
+        output.output.push(Content::Text(TextContent {
+            text_signature: None,
+            text: text.to_string(),
+        }));
+    }
+    for image in message["images"].as_array().into_iter().flatten() {
+        let image_url = image["image_url"]
+            .as_str()
+            .or_else(|| image["image_url"]["url"].as_str());
+        let Some((media_type, data)) = image_url.and_then(parse_data_uri) else {
+            continue;
+        };
+        output
+            .output
+            .push(Content::Image(ImageContent { media_type, data }));
+    }
+    Ok(())
 }
 
 fn now_millis() -> i64 {
@@ -287,8 +281,91 @@ mod tests {
         std::env::remove_var("OPENROUTER_API_KEY");
         let model = test_model("http://127.0.0.1:0".into());
         let context = ImagesContext { input: vec![] };
+        let saved = std::env::var("OPENROUTER_API_KEY").ok();
         let result = generate_images(&model, &context, &ImagesOptions::default()).await;
+        if let Some(v) = saved {
+            std::env::set_var("OPENROUTER_API_KEY", v);
+        }
         assert_eq!(result.stop_reason, StopReason::Error);
+        assert_eq!(
+            result.error_message.as_deref(),
+            Some("No API key available for provider: openrouter")
+        );
+    }
+
+    // --- openrouter-images.test.ts ---
+
+    #[tokio::test]
+    async fn returns_text_plus_images_and_the_response_id() {
+        let base_url = spawn_mock_server(
+            "HTTP/1.1 200 OK",
+            r#"{"id":"img-1","usage":{"prompt_tokens":12,"completion_tokens":34,"prompt_tokens_details":{"cached_tokens":0}},"choices":[{"message":{"content":"Here is your image.","images":[{"image_url":"data:image/png;base64,ZmFrZS1wbmc="}]}}]}"#,
+        );
+        let mut model = test_model(base_url);
+        model.output = vec!["text".into(), "image".into()];
+        model.headers = Some(
+            [(
+                "HTTP-Referer".to_string(),
+                "https://example.com".to_string(),
+            )]
+            .into(),
+        );
+        let context = ImagesContext {
+            input: vec![Content::text("Generate a dog")],
+        };
+        let options = ImagesOptions {
+            api_key: Some("test".into()),
+            ..Default::default()
+        };
+        let output = crate::generate_images(&model, &context, &options)
+            .await
+            .unwrap();
+        assert_eq!(output.stop_reason, StopReason::Stop);
+        assert_eq!(output.response_id.as_deref(), Some("img-1"));
+        assert_eq!(output.output[0], Content::text("Here is your image."));
+        assert_eq!(
+            output.output[1],
+            Content::Image(ImageContent {
+                media_type: "image/png".into(),
+                data: "ZmFrZS1wbmc=".into(),
+            })
+        );
+        let body = build_request_body(&model, &context);
+        assert_eq!(body["stream"], false);
+        assert_eq!(body["modalities"], serde_json::json!(["image", "text"]));
+        assert_eq!(
+            body["messages"][0]["content"][0],
+            serde_json::json!({"type": "text", "text": "Generate a dog"})
+        );
+    }
+
+    #[tokio::test]
+    async fn an_aborted_signal_returns_an_aborted_result() {
+        let signal = cortexcode_ai_types::AbortSignal::new();
+        signal.abort();
+        let options = ImagesOptions {
+            api_key: Some("test".into()),
+            signal: Some(signal),
+            ..Default::default()
+        };
+        let model = test_model("http://127.0.0.1:9".into());
+        let output = generate_images(&model, &ImagesContext { input: vec![] }, &options).await;
+        assert_eq!(output.stop_reason, StopReason::Aborted);
+        assert_eq!(output.error_message.as_deref(), Some("Request was aborted"));
+    }
+
+    #[tokio::test]
+    async fn unknown_image_apis_are_not_registered() {
+        let mut model = test_model("http://127.0.0.1:9".into());
+        model.api = "other-images".into();
+        let err = crate::generate_images(
+            &model,
+            &ImagesContext { input: vec![] },
+            &ImagesOptions::default(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err, "No API provider registered for api: other-images");
     }
 
     #[tokio::test]
@@ -336,11 +413,12 @@ mod tests {
         let context = ImagesContext { input: vec![] };
         let options = ImagesOptions {
             api_key: Some("or-key".into()),
+            max_retries: Some(0),
             ..Default::default()
         };
 
         let result = generate_images(&model, &context, &options).await;
         assert_eq!(result.stop_reason, StopReason::Error);
-        assert!(result.error_message.unwrap().contains("429"));
+        assert!(result.error_message.unwrap().starts_with("429 "));
     }
 }

@@ -4,11 +4,10 @@
 //! to the current leaf, applies compaction boundaries, and converts special
 //! entries (custom messages, branch summaries) into `AgentMessage`s.
 
-use crate::entry::{CustomMessageContent, FileEntry};
+use crate::entry::FileEntry;
 use cortexcode_agent_types::{
     AgentMessage, BranchSummaryMessage, CompactionSummaryMessage, CustomMessage,
 };
-use cortexcode_ai_types::Content;
 
 /// Resolved model reference extracted from the session branch.
 #[derive(Debug, Clone)]
@@ -135,10 +134,7 @@ fn append_message(entry: &FileEntry, messages: &mut Vec<AgentMessage>) {
             ..
         } => messages.push(AgentMessage::Custom(CustomMessage {
             custom_type: custom_type.clone(),
-            content: match content {
-                CustomMessageContent::Text(text) => vec![Content::text(text.clone())],
-                CustomMessageContent::Blocks(blocks) => blocks.clone(),
-            },
+            content: content.clone(),
             display: *display,
             details: details.clone(),
             timestamp: parse_timestamp(timestamp),
@@ -172,11 +168,11 @@ mod tests {
     use super::*;
     use crate::entry::FileEntry;
     use cortexcode_agent_types::AgentMessage;
-    use cortexcode_ai_types::{Message, UserMessage};
+    use cortexcode_ai_types::{Content, Message, UserMessage};
 
     fn user_message(text: &str) -> AgentMessage {
         AgentMessage::from_message(Message::User(UserMessage {
-            content: vec![Content::text(text)],
+            content: vec![Content::text(text)].into(),
             timestamp: 0,
         }))
     }

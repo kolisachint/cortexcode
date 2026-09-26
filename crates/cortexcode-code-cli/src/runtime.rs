@@ -173,22 +173,20 @@ fn oauth_api_key(provider: &str) -> Option<String> {
     // Expired: attempt a refresh, persisting the new tokens on success.
     let refreshed = match store_key {
         "anthropic" => async_runtime()
-            .block_on(cortexcode_ai_oauth::anthropic::refresh_token(
+            .block_on(cortexcode_ai_oauth_anthropic::refresh_anthropic_token(
+                &cortexcode_ai_oauth::ReqwestFetch,
                 &credentials.refresh,
             ))
             .ok(),
-        "github-copilot" => {
-            let enterprise = credentials
-                .extra
-                .get("enterprise_url")
-                .and_then(|v| v.as_str());
-            async_runtime()
-                .block_on(cortexcode_ai_oauth::github_copilot::refresh_token(
+        "github-copilot" => async_runtime()
+            .block_on(
+                cortexcode_ai_oauth_github_copilot::refresh_github_copilot_token(
+                    &cortexcode_ai_oauth::ReqwestFetch,
                     &credentials.refresh,
-                    enterprise,
-                ))
-                .ok()
-        }
+                    credentials.extra_str("enterpriseUrl"),
+                ),
+            )
+            .ok(),
         _ => None,
     };
     match refreshed {
@@ -450,7 +448,8 @@ fn text_message(text: &str) -> AgentMessage {
         content: vec![Content::Text(TextContent {
             text_signature: None,
             text: text.to_string(),
-        })],
+        })]
+        .into(),
         timestamp: cortexcode_ai_types::now_ms(),
     }))
 }

@@ -88,6 +88,7 @@ fn usage(prompt: u64, completion: u64) -> Value {
 
 fn read_tool(name: &str) -> Tool {
     Tool {
+        defer_loading: None,
         name: name.into(),
         description: format!("{name} tool"),
         parameters: json!({"type": "object", "properties": {"path": {"type": "string"}}}),
@@ -561,7 +562,7 @@ fn prompt_suffix_reaches_the_endpoint() {
     let body = server.requests()[0].json();
     assert_eq!(
         body["messages"][0]["content"],
-        json!([{"type": "text", "text": "summarize this /no_think"}])
+        json!("summarize this /no_think")
     );
 }
 

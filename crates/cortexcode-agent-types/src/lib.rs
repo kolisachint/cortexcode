@@ -5,7 +5,7 @@
 
 use cortexcode_ai_types::{
     AssistantMessage, AssistantMessageEvent, Content, Message, Model, SimpleStreamOptions,
-    ThinkingLevel, ToolResultMessage, UserMessage,
+    ThinkingLevel, ToolResultMessage, UserContent, UserMessage,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -188,8 +188,7 @@ pub struct BashExecutionMessage {
 #[serde(rename_all = "camelCase")]
 pub struct CustomMessage {
     pub custom_type: String,
-    #[serde(deserialize_with = "cortexcode_ai_types::deserialize_string_or_blocks")]
-    pub content: Vec<Content>,
+    pub content: UserContent,
     pub display: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
@@ -250,7 +249,7 @@ impl AgentMessage {
     /// A user text message stamped with the current time.
     pub fn user_text(text: impl Into<String>) -> Self {
         AgentMessage::User(UserMessage {
-            content: vec![Content::text(text)],
+            content: vec![Content::text(text)].into(),
             timestamp: cortexcode_ai_types::now_ms(),
         })
     }

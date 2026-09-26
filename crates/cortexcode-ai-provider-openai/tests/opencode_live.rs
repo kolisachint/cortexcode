@@ -54,7 +54,8 @@ fn simple_text_context(prompt: &str) -> Context {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: prompt.into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
@@ -71,12 +72,14 @@ fn tool_context(prompt: &str) -> Context {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: prompt.into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
         vec![
             Tool {
+                defer_loading: None,
                 name: "read_file".into(),
                 description: "Read the contents of a file".into(),
                 parameters: serde_json::json!({
@@ -91,6 +94,7 @@ fn tool_context(prompt: &str) -> Context {
                 }),
             },
             Tool {
+                defer_loading: None,
                 name: "write_file".into(),
                 description: "Write content to a file".into(),
                 parameters: serde_json::json!({
@@ -257,7 +261,8 @@ fn test_conversation_context() {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "My name is Alice.".into(),
-            })],
+            })]
+            .into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }),
         cortexcode_ai_types::Message::Assistant(cortexcode_ai_types::AssistantMessage {
@@ -281,7 +286,8 @@ fn test_conversation_context() {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: "What is my name?".into(),
-            })],
+            })]
+            .into(),
             timestamp: cortexcode_ai_types::now_ms(),
         }),
     ];
@@ -325,7 +331,8 @@ fn test_system_prompt() {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "Hello!".into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],
@@ -619,6 +626,7 @@ fn test_multiple_tools() {
 
     let tools = vec![
         Tool {
+            defer_loading: None,
             name: "read_file".into(),
             description: "Read the contents of a file".into(),
             parameters: serde_json::json!({
@@ -630,6 +638,7 @@ fn test_multiple_tools() {
             }),
         },
         Tool {
+            defer_loading: None,
             name: "write_file".into(),
             description: "Write content to a file".into(),
             parameters: serde_json::json!({
@@ -642,6 +651,7 @@ fn test_multiple_tools() {
             }),
         },
         Tool {
+            defer_loading: None,
             name: "search_files".into(),
             description: "Search for files matching a pattern".into(),
             parameters: serde_json::json!({
@@ -661,7 +671,8 @@ fn test_multiple_tools() {
                 content: vec![Content::Text(TextContent {
                     text_signature: None,
                     text: "Search for all .rs files".into(),
-                })],
+                })]
+                .into(),
                 timestamp: cortexcode_ai_types::now_ms(),
             },
         )],

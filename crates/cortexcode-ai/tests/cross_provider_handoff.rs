@@ -141,6 +141,7 @@ const PROVIDER_MODEL_PAIRS: &[(&str, &str, &str, Option<&str>)] = &[
 
 fn test_tool() -> Tool {
     Tool {
+        defer_loading: None,
         name: "double_number".into(),
         description: "Doubles a number and returns the result".into(),
         parameters: json!({
@@ -153,7 +154,7 @@ fn test_tool() -> Tool {
 
 fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::Text(TextContent::new(text))],
+        content: vec![Content::Text(TextContent::new(text))].into(),
         timestamp: 0,
     })
 }

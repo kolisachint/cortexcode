@@ -1136,7 +1136,7 @@ pub fn find_most_recent_session(dir: impl AsRef<Path>) -> Option<PathBuf> {
 fn extract_text_from_message(message: &AgentMessage) -> Option<String> {
     let msg = message.extract_message()?;
     let content = match msg {
-        Message::User(UserMessage { content, .. }) => content,
+        Message::User(UserMessage { content, .. }) => content.into_blocks(),
         Message::Assistant(a) => a.content,
         Message::ToolResult(t) => t.content,
     };
@@ -1337,7 +1337,8 @@ mod tests {
             content: vec![Content::Text(TextContent {
                 text_signature: None,
                 text: text.into(),
-            })],
+            })]
+            .into(),
             timestamp: 0,
         }))
     }

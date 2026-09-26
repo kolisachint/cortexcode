@@ -17,7 +17,7 @@ pub(crate) fn catalog(provider: &str, id: &str) -> Model {
 
 pub(crate) fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::Text(TextContent::new(text))],
+        content: vec![Content::Text(TextContent::new(text))].into(),
         timestamp: 0,
     })
 }
@@ -203,6 +203,24 @@ fn converts_system_user_assistant_and_results() {
 }
 
 #[test]
+fn string_user_content_is_one_input_text_part() {
+    let model = catalog("openai", "gpt-5-mini");
+    let context = Context::new(
+        String::new(),
+        vec![Message::User(UserMessage {
+            content: "".into(),
+            timestamp: 1,
+        })],
+        vec![],
+    );
+    // Even an empty string is sent (only an empty block list is skipped).
+    assert_eq!(
+        convert_responses_messages(&model, &context, &allowed(), true),
+        vec![json!({"role": "user", "content": [{"type": "input_text", "text": ""}]})]
+    );
+}
+
+#[test]
 fn different_model_drops_fc_item_ids_and_text_ids_default_to_msg_index() {
     let model = catalog("openai", "gpt-5-mini");
     let context = Context::new(
@@ -248,6 +266,7 @@ fn providers_outside_the_allowed_set_flatten_pipe_ids() {
 #[test]
 fn tools_are_strict_false_unless_constrained() {
     let tools = vec![Tool {
+        defer_loading: None,
         name: "t".into(),
         description: "d".into(),
         parameters: json!({"type": "object", "properties": {"a": {"type": "string"}}}),
@@ -515,4 +534,45 @@ fn text_signatures_round_trip() {
         Some(("legacy_id".into(), None))
     );
     assert_eq!(parse_text_signature(None), None);
+}
+
+// --- constrain-tool-calls.test.ts: openai-responses ---
+
+fn edit_tool() -> Tool {
+    Tool {
+        defer_loading: None,
+        name: "edit".into(),
+        description: "Replace exact text".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "path": {"description": "File path", "minLength": 1, "type": "string"},
+                "oldText": {"type": "string"},
+                "newText": {"type": "string"},
+                "replaceAll": {"default": false, "type": "boolean"}
+            },
+            "required": ["path", "oldText", "newText"]
+        }),
+    }
+}
+
+#[test]
+fn responses_tools_are_strict_and_closed_when_constrained() {
+    let tool = &convert_responses_tools(&[edit_tool()], None, true)[0];
+    assert_eq!(tool["type"], "function");
+    assert_eq!(tool["strict"], true);
+    let parameters = &tool["parameters"];
+    assert_eq!(parameters["additionalProperties"], false);
+    assert_eq!(
+        parameters["required"],
+        json!(["path", "oldText", "newText", "replaceAll"])
+    );
+    assert_eq!(
+        parameters["properties"]["replaceAll"]["type"],
+        json!(["boolean", "null"])
+    );
+
+    let loose = &convert_responses_tools(&[edit_tool()], None, false)[0];
+    assert_eq!(loose["strict"], false);
+    assert!(loose["parameters"].get("additionalProperties").is_none());
 }

@@ -1,684 +1,493 @@
-//! Google Gemini / Vertex AI provider for cortex AI.
+//! Google Gemini / Vertex AI provider for cortex AI: port of hoocode
+//! `providers/google.ts`, `providers/google-vertex.ts` and
+//! `providers/google-shared.ts` (v0.5.89), with the `@google/genai` 1.52
+//! client's REST mapping (`request`) in place of the SDK.
 //!
-//! Implements streaming against the `:streamGenerateContent?alt=sse` REST
-//! endpoint shared by Google Generative AI and Vertex AI, translating the
-//! SSE event stream into [`AssistantMessageEvent`]s.
-//!
-//! Ported from TypeScript `@kolisachint/hoocode-ai` →
-//! `providers/google.ts`, `providers/google-vertex.ts`,
-//! `providers/google-shared.ts`.
-//!
-//! Vertex AI credential support in this pass is limited to an already-minted
-//! OAuth2 access token (`GOOGLE_VERTEX_ACCESS_TOKEN` or an explicit
-//! `api_key`). Full Application Default Credentials — service-account JSON
-//! key parsing, RS256 JWT signing, and token exchange — is not yet ported.
+//! [`stream`] / [`stream_vertex`] are the `streamSimple*` functions;
+//! [`stream_google`] / [`stream_google_vertex`] take [`GoogleOptions`].
 
+mod adc;
 mod request;
 mod shared;
+
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Cost, Model,
-    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model,
+    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent,
 };
 use futures_util::StreamExt;
+use serde_json::Value;
 
-pub use request::{resolve_gemini_credentials, resolve_vertex_credentials, VertexCredentials};
+pub use request::{
+    build_params, gemini_client_config, sdk_body, simple_google_options, simple_vertex_options,
+    vertex_client_config, Auth, ClientConfig, Endpoint, GoogleOptions, GoogleThinking, HttpOptions,
+};
+pub use shared::{
+    convert_messages, convert_tools, is_thinking_part, map_stop_reason, map_stop_reason_string,
+    map_tool_choice, requires_tool_call_id, retain_thought_signature,
+};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// Stream a completion from the Google Generative AI API (Gemini).
+/// `toolCallCounter`: module-wide, as in TS.
+static TOOL_CALL_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// `streamSimpleGoogle`: fails before streaming only without an API key.
 pub fn stream(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
 ) -> Result<AssistantMessageEventStream, BoxError> {
-    let api_key = request::resolve_gemini_credentials(&options).map_err(BoxError::from)?;
-    let body = request::build_request_body(&model, &context, &options);
-    let url = format!(
-        "{}/models/{}:streamGenerateContent?alt=sse&key={}",
-        model.base_url.trim_end_matches('/'),
-        model.id,
-        api_key
-    );
-    let headers: Vec<(String, String)> = model
-        .headers
+    let api_key = options
+        .api_key
         .clone()
-        .map(|h| h.into_iter().collect())
-        .unwrap_or_default();
-
-    let template = AssistantMessage::for_model(&model);
-    let signal = options.signal.clone();
-    let stream = create_assistant_message_event_stream();
-    let sender = stream.clone();
-    spawn_producer(
-        &stream,
-        run_stream(url, headers, body, sender, template, signal),
-    );
-    Ok(stream)
+        .filter(|k| !k.is_empty())
+        .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
+        .ok_or_else(|| format!("No API key for provider: {}", model.provider))?;
+    let options = simple_google_options(&model, &options, api_key);
+    Ok(stream_google(model, context, options))
 }
 
-/// Stream a completion from Vertex AI.
-///
-/// Credentials are resolved on the producer task (a service-account token
-/// exchange or the metadata server may need the network), so a missing
-/// credential is reported as an `error` event, as in hoocode.
+/// `streamSimpleGoogleVertex`: credentials are resolved when the request is
+/// made, so a missing one is an `error` event.
 pub fn stream_vertex(
     model: Model,
     context: Context,
     options: SimpleStreamOptions,
 ) -> Result<AssistantMessageEventStream, BoxError> {
-    let body = request::build_request_body(&model, &context, &options);
-    let template = AssistantMessage::for_model(&model);
-    let stream = create_assistant_message_event_stream();
-    let sender = stream.clone();
-    spawn_producer(&stream, async move {
-        let creds = match request::resolve_vertex_credentials(&options).await {
-            Ok(c) => c,
-            Err(message) => {
-                let error = StreamState::new(template).error_output(message, false);
-                sender.push(AssistantMessageEvent::Error {
-                    error: error.clone(),
-                });
-                sender.end(Some(error));
-                return;
-            }
-        };
-        let base_url = model.base_url.replace("{location}", &creds.location);
-        let url = format!(
-            "{}/v1/projects/{}/locations/{}/publishers/google/models/{}:streamGenerateContent?alt=sse",
-            base_url.trim_end_matches('/'),
-            creds.project,
-            creds.location,
-            model.id,
-        );
-        let mut headers = vec![(
-            "authorization".to_string(),
-            format!("Bearer {}", creds.access_token),
-        )];
-        if let Some(extra) = &model.headers {
-            for (k, v) in extra {
-                headers.push((k.clone(), v.clone()));
-            }
-        }
-        run_stream(url, headers, body, sender, template, options.signal).await;
-    });
-    Ok(stream)
+    let options = simple_vertex_options(&model, &options);
+    Ok(stream_google_vertex(model, context, options))
 }
 
-async fn run_stream(
-    url: String,
-    headers: Vec<(String, String)>,
-    body: serde_json::Value,
+/// `streamGoogle`.
+pub fn stream_google(
+    model: Model,
+    context: Context,
+    options: GoogleOptions,
+) -> AssistantMessageEventStream {
+    spawn(model, context, options, false)
+}
+
+/// `streamGoogleVertex`.
+pub fn stream_google_vertex(
+    model: Model,
+    context: Context,
+    options: GoogleOptions,
+) -> AssistantMessageEventStream {
+    spawn(model, context, options, true)
+}
+
+fn spawn(
+    model: Model,
+    context: Context,
+    options: GoogleOptions,
+    vertex: bool,
+) -> AssistantMessageEventStream {
+    let stream = create_assistant_message_event_stream();
+    let sender = stream.clone();
+    spawn_producer(&stream, run(model, context, options, vertex, sender));
+    stream
+}
+
+async fn run(
+    model: Model,
+    context: Context,
+    options: GoogleOptions,
+    vertex: bool,
     sender: AssistantMessageEventStream,
-    template: AssistantMessage,
-    signal: Option<AbortSignal>,
 ) {
-    let mut state = StreamState::new(template);
+    let mut state = StreamState::new(&model, vertex);
+    let signal = options.signal.clone();
     let outcome = match &signal {
+        // fetch's AbortError when the signal fires mid-request.
         Some(signal) => tokio::select! {
             biased;
-            _ = signal.cancelled() => Err("Request was aborted".to_string()),
-            r = drive(&url, &headers, &body, &mut state, &sender) => r,
+            _ = signal.cancelled(), if !signal.aborted() => Err("This operation was aborted".to_string()),
+            r = drive(&model, &context, &options, vertex, &mut state, &sender) => r,
         },
-        None => drive(&url, &headers, &body, &mut state, &sender).await,
+        None => drive(&model, &context, &options, vertex, &mut state, &sender).await,
     };
-    if let Err(message) = outcome {
-        let aborted = signal.as_ref().is_some_and(AbortSignal::aborted);
-        let error = state.error_output(message, aborted);
-        sender.push(AssistantMessageEvent::Error {
-            error: error.clone(),
-        });
-        sender.end(Some(error));
+    match outcome {
+        Ok(()) => {
+            let message = state.output;
+            sender.push(AssistantMessageEvent::Done {
+                message: message.clone(),
+            });
+            sender.end(Some(message));
+        }
+        Err(message) => {
+            let mut output = state.output;
+            output.stop_reason = if signal.as_ref().is_some_and(AbortSignal::aborted) {
+                StopReason::Aborted
+            } else {
+                StopReason::Error
+            };
+            output.error_message = Some(message);
+            sender.push(AssistantMessageEvent::Error {
+                error: output.clone(),
+            });
+            sender.end(Some(output));
+        }
     }
 }
 
-/// Send the request and feed the SSE events to `state`. `Err` carries the
-/// error message for the terminal `error` event.
+/// The try block of `streamGoogle` / `streamGoogleVertex`.
 async fn drive(
-    url: &str,
-    headers: &[(String, String)],
-    body: &serde_json::Value,
+    model: &Model,
+    context: &Context,
+    options: &GoogleOptions,
+    vertex: bool,
     state: &mut StreamState,
     sender: &AssistantMessageEventStream,
 ) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .build()
-        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-    let mut request = client.post(url).header("content-type", "application/json");
-    for (k, v) in headers {
+    let config = if vertex {
+        vertex_client_config(model, options)?
+    } else {
+        let api_key = options
+            .api_key
+            .clone()
+            .filter(|k| !k.is_empty())
+            .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
+            .unwrap_or_default();
+        gemini_client_config(model, &api_key, options)
+    };
+    let params = build_params(model, context, options, vertex)?;
+    let endpoint = config.endpoint(&model.id);
+    let body = sdk_body(&params, vertex);
+
+    let mut headers = endpoint.headers.clone();
+    match &endpoint.auth {
+        Auth::ApiKey(key) => headers.push(("x-goog-api-key".into(), key.clone())),
+        Auth::Adc => headers.push((
+            "Authorization".into(),
+            format!("Bearer {}", adc::access_token().await?),
+        )),
+    }
+    let client = reqwest::Client::new();
+    let mut request = client.post(&endpoint.url).body(body.to_string());
+    for (k, v) in &headers {
         request = request.header(k, v);
     }
     let response = request
-        .json(body)
         .send()
         .await
-        .map_err(|e| format!("request to Google API failed: {e}"))?;
-
+        .map_err(|e| format!("fetch failed: {e}"))?;
     if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        return Err(format!("Google API returned {status}: {text}"));
+        return Err(api_error_message(response).await);
     }
 
-    let mut events = cortexcode_ai_sse::sse_events(response.bytes_stream());
-    while let Some(frame) = events.next().await {
-        let frame = frame.map_err(|e| format!("error reading response stream: {e}"))?;
-        if frame.data.trim().is_empty() {
-            continue;
+    sender.push(AssistantMessageEvent::Start {
+        partial: state.output.clone(),
+    });
+    let mut decoder = ChunkDecoder::default();
+    let mut body = response.bytes_stream();
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(|e| format!("error reading response stream: {e}"))?;
+        for data in decoder.push(&chunk)? {
+            let value: Value = serde_json::from_str(&data)
+                .map_err(|e| format!("exception parsing stream chunk {data}. {e}"))?;
+            state.handle_chunk(model, &value, sender)?;
         }
-        let value: serde_json::Value = match serde_json::from_str(&frame.data) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        state.handle_chunk(&value, sender);
     }
+    decoder.finish()?;
+    state.close_block(sender);
 
-    state.finish(sender);
+    if options.signal.as_ref().is_some_and(AbortSignal::aborted) {
+        return Err("Request was aborted".to_string());
+    }
+    if matches!(
+        state.output.stop_reason,
+        StopReason::Aborted | StopReason::Error
+    ) {
+        return Err("An unknown error occurred".to_string());
+    }
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Streaming state machine
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CurrentKind {
-    Text,
-    Thinking,
+/// `throwErrorIfNotOK`: the `ApiError` message is the JSON body, or a
+/// synthesized `{error: {message, code, status}}` for non-JSON bodies.
+async fn api_error_message(response: reqwest::Response) -> String {
+    let status = response.status();
+    let is_json = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.contains("application/json"));
+    let text = response.text().await.unwrap_or_default();
+    if is_json {
+        if let Ok(body) = serde_json::from_str::<Value>(&text) {
+            return body.to_string();
+        }
+    }
+    serde_json::json!({
+        "error": {
+            "message": text,
+            "code": status.as_u16(),
+            "status": status.canonical_reason().unwrap_or_default(),
+        }
+    })
+    .to_string()
 }
 
+/// `processStreamResponse` of the SDK's `ApiClient`: events split on the
+/// earliest of `\n\n`, `\r\r`, `\r\n\r\n`; `data:` payloads are yielded.
+#[derive(Default)]
+struct ChunkDecoder {
+    buffer: String,
+    pending: Vec<u8>,
+}
+
+impl ChunkDecoder {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<String>, String> {
+        // TextDecoder with `stream: true`: hold back an incomplete UTF-8 tail.
+        self.pending.extend_from_slice(chunk);
+        let valid = match std::str::from_utf8(&self.pending) {
+            Ok(_) => self.pending.len(),
+            Err(e) if e.error_len().is_none() => e.valid_up_to(),
+            Err(_) => self.pending.len(),
+        };
+        let text = String::from_utf8_lossy(&self.pending[..valid]).into_owned();
+        self.pending.drain(..valid);
+
+        // A chunk that is itself an error JSON is an ApiError.
+        if let Ok(json) = serde_json::from_str::<Value>(&text) {
+            if let Some(error) = json.get("error") {
+                if error["code"]
+                    .as_u64()
+                    .is_some_and(|c| (400..600).contains(&c))
+                {
+                    return Err(format!(
+                        "got status: {}. {json}",
+                        error["status"].as_str().unwrap_or("undefined")
+                    ));
+                }
+            }
+        }
+
+        self.buffer.push_str(&text);
+        let mut events = Vec::new();
+        loop {
+            let found = ["\n\n", "\r\r", "\r\n\r\n"]
+                .iter()
+                .filter_map(|d| self.buffer.find(d).map(|i| (i, d.len())))
+                .min_by_key(|(i, _)| *i);
+            let Some((index, length)) = found else {
+                break;
+            };
+            let event = self.buffer[..index].trim().to_string();
+            self.buffer.drain(..index + length);
+            if let Some(data) = event.strip_prefix("data:") {
+                events.push(data.trim().to_string());
+            }
+        }
+        Ok(events)
+    }
+
+    fn finish(&self) -> Result<(), String> {
+        if !self.buffer.trim().is_empty() {
+            return Err("Incomplete JSON segment at the end".to_string());
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Streaming state
+// ---------------------------------------------------------------------------
+
 struct StreamState {
-    partial: AssistantMessage,
-    started: bool,
-    finished: bool,
-    current: Option<(CurrentKind, usize, String)>,
-    tool_call_counter: u64,
+    output: AssistantMessage,
+    /// Index of the open text/thinking block (`currentBlock`).
+    current: Option<usize>,
 }
 
 impl StreamState {
-    fn new(template: AssistantMessage) -> Self {
+    fn new(model: &Model, vertex: bool) -> Self {
+        let mut output = AssistantMessage::for_model(model);
+        output.api = if vertex {
+            "google-vertex"
+        } else {
+            "google-generative-ai"
+        }
+        .to_string();
         Self {
-            partial: AssistantMessage {
-                provider: template.provider.clone(),
-                response_id: None,
-                response_model: None,
-                api: template.api.clone(),
-                diagnostics: None,
-                model: template.model.clone(),
-                content: vec![],
-                stop_reason: StopReason::Stop,
-
-                usage: Default::default(),
-                timestamp: now_millis(),
-                error_message: None,
-            },
-            started: false,
-            finished: false,
+            output,
             current: None,
-            tool_call_counter: 0,
         }
     }
 
-    fn ensure_started(&mut self, sender: &AssistantMessageEventStream) {
-        if !self.started {
-            self.started = true;
-            sender.push(AssistantMessageEvent::Start {
-                partial: self.partial.clone(),
-            });
-        }
-    }
-
-    fn close_current(&mut self, sender: &AssistantMessageEventStream) {
-        if let Some((kind, index, text)) = self.current.take() {
-            match kind {
-                CurrentKind::Text => {
-                    self.partial.content.push(Content::Text(TextContent {
-                        text_signature: None,
-                        text,
-                    }));
-                    sender.push(AssistantMessageEvent::TextEnd {
-                        index,
-                        partial: self.partial.clone(),
-                    });
-                }
-                CurrentKind::Thinking => {
-                    self.partial
-                        .content
-                        .push(Content::Thinking(ThinkingContent {
-                            redacted: false,
-                            thinking: text,
-                            signature: None,
-                        }));
-                    sender.push(AssistantMessageEvent::ThinkingEnd {
-                        index,
-                        partial: self.partial.clone(),
-                    });
-                }
-            }
-        }
-    }
-
-    fn handle_chunk(&mut self, value: &serde_json::Value, sender: &AssistantMessageEventStream) {
-        self.ensure_started(sender);
-
-        let Some(candidate) = value["candidates"].get(0) else {
-            if let Some(usage) = value.get("usageMetadata") {
-                self.partial.usage = parse_usage(usage);
-            }
+    /// Push the end event of the open text/thinking block.
+    fn close_block(&mut self, sender: &AssistantMessageEventStream) {
+        let Some(index) = self.current.take() else {
             return;
         };
+        let partial = self.output.clone();
+        match &self.output.content[index] {
+            Content::Thinking(_) => {
+                sender.push(AssistantMessageEvent::ThinkingEnd { index, partial })
+            }
+            _ => sender.push(AssistantMessageEvent::TextEnd { index, partial }),
+        }
+    }
 
+    fn handle_chunk(
+        &mut self,
+        model: &Model,
+        chunk: &Value,
+        sender: &AssistantMessageEventStream,
+    ) -> Result<(), String> {
+        if self.output.response_id.as_deref().unwrap_or("").is_empty() {
+            if let Some(id) = chunk["responseId"].as_str().filter(|id| !id.is_empty()) {
+                self.output.response_id = Some(id.to_string());
+            }
+        }
+        let candidate = &chunk["candidates"][0];
         if let Some(parts) = candidate["content"]["parts"].as_array() {
             for part in parts {
                 if let Some(text) = part["text"].as_str() {
-                    let is_thinking = part["thought"].as_bool().unwrap_or(false);
-                    let want_kind = if is_thinking {
-                        CurrentKind::Thinking
-                    } else {
-                        CurrentKind::Text
-                    };
-                    let needs_new_block = match &self.current {
-                        Some((kind, _, _)) => *kind != want_kind,
-                        None => true,
-                    };
-                    if needs_new_block {
-                        self.close_current(sender);
-                        // `close_current` finalizes any in-flight block into
-                        // `partial.content`, so its length is the next index.
-                        let index = self.partial.content.len();
-                        let start_event = match want_kind {
-                            CurrentKind::Text => AssistantMessageEvent::TextStart {
-                                index,
-                                partial: self.partial.clone(),
-                            },
-                            CurrentKind::Thinking => AssistantMessageEvent::ThinkingStart {
-                                index,
-                                partial: self.partial.clone(),
-                            },
-                        };
-                        sender.push(start_event);
-                        self.current = Some((want_kind, index, String::new()));
-                    }
-                    if let Some((kind, index, buf)) = &mut self.current {
-                        buf.push_str(text);
-                        let index = *index;
-                        let event = match kind {
-                            CurrentKind::Text => AssistantMessageEvent::TextDelta {
-                                index,
-                                delta: text.to_string(),
-                                partial: self.partial.clone(),
-                            },
-                            CurrentKind::Thinking => AssistantMessageEvent::ThinkingDelta {
-                                index,
-                                delta: text.to_string(),
-                                partial: self.partial.clone(),
-                            },
-                        };
-                        sender.push(event);
-                    }
+                    self.handle_text(part, text, sender);
                 }
-
-                if let Some(fc) = part.get("functionCall") {
-                    self.close_current(sender);
-
-                    let name = fc["name"].as_str().unwrap_or_default().to_string();
-                    let provided_id = fc["id"].as_str().map(str::to_string);
-                    let is_duplicate = provided_id.as_ref().is_some_and(|id| {
-                        self.partial
-                            .content
-                            .iter()
-                            .any(|c| matches!(c, Content::ToolCall(tc) if &tc.id == id))
-                    });
-                    let id = match provided_id {
-                        Some(id) if !is_duplicate => id,
-                        _ => {
-                            self.tool_call_counter += 1;
-                            format!("{name}_{}_{}", now_millis(), self.tool_call_counter)
-                        }
-                    };
-                    let arguments = fc
-                        .get("args")
-                        .cloned()
-                        .unwrap_or_else(|| serde_json::json!({}));
-
-                    let index = self.partial.content.len();
-                    self.partial
-                        .content
-                        .push(Content::ToolCall(ToolCallContent {
-                            thought_signature: None,
-                            id,
-                            name,
-                            arguments: arguments.clone(),
-                        }));
-                    sender.push(AssistantMessageEvent::ToolCallStart {
-                        index,
-                        partial: self.partial.clone(),
-                    });
-                    sender.push(AssistantMessageEvent::ToolCallDelta {
-                        index,
-                        delta: arguments.to_string(),
-                        partial: self.partial.clone(),
-                    });
-                    sender.push(AssistantMessageEvent::ToolCallEnd {
-                        index,
-                        partial: self.partial.clone(),
-                    });
+                if let Some(call) = part.get("functionCall").filter(|c| !c.is_null()) {
+                    self.handle_function_call(part, call, sender);
                 }
             }
         }
 
-        if let Some(reason) = candidate["finishReason"].as_str() {
-            let mut stop_reason = shared::map_stop_reason(reason);
+        if let Some(reason) = candidate["finishReason"].as_str().filter(|r| !r.is_empty()) {
+            self.output.stop_reason = map_stop_reason(reason)?;
             if self
-                .partial
+                .output
                 .content
                 .iter()
                 .any(|c| matches!(c, Content::ToolCall(_)))
             {
-                stop_reason = StopReason::ToolUse;
+                self.output.stop_reason = StopReason::ToolUse;
             }
-            self.partial.stop_reason = stop_reason;
         }
 
-        if let Some(usage) = value.get("usageMetadata") {
-            self.partial.usage = parse_usage(usage);
+        if let Some(usage) = chunk.get("usageMetadata").filter(|u| !u.is_null()) {
+            let count = |key: &str| usage[key].as_u64().unwrap_or(0);
+            let u = &mut self.output.usage;
+            u.input = count("promptTokenCount").saturating_sub(count("cachedContentTokenCount"));
+            u.output = count("candidatesTokenCount") + count("thoughtsTokenCount");
+            u.cache_read = count("cachedContentTokenCount");
+            u.cache_write = 0;
+            u.total_tokens = count("totalTokenCount");
+            u.cost = cortexcode_ai_models::calculate_cost(model, u);
         }
+        Ok(())
     }
 
-    /// The message for a terminal `error` event: everything streamed so far,
-    /// including the open text/thinking block, with `stopReason` `aborted`
-    /// when the signal fired and `error` otherwise.
-    fn error_output(&self, message: String, aborted: bool) -> AssistantMessage {
-        let mut output = self.partial.clone();
-        if let Some((kind, _, text)) = &self.current {
-            output.content.push(match kind {
-                CurrentKind::Text => Content::Text(TextContent {
-                    text_signature: None,
-                    text: text.clone(),
-                }),
-                CurrentKind::Thinking => Content::Thinking(ThinkingContent {
-                    redacted: false,
-                    thinking: text.clone(),
-                    signature: None,
-                }),
+    fn handle_text(&mut self, part: &Value, text: &str, sender: &AssistantMessageEventStream) {
+        let thinking = is_thinking_part(part);
+        let open_kind_matches = self
+            .current
+            .is_some_and(|i| matches!(self.output.content[i], Content::Thinking(_)) == thinking);
+        if !open_kind_matches {
+            self.close_block(sender);
+            let block = if thinking {
+                Content::Thinking(ThinkingContent::default())
+            } else {
+                Content::Text(TextContent::new(""))
+            };
+            self.output.content.push(block);
+            let index = self.output.content.len() - 1;
+            self.current = Some(index);
+            let partial = self.output.clone();
+            sender.push(if thinking {
+                AssistantMessageEvent::ThinkingStart { index, partial }
+            } else {
+                AssistantMessageEvent::TextStart { index, partial }
             });
         }
-        output.stop_reason = if aborted {
-            StopReason::Aborted
+        let index = self.current.unwrap_or_default();
+        let signature = part["thoughtSignature"].as_str();
+        match &mut self.output.content[index] {
+            Content::Thinking(block) => {
+                block.thinking.push_str(text);
+                block.signature = retain_thought_signature(block.signature.take(), signature);
+            }
+            Content::Text(block) => {
+                block.text.push_str(text);
+                block.text_signature =
+                    retain_thought_signature(block.text_signature.take(), signature);
+            }
+            _ => {}
+        }
+        let partial = self.output.clone();
+        sender.push(if thinking {
+            AssistantMessageEvent::ThinkingDelta {
+                index,
+                delta: text.to_string(),
+                partial,
+            }
         } else {
-            StopReason::Error
+            AssistantMessageEvent::TextDelta {
+                index,
+                delta: text.to_string(),
+                partial,
+            }
+        });
+    }
+
+    fn handle_function_call(
+        &mut self,
+        part: &Value,
+        call: &Value,
+        sender: &AssistantMessageEventStream,
+    ) {
+        self.close_block(sender);
+        let name = call["name"].as_str().unwrap_or_default().to_string();
+        // A new id when none is given or it repeats one in this message.
+        let provided = call["id"].as_str().filter(|id| !id.is_empty());
+        let duplicate = provided.is_some_and(|id| {
+            self.output
+                .content
+                .iter()
+                .any(|c| matches!(c, Content::ToolCall(t) if t.id == id))
+        });
+        let id = match provided {
+            Some(id) if !duplicate => id.to_string(),
+            _ => format!(
+                "{name}_{}_{}",
+                cortexcode_ai_types::now_ms(),
+                TOOL_CALL_COUNTER.fetch_add(1, Ordering::Relaxed) + 1
+            ),
         };
-        output.error_message = Some(message);
-        output
+        let arguments = match call.get("args") {
+            None | Some(Value::Null) => serde_json::json!({}),
+            Some(args) => args.clone(),
+        };
+        let thought_signature = part["thoughtSignature"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        self.output.content.push(Content::ToolCall(ToolCallContent {
+            id,
+            name,
+            arguments: arguments.clone(),
+            thought_signature,
+        }));
+        let index = self.output.content.len() - 1;
+        sender.push(AssistantMessageEvent::ToolCallStart {
+            index,
+            partial: self.output.clone(),
+        });
+        sender.push(AssistantMessageEvent::ToolCallDelta {
+            index,
+            delta: arguments.to_string(),
+            partial: self.output.clone(),
+        });
+        sender.push(AssistantMessageEvent::ToolCallEnd {
+            index,
+            partial: self.output.clone(),
+        });
     }
-
-    fn finish(&mut self, sender: &AssistantMessageEventStream) {
-        if self.finished {
-            return;
-        }
-        self.finished = true;
-        self.ensure_started(sender);
-        self.close_current(sender);
-
-        match &self.partial.stop_reason {
-            StopReason::Error => {
-                sender.push(AssistantMessageEvent::Error {
-                    error: self.partial.clone(),
-                });
-            }
-            _ => {
-                sender.push(AssistantMessageEvent::Done {
-                    message: self.partial.clone(),
-                });
-            }
-        }
-        sender.end(Some(self.partial.clone()));
-    }
-}
-
-fn parse_usage(value: &serde_json::Value) -> Usage {
-    let prompt = value["promptTokenCount"].as_u64().unwrap_or(0);
-    let cached = value["cachedContentTokenCount"].as_u64().unwrap_or(0);
-    let candidates = value["candidatesTokenCount"].as_u64().unwrap_or(0);
-    let thoughts = value["thoughtsTokenCount"].as_u64().unwrap_or(0);
-    let total = value["totalTokenCount"].as_u64().unwrap_or(0);
-
-    Usage {
-        input: prompt.saturating_sub(cached),
-        output: candidates + thoughts,
-        cache_read: cached,
-        cache_write: 0,
-        total_tokens: total,
-        cost: Cost::default(),
-    }
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use cortexcode_ai_stream::testing::{serve_error, serve_sse, serve_sse_then_hang};
-    use cortexcode_ai_types::AbortSignal;
-    use std::time::Duration;
-
-    fn spawn_mock_server(sse_body: &'static str) -> String {
-        serve_sse(sse_body)
-    }
-
-    #[allow(dead_code)]
-    fn spawn_mock_error_server(status_line: &'static str, body: &'static str) -> String {
-        serve_error(status_line, body)
-    }
-
-    fn test_model(base_url: String) -> Model {
-        Model {
-            compat: None,
-            id: "gemini-2.0-flash".into(),
-            name: "Gemini Test".into(),
-            api: "google-generative-ai".into(),
-            provider: "google".into(),
-            base_url,
-            reasoning: false,
-            thinking_level_map: None,
-            input: vec!["text".into()],
-            cost: cortexcode_ai_types::ModelCost::default(),
-            context_window: 1_000_000,
-            max_tokens: 8192,
-            headers: None,
-        }
-    }
-
-    fn collect(mut s: AssistantMessageEventStream) -> Vec<AssistantMessageEvent> {
-        let mut events = Vec::new();
-        while let Some(e) = s.next_blocking() {
-            events.push(e);
-        }
-        events
-    }
-
-    #[test]
-    fn test_stream_missing_credentials_errors_immediately() {
-        std::env::remove_var("GEMINI_API_KEY");
-        let model = test_model("http://127.0.0.1:0".into());
-        let context = Context::new("".into(), vec![], vec![]);
-        assert!(stream(model, context, SimpleStreamOptions::default()).is_err());
-    }
-
-    #[test]
-    fn test_stream_text_response() {
-        let sse = concat!(
-            "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}],\"role\":\"model\"}}]}\n\n",
-            "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\", world\"}],\"role\":\"model\"},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5,\"totalTokenCount\":15}}\n\n",
-        );
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("key123".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-
-        assert!(matches!(events[0], AssistantMessageEvent::Start { .. }));
-        let deltas: String = events
-            .iter()
-            .filter_map(|e| match e {
-                AssistantMessageEvent::TextDelta { delta, .. } => Some(delta.clone()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(deltas, "Hello, world");
-
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, StopReason::Stop);
-                let usage = &message.usage;
-                assert_eq!(usage.input, 10);
-                assert_eq!(usage.output, 5);
-            }
-            other => panic!("expected Done, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_stream_thinking_then_text() {
-        let sse = concat!(
-            "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"let me think\",\"thought\":true}],\"role\":\"model\"}}]}\n\n",
-            "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"answer\"}],\"role\":\"model\"},\"finishReason\":\"STOP\"}]}\n\n",
-        );
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("key123".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.content.len(), 2);
-                match &message.content[0] {
-                    Content::Thinking(t) => assert_eq!(t.thinking, "let me think"),
-                    other => panic!("expected thinking first, got {other:?}"),
-                }
-                match &message.content[1] {
-                    Content::Text(t) => assert_eq!(t.text, "answer"),
-                    other => panic!("expected text second, got {other:?}"),
-                }
-            }
-            other => panic!("expected Done, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_stream_tool_call_response() {
-        let sse = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"read_file\",\"args\":{\"path\":\"a.rs\"}}}]},\"finishReason\":\"STOP\"}]}\n\n";
-        let base_url = spawn_mock_server(sse);
-        let model = test_model(base_url);
-        let context = Context::new("".into(), vec![], vec![]);
-        let options = SimpleStreamOptions {
-            api_key: Some("key123".into()),
-            ..Default::default()
-        };
-
-        let s = stream(model, context, options).expect("stream should start");
-        let events = collect(s);
-        match events.last().unwrap() {
-            AssistantMessageEvent::Done { message } => {
-                assert_eq!(message.stop_reason, StopReason::ToolUse);
-                match &message.content[0] {
-                    Content::ToolCall(tc) => {
-                        assert_eq!(tc.name, "read_file");
-                        assert_eq!(tc.arguments["path"], "a.rs");
-                    }
-                    other => panic!("expected tool call, got {other:?}"),
-                }
-            }
-            other => panic!("expected Done, got {other:?}"),
-        }
-    }
-
-    /// `testAbortSignal` in `abort.test.ts`, against a server that stalls
-    /// mid-message.
-    #[test]
-    fn test_abort_mid_stream_keeps_partial_content() {
-        let head = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"15 + 27 = 42. \"}]}}]}\n\n";
-        let base_url = serve_sse_then_hang(head, Duration::from_secs(30));
-        let signal = AbortSignal::new();
-        let options = SimpleStreamOptions {
-            api_key: Some("gkey".into()),
-            signal: Some(signal.clone()),
-            ..Default::default()
-        };
-        let mut s = stream(
-            test_model(base_url),
-            Context::new("".into(), vec![], vec![]),
-            options,
-        )
-        .unwrap();
-
-        let started = std::time::Instant::now();
-        while let Some(event) = s.next_blocking() {
-            if let AssistantMessageEvent::TextDelta { .. } = &event {
-                signal.abort();
-            }
-        }
-        assert!(started.elapsed() < Duration::from_secs(10));
-
-        let msg = s.result_blocking();
-        assert_eq!(msg.stop_reason, StopReason::Aborted);
-        match msg.content.as_slice() {
-            [Content::Text(t)] => assert_eq!(t.text, "15 + 27 = 42. "),
-            other => panic!("expected the partial text block, got {other:?}"),
-        }
-    }
-
-    /// `testImmediateAbort` in `abort.test.ts`.
-    #[test]
-    fn test_immediate_abort() {
-        let signal = AbortSignal::new();
-        signal.abort();
-        let options = SimpleStreamOptions {
-            api_key: Some("gkey".into()),
-            signal: Some(signal),
-            ..Default::default()
-        };
-        let s = stream(
-            test_model("http://127.0.0.1:9".into()),
-            Context::new("".into(), vec![], vec![]),
-            options,
-        )
-        .unwrap();
-        assert_eq!(s.result_blocking().stop_reason, StopReason::Aborted);
-    }
-
-    #[test]
-    fn test_stream_vertex_missing_credentials() {
-        for var in [
-            "GOOGLE_VERTEX_ACCESS_TOKEN",
-            "GOOGLE_ACCESS_TOKEN",
-            "GOOGLE_APPLICATION_CREDENTIALS",
-        ] {
-            std::env::remove_var(var);
-        }
-        let model = test_model("http://127.0.0.1:0".into());
-        let context = Context::new("".into(), vec![], vec![]);
-        let s = stream_vertex(model, context, SimpleStreamOptions::default()).unwrap();
-        let msg = s.result_blocking();
-        assert_eq!(msg.stop_reason, StopReason::Error);
-        assert!(msg.error_message.unwrap().contains("credentials"));
-    }
-}
+mod tests;

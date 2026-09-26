@@ -5,19 +5,151 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
-- Next task: run `python3 migration/ledger.py next`. Phase 8 now has 8.1, 8.2, 8.2a, 8.3,
-  8.5a and 8.5b done. Every HTTP provider (openai-completions, openai-responses, azure,
-  anthropic) has SDK-style client retries; still missing: openai-codex (8.4a), Copilot
-  (8.4b), gemini-cli/antigravity (8.4c), the OAuth split (8.7) and the remaining ai tests
-  (8.6, which also owns the claude-5-models request format and the UserMessage
-  string-content decision).
+- Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
+  ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
+  8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
+  lazy-module-load has no Rust counterpart).
+- Still open in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity (8.4c),
+  stream hooks (8.8). 8.7 (OAuth split) is done.
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
-  notes for what they wait on. New scenarios this session: `print-retry` (8.5a) and
-  `print-tool-invalid-light` (8.5b).
+  notes for what they wait on.
 
 ## Log
+
+### 2026-09-25: 8.7 done (OAuth split: core + anthropic + github-copilot)
+- `cortexcode-ai-oauth` is the core: types (`OAuthCredentials` now serializes flat like
+  hoocode's auth.json — extra fields such as `enterpriseUrl`/`type` sit beside
+  refresh/access/expires), `OAuthLoginCallbacks` / `OAuthProvider` traits, PKCE, the OAuth
+  page HTML (oauth-page.ts), a tokio loopback `CallbackServer` (404/400/error pages, state
+  check, `cancelWait`), a `Fetch` seam (TS tests stub global fetch) with `ReqwestFetch`, and
+  the provider registry of index.ts (built-ins are installed by the composer with
+  `install_builtin_oauth_providers`, since they live in their own crates).
+- New `cortexcode-ai-oauth-anthropic` (anthropic.ts: authorize URL, callback server on 53692
+  + manual-paste race, prompt fallback, state checks, token exchange/refresh with the TS error
+  texts) and `cortexcode-ai-oauth-github-copilot` (github-copilot.ts: device flow with the
+  1.2x / 1.4x poll timing and slow_down handling, Copilot token refresh, model policy enabling,
+  base URL from the token, `modify_models`).
+- code-cli: `/login` plumbing now runs the provider flows through terminal callbacks; its own
+  callback server is gone; token refresh uses the new crates and reads `enterpriseUrl` (the
+  old code wrote `enterprise_url`, which hoocode never uses).
+- Tests: anthropic-oauth.test.ts and github-copilot-oauth.test.ts ported (the Copilot poll
+  times 6000/12000/26000 and 6000/20000/25000 reproduce under tokio's paused clock).
+- Also fixed a flaky agent-loop test (`emits_tool_execution_end_in_completion_order…`, ~50%
+  failures at the session's starting commit): the released tool now finishes 50 ms after
+  the releasing one, which is the order JS guarantees.
+- Note for future sessions: never share `CARGO_TARGET_DIR` with a second worktree of this
+  repo; cargo hashes path crates relative to the workspace root and the builds clobber
+  each other (fix: touch the sources and rebuild).
+- Next: `ledger.py next`.
+
+### 2026-09-25: 8.6e done (cross-provider suites); 8.8 added
+- Non-live ports: constrain-tool-calls (ai-util strict schema, completions + responses
+  tools), supports-xhigh (ai-models catalog), openrouter-images (ai-images), cache-retention
+  (`cortexcode-ai/tests/cache_retention.rs`, payload builders instead of onPayload; the
+  key-gated env-default cases only inspect the payload, so they run unconditionally).
+- ai-images brought to openrouter.ts: `response_id`, `signal`/`timeout_ms`/`max_retries`
+  options, SDK client retries, getEnvApiKey, TS error texts (`No API key available for
+  provider: …`, openai APIError message), stricter data-URI match, and a `generate_images`
+  dispatcher (`No API provider registered for api: …`).
+- Live (`#[ignore]`, key-gated) in `cortexcode-ai/tests/live_matrix.rs`: context-overflow,
+  empty, image-tool-result (fixture copied to `tests/data/red-circle.png`), responseid,
+  tokens (abort usage), total-tokens, tool-call-without-result, unicode-surrogate (the lone
+  surrogate case sends the sanitized text; Rust strings cannot hold one),
+  tool-call-id-normalization (prefilled OpenRouter case), xhigh, zen. Copilot/Codex cases
+  and local Ollama/LM Studio/llama.cpp cases are not included (see the file header).
+- New ledger task 8.8: typed onPayload/onResponse hooks for every provider (the
+  SimpleStreamOptions fields are String placeholders) + openrouter-cache-write-repro; 9.4
+  depends on it.
+- Next: `ledger.py next`.
+
+### 2026-09-25: 8.6d done (google.ts / google-vertex.ts / google-shared.ts re-port)
+- ai-provider-google rebuilt: shared.rs = google-shared.ts (convertMessages with
+  transformMessages + id normalization for claude-/gpt-oss-, base64 thought-signature
+  validation for same provider/model only, merged function responses, Gemini 3 nested vs
+  Gemini <3 separate image turn; convertTools with sanitizeForOpenApi; isThinkingPart,
+  retainThoughtSignature, mapToolChoice, mapStopReason(+String)). request.rs =
+  `GoogleOptions`/`GoogleThinking`, both streamSimple mappings (levels for Gemini 3 / Gemma 4,
+  budgets for 2.5, disabled configs), buildParams (`{model, contents, config}`), and the
+  @google/genai 1.52 pieces: `sdk_body` (REST mapping incl. part key order),
+  `ClientConfig` (= `new GoogleGenAI({...})` options; vertex API-key vs ADC choice, custom
+  base URL with COLLECTION scope, api version) and `ClientConfig::endpoint` (= ApiClient URL:
+  regional / global / multi-region hosts, project path, `x-goog-api-key` or ADC Bearer).
+  adc.rs: GOOGLE_APPLICATION_CREDENTIALS (service_account, authorized_user), gcloud
+  well-known file, metadata server (external_account not supported). lib.rs: the stream loop
+  (SDK chunk decoder with its three delimiters and error-chunk check, ApiError messages,
+  block switching, retained signatures, `<name>_<ms>_<n>` ids for missing/duplicate ids,
+  usage + cost, finishReason errors, `Request aborted` when pre-aborted).
+- Behaviour changes vs the old crate: Vertex no longer reads GOOGLE_VERTEX_ACCESS_TOKEN /
+  GOOGLE_ACCESS_TOKEN or defaults the location to us-central1 (hoocode does neither).
+  The SDK's `gl-node/<version>` user-agent part is `gl-rust/cortexcode`.
+- Tests: vertex-api-key-resolution (as ClientConfig), thinking-signature, convert-tools,
+  gemini3-unsigned-tool-call, image-tool-result-routing, thinking payloads, stream/SDK
+  tests; live thinking-disable E2E in `tests/live_e2e.rs` (`#[ignore]`).
+- Next: 8.6e via `ledger.py next`.
+
+### 2026-09-25: 8.6c done (anthropic.ts re-port + its tests)
+- ai-provider-anthropic is now a port of anthropic.ts: `stream` = streamSimpleAnthropic
+  (`No API key for provider: …` via getEnvApiKey; buildBaseOptions; adaptive thinking +
+  effort via thinkingLevelMap, or budget thinking via adjustMaxTokensForThinking);
+  `stream_anthropic(model, context, AnthropicOptions)` = streamAnthropic. request.rs:
+  createClient headers (x-api-key / Bearer for Copilot and OAuth `sk-ant-oat`, Claude Code
+  identity + betas, fine-grained tool streaming and interleaved-thinking betas, Copilot
+  dynamic headers), buildParams (OAuth system identity, temperature rule, thinking
+  adaptive/enabled/disabled, always-on models -> `output_config: {effort: low}`, metadata
+  user_id, tool_choice), convertMessages (transformMessages + id normalization, string user
+  content, redacted/unsigned thinking, merged consecutive tool results, cache marker on the
+  last user turn), convertTools (eager_input_streaming, defer_loading + BM25 tool-search tool,
+  breakpoint on the last tool), Claude Code tool-name mapping. sse.rs: iterateSseMessages'
+  line decoder + iterateAnthropicEvents (error events, unknown events skipped,
+  parseJsonWithRepair, "ended before message_stop"). lib.rs: the event loop (contentIndex =
+  position in content, signatures, redacted_thinking, responseId, usage + calculateCost,
+  unknown stop reason / refusal errors).
+- ai-types: `Tool.defer_loading` (TS `deferLoading`); fix_struct_fields knows it; faux
+  serializes it.
+- Tests: claude-5-models request format, thinking-disable payloads, tool-search, sse-parsing,
+  eager-tool-input compat (mock server); live e2e files in `tests/live_e2e.rs` (`#[ignore]`;
+  Copilot cases left to 8.4b). The opus-4.7 smoke TS test expects `thinking: {type:
+  "adaptive"}` without `display`, which the pinned code no longer sends; not asserted.
+- Next: 8.6d via `ledger.py next`.
+
+### 2026-09-25: 8.6b done (UserMessage string content)
+- Decision: `UserMessage.content` (and `CustomMessage.content`) is now
+  `ai_types::UserContent` = untagged `Text(String) | Blocks(Vec<Content>)`, the TS
+  `string | (TextContent | ImageContent)[]`. A string stays a string on the wire (sessions,
+  RPC/json output). `blocks()` (Cow), `into_blocks()`, `as_str()`, and `From` for Vec/String/&str.
+  `deserialize_string_or_blocks` is gone; agent-session's `CustomMessageContent` is an alias.
+- Providers follow TS for string content: openai-completions sends `content: "…"` (cache
+  marker / prompt suffix already handled strings); openai-responses sends one input_text part;
+  google one text part (even empty); transform-messages leaves strings alone; custom messages
+  become one text block in convertToLlm. anthropic: string -> one text block (skipped when
+  blank); its convertMessages still isn't faithful (note on 8.6c).
+- Tests: cache-control-format "cacheRetention none" now asserts the string like TS; the
+  completions request tests use string user content as the TS tests do; the session fixture
+  test now expects the custom message's string content to round-trip as a string (it pinned
+  the old divergence). New tests for the responses/google string path.
+- Next: 8.6c via `ledger.py next`.
+
+### 2026-09-25: 8.6 split; 8.6a done (faux provider = faux.ts)
+- Ledger: 8.6 -> 8.6a..8.6e (see Resume here). No task depended on 8.6.
+- ai-provider-faux rewritten as a port of faux.ts: `register_faux_provider(options)` registers
+  on ai-registry under a random `faux:<ms>:<id>` api (or `options.api`) and returns a
+  registration (derefs to `FauxProvider`; `unregister()`); `FauxProvider::stream_fn()` for
+  direct injection. Options: models, provider, `tokens_per_second`, `token_size`. Behaviour:
+  empty queue -> `error` event "No more faux responses queued"; factory `Err` -> `error`
+  event; sync + async factories get `(context, options, state, model)`; messages stamped with
+  the registration's api/provider + requested model id; usage estimated from the TS
+  `serializeContext` text (UTF-16 lengths) with prompt-cache simulation per `sessionId`;
+  paced deltas and abort before/mid thinking/text/toolcall.
+- Helpers now follow TS: `faux_text`, `faux_thinking`, `faux_tool_call` (random `tool:` id),
+  `faux_assistant_message(content, FauxMessageOptions)`. Old `faux_text_message`/
+  `faux_message`/`faux_error`/`faux_aborted` removed; agent-core tests updated.
+- ai-registry no longer dev-depends on faux (faux now depends on the registry).
+- Tests: faux-provider.test.ts ported (`tests/faux_provider.rs`, 22 tests).
+- Known gap: `onResponse` isn't modelled in `SimpleStreamOptions` (it's an `Option<String>`
+  placeholder), so faux doesn't call it.
+- Next: 8.6b via `ledger.py next`.
 
 ### 2026-09-25: 8.5b done (validateToolArguments)
 - ai-util `validation`: `validate_tool_arguments(name, schema, args, SchemaOrigin)` =

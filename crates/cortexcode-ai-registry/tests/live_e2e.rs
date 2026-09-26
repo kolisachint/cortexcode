@@ -30,7 +30,7 @@ fn key(var: &str) -> Option<String> {
 
 fn user(text: &str) -> Message {
     Message::User(UserMessage {
-        content: vec![Content::text(text)],
+        content: vec![Content::text(text)].into(),
         timestamp: cortexcode_ai_types::now_ms(),
     })
 }
@@ -94,6 +94,7 @@ async fn handle_streaming(llm: Model, api_key: &str) {
 /// `handleToolCall`.
 async fn handle_tool_call(llm: Model, api_key: &str) {
     let calculator = Tool {
+        defer_loading: None,
         name: "math_operation".into(),
         description: "Perform basic arithmetic operations".into(),
         parameters: serde_json::json!({
