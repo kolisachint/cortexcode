@@ -1,0 +1,16 @@
+[package]
+name = "cortexcode-code-paths"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "App identity, config directories and path helpers for the cortex coding agent"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+dirs = "5"

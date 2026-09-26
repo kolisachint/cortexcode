@@ -1686,20 +1686,53 @@
    ]
   },
   {
-   "id": "10.1",
-   "title": "Split code-config into code-paths (dirs, env overrides, .hoocode fallback) + code-settings (types/defaults/manager/storage, fs4 locks, atomic writes, unknown-key passthrough)",
+   "id": "10.1a",
+   "title": "New crate code-paths: app identity, config/agent dirs, env overrides (CORTEXCODE_/HOOCODE_), .hoocode fallback, utils/paths.ts",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.7a"
    ],
    "crates": [
-    "cortexcode-code-paths",
-    "cortexcode-code-settings",
-    "cortexcode-code-config"
+    "cortexcode-code-paths"
    ],
    "sources": [
     "packages/coding-agent/src/config.ts",
+    "packages/coding-agent/src/utils/paths.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/paths.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 10.1 (2026-09-26). config.ts install-method/self-update (detectInstallMethod, getSelfUpdateCommand; config.test.ts) is npm-distribution specific and goes with 12.7 (version check).",
+   "log": [
+    {
+     "at": "2026-09-26T21:50:36Z",
+     "commit": "821deb9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:54:52Z",
+     "commit": "821deb9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.1b",
+   "title": "New crate code-settings: settings types/defaults/storage/manager (fs4 locks, atomic writes, unknown-key passthrough)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.1a"
+   ],
+   "crates": [
+    "cortexcode-code-settings"
+   ],
+   "sources": [
     "packages/coding-agent/src/core/settings-manager.ts",
     "packages/coding-agent/src/core/settings-types.ts",
     "packages/coding-agent/src/core/settings-defaults.ts",
@@ -1709,10 +1742,34 @@
     "packages/coding-agent/test/settings*.test.ts"
    ],
    "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 10.1 (2026-09-26).",
+   "log": []
+  },
+  {
+   "id": "10.1c",
+   "title": "Move code-cli (and session/auth paths) from code-config onto code-paths + code-settings; retire the invented Config",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.1a",
+    "10.1b"
+   ],
+   "crates": [
+    "cortexcode-code-config",
+    "cortexcode-code-cli",
+    "cortexcode-code-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/config.ts",
+    "packages/coding-agent/src/core/settings-manager.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
    "l2": [
     "print-basic"
    ],
-   "notes": "Highest-churn core area (139 commits): schema isolated in code-settings.",
+   "notes": "Split from 10.1 (2026-09-26); keeps the print-basic L2 scenario.",
    "log": []
   },
   {
@@ -1874,7 +1931,7 @@
    "depends": [
     "7.5b",
     "7.4",
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-agent-session"
@@ -1918,7 +1975,7 @@
    "status": "todo",
    "depends": [
     "10.4a",
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-models",
@@ -1952,7 +2009,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-resources"
@@ -2179,7 +2236,7 @@
    "status": "todo",
    "depends": [
     "10.3",
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -2436,7 +2493,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:51:26Z",
+     "commit": "821deb9",
+     "kind": "note",
+     "text": "From 10.1 split (2026-09-26): config.ts detectInstallMethod / getSelfUpdateCommand / getUpdateInstruction (config.test.ts) belong with the version check; npm/pnpm/bun install detection needs a cortex (binary/cargo) equivalent."
+    }
+   ]
   },
   {
    "id": "13.1",

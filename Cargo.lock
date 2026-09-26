@@ -801,6 +801,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-paths"
+version = "0.0.1"
+dependencies = [
+ "dirs",
+]
+
+[[package]]
 name = "cortexcode-code-print"
 version = "0.0.1"
 dependencies = [

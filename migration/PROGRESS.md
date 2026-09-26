@@ -13,12 +13,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
   block); 9.2b waits for 10.3 (AgentSession).
+- Phase 10: 10.1 split into 10.1a (code-paths, done) / 10.1b (code-settings) / 10.1c (CLI
+  wiring, retire the invented `Config`).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 10.1a done (code-paths); 10.1 split into 10.1a/b/c
+- Ledger: 10.1 was too big (config.ts + settings-manager.ts + CLI wiring), so it is now 10.1a
+  code-paths, 10.1b code-settings (after 10.1a), and 10.1c wiring (keeps the print-basic L2
+  scenario). 10.3, 10.4b, 10.5 and 11.1 now depend on 10.1c. config.ts install-method /
+  self-update (config.test.ts) is noted on 12.7.
+- New crate `cortexcode-code-paths`: app identity (`cortex`, `~/.cortexcode`, legacy
+  `~/.hoocode`), env overrides with `CORTEXCODE_` / `CORTEX_` / `HOOCODE_` prefixes (the help
+  text says `CORTEX_*`, so all three are read), agent/auth/sessions/bin/themes/debug-log dirs,
+  dispatch dirs, `resolve_agent_file` (falls back to `~/.hoocode/<file>` when only that one
+  exists and there is no env override), and utils/paths.ts (canonicalize, isPathInside,
+  isLocalPath, cwd-relative formatting, `.agents` ancestor walk).
+- Tests: paths.test.ts ported (tests/paths.rs), plus env-order, fallback and path edge cases.
 
 ### 2026-09-26: 9.4b done (AgentHarness); phase 9 done except 9.1 (blocked) and 9.2b (needs 10.3)
 - New crate `cortexcode-agent-orchestrator` (re-exported as `cortexcode_agent::orchestrator`):
