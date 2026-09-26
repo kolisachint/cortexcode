@@ -37,7 +37,7 @@ impl std::fmt::Display for AuthError {
             AuthError::Flow(e) => write!(f, "login failed: {}", e),
             AuthError::UnknownProvider(p) => write!(
                 f,
-                "unknown login provider: {} (expected 'anthropic', 'github-copilot' or 'openai-codex')",
+                "unknown login provider: {} (expected 'anthropic', 'github-copilot', 'google-gemini-cli', 'google-antigravity' or 'openai-codex')",
                 p
             ),
         }
@@ -244,6 +244,29 @@ pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
                 &store,
                 "openai-codex",
                 "ChatGPT Plus/Pro (Codex Subscription)",
+                provider,
+                output,
+            )?;
+            Ok(())
+        }
+        "google-gemini-cli" | "gemini-cli" => {
+            let provider = Arc::new(cortexcode_ai_oauth_google::GeminiCliOAuthProvider::default());
+            login_with(
+                &store,
+                "google-gemini-cli",
+                "Google Cloud Code Assist (Gemini CLI)",
+                provider,
+                output,
+            )?;
+            Ok(())
+        }
+        "google-antigravity" | "antigravity" => {
+            let provider =
+                Arc::new(cortexcode_ai_oauth_google::AntigravityOAuthProvider::default());
+            login_with(
+                &store,
+                "google-antigravity",
+                "Google Antigravity (Gemini, Claude, GPT-OSS)",
                 provider,
                 output,
             )?;

@@ -1,0 +1,30 @@
+[package]
+name = "cortexcode-ai-provider-google-gemini-cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Google Cloud Code Assist (Gemini CLI / Antigravity) provider for cortex AI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-stream = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures-util = { version = "0.3", default-features = false }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "time"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+cortexcode-ai-stream = { workspace = true, features = ["testing"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }

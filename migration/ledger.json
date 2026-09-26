@@ -955,7 +955,7 @@
    "id": "8.4c",
    "title": "google-gemini-cli + antigravity provider crate and OAuth crate ai-oauth-google",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a",
     "8.7"
@@ -975,7 +975,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:44:12Z",
+     "commit": "bd60aff",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:57:29Z",
+     "commit": "bd60aff",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.5a",

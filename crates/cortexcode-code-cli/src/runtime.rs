@@ -157,6 +157,8 @@ fn oauth_api_key(provider: &str) -> Option<String> {
         "anthropic" | "claude" => "anthropic",
         "github-copilot" | "github" | "copilot" => "github-copilot",
         "openai-codex" => "openai-codex",
+        "google-gemini-cli" => "google-gemini-cli",
+        "google-antigravity" => "google-antigravity",
         _ => return None,
     };
     let store = crate::auth::CredentialStore::default_location();
@@ -167,8 +169,15 @@ fn oauth_api_key(provider: &str) -> Option<String> {
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
 
+    // `getApiKey`: the Google providers send `{token, projectId}`.
+    let api_key = |credentials: &cortexcode_ai_oauth::OAuthCredentials| match store_key {
+        "google-gemini-cli" | "google-antigravity" => {
+            cortexcode_ai_oauth_google::google_api_key(credentials)
+        }
+        _ => credentials.access.clone(),
+    };
     if !credentials.is_expired(now) {
-        return Some(credentials.access);
+        return Some(api_key(&credentials));
     }
 
     // Expired: attempt a refresh, persisting the new tokens on success.
@@ -196,15 +205,33 @@ fn oauth_api_key(provider: &str) -> Option<String> {
                 ),
             )
             .ok(),
+        "google-gemini-cli" | "google-antigravity" => {
+            let fetch = cortexcode_ai_oauth::ReqwestFetch;
+            let project_id = credentials.extra_str("projectId").unwrap_or_default();
+            let refresh = if store_key == "google-gemini-cli" {
+                async_runtime().block_on(cortexcode_ai_oauth_google::refresh_google_cloud_token(
+                    &fetch,
+                    &credentials.refresh,
+                    project_id,
+                ))
+            } else {
+                async_runtime().block_on(cortexcode_ai_oauth_google::refresh_antigravity_token(
+                    &fetch,
+                    &credentials.refresh,
+                    project_id,
+                ))
+            };
+            refresh.ok()
+        }
         _ => None,
     };
     match refreshed {
         Some(fresh) => {
             let _ = store.save(store_key, &fresh);
-            Some(fresh.access)
+            Some(api_key(&fresh))
         }
         // Refresh failed (offline, revoked); fall back to the stale token.
-        None => Some(credentials.access),
+        None => Some(api_key(&credentials)),
     }
 }
 

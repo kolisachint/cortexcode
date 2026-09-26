@@ -360,11 +360,13 @@ dependencies = [
  "cortexcode-ai-oauth",
  "cortexcode-ai-oauth-anthropic",
  "cortexcode-ai-oauth-github-copilot",
+ "cortexcode-ai-oauth-google",
  "cortexcode-ai-oauth-openai-codex",
  "cortexcode-ai-provider-anthropic",
  "cortexcode-ai-provider-azure",
  "cortexcode-ai-provider-faux",
  "cortexcode-ai-provider-google",
+ "cortexcode-ai-provider-google-gemini-cli",
  "cortexcode-ai-provider-openai",
  "cortexcode-ai-provider-openai-codex",
  "cortexcode-ai-provider-openai-responses",
@@ -455,6 +457,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-ai-oauth-google"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-oauth",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "cortexcode-ai-oauth-openai-codex"
 version = "0.0.1"
 dependencies = [
@@ -523,6 +535,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-ai-provider-google-gemini-cli"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "cortexcode-ai-models",
+ "cortexcode-ai-provider-google",
+ "cortexcode-ai-stream",
+ "cortexcode-ai-types",
+ "futures-util",
+ "regex",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "cortexcode-ai-provider-openai"
 version = "0.0.1"
 dependencies = [
@@ -582,6 +611,7 @@ dependencies = [
  "cortexcode-ai-provider-anthropic",
  "cortexcode-ai-provider-azure",
  "cortexcode-ai-provider-google",
+ "cortexcode-ai-provider-google-gemini-cli",
  "cortexcode-ai-provider-openai",
  "cortexcode-ai-provider-openai-codex",
  "cortexcode-ai-provider-openai-responses",
@@ -661,6 +691,7 @@ dependencies = [
  "cortexcode-ai-oauth",
  "cortexcode-ai-oauth-anthropic",
  "cortexcode-ai-oauth-github-copilot",
+ "cortexcode-ai-oauth-google",
  "cortexcode-ai-oauth-openai-codex",
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",

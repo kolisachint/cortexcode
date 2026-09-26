@@ -30,6 +30,10 @@ pub enum CallbackValidation {
     /// State compared first, then `code` required; `error` is not looked at
     /// (openai-codex.ts).
     StateThenCode,
+    /// `error` → "did not complete", then both `code` and `state` required;
+    /// the flow compares the state itself after the callback
+    /// (google-gemini-cli.ts, google-antigravity.ts).
+    CodeAndStateDeferred,
 }
 
 /// `{ code, state }` from the redirect.
@@ -212,7 +216,7 @@ fn respond(options: &CallbackServerOptions, head: &str) -> Response {
             None,
         );
     };
-    if state != options.expected_state {
+    if options.validation == CallbackValidation::CodeAndState && state != options.expected_state {
         return (
             "400 Bad Request",
             HTML,
@@ -311,6 +315,27 @@ mod tests {
         let ok = get(port, "/auth/callback?code=c1&state=s1").await;
         assert!(ok.contains("OpenAI authentication completed. You can close this window."));
         assert_eq!(server.wait_for_code().await.unwrap().code, "c1");
+    }
+
+    #[tokio::test]
+    async fn deferred_state_validation_matches_the_google_flows() {
+        let mut server = CallbackServer::start(CallbackServerOptions {
+            label: "Google".into(),
+            validation: CallbackValidation::CodeAndStateDeferred,
+            ..options()
+        })
+        .await
+        .unwrap();
+        let port = server.port();
+        let denied = get(port, "/callback?error=access_denied").await;
+        assert!(denied.contains("Google authentication did not complete."));
+        let missing = get(port, "/callback?code=c1").await;
+        assert!(missing.contains("Missing code or state parameter."));
+        // Any state is handed over; the flow compares it.
+        let ok = get(port, "/callback?code=c1&state=other").await;
+        assert!(ok.contains("Google authentication completed. You can close this window."));
+        let code = server.wait_for_code().await.unwrap();
+        assert_eq!((code.code.as_str(), code.state.as_str()), ("c1", "other"));
     }
 
     #[tokio::test]

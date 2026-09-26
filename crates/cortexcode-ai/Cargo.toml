@@ -19,11 +19,13 @@ cortexcode-ai-models = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
 cortexcode-ai-oauth-anthropic = { workspace = true }
 cortexcode-ai-oauth-github-copilot = { workspace = true }
+cortexcode-ai-oauth-google = { workspace = true }
 cortexcode-ai-oauth-openai-codex = { workspace = true }
 cortexcode-ai-provider-anthropic = { workspace = true }
 cortexcode-ai-provider-azure = { workspace = true }
 cortexcode-ai-provider-faux = { workspace = true }
 cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-provider-google-gemini-cli = { workspace = true }
 cortexcode-ai-provider-openai = { workspace = true }
 cortexcode-ai-provider-openai-codex = { workspace = true }
 cortexcode-ai-provider-openai-responses = { workspace = true }

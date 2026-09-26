@@ -20,6 +20,7 @@ cortexcode-ai-provider-openai = { workspace = true }
 cortexcode-ai-provider-openai-responses = { workspace = true }
 cortexcode-ai-provider-openai-codex = { workspace = true }
 cortexcode-ai-provider-google = { workspace = true }
+cortexcode-ai-provider-google-gemini-cli = { workspace = true }
 cortexcode-ai-provider-azure = { workspace = true }
 
 [dev-dependencies]

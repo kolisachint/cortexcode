@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 /// APIs in the catalog whose providers are not ported yet, with the ledger
 /// task that ports them. Remove an entry when its task registers the API.
-const PENDING_APIS: &[(&str, &str)] = &[("google-gemini-cli", "8.4c")];
+const PENDING_APIS: &[(&str, &str)] = &[];
 
 /// One catalog model per (provider, api) pair, in catalog order.
 fn one_model_per_provider_api() -> Vec<Model> {
@@ -70,8 +70,8 @@ fn every_catalog_api_is_registered_or_pending_a_task() {
 }
 
 /// Each registered (provider, api) pair reaches its API's endpoint through
-/// `streamSimple`, and the failure comes back as an error message stamped
-/// with the model's identity.
+/// `streamSimple`, and the result (a failure, or for Cloud Code Assist a
+/// reply) comes back stamped with the model's identity.
 #[test]
 fn every_registered_provider_streams_through_its_api() {
     for mut model in one_model_per_provider_api() {
@@ -79,6 +79,10 @@ fn every_registered_provider_streams_through_its_api() {
             continue;
         }
         let codex = model.api == "openai-codex-responses";
+        // Cloud Code Assist retries every failure (errors raised in its retry
+        // loop are caught and retried), so it gets a successful stream; its
+        // API key is the OAuth `{token, projectId}` JSON.
+        let gemini_cli = model.api == "google-gemini-cli";
         // Codex retries every failure but a usage limit, needs a ChatGPT JWT
         // (it reads the account id from it) and defaults to WebSocket.
         let error_body = if codex {
@@ -86,15 +90,22 @@ fn every_registered_provider_streams_through_its_api() {
         } else {
             r#"{"error":{"message":"routed"}}"#
         };
-        let server = serve_script(vec![(
-            "HTTP/1.1 400 Bad Request",
-            "application/json",
-            error_body,
-        )]);
+        let ok_stream = concat!(
+            r#"data: {"response":{"candidates":[{"content":{"parts":[{"text":"routed"}]},"#,
+            r#""finishReason":"STOP"}]}}"#,
+            "\n\n"
+        );
+        let server = serve_script(vec![if gemini_cli {
+            ("HTTP/1.1 200 OK", "text/event-stream", ok_stream)
+        } else {
+            ("HTTP/1.1 400 Bad Request", "application/json", error_body)
+        }]);
         model.base_url = server.base_url.clone();
         let options = SimpleStreamOptions {
             api_key: Some(if codex {
                 codex_token()
+            } else if gemini_cli {
+                r#"{"token":"t","projectId":"p"}"#.into()
             } else {
                 "test-key".into()
             }),
@@ -105,7 +116,12 @@ fn every_registered_provider_streams_through_its_api() {
         let stream =
             stream_simple(model.clone(), hi(), options).unwrap_or_else(|e| panic!("{label}: {e}"));
         let message = stream.result_blocking();
-        assert_eq!(message.stop_reason, StopReason::Error, "{label}");
+        let expected_stop = if gemini_cli {
+            StopReason::Stop
+        } else {
+            StopReason::Error
+        };
+        assert_eq!(message.stop_reason, expected_stop, "{label}");
         assert_eq!(
             (message.api.as_str(), message.provider.as_str()),
             (model.api.as_str(), model.provider.as_str()),
@@ -125,6 +141,7 @@ fn every_registered_provider_streams_through_its_api() {
             "google-generative-ai" | "google-vertex" => ":streamGenerateContent",
             "openai-responses" | "azure-openai-responses" => "/responses",
             "openai-codex-responses" => "/codex/responses",
+            "google-gemini-cli" => "/v1internal:streamGenerateContent?alt=sse",
             other => panic!("{label}: no expected path for {other}"),
         };
         assert!(path.contains(expected), "{label}: {path}");

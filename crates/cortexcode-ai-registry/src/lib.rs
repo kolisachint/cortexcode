@@ -70,6 +70,10 @@ fn builtins() -> Vec<(&'static str, ApiStreamSimpleFn)> {
             "google-vertex",
             Arc::new(cortexcode_ai_provider_google::stream_vertex),
         ),
+        (
+            "google-gemini-cli",
+            Arc::new(cortexcode_ai_provider_google_gemini_cli::stream),
+        ),
     ]
 }
 
@@ -167,6 +171,7 @@ mod tests {
             "openai-codex-responses",
             "google-generative-ai",
             "google-vertex",
+            "google-gemini-cli",
         ] {
             assert!(get_api_provider(api).is_some(), "{api}");
         }

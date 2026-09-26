@@ -9,14 +9,42 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
-- Still open in phase 8: gemini-cli/antigravity (8.4c), stream hooks (8.8).
-  8.4a (openai-codex), 8.4b (Copilot) and 8.7 (OAuth split) are done.
+- Still open in phase 8: stream hooks (8.8). Every catalog API is now registered
+  (8.4a codex, 8.4b Copilot, 8.4c gemini-cli/antigravity, 8.7 OAuth split are done).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 8.4c done (Cloud Code Assist: gemini-cli + antigravity)
+- New `cortexcode-ai-provider-google-gemini-cli` (google-gemini-cli.ts), registered for the
+  `google-gemini-cli` API (both providers): envelope `buildRequest` in TS key order (Antigravity
+  system instruction, `requestType: agent`, Claude tools as `parameters`), Gemini CLI /
+  Antigravity headers (`CORTEXCODE_`/`HOOCODE_ANTIGRAVITY_VERSION`), Antigravity endpoint
+  fallbacks, the TS retry loop verbatim (403/404 cascade, 429/5xx backoff with
+  `extractRetryDelay`, and -- as in TS -- every error raised inside the loop, a plain 400
+  included, is caught and retried 1/2/4 s), empty-stream refetch (0.5/1 s), lazy `start` event,
+  `streamSimple` thinking levels/budgets. Message/tool conversion reused from ai-provider-google.
+- New `cortexcode-ai-oauth-google` (google-gemini-cli.ts, google-antigravity.ts,
+  google-oauth-client.ts): both PKCE logins (verifier = state; new core
+  `CallbackValidation::CodeAndStateDeferred`), pasted-redirect race, token exchange/refresh with
+  the TS error texts, strict (gemini-cli) vs fall-through (antigravity) project discovery with
+  onboarding + operation polling, `get_api_key` = `{token, projectId}` JSON. Client from
+  `CORTEXCODE_{GEMINI_CLI,ANTIGRAVITY}_CLIENT_{ID,SECRET}` (HOOCODE_ twins honored).
+- `cortexcode_ai::builtin_oauth_providers()` / `install_builtin_oauth_providers()` =
+  `BUILT_IN_OAUTH_PROVIDERS` (nothing installed the built-ins before). code-cli: `login
+  google-gemini-cli|gemini-cli|google-antigravity|antigravity`; runtime returns the JSON API
+  key for the Google providers and refreshes them.
+- Tests: google-gemini-cli.test.ts (all cases; registry half in cortexcode-ai
+  `tests/oauth_providers.rs`), mock-server stream/retry/empty-stream cases, OAuth flows with a
+  fake fetch (discovery, refresh, pasted-redirect login). Routing test: PENDING_APIS is empty;
+  gemini-cli gets a successful stream (a 400 would sit through its 7 s of retries).
+- Noticed, not fixed: help_text.rs lists `CORTEX_*` env names (e.g. `CORTEX_GEMINI_CLI_CLIENT_ID`,
+  `CORTEX_CODING_AGENT_DIR`) while the code reads `CORTEXCODE_*`/`HOOCODE_*`; pre-existing.
+- Deviations: onPayload (8.8); Retry-After dates parse RFC 2822/3339 only.
+- Next: `ledger.py next`.
 
 ### 2026-09-26: 8.4b done (GitHub Copilot routing)
 - No production code change: Copilot routing was already in place (catalog models on
