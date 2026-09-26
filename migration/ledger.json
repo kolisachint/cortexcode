@@ -1915,24 +1915,47 @@
    "id": "10.2d",
    "title": "SearchCodebase lexical mode: new crate code-tool-search (grep-searcher + ignore)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tool-search"
+    "cortexcode-code-tool-search",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/search.ts",
     "packages/coding-agent/src/core/search/"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/search.test.ts",
+    "packages/coding-agent/test/hybrid-search.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "print-tool-search"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenario print-tool-search written 2026-09-26 (selfcheck stable): all three SearchCodebase tool results are byte-identical to hoocode; only the default-bundle system prompt differs (10.4c). The eval harness (search/eval*.ts, search-eval.test.ts, the eval cases of hybrid-search.test.ts) and native-search.ts (nativeGrep/collectEntries, native-search.test.ts; collectEntries feeds embsearch repo-scan) go to 12.4 with the embsearch service.",
+   "log": [
+    {
+     "at": "2026-09-26T22:43:50Z",
+     "commit": "65a2a85",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:56:04Z",
+     "commit": "65a2a85",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:56:35Z",
+     "commit": "65a2a85",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-search=fail"
+    }
+   ]
   },
   {
    "id": "10.2e",
@@ -2523,7 +2546,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a",
-   "notes": "Needs a go/no-go decision from the user before starting.",
+   "notes": "Needs a go/no-go decision from the user before starting. From 10.2d: implement cortexcode_code_tool_search::EmbsearchService with the daemon client; port search/eval*.ts + search-eval.test.ts + the eval-scoring cases of hybrid-search.test.ts, and native-search.ts collectEntries (+ native-search.test.ts) for repo-scan.",
    "log": []
   },
   {

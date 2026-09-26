@@ -23,7 +23,10 @@ pub fn is_dangerous(tool_name: &str) -> bool {
 
 /// Whether a tool name is read-only.
 pub fn is_read_only(tool_name: &str) -> bool {
-    matches!(tool_name, "read" | "grep" | "find" | "ls")
+    matches!(
+        tool_name,
+        "read" | "SearchCodebase" | "grep" | "find" | "ls"
+    )
 }
 
 /// Gate that always grants every tool call.

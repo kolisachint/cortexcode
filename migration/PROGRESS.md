@@ -22,6 +22,30 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2d l1_done (SearchCodebase); default bundle is now hoocode's five tools
+- New crate `cortexcode-code-tool-search` (tools/search.ts + the runtime half of core/search/):
+  query plan, mode resolution, lexical retriever, grep→chunk adapter, RRF, deterministic
+  reranker (IDF, path affinity, declaration bonus, prose gate), stale hoist, span merge,
+  token-budgeted assembler, jsonl trace (`<agentDir>/embsearch/<sha256[..16]>`), cross-encoder
+  rerank, and an `EmbsearchService` trait for 12.4's daemon client (without one every mode is
+  lexical, with hoocode's degradation texts).
+- The lexical leg reproduces hoocode's `rg --json --hidden --no-require-git --ignore-case
+  --sort path --glob '!**/.git/**'` in-process with ripgrep's crates (`ignore` walker sorted by
+  file name, `.rgignore`, overrides; `grep-searcher` with NUL binary detection). A test
+  compares it with the real `rg` binary on a tree with .gitignore/.ignore/hidden/.git/binary
+  files and globs (skips when rg is absent).
+- code-tools: the default bundle is exactly read, bash, edit, write, SearchCodebase
+  (CODING_TOOL_NAMES); the invented grep/find/ls/webfetch/websearch/todo placeholder tools are
+  gone from it (their free functions remain until 10.2e/10.2f). The permission gate treats
+  SearchCodebase as read-only. The default system prompt's tool list now matches hoocode's
+  up to SearchCodebase; the rest (Task/TodoWrite/ask_options/SearchHooCode, skills, agents,
+  docs, build mode) is 10.4c and friends.
+- Tests: search.test.ts and the non-eval cases of hybrid-search.test.ts ported (14 tests).
+  Eval tooling and native-search.ts go to 12.4 (noted there).
+- L2: new `print-tool-search` (stable): all three SearchCodebase results byte-identical to
+  hoocode (auto→lexical, glob+limit, hybrid degraded with reason); only the system prompt
+  differs → passes with 10.4c. 10.2d stays l1_done like 10.2a-c.
+
 ### 2026-09-26: 10.2c l1_done (edit + write tools); print-tool-edit-light green
 - code-tools-fs gains `edit_diff` (edit-diff.ts), `edit`, `write` and `mutation_queue`
   (file-mutation-queue.ts). The matcher works in UTF-16 units like JS (spans, error columns),

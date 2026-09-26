@@ -691,7 +691,7 @@ mod tests {
         );
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains(
-            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nGuidelines:"
+            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n\nGuidelines:"
         ));
     }
 

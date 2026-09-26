@@ -1,0 +1,79 @@
+{
+  "description": "Print mode (default tool bundle) with SearchCodebase: an identifier query (auto, lexical without an index: fused, reranked, span-merged snippets), a glob-scoped query, and an explicit hybrid request that degrades to lexical with a reason. Requires identical model requests; waits on the default-bundle system prompt (10.4c), like print-tool-read.",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "phase": "10.2d",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "src/budget.ts": "import { spendTokenBudget } from './spend.js';\n\nexport function tokenBudget(limit: number): number {\n\treturn spendTokenBudget(limit) * 2;\n}\n",
+    "src/spend.ts": "// spends a token budget\nexport function spendTokenBudget(n: number) {\n  return n - 1;\n}\n",
+    "docs/notes.md": "The tokenBudget helper doubles what spendTokenBudget returns.\n",
+    ".gitignore": "build/\n",
+    "build/out.js": "tokenBudget(1)\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "-p",
+    "find the token budget code"
+  ],
+  "llm": [
+    {
+      "text": "Searching.",
+      "tool_calls": [
+        {
+          "id": "call_search_1",
+          "name": "SearchCodebase",
+          "arguments": {
+            "query": "tokenBudget"
+          }
+        },
+        {
+          "id": "call_search_2",
+          "name": "SearchCodebase",
+          "arguments": {
+            "query": "spendTokenBudget",
+            "glob": "*.ts",
+            "limit": 2
+          }
+        },
+        {
+          "id": "call_search_3",
+          "name": "SearchCodebase",
+          "arguments": {
+            "query": "where is the budget doubled",
+            "mode": "hybrid"
+          }
+        }
+      ]
+    },
+    {
+      "text": "tokenBudget lives in src/budget.ts."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "src/budget.ts",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

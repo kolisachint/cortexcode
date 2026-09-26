@@ -46,6 +46,7 @@ members = [
     "crates/cortexcode-code-paths",
     "crates/cortexcode-code-settings",
     "crates/cortexcode-code-tool-bash",
+    "crates/cortexcode-code-tool-search",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
     "crates/cortexcode-code-media",
@@ -123,6 +124,7 @@ cortexcode-code-cli = { path = "crates/cortexcode-code-cli" }
 cortexcode-code-paths = { path = "crates/cortexcode-code-paths" }
 cortexcode-code-settings = { path = "crates/cortexcode-code-settings" }
 cortexcode-code-tool-bash = { path = "crates/cortexcode-code-tool-bash" }
+cortexcode-code-tool-search = { path = "crates/cortexcode-code-tool-search" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
 cortexcode-code-media = { path = "crates/cortexcode-code-media" }
