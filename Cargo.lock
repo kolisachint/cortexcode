@@ -753,6 +753,7 @@ dependencies = [
  "cortexcode-code-tool-bash",
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
+ "cortexcode-code-tools-optin",
  "crossterm",
  "serde_json",
  "tokio",
@@ -881,6 +882,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-task-store"
+version = "0.0.1"
+
+[[package]]
 name = "cortexcode-code-tool-api"
 version = "0.0.1"
 dependencies = [
@@ -965,6 +970,17 @@ dependencies = [
  "sha1_smol",
  "tempfile",
  "unicode-normalization",
+]
+
+[[package]]
+name = "cortexcode-code-tools-optin"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-agent-types",
+ "cortexcode-ai-types",
+ "cortexcode-code-task-store",
+ "cortexcode-code-tool-api",
+ "serde_json",
 ]
 
 [[package]]

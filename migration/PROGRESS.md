@@ -22,6 +22,28 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2f l1_done (TodoWrite, ask_options, task store)
+- New crate `cortexcode-code-task-store` (task-store.ts): tasks + owning agents, batched change
+  notifications (listeners run outside the lock), version counter, create/update (clearable
+  note)/remove/arrange/reset/clear, and the process-wide `task_store()`. Ported here because
+  TodoWrite writes it; 11.5 renders it (ledger notes updated; task-store.ts added to 10.2f's
+  sources).
+- New crate `cortexcode-code-tools-optin`: TodoWrite (reconcile by item content, then leftover
+  slots, drop the tail, keep list order; glyph lines; counts in details) with
+  `settle_dangling_main_tasks`; ask_options behind an `AskOptionsHost` (has_ui, the pane,
+  `/loop` state + halt); `NoUi` gives hoocode's print-mode text. Exact schemas and texts taken
+  from hoocode's dist.
+- CLI: registers ask_options always and TodoWrite when `--enable-todowrite` / `enableTodoWrite`
+  (default true), after the five base tools, as hoocode orders extension and custom tools;
+  the permission gate treats both as read-only. The default prompt's tool list now differs
+  from hoocode's only by SearchHooCode, Task and TaskOutput.
+- Tests: todo-tool.test.ts and the loop cases of ask-options-loop.test.ts ported, plus
+  task-store/identity-reorder/settle cases (8 tests). ask-options.test.ts is the pane (11.3);
+  the `/loop auto` case is noted on 12.5 (the loop extension). Bookkeeping: my first note on
+  10.2f named 7.5a as the loop's owner; corrected to 12.5 before committing.
+- L2: new `print-todo-write` (stable; tool results identical incl. ask_options' no-UI text;
+  only the system prompt differs → 10.4c) and `todo-write` (interactive, phase 11).
+
 ### 2026-09-26: 10.2e blocked on a design question (webtools)
 - hoocode's webfetch/websearch do no HTML work themselves: they run the external `webtools`
   binary (kolisachint/webtools, Rust, downloaded by tools-manager) and format its `--json`

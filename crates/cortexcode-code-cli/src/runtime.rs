@@ -299,6 +299,7 @@ impl SessionBranch for LiveTranscript {
 /// `contextGc.enabled`; bash takes `shellCommandPrefix`, `shellPath` and the
 /// same caps.
 fn build_tool_definitions(
+    args: &Args,
     cwd: &std::path::Path,
     settings: &SettingsManager,
 ) -> Vec<ToolDefinition> {
@@ -316,12 +317,30 @@ fn build_tool_definitions(
         max_output_lines: Some(settings.tool_output_max_lines() as usize),
         ..Default::default()
     };
-    cortexcode_code_tools::default_tool_definitions(
+    let mut definitions = cortexcode_code_tools::default_tool_definitions(
         cwd.to_path_buf(),
         PermissionPolicy::default(),
         read,
         bash,
-    )
+    );
+    // The core ask_options extension tool (no UI in print mode: it says so).
+    definitions.push(
+        cortexcode_code_tools_optin::create_ask_options_tool_definition(std::sync::Arc::new(
+            cortexcode_code_tools_optin::NoUi,
+        )),
+    );
+    // TodoWrite: `--enable-todowrite`, else the `enableTodoWrite` setting.
+    if args
+        .todo_write
+        .unwrap_or_else(|| settings.enable_todo_write())
+    {
+        definitions.push(
+            cortexcode_code_tools_optin::create_todo_write_tool_definition(
+                cortexcode_code_tools_optin::StoreRef::Global,
+            ),
+        );
+    }
+    definitions
 }
 
 /// Wrap the definitions for the agent loop; tools see the model and the live
@@ -428,7 +447,7 @@ fn build_agent_with_gate(
     let definitions = if light {
         cortexcode_code_tools::light::light_tool_definitions(cwd.clone())
     } else {
-        build_tool_definitions(&cwd, &settings)
+        build_tool_definitions(args, &cwd, &settings)
     };
     let system_prompt = build_system_prompt(args, &cwd, &definitions, light);
     let transcript = Arc::new(LiveTranscript::default());
@@ -686,12 +705,12 @@ mod tests {
         let prompt = build_system_prompt(
             &args,
             cwd,
-            &build_tool_definitions(cwd, &SettingsManager::in_memory(Default::default())),
+            &build_tool_definitions(&args, cwd, &SettingsManager::in_memory(Default::default())),
             false,
         );
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains(
-            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n\nGuidelines:"
+            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
         ));
     }
 

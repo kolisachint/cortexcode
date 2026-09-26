@@ -1,0 +1,110 @@
+{
+  "description": "Print mode (default tool bundle) with TodoWrite: a plan with an in-progress item (activeForm), then an update that completes one item, renames another and drops the tail; plus ask_options, which has no UI in print mode. Requires identical model requests (tool results); waits on the default-bundle system prompt (10.4c).",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "phase": "10.2f",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "-p",
+    "plan the work"
+  ],
+  "llm": [
+    {
+      "text": "Planning.",
+      "tool_calls": [
+        {
+          "id": "call_todo_1",
+          "name": "TodoWrite",
+          "arguments": {
+            "todos": [
+              {
+                "content": "Read the parser",
+                "status": "in_progress",
+                "activeForm": "Reading the parser"
+              },
+              {
+                "content": "Add tests",
+                "status": "pending"
+              },
+              {
+                "content": "Refactor",
+                "status": "pending"
+              }
+            ]
+          }
+        },
+        {
+          "id": "call_ask_1",
+          "name": "ask_options",
+          "arguments": {
+            "questions": [
+              {
+                "question": "Which parser?",
+                "options": [
+                  {
+                    "label": "old"
+                  },
+                  {
+                    "label": "new",
+                    "recommended": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Updating.",
+      "tool_calls": [
+        {
+          "id": "call_todo_2",
+          "name": "TodoWrite",
+          "arguments": {
+            "todos": [
+              {
+                "content": "Read the parser",
+                "status": "completed"
+              },
+              {
+                "content": "Add parser tests",
+                "status": "in_progress"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Plan recorded."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "Plan recorded.",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

@@ -1996,24 +1996,44 @@
    "id": "10.2f",
    "title": "Opt-in tools: TodoWrite, ask_options",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tool-api"
+    "cortexcode-code-task-store",
+    "cortexcode-code-tools-optin",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/todo.ts",
-    "packages/coding-agent/src/extensions/core/ask-options.ts"
+    "packages/coding-agent/src/extensions/core/ask-options.ts",
+    "packages/coding-agent/src/core/task-store.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/todo-tool.test.ts",
+    "packages/coding-agent/test/ask-options-loop.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
+    "print-todo-write",
     "todo-write"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Done 2026-09-26: task-store.ts ported here (TodoWrite needs it; 11.5 renders it). ask_options runs behind an AskOptionsHost (the pane is 11.3; print mode has NoUi). ask-options.test.ts is the pane component (11.3); the '/loop auto' integration case of ask-options-loop.test.ts goes with the loop extension (12.5, Scheduler, /loop). print-todo-write: tool results identical, only the default-bundle system prompt differs (10.4c); todo-write is interactive (phase 11).",
+   "log": [
+    {
+     "at": "2026-09-26T22:59:37Z",
+     "commit": "7153078",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:05:50Z",
+     "commit": "7153078",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-todo-write=fail, todo-write=fail"
+    }
+   ]
   },
   {
    "id": "10.2g",
@@ -2479,7 +2499,7 @@
    "l2": [
     "subagent-task"
    ],
-   "notes": "",
+   "notes": "task-store.ts was ported in 10.2f (crate cortexcode-code-task-store); this task renders it.",
    "log": []
   },
   {
@@ -2579,7 +2599,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a",
-   "notes": "Needs a go/no-go decision from the user before starting.",
+   "notes": "Needs a go/no-go decision from the user before starting. From 10.2f: port the '/loop auto flips ask_options into non-blocking mode' case of ask-options-loop.test.ts; drive AskOptionsHost::auto_loop_active/halt_loop from the loop.",
    "log": []
   },
   {
