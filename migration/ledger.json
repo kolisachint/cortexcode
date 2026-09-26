@@ -1725,7 +1725,7 @@
    "id": "10.1b",
    "title": "New crate code-settings: settings types/defaults/storage/manager (fs4 locks, atomic writes, unknown-key passthrough)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1a"
    ],
@@ -1744,7 +1744,32 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Split from 10.1 (2026-09-26).",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:55:14Z",
+     "commit": "a17195e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:03:07Z",
+     "commit": "a17195e",
+     "kind": "note",
+     "text": "Ported settings-manager.test.ts + settings-manager-bug.test.ts. settings-token-surface.test.ts is the /settings pane (11.3)."
+    },
+    {
+     "at": "2026-09-26T22:03:12Z",
+     "commit": "a17195e",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:03:18Z",
+     "commit": "a17195e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "10.1c",
@@ -2304,7 +2329,14 @@
     "session-resume"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T22:03:07Z",
+     "commit": "a17195e",
+     "kind": "note",
+     "text": "settings-token-surface.test.ts (and the other *-settings-pane tests) cover the /settings selector pane: port them here, not in 10.1b."
+    }
+   ]
   },
   {
    "id": "11.4",

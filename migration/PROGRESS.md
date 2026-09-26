@@ -13,7 +13,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
   block); 9.2b waits for 10.3 (AgentSession).
-- Phase 10: 10.1 split into 10.1a (code-paths, done) / 10.1b (code-settings) / 10.1c (CLI
+- Phase 10: 10.1 split into 10.1a (code-paths, done) / 10.1b (code-settings, done) / 10.1c (CLI
   wiring, retire the invented `Config`).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
@@ -21,6 +21,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-26: 10.1b done (code-settings)
+- New crate `cortexcode-code-settings` (settings-{types,defaults,storage,manager}.ts). Settings
+  stay the raw JSON object (`Settings = serde_json::Map`, preserve_order), so unknown and
+  future keys pass through; the typing is in the getters (enums for the string settings,
+  structs for compaction/retry/branch-summary/learn/warnings, `PackageSource`), which apply
+  the TS defaults, clamps and legacy reads (toolOutputDisplay, migrateSettings).
+- Storage: `FileSettingsStorage` writes `<agentDir>/settings.json` and
+  `<cwd>/.cortexcode/settings.json`. When a cortex file is missing, its `.hoocode` twin is
+  read instead and the first write creates the cortex file (the hoocode file is never written
+  or locked). Lock: `fs4` on a `settings.json.lock` sidecar with TS's 10 x 20 ms retry
+  (hoocode's proper-lockfile uses a `.lock` directory); writes go to a temp file, then rename.
+- Deviations: writes are synchronous (hoocode queues them on a promise chain), so `flush()`
+  is a no-op; the file state after each call is the same. Getters return the default for
+  wrong-typed values where TS would pass the raw value through (e.g. a non-enum
+  `steeringMode`). Numeric setters take integers.
+- Tests: settings-manager.test.ts + settings-manager-bug.test.ts ported (35 tests including
+  the hoocode fallback, migrations, merge, byte-exact output). settings-token-surface.test.ts
+  is the /settings pane; noted on 11.3.
+- Next: 10.1c wires code-cli onto code-paths/code-settings and retires `cortexcode-code-config`.
 
 ### 2026-09-26: 10.1a done (code-paths); 10.1 split into 10.1a/b/c
 - Ledger: 10.1 was too big (config.ts + settings-manager.ts + CLI wiring), so it is now 10.1a
