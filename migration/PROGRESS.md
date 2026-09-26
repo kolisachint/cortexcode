@@ -22,6 +22,31 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-26: 10.2c l1_done (edit + write tools); print-tool-edit-light green
+- code-tools-fs gains `edit_diff` (edit-diff.ts), `edit`, `write` and `mutation_queue`
+  (file-mutation-queue.ts). The matcher works in UTF-16 units like JS (spans, error columns),
+  with the three tiers (exact, fuzzy-normalized with a source map, indentation-tolerant
+  blocks), the anchored-indent rule, the fuzzy no-op error that names the offending code
+  points, and all of hoocode's error texts. NFKC via `unicode-normalization`, `\p{Mn}` via
+  `regex`.
+- The diff: a port of jsdiff 8.0.4's Myers (tokenizer, diagonal pruning, tie-breaking), not
+  `similar` as the design doc planned, because similar aligns ambiguous lines differently.
+  `tests/fixtures/edit_diff_cases.json` holds 1000 apply cases + 300 diff cases generated
+  from hoocode's own edit-diff.js (`gen_edit_diff_cases.mjs`, deterministic seed); the Rust
+  port reproduces all of them byte for byte, errors included.
+- Mutation queue: a per-real-path FIFO ticket lock (tools run on blocking threads), so
+  edit/write to one file (or a symlink to it) serialize in arrival order.
+- Wiring: code-tools' default bundle and light preset use the real edit/write (the light edit
+  converts the flat oldText/newText to edits[] at execute time, as light.ts does); the
+  placeholder write/edit are gone.
+- Tests: tools.test.ts write/edit/fuzzy/CRLF sections, edit-tool-legacy-input,
+  edit-tool-preserves-untouched-lines, edit-encoding-recovery-loop (except the context-GC
+  case, noted on 10.2g) and file-mutation-queue ported (16 tests) + the reference fixture.
+  edit-tool-no-full-redraw is TUI (phase 11).
+- L2: new `print-tool-edit-light` (pass, stable: exact, fuzzy with tab + smart quotes, not
+  found, nested write, then a read) and `print-tool-edit` (default bundle; differs only in
+  the system prompt → 10.4c). 10.2c stays l1_done until then, like 10.2a/10.2b.
+
 ### 2026-09-26: 10.2b l1_done (bash tool); print-tool-bash-light green
 - New crate `cortexcode-code-tool-bash` (bash.ts, bash-executor.ts, output-accumulator.ts,
   utils/shell.ts): shell resolution (`shellPath`, /bin/bash, bash on PATH, sh; Git Bash on

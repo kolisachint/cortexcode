@@ -1,0 +1,100 @@
+{
+  "compare_requests": true,
+  "phase": "10.2c",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\n\tbeta ‘x’\ngamma\n"
+  },
+  "description": "Light mode (--light) print run exercising edit and write: an exact edit, a fuzzy edit (tab and smart quotes retyped as ASCII), a failing edit (not found), and a write of a new nested file. Model requests must be identical: tool results (texts and error flags) and the four light tool schemas.",
+  "request_fields": [
+    "messages",
+    "tools"
+  ],
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "-p",
+    "edit the notes"
+  ],
+  "llm": [
+    {
+      "text": "Editing.",
+      "tool_calls": [
+        {
+          "id": "call_edit_1",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "oldText": "alpha",
+            "newText": "ALPHA"
+          }
+        },
+        {
+          "id": "call_edit_2",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "oldText": "  beta 'x'",
+            "newText": "  beta 'y'"
+          }
+        },
+        {
+          "id": "call_edit_3",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "oldText": "delta",
+            "newText": "DELTA"
+          }
+        },
+        {
+          "id": "call_write_1",
+          "name": "write",
+          "arguments": {
+            "path": "out/new.txt",
+            "content": "fresh\n"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Let me check.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Edited two lines, one edit missed, wrote out/new.txt."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "wrote out/new.txt",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

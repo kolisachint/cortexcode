@@ -1,8 +1,8 @@
 //! Core CLI tools: read, bash, edit, write, grep, find, ls.
 //!
-//! `read` is the pinned port from `cortexcode-code-tools-fs` (10.2a) and `bash`
-//! from `cortexcode-code-tool-bash` (10.2b); the others are placeholders until
-//! their 10.2 tasks land.
+//! `read`, `edit` and `write` are the pinned ports from `cortexcode-code-tools-fs`
+//! (10.2a, 10.2c) and `bash` from `cortexcode-code-tool-bash` (10.2b); the
+//! others are placeholders until their 10.2 tasks land.
 //!
 //! Mirrors `core/tools/` from the TypeScript `packages/coding-agent` package.
 
@@ -12,7 +12,10 @@ use cortexcode_code_tool_api::{
     tool_definition_from_agent_tool, wrap_tool_definitions, ToolContextFactory, ToolDefinition,
 };
 use cortexcode_code_tool_bash::{create_bash_tool_definition, BashToolOptions};
-use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
+use cortexcode_code_tools_fs::{
+    create_edit_tool_definition, create_read_tool_definition, create_write_tool_definition,
+    EditToolOptions, ReadToolOptions, WriteToolOptions,
+};
 use serde_json::json;
 use std::path::Path;
 
@@ -347,6 +350,8 @@ pub fn default_tool_definitions(
     let mut definitions = vec![
         create_read_tool_definition(cwd.clone(), read),
         create_bash_tool_definition(cwd.clone(), bash),
+        create_edit_tool_definition(cwd.clone(), EditToolOptions::default()),
+        create_write_tool_definition(cwd.clone(), WriteToolOptions::default()),
     ];
     definitions.extend(
         placeholder_tools(cwd)
@@ -358,57 +363,11 @@ pub fn default_tool_definitions(
 
 /// The tools that still await their 10.2 ports.
 pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
-    let cwd_write = cwd.clone();
-    let cwd_edit = cwd.clone();
     let cwd_grep = cwd.clone();
     let cwd_find = cwd.clone();
     let cwd_ls = cwd.clone();
 
     vec![
-        AgentTool::new(
-            "write",
-            "Write contents to a file. Args: {\"path\": string, \"content\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "content": { "type": "string" }
-                },
-                "required": ["path", "content"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                let full = cwd_write.join(path);
-                match write_file(&full, content) {
-                    Ok(()) => Ok(text_result(format!("Wrote {}", full.display()))),
-                    Err(e) => Ok(error_result(format!("Error writing file: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "edit",
-            "Apply an exact-text replacement in a file. Args: {\"path\": string, \"old_text\": string, \"new_text\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "old_text": { "type": "string" },
-                    "new_text": { "type": "string" }
-                },
-                "required": ["path", "old_text", "new_text"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                let old_text = args.get("old_text").and_then(|v| v.as_str()).unwrap_or("");
-                let new_text = args.get("new_text").and_then(|v| v.as_str()).unwrap_or("");
-                let full = cwd_edit.join(path);
-                match edit_file(&full, old_text, new_text) {
-                    Ok(()) => Ok(text_result(format!("Edited {}", full.display()))),
-                    Err(e) => Ok(error_result(format!("Error editing file: {}", e))),
-                }
-            }),
-        ),
         AgentTool::new(
             "grep",
             "Search file contents with a regex. Args: {\"pattern\": string, \"paths\": string[]}",

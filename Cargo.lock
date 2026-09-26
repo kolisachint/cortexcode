@@ -937,11 +937,13 @@ dependencies = [
  "cortexcode-code-media",
  "cortexcode-code-tool-api",
  "libc",
+ "regex",
  "regex-lite",
  "serde",
  "serde_json",
  "sha1_smol",
  "tempfile",
+ "unicode-normalization",
 ]
 
 [[package]]

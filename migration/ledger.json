@@ -1865,12 +1865,13 @@
    "id": "10.2c",
    "title": "edit + write tools (edit-diff fuzzy matching via similar, file-mutation-queue)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tools-fs"
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/edit.ts",
@@ -1879,15 +1880,36 @@
     "packages/coding-agent/src/core/tools/file-mutation-queue.ts"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/edit*.test.ts"
+    "packages/coding-agent/test/edit*.test.ts",
+    "packages/coding-agent/test/file-mutation-queue.test.ts",
+    "packages/coding-agent/test/tools.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
-    "print-tool-edit",
-    "tool-edit"
+    "print-tool-edit-light",
+    "print-tool-edit"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenarios written 2026-09-26: print-tool-edit-light passes (exact, fuzzy, not-found edits and a nested write; tool results identical); print-tool-edit differs only in the default-bundle system prompt (10.4c). edit-tool-no-full-redraw.test.ts is TUI rendering (phase 11). The diff is a port of jsdiff 8.0.4's Myers (checked against hoocode on 1300 generated cases), not similar.",
+   "log": [
+    {
+     "at": "2026-09-26T22:29:24Z",
+     "commit": "5657a8c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:40:09Z",
+     "commit": "5657a8c",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:40:48Z",
+     "commit": "5657a8c",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-edit-light=pass, print-tool-edit=fail"
+    }
+   ]
   },
   {
    "id": "10.2d",
@@ -1982,7 +2004,7 @@
    "l2": [
     "print-tool-read-paging"
    ],
-   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c.",
+   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c. From 10.2c: port the 'keeps GC evicting the superseded read once the loop has moved on' case of edit-encoding-recovery-loop.test.ts here (needs evictSupersededReads); the rest of that file is in code-tools-fs/tests/edit_write.rs.",
    "log": []
   },
   {

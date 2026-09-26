@@ -1,0 +1,110 @@
+{
+  "compare_requests": true,
+  "phase": "10.2c",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\n\tbeta ‘x’\ngamma\n"
+  },
+  "description": "Print mode (default tool bundle) exercising edit (edits[] form: exact, fuzzy, not found) and write. Requires identical model requests (tool results). Waits on the default-bundle system prompt (10.4c), like print-tool-read.",
+  "request_fields": [
+    "messages"
+  ],
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "-p",
+    "edit the notes"
+  ],
+  "llm": [
+    {
+      "text": "Editing.",
+      "tool_calls": [
+        {
+          "id": "call_edit_1",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "edits": [
+              {
+                "oldText": "alpha",
+                "newText": "ALPHA"
+              }
+            ]
+          }
+        },
+        {
+          "id": "call_edit_2",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "edits": [
+              {
+                "oldText": "  beta 'x'",
+                "newText": "  beta 'y'"
+              }
+            ]
+          }
+        },
+        {
+          "id": "call_edit_3",
+          "name": "edit",
+          "arguments": {
+            "path": "notes.txt",
+            "edits": [
+              {
+                "oldText": "delta",
+                "newText": "DELTA"
+              }
+            ]
+          }
+        },
+        {
+          "id": "call_write_1",
+          "name": "write",
+          "arguments": {
+            "path": "out/new.txt",
+            "content": "fresh\n"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Let me check.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Edited two lines, one edit missed, wrote out/new.txt."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "wrote out/new.txt",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}
