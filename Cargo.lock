@@ -1192,8 +1192,11 @@ name = "cortexcode-code-tui-widgets"
 version = "0.0.1"
 dependencies = [
  "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
  "cortexcode-code-paths",
  "cortexcode-code-settings",
+ "cortexcode-code-subagents",
+ "cortexcode-code-task-store",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
  "cortexcode-code-tui-keybindings",

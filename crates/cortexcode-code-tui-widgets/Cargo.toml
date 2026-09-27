@@ -14,8 +14,11 @@ publish = false
 
 [dependencies]
 cortexcode-ai-types = { workspace = true }
+cortexcode-code-agent-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-settings = { workspace = true }
+cortexcode-code-subagents = { workspace = true }
+cortexcode-code-task-store = { workspace = true }
 cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tool-bash = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }

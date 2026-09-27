@@ -28,13 +28,12 @@ use cortexcode_code_tui_theme::{
 };
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
-use cortexcode_code_tui_widgets::tool_execution::{
-    ToolExecutionComponent, ToolExecutionOptions, ToolRenderDefinition,
-};
+use cortexcode_code_tui_widgets::tool_execution::{ToolExecutionComponent, ToolExecutionOptions};
 use cortexcode_code_tui_widgets::tool_output_view::{
     cycle_tool_output_view, DEFAULT_TOOL_OUTPUT_VIEW, MAX_TOOL_OUTPUT_VIEW,
 };
 use cortexcode_code_tui_widgets::tool_signal::ToolResult;
+use cortexcode_code_tui_widgets::tools::registered_tool_definition;
 use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
@@ -857,7 +856,7 @@ impl Mode {
         let definition = self
             .session
             .get_tool_definition(name)
-            .map(|_| ToolRenderDefinition::default());
+            .map(|_| registered_tool_definition(name));
         handle(ToolExecutionComponent::new(
             name,
             id,

@@ -37,6 +37,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2c2 done; 11.2c done (remaining tool renderers)
+- New `tools::{web, subagent, plugins}` renderers: webfetch/websearch (with the token,
+  truncation and outline/match notes), Task (`Agent [type]` in the agent's colour),
+  TaskOutput (status card with inbox elapsed time and task-store tokens, or the coloured
+  roster), and the four plugin tools that render their results.
+- Registered tools get renderers from `tools::registered_tool_definition`; the mode uses
+  it for any tool the session knows. Canvas has no renderers of its own in the pin.
+- `tests/tool_renderers_gold.rs` compares against the pin's real renderCall/renderResult
+  output, rendered at 120 columns: 30 calls, each at both expand settings (generator
+  `migration/tools/goldens/tool-renderers.mjs`). Two expanded read results on `.md`
+  paths are exempt until the highlighter lands; 11.2d's ledger notes say to remove that
+  exemption.
+- Next: 11.2d (bash/diff/highlight; L2 tool-bash).
+
 ### 2026-09-27: 11.2c split; 11.2c1 done (tool blocks; L2 `tool-read` passes)
 - 11.2c is split (bookkeeping). 11.2c1 is the tool-block framework plus the read, write
   and SearchCodebase renderers. 11.2c2 is the remaining built-in renderers (webfetch,

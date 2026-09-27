@@ -9,8 +9,11 @@ use cortexcode_tui_render::ComponentHandle;
 
 use crate::tool_execution::{RenderShell, ToolRenderDefinition};
 
+pub mod plugins;
 pub mod read;
 pub mod search;
+pub mod subagent;
+pub mod web;
 pub mod write;
 
 /// `createAllToolDefinitions(cwd)[name]`, rendering half. Tools whose
@@ -21,14 +24,27 @@ pub fn builtin_tool_definition(name: &str, _cwd: &str) -> Option<ToolRenderDefin
         "read" => Some(read::definition()),
         "write" => Some(write::definition()),
         "SearchCodebase" => Some(search::definition()),
-        // Renderers ported with the diff and bash work (11.2d) and the web
-        // tools (11.2c2).
-        "bash" | "webfetch" | "websearch" => Some(ToolRenderDefinition::default()),
+        "webfetch" => Some(web::webfetch_definition()),
+        "websearch" => Some(web::websearch_definition()),
+        // Renderers ported with the diff and bash work (11.2d).
+        "bash" => Some(ToolRenderDefinition::default()),
         "edit" => Some(ToolRenderDefinition {
             render_shell: Some(RenderShell::SelfRendered),
             ..Default::default()
         }),
         _ => None,
+    }
+}
+
+/// The rendering half of a registered (non built-in) tool's definition: the
+/// subagent and plugin tools bring renderers; any other registered tool has
+/// none, which still makes the block draw its dot and fallbacks.
+pub fn registered_tool_definition(name: &str) -> ToolRenderDefinition {
+    match name {
+        "Task" => subagent::task_definition(),
+        "TaskOutput" => subagent::task_output_definition(),
+        n if plugins::RENDERED_PLUGIN_TOOLS.contains(&n) => plugins::definition(),
+        _ => ToolRenderDefinition::default(),
     }
 }
 

@@ -4028,7 +4028,7 @@
    "id": "11.2c",
    "title": "Tool blocks: tool-execution, tool-chain (+summary), tool-signal (radar), read-output, visual-truncate; the view dial",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2c1",
     "11.2c2"
@@ -4067,6 +4067,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split into 11.2c1 (framework + read/write/search renderers, L2 tool-read) and 11.2c2 (remaining renderers) (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:56:06Z",
+     "commit": "c484cb8",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -4131,7 +4137,7 @@
    "id": "11.2c2",
    "title": "Remaining built-in tool renderers: webfetch, websearch, subagent (Task/TaskOutput), canvas, plugin tools",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2c1"
    ],
@@ -4156,6 +4162,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:52:46Z",
+     "commit": "c484cb8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:55:52Z",
+     "commit": "c484cb8",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -4181,13 +4199,19 @@
    "l2": [
     "tool-bash"
    ],
-   "notes": "",
+   "notes": "Remove needs_highlighter() from cortexcode-code-tui-widgets/tests/tool_renderers_gold.rs once the highlighter is installed (two read cases with .md paths). Also owns the edit-renderer case of tool-execution-component.test.ts.",
    "log": [
     {
      "at": "2026-09-27T16:27:05Z",
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:55:23Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Handoff from 11.2c2: highlighted read-result goldens wait on the highlighter (bookkeeping)."
     }
    ]
   },
