@@ -120,7 +120,7 @@ async fn drive(
     }
     let url = format!("{}/v1/messages", model.base_url.trim_end_matches('/'));
 
-    let mut builder = reqwest::Client::builder();
+    let mut builder = cortexcode_ai_util::tls::http_client_builder();
     if let Some(ms) = options.timeout_ms {
         builder = builder.timeout(std::time::Duration::from_millis(ms));
     }

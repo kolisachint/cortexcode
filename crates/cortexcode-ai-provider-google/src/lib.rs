@@ -169,7 +169,7 @@ async fn drive(
             format!("Bearer {}", adc::access_token().await?),
         )),
     }
-    let client = reqwest::Client::new();
+    let client = cortexcode_ai_util::tls::http_client();
     let mut request = client.post(&endpoint.url).body(body.to_string());
     for (k, v) in &headers {
         request = request.header(k, v);

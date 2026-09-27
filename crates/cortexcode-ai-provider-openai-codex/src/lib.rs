@@ -382,7 +382,7 @@ async fn fetch_with_retries(
     signal: Option<&AbortSignal>,
     on_response: Option<&OnResponse>,
 ) -> Result<reqwest::Response, CodexError> {
-    let client = reqwest::Client::builder()
+    let client = cortexcode_ai_util::tls::http_client_builder()
         .build()
         .map_err(|e| CodexError::other(format!("failed to build HTTP client: {e}")))?;
     let url = resolve_codex_url(&model.base_url);

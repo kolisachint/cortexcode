@@ -238,7 +238,7 @@ async fn create_with_param_fallback(
     params: serde_json::Value,
     options: &CompletionsOptions,
 ) -> Result<reqwest::Response, RequestError> {
-    let mut builder = reqwest::Client::builder();
+    let mut builder = cortexcode_ai_util::tls::http_client_builder();
     if let Some(ms) = options.timeout_ms {
         builder = builder.timeout(std::time::Duration::from_millis(ms));
     }

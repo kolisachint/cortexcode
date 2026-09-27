@@ -23,7 +23,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
   lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools),
-  10.9f done (Task tool in sessions). Phase-10 subagents are complete; check `ledger.py next`.
+  10.9f done (Task tool in sessions). Phase-10 subagents are complete. 10.10 split into 10.10a/b/c,
+  all done (core utils, parseGitUrl, TLS CA trust); check `ledger.py next`.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -35,6 +36,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.10c done (tls-ca); 10.10 complete
+- `cortexcode_ai_util::tls`: `TlsSources` (argv pre-scan for `--ca-cert` / `--use-system-ca` +
+  `CORTEX_CA_CERT` / `NODE_EXTRA_CA_CERTS` / `CORTEX_USE_SYSTEM_CA`), `resolve_trusted_cas`
+  (first explicit source only, OS store via rustls-native-certs only when opted in, dedupe,
+  warn-once `[tls] ...` and skip on failure), `configure_global_tls`, `http_client_builder()` /
+  `http_client()`. Bundled roots = reqwest's webpki-roots, always kept (add_root_certificate is additive).
+- Every `reqwest::Client::new()/builder()` in the workspace (11 crates) now starts from
+  `http_client_builder()`; new client code must too. The CLI installs the set first thing in `main`,
+  and `--ca-cert` / `--use-system-ca` are no longer "unsupported".
+- Checked end to end against a local `openssl s_server` with a throwaway CA: UnknownIssuer without
+  the flag, 200 with `--ca-cert`.
+- L2 run-all: only scenarios of not-yet-done tasks fail (interactive TUI = phase 11, default bundle).
 
 ### 2026-09-27: 10.10b done (utils/git parseGitUrl)
 - `cortexcode_code_paths::git`: `parse_git_url` / `GitSource` plus a port of hosted-git-info 9.0.3

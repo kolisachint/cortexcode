@@ -3357,13 +3357,23 @@
    "id": "10.10c",
    "title": "utils/tls-ca: --ca-cert / CORTEX_CA_CERT / NODE_EXTRA_CA_CERTS / --use-system-ca trust set, threaded into every reqwest client",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
    "crates": [
     "cortexcode-ai-util",
-    "cortexcode-code-cli"
+    "cortexcode-code-cli",
+    "cortexcode-agent-mcp",
+    "cortexcode-ai-images",
+    "cortexcode-ai-oauth",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-google-gemini-cli",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-codex",
+    "cortexcode-ai-provider-openai-responses",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/utils/tls-ca.ts",
@@ -3381,6 +3391,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:50:33Z",
+     "commit": "411e996",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:55:08Z",
+     "commit": "411e996",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

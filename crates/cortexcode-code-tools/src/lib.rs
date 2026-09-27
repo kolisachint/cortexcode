@@ -176,7 +176,7 @@ pub fn ls(dir: impl AsRef<Path>) -> Result<Vec<std::path::PathBuf>, std::io::Err
 
 /// Fetch content from a URL.
 pub async fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::builder()
+    let client = cortexcode_ai_util::tls::http_client_builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
     let response = client.get(url).send().await?;
@@ -197,7 +197,7 @@ pub async fn webfetch(url: &str) -> Result<String, Box<dyn std::error::Error>> {
 pub async fn websearch(query: &str) -> Result<String, Box<dyn std::error::Error>> {
     let encoded_query = urlencoding::encode(query);
     let search_url = format!("https://html.duckduckgo.com/html/?q={}", encoded_query);
-    let client = reqwest::Client::builder()
+    let client = cortexcode_ai_util::tls::http_client_builder()
         .timeout(std::time::Duration::from_secs(15))
         .user_agent("Mozilla/5.0")
         .build()?;

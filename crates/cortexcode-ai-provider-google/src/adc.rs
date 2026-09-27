@@ -85,7 +85,7 @@ async fn token_from_file(path: &str) -> Result<String, String> {
 }
 
 async fn post_token_form(uri: &str, form: &[(&str, &str)]) -> Result<String, String> {
-    let response = reqwest::Client::new()
+    let response = cortexcode_ai_util::tls::http_client()
         .post(uri)
         .form(form)
         .send()
@@ -164,7 +164,7 @@ async fn authorized_user_token(file: &CredentialsFile) -> Result<String, String>
 
 /// The GCE/GKE metadata server's default service-account token.
 async fn metadata_server_token() -> Result<String, String> {
-    let client = reqwest::Client::builder()
+    let client = cortexcode_ai_util::tls::http_client_builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
         .map_err(|e| e.to_string())?;

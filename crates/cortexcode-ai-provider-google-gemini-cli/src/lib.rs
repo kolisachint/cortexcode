@@ -684,7 +684,7 @@ async fn drive(
         .await
         .to_string();
     let headers = build_headers(model, &access_token, options);
-    let client = reqwest::Client::new();
+    let client = cortexcode_ai_util::tls::http_client();
 
     // 403/404 cascade to the next endpoint at once; 429/5xx back off. Errors
     // raised inside the loop (including a non-retryable status) are caught
