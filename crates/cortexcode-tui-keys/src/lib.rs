@@ -14,7 +14,7 @@ mod state;
 
 pub use keybindings::{
     default_tui_keybindings, get_keybindings, set_keybindings, KeybindingConflict,
-    KeybindingDefinition, KeybindingsManager,
+    KeybindingDefinition, KeybindingsManager, TUI_KEYBINDINGS,
 };
 pub use kitty::{
     decode_kitty_printable, decode_modify_other_keys_printable, decode_printable_key,

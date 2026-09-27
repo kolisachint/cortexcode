@@ -1,0 +1,821 @@
+{
+ "platform": "linux",
+ "table": [
+  [
+   "tui.editor.cursorUp",
+   [
+    "up"
+   ],
+   "Move cursor up"
+  ],
+  [
+   "tui.editor.cursorDown",
+   [
+    "down"
+   ],
+   "Move cursor down"
+  ],
+  [
+   "tui.editor.cursorLeft",
+   [
+    "left",
+    "ctrl+b"
+   ],
+   "Move cursor left"
+  ],
+  [
+   "tui.editor.cursorRight",
+   [
+    "right",
+    "ctrl+f"
+   ],
+   "Move cursor right"
+  ],
+  [
+   "tui.editor.cursorWordLeft",
+   [
+    "alt+left",
+    "ctrl+left",
+    "alt+b"
+   ],
+   "Move cursor word left"
+  ],
+  [
+   "tui.editor.cursorWordRight",
+   [
+    "alt+right",
+    "ctrl+right",
+    "alt+f"
+   ],
+   "Move cursor word right"
+  ],
+  [
+   "tui.editor.cursorLineStart",
+   [
+    "home",
+    "ctrl+a"
+   ],
+   "Move to line start"
+  ],
+  [
+   "tui.editor.cursorLineEnd",
+   [
+    "end",
+    "ctrl+e"
+   ],
+   "Move to line end"
+  ],
+  [
+   "tui.editor.jumpForward",
+   [
+    "ctrl+]"
+   ],
+   "Jump forward to character"
+  ],
+  [
+   "tui.editor.jumpBackward",
+   [
+    "ctrl+alt+]"
+   ],
+   "Jump backward to character"
+  ],
+  [
+   "tui.editor.pageUp",
+   [],
+   "Page up within the prompt"
+  ],
+  [
+   "tui.editor.pageDown",
+   [],
+   "Page down within the prompt"
+  ],
+  [
+   "tui.editor.deleteCharBackward",
+   [
+    "backspace"
+   ],
+   "Delete character backward"
+  ],
+  [
+   "tui.editor.deleteCharForward",
+   [
+    "delete",
+    "ctrl+d"
+   ],
+   "Delete character forward"
+  ],
+  [
+   "tui.editor.deleteWordBackward",
+   [
+    "ctrl+w",
+    "alt+backspace"
+   ],
+   "Delete word backward"
+  ],
+  [
+   "tui.editor.deleteWordForward",
+   [
+    "alt+d",
+    "alt+delete"
+   ],
+   "Delete word forward"
+  ],
+  [
+   "tui.editor.deleteToLineStart",
+   [
+    "ctrl+u"
+   ],
+   "Delete to line start"
+  ],
+  [
+   "tui.editor.deleteToLineEnd",
+   [
+    "ctrl+k"
+   ],
+   "Delete to line end"
+  ],
+  [
+   "tui.editor.yank",
+   [
+    "ctrl+y"
+   ],
+   "Yank"
+  ],
+  [
+   "tui.editor.yankPop",
+   [
+    "alt+y"
+   ],
+   "Yank pop"
+  ],
+  [
+   "tui.editor.undo",
+   [
+    "ctrl+-"
+   ],
+   "Undo"
+  ],
+  [
+   "tui.editor.redo",
+   [
+    "alt+u"
+   ],
+   "Redo"
+  ],
+  [
+   "tui.input.newLine",
+   [
+    "shift+enter"
+   ],
+   "Insert newline"
+  ],
+  [
+   "tui.input.submit",
+   [
+    "enter"
+   ],
+   "Submit input"
+  ],
+  [
+   "tui.input.tab",
+   [
+    "tab"
+   ],
+   "Tab / autocomplete"
+  ],
+  [
+   "tui.input.copy",
+   [
+    "ctrl+c"
+   ],
+   "Copy selection"
+  ],
+  [
+   "tui.select.up",
+   [
+    "up"
+   ],
+   "Move selection up"
+  ],
+  [
+   "tui.select.down",
+   [
+    "down"
+   ],
+   "Move selection down"
+  ],
+  [
+   "tui.select.pageUp",
+   [
+    "pageUp"
+   ],
+   "Selection page up"
+  ],
+  [
+   "tui.select.pageDown",
+   [
+    "pageDown"
+   ],
+   "Selection page down"
+  ],
+  [
+   "tui.select.confirm",
+   [
+    "enter"
+   ],
+   "Confirm selection"
+  ],
+  [
+   "tui.select.cancel",
+   [
+    "escape",
+    "ctrl+c"
+   ],
+   "Cancel selection"
+  ],
+  [
+   "app.interrupt",
+   [
+    "escape"
+   ],
+   "Cancel or abort"
+  ],
+  [
+   "app.clear",
+   [
+    "ctrl+c"
+   ],
+   "Clear editor"
+  ],
+  [
+   "app.exit",
+   [
+    "ctrl+d"
+   ],
+   "Exit when editor is empty"
+  ],
+  [
+   "app.suspend",
+   [
+    "ctrl+z"
+   ],
+   "Suspend to background"
+  ],
+  [
+   "app.editor.external",
+   [
+    "alt+e"
+   ],
+   "Open external editor"
+  ],
+  [
+   "app.input.voiceTranscribe",
+   [
+    "alt+r"
+   ],
+   "Record voice and transcribe into the editor"
+  ],
+  [
+   "app.clipboard.pasteImage",
+   [
+    "ctrl+v"
+   ],
+   "Paste image from clipboard"
+  ],
+  [
+   "app.clipboard.copyMessage",
+   [
+    "alt+q"
+   ],
+   "Copy the agent's last message to the clipboard"
+  ],
+  [
+   "app.message.followUp",
+   [
+    "alt+enter"
+   ],
+   "Queue follow-up message"
+  ],
+  [
+   "app.message.dequeue",
+   [
+    "alt+up"
+   ],
+   "Restore queued messages"
+  ],
+  [
+   "app.mode.cycleForward",
+   [
+    "alt+a"
+   ],
+   "Cycle agent mode (ask → plan → build → debug)"
+  ],
+  [
+   "app.mode.cycleBackward",
+   [
+    "shift+alt+a"
+   ],
+   "Cycle agent mode backward"
+  ],
+  [
+   "app.model.cycleForward",
+   [
+    "alt+m"
+   ],
+   "Cycle to next model"
+  ],
+  [
+   "app.model.cycleBackward",
+   [
+    "shift+alt+m"
+   ],
+   "Cycle to previous model"
+  ],
+  [
+   "app.model.select",
+   [],
+   "Open model selector"
+  ],
+  [
+   "app.thinking.cycleForward",
+   [
+    "alt+t",
+    "shift+tab"
+   ],
+   "Cycle thinking level (off → … → high)"
+  ],
+  [
+   "app.thinking.cycleBackward",
+   [
+    "shift+alt+t"
+   ],
+   "Cycle thinking level backward"
+  ],
+  [
+   "app.view.cycleForward",
+   [
+    "alt+o"
+   ],
+   "Cycle tool output view (radar → peek → full)"
+  ],
+  [
+   "app.view.cycleBackward",
+   [
+    "shift+alt+o"
+   ],
+   "Cycle tool output view backward"
+  ],
+  [
+   "app.tools.expand",
+   [
+    "ctrl+o"
+   ],
+   "Jump to the full view from wherever you are, and back again"
+  ],
+  [
+   "app.thinking.toggle",
+   [
+    "ctrl+t"
+   ],
+   "Toggle thinking blocks"
+  ],
+  [
+   "app.tasks.cycleForward",
+   [
+    "alt+l"
+   ],
+   "Cycle task panel view (tasks → subagents → teams, skips empty lenses)"
+  ],
+  [
+   "app.tasks.cycleBackward",
+   [
+    "shift+alt+l"
+   ],
+   "Cycle task panel view backward"
+  ],
+  [
+   "app.team.focus",
+   [
+    "alt+n"
+   ],
+   "Focus the team roster (navigate roles, n nudge, a attach)"
+  ],
+  [
+   "app.chrome.cycleForward",
+   [
+    "alt+z"
+   ],
+   "Cycle chrome density (full → compact → bare)"
+  ],
+  [
+   "app.chrome.cycleBackward",
+   [
+    "shift+alt+z"
+   ],
+   "Cycle chrome density backward"
+  ],
+  [
+   "app.scroll.pageUp",
+   [
+    "pageUp"
+   ],
+   "Scroll the transcript up a page (pins the view)"
+  ],
+  [
+   "app.scroll.pageDown",
+   [
+    "pageDown"
+   ],
+   "Scroll the transcript down a page"
+  ],
+  [
+   "app.scroll.top",
+   [
+    "ctrl+home"
+   ],
+   "Jump to the start of the transcript"
+  ],
+  [
+   "app.scroll.bottom",
+   [
+    "ctrl+end"
+   ],
+   "Jump back to live output"
+  ],
+  [
+   "app.scroll.search",
+   [
+    "ctrl+r"
+   ],
+   "Search the transcript"
+  ],
+  [
+   "app.scroll.previousMessage",
+   [
+    "ctrl+up"
+   ],
+   "Jump to your previous message"
+  ],
+  [
+   "app.scroll.nextMessage",
+   [
+    "ctrl+down"
+   ],
+   "Jump to your next message"
+  ],
+  [
+   "app.session.resume",
+   [
+    "alt+h"
+   ],
+   "Resume a session from history"
+  ],
+  [
+   "app.session.tree",
+   [],
+   "Open session tree"
+  ],
+  [
+   "app.session.new",
+   [],
+   "Start a new session"
+  ],
+  [
+   "app.session.fork",
+   [],
+   "Fork current session"
+  ],
+  [
+   "app.session.changeDirectory",
+   [
+    "alt+w"
+   ],
+   "Change working directory (move to another repo without quitting)"
+  ],
+  [
+   "app.session.color.cycleForward",
+   [
+    "alt+c"
+   ],
+   "Cycle the session chip's color"
+  ],
+  [
+   "app.session.color.cycleBackward",
+   [
+    "shift+alt+c"
+   ],
+   "Cycle the session chip's color backward"
+  ],
+  [
+   "app.settings.open",
+   [
+    "alt+s"
+   ],
+   "Open settings"
+  ],
+  [
+   "app.hotkeys.open",
+   [
+    "alt+k"
+   ],
+   "Show keyboard shortcuts"
+  ],
+  [
+   "app.team.nudge",
+   [
+    "n"
+   ],
+   "Nudge the selected team role (team focus mode)"
+  ],
+  [
+   "app.team.attach",
+   [
+    "a"
+   ],
+   "Attach to the selected team role (team focus mode)"
+  ],
+  [
+   "app.scroll.lineUp",
+   [
+    "up"
+   ],
+   "Scroll up a line (pinned view)"
+  ],
+  [
+   "app.scroll.lineDown",
+   [
+    "down"
+   ],
+   "Scroll down a line (pinned view)"
+  ],
+  [
+   "app.scroll.exit",
+   [
+    "escape"
+   ],
+   "Leave the pinned view and follow live output"
+  ],
+  [
+   "app.scroll.searchInView",
+   [
+    "/"
+   ],
+   "Search the transcript (pinned view)"
+  ],
+  [
+   "app.scroll.searchNext",
+   [
+    "n"
+   ],
+   "Next search match (pinned view)"
+  ],
+  [
+   "app.scroll.searchPrevious",
+   [
+    "p"
+   ],
+   "Previous search match (pinned view)"
+  ],
+  [
+   "app.options.next",
+   [
+    "right"
+   ],
+   "Confirm and advance to the next question"
+  ],
+  [
+   "app.options.back",
+   [
+    "left"
+   ],
+   "Go back to the previous question"
+  ],
+  [
+   "app.session.togglePath",
+   [
+    "alt+p"
+   ],
+   "Toggle session path display"
+  ],
+  [
+   "app.session.toggleSort",
+   [
+    "alt+o"
+   ],
+   "Toggle session sort order"
+  ],
+  [
+   "app.session.toggleNamedFilter",
+   [
+    "alt+n"
+   ],
+   "Toggle named session filter"
+  ],
+  [
+   "app.session.rename",
+   [
+    "alt+r"
+   ],
+   "Rename session"
+  ],
+  [
+   "app.session.delete",
+   [
+    "alt+x"
+   ],
+   "Delete session"
+  ],
+  [
+   "app.session.deleteNoninvasive",
+   [
+    "ctrl+backspace"
+   ],
+   "Delete session when query is empty"
+  ],
+  [
+   "app.models.save",
+   [
+    "alt+s"
+   ],
+   "Save model selection"
+  ],
+  [
+   "app.models.enableAll",
+   [
+    "alt+a"
+   ],
+   "Enable all models"
+  ],
+  [
+   "app.models.clearAll",
+   [
+    "alt+x"
+   ],
+   "Clear all models"
+  ],
+  [
+   "app.models.toggleProvider",
+   [
+    "alt+g"
+   ],
+   "Toggle all models for provider"
+  ],
+  [
+   "app.models.reorderUp",
+   [
+    "alt+up"
+   ],
+   "Move model up in order"
+  ],
+  [
+   "app.models.reorderDown",
+   [
+    "alt+down"
+   ],
+   "Move model down in order"
+  ],
+  [
+   "app.tree.foldOrUp",
+   [
+    "ctrl+left",
+    "alt+left"
+   ],
+   "Fold tree branch or move up"
+  ],
+  [
+   "app.tree.unfoldOrDown",
+   [
+    "ctrl+right",
+    "alt+right"
+   ],
+   "Unfold tree branch or move down"
+  ],
+  [
+   "app.tree.editLabel",
+   [
+    "alt+l"
+   ],
+   "Edit tree label"
+  ],
+  [
+   "app.tree.toggleLabelTimestamp",
+   [
+    "alt+t"
+   ],
+   "Toggle tree label timestamps"
+  ],
+  [
+   "app.tree.filter.default",
+   [
+    "alt+1"
+   ],
+   "Tree filter: default view"
+  ],
+  [
+   "app.tree.filter.noTools",
+   [
+    "alt+2"
+   ],
+   "Tree filter: hide tool results"
+  ],
+  [
+   "app.tree.filter.userOnly",
+   [
+    "alt+3"
+   ],
+   "Tree filter: user messages only"
+  ],
+  [
+   "app.tree.filter.labeledOnly",
+   [
+    "alt+4"
+   ],
+   "Tree filter: labeled entries only"
+  ],
+  [
+   "app.tree.filter.all",
+   [
+    "alt+5"
+   ],
+   "Tree filter: show all entries"
+  ],
+  [
+   "app.tree.filter.cycleForward",
+   [
+    "alt+c"
+   ],
+   "Tree filter: cycle forward"
+  ],
+  [
+   "app.tree.filter.cycleBackward",
+   [
+    "shift+alt+c"
+   ],
+   "Tree filter: cycle backward"
+  ]
+ ],
+ "format": {
+  "n": [
+   "n",
+   "n"
+  ],
+  "N": [
+   "N",
+   "N"
+  ],
+  "/": [
+   "/",
+   "/"
+  ],
+  "ctrl+c": [
+   "ctrl+c",
+   "Ctrl+C"
+  ],
+  "pageUp": [
+   "pageUp",
+   "PageUp"
+  ],
+  "shift+alt+z": [
+   "shift+alt+z",
+   "Shift+Alt+Z"
+  ],
+  "alt+t/shift+tab": [
+   "alt+t/shift+tab",
+   "Alt+T/Shift+Tab"
+  ],
+  "ctrl+alt+]": [
+   "ctrl+alt+]",
+   "Ctrl+Alt+]"
+  ],
+  "escape": [
+   "escape",
+   "Escape"
+  ],
+  "é": [
+   "é",
+   "é"
+  ],
+  "shift+tab/alt+t": [
+   "shift+tab/alt+t",
+   "Shift+Tab/Alt+T"
+  ],
+  "": [
+   "",
+   ""
+  ]
+ },
+ "migrate": {
+  "config": {
+   "tui.editor.cursorUp": [
+    "up"
+   ],
+   "tui.editor.undo": "ctrl+z",
+   "tui.select.confirm": "enter",
+   "app.interrupt": "escape",
+   "app.tools.expand": "ctrl+y",
+   "aaa": 1,
+   "zzz": "x"
+  },
+  "migrated": true
+ }
+}

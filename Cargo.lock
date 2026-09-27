@@ -1121,6 +1121,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-tui-keybindings"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-paths",
+ "cortexcode-code-tui-theme",
+ "cortexcode-tui-keys",
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "cortexcode-code-tui-theme"
 version = "0.0.1"
 dependencies = [

@@ -66,6 +66,7 @@ members = [
     "crates/cortexcode-code-tool-api",
     "crates/cortexcode-code-tools",
     "crates/cortexcode-code-tools-fs",
+    "crates/cortexcode-code-tui-keybindings",
     "crates/cortexcode-code-tui-theme",
 
     # TUI namespace
@@ -154,6 +155,7 @@ cortexcode-code-tools = { path = "crates/cortexcode-code-tools" }
 cortexcode-code-tools-fs = { path = "crates/cortexcode-code-tools-fs" }
 
 cortexcode-tui = { path = "crates/cortexcode-tui" }
+cortexcode-code-tui-keybindings = { path = "crates/cortexcode-code-tui-keybindings" }
 cortexcode-code-tui-theme = { path = "crates/cortexcode-code-tui-theme" }
 cortexcode-tui-components = { path = "crates/cortexcode-tui-components" }
 cortexcode-tui-editing = { path = "crates/cortexcode-tui-editing" }

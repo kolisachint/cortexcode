@@ -3704,7 +3704,7 @@
    "id": "11.1b",
    "title": "code-tui-keybindings: core/keybindings.ts (app actions on top of tui-keys, keybindings.json loading, hint text)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c",
     "11.0a"
@@ -3725,6 +3725,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T15:41:28Z",
+     "commit": "d70674d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:46:12Z",
+     "commit": "d70674d",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-keybindings: KEYBINDINGS (TUI + app, declaration order; tui-keys now exports the ordered TUI_KEYBINDINGS table and KeybindingsManager is Clone), legacy-name migration + ordering, keybindings.json loading (AppKeybindingsManager::create/reload/install), the keybindings step of migrations.ts (migrate_keybindings_config_file; the rest of runMigrations is not ported here), and keybinding-hints.ts (format_key_text, key_text, key_hint, matches_app_key, app_key_label). Ported keybinding-layout (20) and keybindings-migration tests; golden of the full table, key text and migration order from the pinned build."
+    },
+    {
+     "at": "2026-09-27T15:46:20Z",
+     "commit": "d70674d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

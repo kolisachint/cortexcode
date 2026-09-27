@@ -37,6 +37,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.1b done (keybindings)
+- New crate `cortexcode-code-tui-keybindings`: the full keyboard map (TUI + app bindings in
+  hoocode's declaration order, which is also the order `keybindings.json` is written in),
+  legacy-name migration, `AppKeybindingsManager` (`create` from the agent dir, `reload`,
+  `install` as the global manager), the keybindings step of `migrations.ts`, and the hint
+  helpers from `keybinding-hints.ts`.
+- tui-keys: the TUI table is now the ordered `TUI_KEYBINDINGS` const; `KeybindingsManager` is
+  `Clone`.
+- Tests: keybinding-layout (every scope/dial/family rule), keybindings-migration, and a
+  golden of the table, key text and migration output from the pin.
+- Next: 11.1c (tui-app idle screen + L2 `startup`).
+
 ### 2026-09-27: 11.1a done (theme)
 - New crate `cortexcode-code-tui-theme` (port of `modes/interactive/theme/theme.ts` + the 8
   bundled JSON themes, embedded): color-mode detection, hex/256/HSL math with JS rounding,
