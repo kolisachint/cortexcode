@@ -3545,7 +3545,7 @@
    "id": "11.0b",
    "title": "TUI library catch-up to the pin, part 2: tui.ts renderer (+1.1K: owned scroll position, chrome dial, floor packing, pinned window), terminal.ts, mouse.ts, terminal-image.ts (Sixel)",
    "phase": 11,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "11.0a"
    ],
@@ -3571,6 +3571,12 @@
      "commit": "",
      "kind": "note",
      "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    },
+    {
+     "at": "2026-09-27T11:20:13Z",
+     "commit": "a5b5617",
+     "kind": "start",
+     "text": "started"
     }
    ]
   },

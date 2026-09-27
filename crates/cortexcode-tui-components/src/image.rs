@@ -91,6 +91,7 @@ impl Component for Image {
                 max_width_cells: Some(max_width),
                 image_id: self.image_id,
                 move_cursor: Some(false),
+                mime_type: Some(self.mime_type.clone()),
                 ..Default::default()
             },
         );
@@ -121,12 +122,19 @@ impl Component for Image {
         } else {
             String::new()
         };
-        let move_down = if protocol == ImageProtocol::Kitty && row_offset > 0 {
+        let move_down = if protocol != ImageProtocol::ITerm2 && row_offset > 0 {
             format!("\x1b[{row_offset}B")
         } else {
             String::new()
         };
-        lines.push(format!("{move_up}{}{move_down}", result.sequence));
+        // Where a Sixel leaves the cursor differs between terminals, so it is
+        // saved and restored around it rather than predicted.
+        let sequence = if protocol == ImageProtocol::Sixel {
+            format!("\x1b7{}\x1b8", result.sequence)
+        } else {
+            result.sequence
+        };
+        lines.push(format!("{move_up}{sequence}{move_down}"));
         lines
     }
 }
