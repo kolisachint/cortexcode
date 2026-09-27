@@ -4185,9 +4185,9 @@
   },
   {
    "id": "11.2d",
-   "title": "Bash and diff: bash-execution, diff rendering (edit/write), and tui-highlight (syntect) for code",
+   "title": "Bash and diff: bash-execution, diff rendering (edit/write), and tui-highlight (highlight.js port) for code",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2d1",
     "11.2d2"
@@ -4241,6 +4241,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split into 11.2d1 (bash/diff/edit, L2 tool-bash) and 11.2d2 (code highlighting) (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:37:37Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Title: syntect -> highlight.js port, matching 11.2d2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:38:48Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -4389,9 +4401,9 @@
   },
   {
    "id": "11.2",
-   "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (syntect); user/assistant messages, tool execution, diff, bash, summaries, usage line",
+   "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (highlight.js port); user/assistant messages, tool execution, diff, bash, summaries, usage line",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2a",
     "11.2b",
@@ -4432,6 +4444,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split into 11.2a (markdown), 11.2b (turn transcript, chat-basic), 11.2c (tool blocks, tool-read), 11.2d (bash/diff/highlight, tool-bash); this card closes as a container once they are done (bookkeeping). tool-edit scenario: still to be written, under 11.2d."
+    },
+    {
+     "at": "2026-09-27T21:37:37Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Title: syntect -> highlight.js port, matching 11.2d2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:40:50Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T21:43:45Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 pass; L2 chat-basic=pass, tool-read=pass, tool-bash=pass, tool-edit=pass"
     }
    ]
   },

@@ -6,7 +6,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 ## Resume here
 
 - Disk: if builds fail with ENOSPC / "Bus error" in ld, `rm -rf target/debug` (keep
-  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0`.
+  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
+  CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
+  1 GB instead of about 28 GB.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -50,7 +52,10 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - `js_regex` moved to `cortexcode-tui-util`. Multiline `^`/`$` now also treat `\r`, U+2028
   and U+2029 as line ends, as JS does (CRLF files).
 - `needs_highlighter` has been removed from `tool_renderers_gold.rs`.
-- Next: verify 11.2d (container), then 11.2.
+- 11.2d (container) done. 11.2 done: L2 chat-basic, tool-read, tool-bash and the new
+  `tool-edit` pass (edit diff and write preview, both allowed through the permission prompt;
+  selfcheck stable).
+- Next: `ledger.py next` (11.3 selectors).
 
 ### 2026-09-27: 11.2d split; 11.2d1 done (bash/diff/edit; L2 `tool-bash`); 10.6 done
 - 11.2d is split (bookkeeping): 11.2d1 covers bash, diff, edit and bash-execution;

@@ -1,0 +1,113 @@
+{
+  "description": "The model edits a TypeScript file (two replacements) and writes a new Python file, then answers. Interactive build mode asks to allow each (answered 'Yes (once)'); renders the edit diff block (with its pending preview) and the write preview with syntax highlighting.",
+  "phase": "11.2d",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "files": {
+    "src/app.ts": "export function greet(name: string): string {\n\treturn `hello ${name}`;\n}\n\nconst answer = 42; // the answer\nexport default answer;\n"
+  },
+  "llm": [
+    {
+      "text": "Editing.",
+      "tool_calls": [
+        {
+          "id": "call_edit_1",
+          "name": "edit",
+          "arguments": {
+            "path": "src/app.ts",
+            "edits": [
+              {
+                "oldText": "return `hello ${name}`;",
+                "newText": "return `Hello, ${name}!`;"
+              },
+              {
+                "oldText": "const answer = 42;",
+                "newText": "const answer: number = 43;"
+              }
+            ]
+          }
+        },
+        {
+          "id": "call_write_1",
+          "name": "write",
+          "arguments": {
+            "path": "tools/util.py",
+            "content": "import sys\n\n\ndef main(args: list[str]) -> int:\n    \"\"\"Print the arguments.\"\"\"\n    for a in args:\n        print(f\"arg: {a}\")  # echo\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main(sys.argv[1:]))\n"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Edited src/app.ts and wrote tools/util.py."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "edit the app"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: edit src/app\\.ts",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "allow-edit",
+      "contains": [
+        "Yes (once)",
+        "+2"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: write tools/util\\.py",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "wrote tools/util\\.py",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "after-tool",
+      "contains": [
+        "src/app.ts",
+        "def main",
+        "wrote tools/util.py"
+      ]
+    }
+  ]
+}
