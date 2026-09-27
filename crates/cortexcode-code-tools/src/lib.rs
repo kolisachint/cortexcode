@@ -1,17 +1,23 @@
 //! Core CLI tools: read, bash, edit, write, grep, find, ls.
 //!
-//! `read` is the pinned port from `cortexcode-code-tools-fs` (10.2a); the
-//! others are placeholders until their 10.2 tasks land.
+//! The default bundle is hoocode's: `read`, `edit`, `write` from
+//! `cortexcode-code-tools-fs` (10.2a, 10.2c), `bash` from
+//! `cortexcode-code-tool-bash` (10.2b) and `SearchCodebase` from
+//! `cortexcode-code-tool-search` (10.2d). The free functions below (grep, find,
+//! ls, webfetch, websearch, todo) predate the ports and are not tools; they go
+//! when 10.2e/10.2f land.
 //!
 //! Mirrors `core/tools/` from the TypeScript `packages/coding-agent` package.
 
 use cortexcode_agent_types::{AgentTool, AgentToolResult};
 use cortexcode_ai_types::{Content, TextContent};
-use cortexcode_code_tool_api::{
-    tool_definition_from_agent_tool, wrap_tool_definitions, ToolContextFactory, ToolDefinition,
+use cortexcode_code_tool_api::{wrap_tool_definitions, ToolContextFactory, ToolDefinition};
+use cortexcode_code_tool_bash::{create_bash_tool_definition, BashToolOptions};
+use cortexcode_code_tool_search::{create_search_tool_definition, SearchToolOptions};
+use cortexcode_code_tools_fs::{
+    create_edit_tool_definition, create_read_tool_definition, create_write_tool_definition,
+    EditToolOptions, ReadToolOptions, WriteToolOptions,
 };
-use cortexcode_code_tools_fs::{create_read_tool_definition, ReadToolOptions};
-use serde_json::json;
 use std::path::Path;
 
 pub mod light;
@@ -111,44 +117,6 @@ impl From<std::io::Error> for EditError {
     }
 }
 
-/// Execute a shell command and return stdout/stderr.
-pub fn bash(command: &str, cwd: Option<&Path>) -> Result<std::process::Output, std::io::Error> {
-    let mut cmd = if cfg!(target_os = "windows") {
-        let mut c = std::process::Command::new("cmd");
-        c.args(["/C", command]);
-        c
-    } else {
-        let mut c = std::process::Command::new("sh");
-        c.args(["-c", command]);
-        c
-    };
-    if let Some(dir) = cwd {
-        cmd.current_dir(dir);
-    }
-    cmd.output()
-}
-
-/// Format command output as a string.
-pub fn format_output(output: &std::process::Output) -> String {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let mut result = String::new();
-    if !stdout.is_empty() {
-        result.push_str(&stdout);
-    }
-    if !stderr.is_empty() {
-        if !result.is_empty() {
-            result.push('\n');
-        }
-        result.push_str("stderr:\n");
-        result.push_str(&stderr);
-    }
-    if result.is_empty() {
-        result.push_str("(no output)");
-    }
-    result
-}
-
 /// Search file contents for a regex pattern.
 pub fn grep(
     pattern: &str,
@@ -204,20 +172,6 @@ pub fn ls(dir: impl AsRef<Path>) -> Result<Vec<std::path::PathBuf>, std::io::Err
         .collect();
     entries.sort();
     Ok(entries)
-}
-
-/// Run an async HTTP call from a synchronous tool body. Tools execute on
-/// tokio's blocking pool (agent-loop `run_tool`); outside a runtime (unit
-/// tests) a throwaway one is used.
-fn block_on<F: std::future::Future>(future: F) -> F::Output {
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
-        Err(_) => tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("failed to start a tokio runtime")
-            .block_on(future),
-    }
 }
 
 /// Fetch content from a URL.
@@ -347,6 +301,8 @@ pub fn todo_action(
 pub struct DefaultToolsOptions {
     /// Options for the `read` tool (output caps, image resize, dedup).
     pub read: ReadToolOptions,
+    /// Options for the `bash` tool (shell, command prefix, output caps).
+    pub bash: BashToolOptions,
     /// Supplies the model and session branch to context-aware tools.
     pub ctx_factory: Option<ToolContextFactory>,
 }
@@ -363,247 +319,26 @@ pub fn default_tools_with(
     options: DefaultToolsOptions,
 ) -> Vec<AgentTool> {
     wrap_tool_definitions(
-        default_tool_definitions(cwd, permissions, options.read),
+        default_tool_definitions(cwd, permissions, options.read, options.bash),
         options.ctx_factory,
     )
 }
 
-/// The default tools as definitions, carrying their system prompt snippets
-/// and guidelines. Tools not yet ported to their pinned behavior have neither,
-/// so the system prompt lists them the way hoocode lists a tool without a
-/// `promptSnippet` (not at all).
+/// The default coding bundle (`CODING_TOOL_NAMES`): read, bash, edit, write
+/// and SearchCodebase, in hoocode's order. webfetch/websearch and TodoWrite
+/// are opt-in tools (10.2e, 10.2f).
 pub fn default_tool_definitions(
     cwd: std::path::PathBuf,
     _permissions: PermissionPolicy,
     read: ReadToolOptions,
+    bash: BashToolOptions,
 ) -> Vec<ToolDefinition> {
-    let mut definitions = vec![create_read_tool_definition(cwd.clone(), read)];
-    definitions.extend(
-        placeholder_tools(cwd)
-            .into_iter()
-            .map(tool_definition_from_agent_tool),
-    );
-    definitions
-}
-
-/// The tools that still await their 10.2 ports.
-pub(crate) fn placeholder_tools(cwd: std::path::PathBuf) -> Vec<AgentTool> {
-    let cwd_bash = cwd.clone();
-    let cwd_write = cwd.clone();
-    let cwd_edit = cwd.clone();
-    let cwd_grep = cwd.clone();
-    let cwd_find = cwd.clone();
-    let cwd_ls = cwd.clone();
-
     vec![
-        AgentTool::new(
-            "bash",
-            "Run a shell command. Args: {\"command\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "command": { "type": "string" }
-                },
-                "required": ["command"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let command = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                match bash(command, Some(&cwd_bash)) {
-                    Ok(output) => Ok(text_result(format_output(&output))),
-                    Err(e) => Ok(error_result(format!("Error running command: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "write",
-            "Write contents to a file. Args: {\"path\": string, \"content\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "content": { "type": "string" }
-                },
-                "required": ["path", "content"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                let full = cwd_write.join(path);
-                match write_file(&full, content) {
-                    Ok(()) => Ok(text_result(format!("Wrote {}", full.display()))),
-                    Err(e) => Ok(error_result(format!("Error writing file: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "edit",
-            "Apply an exact-text replacement in a file. Args: {\"path\": string, \"old_text\": string, \"new_text\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "old_text": { "type": "string" },
-                    "new_text": { "type": "string" }
-                },
-                "required": ["path", "old_text", "new_text"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                let old_text = args.get("old_text").and_then(|v| v.as_str()).unwrap_or("");
-                let new_text = args.get("new_text").and_then(|v| v.as_str()).unwrap_or("");
-                let full = cwd_edit.join(path);
-                match edit_file(&full, old_text, new_text) {
-                    Ok(()) => Ok(text_result(format!("Edited {}", full.display()))),
-                    Err(e) => Ok(error_result(format!("Error editing file: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "grep",
-            "Search file contents with a regex. Args: {\"pattern\": string, \"paths\": string[]}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "pattern": { "type": "string" },
-                    "paths": { "type": "array", "items": { "type": "string" } }
-                },
-                "required": ["pattern", "paths"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
-                let paths: Vec<std::path::PathBuf> = args
-                    .get("paths")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| cwd_grep.join(s)))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                match grep(pattern, &paths) {
-                    Ok(text) => Ok(text_result(text)),
-                    Err(e) => Ok(error_result(format!("Error grepping: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "find",
-            "Find files matching a glob under a directory. Args: {\"pattern\": string, \"root\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "pattern": { "type": "string" },
-                    "root": { "type": "string" }
-                },
-                "required": ["pattern"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
-                let root = args
-                    .get("root")
-                    .and_then(|v| v.as_str())
-                    .map(|s| cwd_find.join(s))
-                    .unwrap_or_else(|| cwd_find.clone());
-                match find(&root, pattern) {
-                    Ok(paths) => {
-                        let text = paths
-                            .into_iter()
-                            .map(|p| p.display().to_string())
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        Ok(text_result(text))
-                    }
-                    Err(e) => Ok(error_result(format!("Error finding files: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "ls",
-            "List directory contents. Args: {\"path\": string}",
-            json!({
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" }
-                },
-                "required": ["path"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
-                let full = cwd_ls.join(path);
-                match ls(&full) {
-                    Ok(entries) => {
-                        let text = entries
-                            .into_iter()
-                            .map(|p| {
-                                let suffix = if p.is_dir() { "/" } else { "" };
-                                format!("{}{}", p.display(), suffix)
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        Ok(text_result(text))
-                    }
-                    Err(e) => Ok(error_result(format!("Error listing directory: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "webfetch",
-            "Fetch content from a URL. Args: url (string)",
-            json!({
-                "type": "object",
-                "properties": {
-                    "url": { "type": "string" }
-                },
-                "required": ["url"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                match block_on(webfetch(url)) {
-                    Ok(text) => Ok(text_result(text)),
-                    Err(e) => Ok(error_result(format!("Error fetching URL: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "websearch",
-            "Search the web. Args: query (string)",
-            json!({
-                "type": "object",
-                "properties": {
-                    "query": { "type": "string" }
-                },
-                "required": ["query"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                match block_on(websearch(query)) {
-                    Ok(text) => Ok(text_result(text)),
-                    Err(e) => Ok(error_result(format!("Error searching web: {}", e))),
-                }
-            }),
-        ),
-        AgentTool::new(
-            "todo",
-            "Track todo items. Args: action (add|list|done), task (string, optional), id (number, optional)",
-            json!({
-                "type": "object",
-                "properties": {
-                    "action": { "type": "string", "enum": ["add", "list", "done"] },
-                    "task": { "type": "string" },
-                    "id": { "type": "number" }
-                },
-                "required": ["action"]
-            }),
-            Box::new(move |_id, args, _signal, _update| {
-                let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("list");
-                let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
-                let id = args.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
-                match todo_action(action, task, id as usize) {
-                    Ok(text) => Ok(text_result(text)),
-                    Err(e) => Ok(error_result(format!("Error with todo: {}", e))),
-                }
-            }),
-        ),
+        create_read_tool_definition(cwd.clone(), read),
+        create_bash_tool_definition(cwd.clone(), bash),
+        create_edit_tool_definition(cwd.clone(), EditToolOptions::default()),
+        create_write_tool_definition(cwd.clone(), WriteToolOptions::default()),
+        create_search_tool_definition(cwd, SearchToolOptions::default()),
     ]
 }
 
@@ -673,12 +408,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bash_echo() {
-        let output = bash("echo hello", None).unwrap();
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hello"));
-    }
-
-    #[test]
     fn test_todo_actions() {
         // Test add
         let result = todo_action("add", "Buy groceries", 0).unwrap();
@@ -707,6 +436,14 @@ mod tests {
     fn test_todo_empty_task() {
         let result = todo_action("add", "", 0);
         assert!(result.is_err());
+    }
+
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+            .block_on(future)
     }
 
     #[test]

@@ -1,0 +1,62 @@
+{
+  "description": "Print mode (default tool bundle) with two bash calls: piped output and a non-zero exit. Only the final assistant text is printed; exit 0. Requires identical model requests (tool results). Waits on the default-bundle system prompt (10.4c), like print-tool-read.",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "phase": "10.2b",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "-p",
+    "run the commands"
+  ],
+  "llm": [
+    {
+      "text": "Running them.",
+      "tool_calls": [
+        {
+          "id": "call_bash_1",
+          "name": "bash",
+          "arguments": {
+            "command": "printf 'alpha\\nbeta\\ngamma\\n' | sort -r"
+          }
+        },
+        {
+          "id": "call_bash_2",
+          "name": "bash",
+          "arguments": {
+            "command": "echo boom; exit 3"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Sorted, then failed with 3."
+    }
+  ],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "stdout",
+      "history": true,
+      "contains": [
+        "failed with 3",
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

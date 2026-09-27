@@ -12,8 +12,9 @@ use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model,
-    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, Tool, ToolCallContent,
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model, OnPayload,
+    OnResponse, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, Tool,
+    ToolCallContent,
 };
 use futures_util::StreamExt;
 use serde_json::Value;
@@ -112,6 +113,11 @@ async fn drive(
     let (headers, is_oauth) = build_headers(model, context, &api_key, options);
     state.is_oauth = is_oauth;
     let params = build_params(model, context, is_oauth, options);
+    let mut params = OnPayload::apply(options.on_payload.as_ref(), params, model).await;
+    // `{ ...params, stream: true }`.
+    if let Some(object) = params.as_object_mut() {
+        object.insert("stream".into(), Value::Bool(true));
+    }
     let url = format!("{}/v1/messages", model.base_url.trim_end_matches('/'));
 
     let mut builder = reqwest::Client::builder();
@@ -141,6 +147,12 @@ async fn drive(
             options.max_retry_delay_ms,
         ));
     }
+    OnResponse::notify(
+        options.on_response.as_ref(),
+        cortexcode_ai_util::provider_response(&response),
+        model,
+    )
+    .await;
 
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),

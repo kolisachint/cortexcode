@@ -1,7 +1,11 @@
 //! Helpers for converting and inspecting agent messages.
 
-use cortexcode_agent_types::{AgentMessage, BashExecutionMessage};
-use cortexcode_ai_types::{AssistantMessage, Content, Message, UserMessage};
+use cortexcode_agent_types::{
+    AgentMessage, AgentToolCall, BackgroundToolResult, BashExecutionMessage, BranchSummaryMessage,
+    CompactionSummaryMessage, CustomMessage,
+};
+use cortexcode_ai_types::{AssistantMessage, Content, Message, UserContent, UserMessage};
+use serde_json::{json, Value};
 
 // Constants and conversions ported from hoocode `packages/agent/src/harness/messages.ts`.
 
@@ -33,6 +37,228 @@ pub fn bash_execution_to_text(msg: &BashExecutionMessage) -> String {
         }
     }
     text
+}
+
+/// `new Date(iso).getTime()` for the entry timestamps (ISO 8601); 0 when
+/// unparsable (JS would give NaN).
+fn iso_to_ms(timestamp: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(timestamp)
+        .map(|t| t.timestamp_millis())
+        .unwrap_or(0)
+}
+
+/// `createBranchSummaryMessage`.
+pub fn create_branch_summary_message(
+    summary: impl Into<String>,
+    from_id: impl Into<String>,
+    timestamp: &str,
+) -> BranchSummaryMessage {
+    BranchSummaryMessage {
+        summary: summary.into(),
+        from_id: from_id.into(),
+        timestamp: iso_to_ms(timestamp),
+    }
+}
+
+/// `createCompactionSummaryMessage`.
+pub fn create_compaction_summary_message(
+    summary: impl Into<String>,
+    tokens_before: u64,
+    timestamp: &str,
+    tokens_after: Option<u64>,
+) -> CompactionSummaryMessage {
+    CompactionSummaryMessage {
+        summary: summary.into(),
+        tokens_before,
+        tokens_after,
+        timestamp: iso_to_ms(timestamp),
+    }
+}
+
+/// `createCustomMessage`: a `CustomMessageEntry` as an agent message.
+pub fn create_custom_message(
+    custom_type: impl Into<String>,
+    content: UserContent,
+    display: bool,
+    details: Option<Value>,
+    timestamp: &str,
+) -> CustomMessage {
+    CustomMessage {
+        custom_type: custom_type.into(),
+        content,
+        display,
+        details,
+        timestamp: iso_to_ms(timestamp),
+    }
+}
+
+/// A consistent description of a background tool call (`BackgroundToolInfo`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BackgroundToolInfo {
+    /// MCP server tools are registered as `mcp_<server>_<tool>`.
+    pub is_mcp_tool: bool,
+    /// The subagent type of `Task` calls; the tool name otherwise.
+    pub subagent_type: String,
+    /// Label used verbatim in both the start and finish messages.
+    pub label: String,
+    /// One-line summary of the call's arguments (may be empty).
+    pub summary: Option<String>,
+}
+
+/// `str.length` (UTF-16 code units).
+fn js_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+/// `str.slice(0, n)` in UTF-16 code units.
+fn js_slice(text: &str, n: usize) -> String {
+    let units: Vec<u16> = text.encode_utf16().take(n).collect();
+    String::from_utf16_lossy(&units)
+}
+
+/// JS `trimEnd()`/`trim()` whitespace (differs from Rust's in U+FEFF / U+0085).
+fn is_js_space(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+    )
+}
+
+/// `firstLine`: the first non-blank line, trimmed and capped at `max`.
+fn first_line(text: &str, max: usize) -> String {
+    let line = text
+        .split('\n')
+        .find(|l| !l.trim_matches(is_js_space).is_empty())
+        .unwrap_or("")
+        .trim_matches(is_js_space);
+    if js_len(line) > max {
+        format!(
+            "{}…",
+            js_slice(line, max.saturating_sub(1)).trim_end_matches(is_js_space)
+        )
+    } else {
+        line.to_string()
+    }
+}
+
+/// `summarizeArgs`: up to three `key: value` pairs.
+pub fn summarize_args(args: &Value) -> Option<String> {
+    let mut parts = Vec::new();
+    for (key, value) in args.as_object().into_iter().flatten() {
+        if value.is_null() || value.as_str() == Some("") {
+            continue;
+        }
+        let rendered = match value.as_str() {
+            Some(text) => text.to_string(),
+            None => value.to_string(),
+        };
+        parts.push(format!("{key}: {}", first_line(&rendered, 48)));
+        if parts.len() == 3 {
+            break;
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join(", "))
+}
+
+/// `describeBackgroundTool`: `Task` calls by `subagent_type`, MCP tools by
+/// their `mcp_` prefix.
+pub fn describe_background_tool(tool_call: &AgentToolCall) -> BackgroundToolInfo {
+    let args = &tool_call.arguments;
+    if let Some(pretty) = tool_call.name.strip_prefix("mcp_") {
+        return BackgroundToolInfo {
+            is_mcp_tool: true,
+            subagent_type: tool_call.name.clone(),
+            label: format!("MCP tool `{pretty}`"),
+            summary: summarize_args(args),
+        };
+    }
+    let subagent_type = args["subagent_type"]
+        .as_str()
+        .unwrap_or(&tool_call.name)
+        .to_string();
+    let description = args["description"]
+        .as_str()
+        .map(|d| d.trim_matches(is_js_space))
+        .filter(|d| !d.is_empty());
+    let summary = match description {
+        Some(description) => Some(description.to_string()),
+        None => args["prompt"].as_str().map(|p| first_line(p, 120)),
+    };
+    BackgroundToolInfo {
+        is_mcp_tool: false,
+        label: format!("subagent `{subagent_type}`"),
+        subagent_type,
+        summary,
+    }
+}
+
+/// `createBackgroundPlaceholderText`: the line shown when a background tool
+/// is dispatched.
+pub fn create_background_placeholder_text(tool_call: &AgentToolCall) -> String {
+    let info = describe_background_tool(tool_call);
+    let what = info
+        .summary
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(|s| format!(" — {}", first_line(s, 80)))
+        .unwrap_or_default();
+    if info.is_mcp_tool {
+        return format!(
+            "Started {} in the background{what}. Its result arrives as a follow-up; keep working.",
+            info.label
+        );
+    }
+    format!(
+        "Delegated to {} in the background{what}. I'll be notified when it finishes; use TaskOutput to check progress or read the result.",
+        info.label
+    )
+}
+
+/// `createBackgroundTaskMessage`: the follow-up a finished background tool
+/// injects. A subagent's result is already a compact notification; an MCP
+/// result gets a header line before its body.
+pub fn create_background_task_message(result: &BackgroundToolResult) -> CustomMessage {
+    let info = describe_background_tool(&result.tool_call);
+    let details = json!({
+        "subagentType": info.subagent_type,
+        "isMcpTool": info.is_mcp_tool,
+        "isError": result.is_error,
+    });
+    let content = if info.is_mcp_tool {
+        let verb = if result.is_error {
+            "failed"
+        } else {
+            "finished"
+        };
+        let summary = info
+            .summary
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .map(|s| format!(" ({s})"))
+            .unwrap_or_default();
+        let mut blocks = vec![Content::text(format!(
+            "Background {}{summary} {verb}:",
+            info.label
+        ))];
+        blocks.extend(result.result.content.iter().cloned());
+        blocks
+    } else {
+        result.result.content.clone()
+    };
+    CustomMessage {
+        custom_type: BACKGROUND_TASK_CUSTOM_TYPE.to_string(),
+        content: content.into(),
+        display: true,
+        details: Some(details),
+        timestamp: cortexcode_ai_types::now_ms(),
+    }
 }
 
 fn user(content: Vec<Content>, timestamp: i64) -> Message {

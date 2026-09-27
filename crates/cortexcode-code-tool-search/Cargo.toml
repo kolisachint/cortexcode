@@ -1,0 +1,28 @@
+[package]
+name = "cortexcode-code-tool-search"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "SearchCodebase for the cortex coding agent: ranked lexical code search (ripgrep libraries), fusion and reranking"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-agent-harness = { workspace = true }
+cortexcode-agent-types = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-tool-api = { workspace = true }
+grep-matcher = "0.1"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+ignore = "0.4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"

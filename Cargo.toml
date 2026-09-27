@@ -12,11 +12,15 @@ members = [
     "crates/cortexcode-ai-oauth",
     "crates/cortexcode-ai-oauth-anthropic",
     "crates/cortexcode-ai-oauth-github-copilot",
+    "crates/cortexcode-ai-oauth-openai-codex",
     "crates/cortexcode-ai-provider-anthropic",
     "crates/cortexcode-ai-provider-azure",
     "crates/cortexcode-ai-provider-faux",
     "crates/cortexcode-ai-provider-google",
     "crates/cortexcode-ai-provider-openai",
+    "crates/cortexcode-ai-provider-openai-codex",
+    "crates/cortexcode-ai-provider-google-gemini-cli",
+    "crates/cortexcode-ai-oauth-google",
     "crates/cortexcode-ai-provider-openai-responses",
     "crates/cortexcode-ai-registry",
     "crates/cortexcode-ai-sse",
@@ -29,6 +33,7 @@ members = [
     "crates/cortexcode-agent-core",
     "crates/cortexcode-agent-compaction",
     "crates/cortexcode-agent-harness",
+    "crates/cortexcode-agent-orchestrator",
     "crates/cortexcode-agent-loop",
     "crates/cortexcode-agent-mcp",
     "crates/cortexcode-agent-session",
@@ -38,7 +43,12 @@ members = [
     # Code namespace
     "crates/cortexcode-code",
     "crates/cortexcode-code-cli",
-    "crates/cortexcode-code-config",
+    "crates/cortexcode-code-paths",
+    "crates/cortexcode-code-settings",
+    "crates/cortexcode-code-tool-bash",
+    "crates/cortexcode-code-tool-search",
+    "crates/cortexcode-code-task-store",
+    "crates/cortexcode-code-tools-optin",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
     "crates/cortexcode-code-media",
@@ -48,6 +58,7 @@ members = [
     "crates/cortexcode-code-resources",
     "crates/cortexcode-code-rpc",
     "crates/cortexcode-code-session",
+    "crates/cortexcode-code-agent-session",
     "crates/cortexcode-code-subagents",
     "crates/cortexcode-code-tool-api",
     "crates/cortexcode-code-tools",
@@ -85,11 +96,15 @@ cortexcode-ai-models-catalog = { path = "crates/cortexcode-ai-models-catalog" }
 cortexcode-ai-oauth = { path = "crates/cortexcode-ai-oauth" }
 cortexcode-ai-oauth-anthropic = { path = "crates/cortexcode-ai-oauth-anthropic" }
 cortexcode-ai-oauth-github-copilot = { path = "crates/cortexcode-ai-oauth-github-copilot" }
+cortexcode-ai-oauth-openai-codex = { path = "crates/cortexcode-ai-oauth-openai-codex" }
 cortexcode-ai-provider-anthropic = { path = "crates/cortexcode-ai-provider-anthropic" }
 cortexcode-ai-provider-azure = { path = "crates/cortexcode-ai-provider-azure" }
 cortexcode-ai-provider-faux = { path = "crates/cortexcode-ai-provider-faux" }
 cortexcode-ai-provider-google = { path = "crates/cortexcode-ai-provider-google" }
 cortexcode-ai-provider-openai = { path = "crates/cortexcode-ai-provider-openai" }
+cortexcode-ai-provider-openai-codex = { path = "crates/cortexcode-ai-provider-openai-codex" }
+cortexcode-ai-provider-google-gemini-cli = { path = "crates/cortexcode-ai-provider-google-gemini-cli" }
+cortexcode-ai-oauth-google = { path = "crates/cortexcode-ai-oauth-google" }
 cortexcode-ai-provider-openai-responses = { path = "crates/cortexcode-ai-provider-openai-responses" }
 cortexcode-ai-sse = { path = "crates/cortexcode-ai-sse" }
 cortexcode-ai-stream = { path = "crates/cortexcode-ai-stream" }
@@ -100,6 +115,7 @@ cortexcode-agent = { path = "crates/cortexcode-agent" }
 cortexcode-agent-core = { path = "crates/cortexcode-agent-core" }
 cortexcode-agent-compaction = { path = "crates/cortexcode-agent-compaction" }
 cortexcode-agent-harness = { path = "crates/cortexcode-agent-harness" }
+cortexcode-agent-orchestrator = { path = "crates/cortexcode-agent-orchestrator" }
 cortexcode-agent-loop = { path = "crates/cortexcode-agent-loop" }
 cortexcode-agent-mcp = { path = "crates/cortexcode-agent-mcp" }
 cortexcode-agent-session = { path = "crates/cortexcode-agent-session" }
@@ -108,7 +124,12 @@ cortexcode-agent-types = { path = "crates/cortexcode-agent-types" }
 
 cortexcode-code = { path = "crates/cortexcode-code" }
 cortexcode-code-cli = { path = "crates/cortexcode-code-cli" }
-cortexcode-code-config = { path = "crates/cortexcode-code-config" }
+cortexcode-code-paths = { path = "crates/cortexcode-code-paths" }
+cortexcode-code-settings = { path = "crates/cortexcode-code-settings" }
+cortexcode-code-tool-bash = { path = "crates/cortexcode-code-tool-bash" }
+cortexcode-code-tool-search = { path = "crates/cortexcode-code-tool-search" }
+cortexcode-code-task-store = { path = "crates/cortexcode-code-task-store" }
+cortexcode-code-tools-optin = { path = "crates/cortexcode-code-tools-optin" }
 cortexcode-code-extensions = { path = "crates/cortexcode-code-extensions" }
 cortexcode-code-main = { path = "crates/cortexcode-code-main" }
 cortexcode-code-media = { path = "crates/cortexcode-code-media" }
@@ -119,6 +140,7 @@ cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }
 cortexcode-code-session = { path = "crates/cortexcode-code-session" }
+cortexcode-code-agent-session = { path = "crates/cortexcode-code-agent-session" }
 cortexcode-code-subagents = { path = "crates/cortexcode-code-subagents" }
 cortexcode-code-tool-api = { path = "crates/cortexcode-code-tool-api" }
 cortexcode-code-tools = { path = "crates/cortexcode-code-tools" }

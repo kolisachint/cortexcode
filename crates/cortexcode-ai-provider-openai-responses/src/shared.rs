@@ -11,7 +11,7 @@ use cortexcode_ai_stream::{
 };
 use cortexcode_ai_types::{
     AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Message, Model,
-    StopReason, TextContent, ThinkingContent, Tool, ToolCallContent, Usage,
+    OnPayload, OnResponse, StopReason, TextContent, ThinkingContent, Tool, ToolCallContent, Usage,
 };
 use cortexcode_ai_util::{
     describe_provider_error, openai_api_error_message, parse_streaming_json,
@@ -310,8 +310,14 @@ pub type ServiceTierPricing = fn(&mut Usage, Option<&str>, &Model);
 #[derive(Clone, Default)]
 pub struct ResponsesStreamOptions {
     pub service_tier: Option<String>,
+    /// `resolveServiceTier(responseTier, requestTier)`; without it the
+    /// response's tier wins over the requested one.
+    pub resolve_service_tier: Option<ResolveServiceTier>,
     pub apply_service_tier_pricing: Option<ServiceTierPricing>,
 }
+
+/// `resolveServiceTier(responseServiceTier, requestServiceTier)`.
+pub type ResolveServiceTier = fn(Option<&str>, Option<&str>) -> Option<String>;
 
 /// State of `processResponsesStream`: the message being built, the current
 /// output item (kept up to date with summary/content parts) and block.
@@ -684,10 +690,13 @@ impl ResponsesStreamState {
                 self.output.usage.cost =
                     cortexcode_ai_models::calculate_cost(model, &self.output.usage);
                 if let Some(apply) = options.apply_service_tier_pricing {
-                    let tier = response["service_tier"]
-                        .as_str()
-                        .or(options.service_tier.as_deref());
-                    apply(&mut self.output.usage, tier, model);
+                    let response_tier = response["service_tier"].as_str();
+                    let request_tier = options.service_tier.as_deref();
+                    let tier = match options.resolve_service_tier {
+                        Some(resolve) => resolve(response_tier, request_tier),
+                        None => response_tier.or(request_tier).map(str::to_string),
+                    };
+                    apply(&mut self.output.usage, tier.as_deref(), model);
                 }
                 self.output.stop_reason = map_stop_reason(response["status"].as_str());
                 if self.output.stop_reason == StopReason::Stop
@@ -774,6 +783,8 @@ pub struct ResponsesRequest {
     /// SDK client retries (default 2).
     pub max_retries: Option<u32>,
     pub max_retry_delay_ms: Option<u64>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 /// Run a Responses API request as the TS providers' `stream*` functions do:
@@ -850,11 +861,12 @@ async fn drive(
     let client = builder
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let body = OnPayload::apply(request.on_payload.as_ref(), request.body.clone(), model).await;
     let response = post_json_with_sdk_retries(
         &client,
         &request.url,
         &request.headers,
-        &request.body,
+        &body,
         request.max_retries,
         request.max_retry_delay_ms,
     )
@@ -870,6 +882,12 @@ async fn drive(
             request.max_retry_delay_ms,
         ));
     }
+    OnResponse::notify(
+        request.on_response.as_ref(),
+        cortexcode_ai_util::provider_response(&response),
+        model,
+    )
+    .await;
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),
     });

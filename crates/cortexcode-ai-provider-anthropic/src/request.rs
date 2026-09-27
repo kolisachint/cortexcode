@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 use cortexcode_ai_types::{
     AbortSignal, AnthropicMessagesCompat, AssistantMessage, CacheRetention, Content, Context,
-    Message, Model, SimpleStreamOptions, ThinkingBudgets, ThinkingDisplay, ThinkingLevel, Tool,
-    ToolResultMessage, UserContent,
+    Message, Model, OnPayload, OnResponse, SimpleStreamOptions, ThinkingBudgets, ThinkingDisplay,
+    ThinkingLevel, Tool, ToolResultMessage, UserContent,
 };
 use cortexcode_ai_util::{
     build_copilot_dynamic_headers, has_copilot_vision_input, resolve_cache_retention,
@@ -74,6 +74,8 @@ pub struct AnthropicOptions {
     pub interleaved_thinking: Option<bool>,
     /// `"auto" | "any" | "none"` or `{type: "tool", name}`.
     pub tool_choice: Option<Value>,
+    pub on_payload: Option<OnPayload>,
+    pub on_response: Option<OnResponse>,
 }
 
 /// `streamSimpleAnthropic`'s option mapping (`buildBaseOptions` plus the
@@ -96,6 +98,8 @@ pub fn simple_options(
         max_retries: options.max_retries.map(|n| n as u32),
         max_retry_delay_ms: options.max_retry_delay_ms,
         metadata: options.metadata.clone(),
+        on_payload: options.on_payload.clone(),
+        on_response: options.on_response.clone(),
         ..Default::default()
     };
     let Some(level) = options

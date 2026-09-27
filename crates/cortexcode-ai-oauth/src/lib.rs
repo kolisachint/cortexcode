@@ -10,7 +10,9 @@ pub mod pkce;
 mod registry;
 pub mod types;
 
-pub use callback::{CallbackCode, CallbackServer, CallbackServerOptions, CancelWait};
+pub use callback::{
+    CallbackCode, CallbackServer, CallbackServerOptions, CallbackValidation, CancelWait,
+};
 pub use fetch::{form_body, Fetch, HttpRequest, HttpResponse, ReqwestFetch};
 pub use page::{oauth_error_html, oauth_success_html};
 pub use registry::{

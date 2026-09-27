@@ -66,6 +66,7 @@
       "cortexcode-tui-terminal"
     ],
     "serde_yaml_ng": [
+      "cortexcode-agent-harness",
       "cortexcode-code-resources"
     ],
     "croner": [
@@ -76,6 +77,9 @@
     ],
     "notify": [
       "cortexcode-code-watch"
+    ],
+    "tokio-tungstenite": [
+      "cortexcode-ai-provider-openai-codex"
     ]
   },
   "pending": {

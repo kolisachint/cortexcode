@@ -70,14 +70,12 @@ pub use cortexcode_agent_session::encode_cwd;
 
 /// Default session directory for a project.
 pub fn default_session_dir(cwd: &str) -> PathBuf {
-    cortexcode_code_config::default_config_dir()
-        .join("sessions")
-        .join(encode_cwd(cwd))
+    default_sessions_root().join(encode_cwd(cwd))
 }
 
 /// Root session directory containing per-project subdirectories.
 pub fn default_sessions_root() -> PathBuf {
-    cortexcode_code_config::default_config_dir().join("sessions")
+    cortexcode_code_paths::sessions_dir()
 }
 
 /// Make an ISO 8601 timestamp suitable for file names.
@@ -282,7 +280,9 @@ impl SessionManager {
         let file_path = dir.join(format!("{}_{}.jsonl", safe_timestamp(&timestamp), new_id));
 
         let header = FileEntry::Session(Header {
-            branch: None,
+            branch: cortexcode_code_paths::git_branch::read_git_branch(std::path::Path::new(
+                &target_cwd,
+            )),
             version: Some(CURRENT_SESSION_VERSION),
             id: new_id,
             timestamp: timestamp.clone(),
@@ -350,7 +350,9 @@ impl SessionManager {
     /// Start a new empty session.
     pub fn new_session(&mut self, options: NewSessionOptions) -> Option<PathBuf> {
         self.header = Header {
-            branch: None,
+            branch: cortexcode_code_paths::git_branch::read_git_branch(std::path::Path::new(
+                &self.cwd,
+            )),
             version: Some(CURRENT_SESSION_VERSION),
             id: options.id.unwrap_or_else(create_session_id),
             timestamp: iso_timestamp(),
@@ -559,15 +561,16 @@ impl SessionManager {
         id
     }
 
-    /// Append session info (e.g. display name).
-    pub fn append_session_info(&mut self, name: impl Into<String>) -> String {
+    /// `appendSessionInfo({ name, color })`: a name (trimmed; empty clears) and/or
+    /// a colour slot. A field left `None` is not written.
+    pub fn append_session_info(&mut self, name: Option<&str>, color: Option<u8>) -> String {
         let id = generate_id(&self.id_set());
         let entry = FileEntry::SessionInfo {
-            color: None,
+            color,
             id: id.clone(),
             parent_id: self.leaf_id.clone(),
             timestamp: iso_timestamp(),
-            name: Some(name.into().trim().to_string()),
+            name: name.map(|n| n.trim().to_string()),
         };
         self.append(entry);
         id
@@ -871,7 +874,9 @@ impl SessionManager {
         let previous_file = self.session_file.clone();
 
         let new_header = Header {
-            branch: None,
+            branch: cortexcode_code_paths::git_branch::read_git_branch(std::path::Path::new(
+                &self.cwd,
+            )),
             version: Some(CURRENT_SESSION_VERSION),
             id: new_id.clone(),
             timestamp: timestamp.clone(),
@@ -958,17 +963,45 @@ impl SessionManager {
         Ok(self.session_file.clone())
     }
 
-    /// Current session name from the latest `session_info` entry.
+    /// `getSessionName`: the latest `session_info` entry that defines a name
+    /// (one without the field was written by `/color`; an empty one clears).
     pub fn session_name(&self) -> Option<String> {
-        for entry in self.entries.iter().rev() {
-            if let FileEntry::SessionInfo { name, .. } = entry {
-                return name
-                    .as_ref()
-                    .map(|n| n.trim().to_string())
-                    .filter(|n| !n.is_empty());
-            }
-        }
-        None
+        self.entries.iter().rev().find_map(|entry| match entry {
+            FileEntry::SessionInfo {
+                name: Some(name), ..
+            } => Some(Some(name.trim().to_string()).filter(|n| !n.is_empty())),
+            _ => None,
+        })?
+    }
+
+    /// `getSessionBranch`: the git branch recorded in the header.
+    pub fn session_branch(&self) -> Option<&str> {
+        self.header.branch.as_deref()
+    }
+
+    /// `getSessionSlug`: the auto-assigned name until someone runs `/name`.
+    pub fn session_slug(&self) -> String {
+        crate::identity::session_slug_for(self.session_id())
+    }
+
+    /// `getDisplayName`: the chosen name, else the slug.
+    pub fn display_name(&self) -> String {
+        self.session_name().unwrap_or_else(|| self.session_slug())
+    }
+
+    /// `getSessionColorSlot`: the latest valid `/color` choice, else the slot
+    /// the id hashes into.
+    pub fn session_color_slot(&self) -> u8 {
+        self.entries
+            .iter()
+            .rev()
+            .find_map(|entry| match entry {
+                FileEntry::SessionInfo {
+                    color: Some(color), ..
+                } if crate::identity::is_session_color_slot(f64::from(*color)) => Some(*color),
+                _ => None,
+            })
+            .unwrap_or_else(|| crate::identity::session_color_slot_for(self.session_id()))
     }
 }
 
@@ -1411,7 +1444,17 @@ mod tests {
     #[test]
     fn session_name_from_info_entries() {
         let mut mgr = SessionManager::in_memory("/tmp");
-        mgr.append_session_info("My Session");
+        mgr.append_session_info(Some("My Session"), None);
         assert_eq!(mgr.session_name(), Some("My Session".to_string()));
+        // A colour-only entry is silent on the name; the chosen colour wins.
+        let slug = mgr.session_slug();
+        mgr.append_session_info(None, Some(4));
+        assert_eq!(mgr.session_name(), Some("My Session".to_string()));
+        assert_eq!(mgr.session_color_slot(), 4);
+        // An empty name clears it; the display name falls back to the slug.
+        mgr.append_session_info(Some("  "), None);
+        assert_eq!(mgr.session_name(), None);
+        assert_eq!(mgr.display_name(), slug);
+        assert_eq!(mgr.session_color_slot(), 4);
     }
 }

@@ -44,6 +44,7 @@ pub struct GoogleOptions {
     pub thinking: Option<GoogleThinking>,
     pub project: Option<String>,
     pub location: Option<String>,
+    pub on_payload: Option<cortexcode_ai_types::OnPayload>,
 }
 
 fn base_options(
@@ -59,6 +60,7 @@ fn base_options(
         signal: options.signal.clone(),
         api_key: api_key.or_else(|| options.api_key.clone().filter(|k| !k.is_empty())),
         headers: options.headers.clone(),
+        on_payload: options.on_payload.clone(),
         ..Default::default()
     }
 }

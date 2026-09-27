@@ -13,7 +13,8 @@ readme = "README.md"
 publish = true
 
 [dependencies]
-cortexcode-code-config = { workspace = true }
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-settings = { workspace = true }
 cortexcode-code-extensions = { workspace = true }
 cortexcode-code-cli = { workspace = true }
 cortexcode-code-print = { workspace = true }

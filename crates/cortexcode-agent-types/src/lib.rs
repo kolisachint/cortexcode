@@ -313,10 +313,8 @@ pub struct AgentToolResult {
 // Agent tool definition
 // ---------------------------------------------------------------------------
 
-/// Tool definition used by the agent runtime.
-///
-/// `AgentTool` stores function pointers and boxed closures, so it does not
-/// implement `Clone` or `Debug`. Use the tool-building helpers to create one.
+/// Tool definition used by the agent runtime. Its callbacks are `Arc`s, so
+/// clones share them. Use the tool-building helpers to create one.
 #[allow(clippy::type_complexity)]
 pub struct AgentTool {
     pub name: String,
@@ -641,8 +639,10 @@ pub struct AgentLoopConfig {
     pub thinking_budgets: Option<cortexcode_ai_types::ThinkingBudgets>,
     pub thinking_display: Option<cortexcode_ai_types::ThinkingDisplay>,
     pub transport: Option<cortexcode_ai_types::Transport>,
-    pub on_payload: Option<Box<dyn Fn(String) + Send + Sync>>,
-    pub on_response: Option<Box<dyn Fn(String) + Send + Sync>>,
+    /// `onPayload`, passed to the provider stream.
+    pub on_payload: Option<cortexcode_ai_types::OnPayload>,
+    /// `onResponse`, passed to the provider stream.
+    pub on_response: Option<cortexcode_ai_types::OnResponse>,
     pub cache_retention: Option<cortexcode_ai_types::CacheRetention>,
     pub send_session_affinity_headers: Option<bool>,
     pub prompt_suffix: Option<String>,

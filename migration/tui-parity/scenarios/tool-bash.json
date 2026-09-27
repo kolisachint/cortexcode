@@ -1,0 +1,98 @@
+{
+  "description": "The model calls bash (piped output, then a non-zero exit), then answers. Interactive build mode asks to allow each command (answered 'Yes (once)'); renders the bash execution blocks ($ command line, output preview, exit status, 'Took' line).",
+  "phase": "10.2b",
+  "terminal": {
+    "cols": 100,
+    "rows": 34
+  },
+  "llm": [
+    {
+      "text": "Running them.",
+      "tool_calls": [
+        {
+          "id": "call_bash_1",
+          "name": "bash",
+          "arguments": {
+            "command": "printf 'alpha\\nbeta\\ngamma\\n' | sort -r"
+          }
+        },
+        {
+          "id": "call_bash_2",
+          "name": "bash",
+          "arguments": {
+            "command": "echo boom; exit 3"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Sorted, then failed with 3."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "run the commands"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: \\$ printf",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 0.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "allow-prompt",
+      "contains": [
+        "Yes (once)"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: \\$ echo boom",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 0.5,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "failed with 3",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "after-tool",
+      "contains": [
+        "sort -r",
+        "exit 3",
+        "failed with 3"
+      ]
+    }
+  ]
+}

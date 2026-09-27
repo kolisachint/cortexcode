@@ -1,7 +1,8 @@
 //! Interactive OAuth login wiring for the `cortex` CLI.
 //!
 //! The flows (callback server, device code, token exchange) live in
-//! `cortexcode-ai-oauth-anthropic` / `-github-copilot`; this module supplies
+//! `cortexcode-ai-oauth-anthropic` / `-github-copilot` / `-openai-codex`; this
+//! module supplies
 //! the terminal side of their `OAuthLoginCallbacks`, opens the browser and
 //! persists the credentials:
 //!
@@ -36,7 +37,7 @@ impl std::fmt::Display for AuthError {
             AuthError::Flow(e) => write!(f, "login failed: {}", e),
             AuthError::UnknownProvider(p) => write!(
                 f,
-                "unknown login provider: {} (expected 'anthropic' or 'github-copilot')",
+                "unknown login provider: {} (expected 'anthropic', 'github-copilot', 'google-gemini-cli', 'google-antigravity' or 'openai-codex')",
                 p
             ),
         }
@@ -69,7 +70,7 @@ impl CredentialStore {
     /// Create a store backed by the default `~/.cortexcode/auth.json` path.
     pub fn default_location() -> Self {
         Self {
-            path: cortexcode_code_config::default_config_dir().join("auth.json"),
+            path: cortexcode_code_paths::auth_path(),
         }
     }
 
@@ -234,6 +235,41 @@ pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
             let provider =
                 Arc::new(cortexcode_ai_oauth_github_copilot::GitHubCopilotOAuthProvider::default());
             login_with(&store, "github-copilot", "GitHub Copilot", provider, output)?;
+            Ok(())
+        }
+        "openai-codex" | "codex" | "chatgpt" => {
+            let provider =
+                Arc::new(cortexcode_ai_oauth_openai_codex::OpenAICodexOAuthProvider::default());
+            login_with(
+                &store,
+                "openai-codex",
+                "ChatGPT Plus/Pro (Codex Subscription)",
+                provider,
+                output,
+            )?;
+            Ok(())
+        }
+        "google-gemini-cli" | "gemini-cli" => {
+            let provider = Arc::new(cortexcode_ai_oauth_google::GeminiCliOAuthProvider::default());
+            login_with(
+                &store,
+                "google-gemini-cli",
+                "Google Cloud Code Assist (Gemini CLI)",
+                provider,
+                output,
+            )?;
+            Ok(())
+        }
+        "google-antigravity" | "antigravity" => {
+            let provider =
+                Arc::new(cortexcode_ai_oauth_google::AntigravityOAuthProvider::default());
+            login_with(
+                &store,
+                "google-antigravity",
+                "Google Antigravity (Gemini, Claude, GPT-OSS)",
+                provider,
+                output,
+            )?;
             Ok(())
         }
         other => Err(AuthError::UnknownProvider(other.to_string())),

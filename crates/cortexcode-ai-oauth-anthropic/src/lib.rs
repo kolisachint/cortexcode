@@ -209,6 +209,7 @@ pub async fn login_anthropic(
         path: CALLBACK_PATH.to_string(),
         expected_state: verifier.clone(),
         label: "Anthropic".to_string(),
+        validation: cortexcode_ai_oauth::CallbackValidation::CodeAndState,
     })
     .await?;
     let redirect = redirect_uri();

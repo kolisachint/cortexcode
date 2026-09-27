@@ -1,6 +1,9 @@
 //! API provider registry: `model.api` → stream function.
 //!
-//! Port of hoocode `api-registry.ts` + `stream.ts` + `register-builtins.ts` (v0.5.89).
+//! Port of hoocode `api-registry.ts` + `stream.ts` + `register-builtins.ts` (v0.5.89),
+//! and `session-resources.ts` ([`session_resources`]).
+
+pub mod session_resources;
 
 use cortexcode_ai_stream::AssistantMessageEventStream;
 use cortexcode_ai_types::{AssistantMessage, Context, Model, SimpleStreamOptions};
@@ -56,12 +59,20 @@ fn builtins() -> Vec<(&'static str, ApiStreamSimpleFn)> {
             Arc::new(cortexcode_ai_provider_azure::stream),
         ),
         (
+            "openai-codex-responses",
+            Arc::new(cortexcode_ai_provider_openai_codex::stream),
+        ),
+        (
             "google-generative-ai",
             Arc::new(cortexcode_ai_provider_google::stream),
         ),
         (
             "google-vertex",
             Arc::new(cortexcode_ai_provider_google::stream_vertex),
+        ),
+        (
+            "google-gemini-cli",
+            Arc::new(cortexcode_ai_provider_google_gemini_cli::stream),
         ),
     ]
 }
@@ -157,8 +168,10 @@ mod tests {
             "anthropic-messages",
             "openai-completions",
             "azure-openai-responses",
+            "openai-codex-responses",
             "google-generative-ai",
             "google-vertex",
+            "google-gemini-cli",
         ] {
             assert!(get_api_provider(api).is_some(), "{api}");
         }

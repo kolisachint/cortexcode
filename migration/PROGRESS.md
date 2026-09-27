@@ -9,14 +9,459 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
   lazy-module-load has no Rust counterpart).
-- Still open in phase 8: openai-codex (8.4a), Copilot (8.4b), gemini-cli/antigravity (8.4c),
-  stream hooks (8.8). 8.7 (OAuth split) is done.
+- Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
+  typed onPayload/onResponse hooks.
+- Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
+  block); 9.2b is unblocked (10.3b done).
+- 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
+  (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
+- Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
+  reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
   light mode. By user decision (2026-09-25) the default-bundle scenarios (`print-tool-read`,
   `-paging`, `print-multi`) stay as later gates for 10.4c/10.2a/10.2g; see the 10.4c ledger
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.3b done (AgentSession retry + auto-compaction)
+- `code-agent-session::retry` (agent-session-retry.ts): retry is armed synchronously on
+  `agent_end` (a pending flag + `Notify`, waited on by `prompt()`), exponential backoff with an
+  abortable sleep (the abort signal is installed before `auto_retry_start` so a listener can
+  cancel), the error dropped from the context, then `continue()` once the agent is idle.
+- `code-agent-session::compaction` (agent-session-compaction.ts): manual `compact()` (abort,
+  disconnect, summarize through the API registry, persist, reload context), `plan_compaction`
+  (the decision half of `checkCompaction`: one-shot overflow recovery, threshold with the
+  error-message usage estimate, stale pre-compaction guards) and `run_auto_compaction` (retry
+  the turn after overflow, or kick queued messages, after 100ms).
+- The `agent_end` tail runs as a spawned task (TS's async event queue); the pre-prompt check
+  runs in `prompt()`. New events: CompactionStart/End, AutoRetryStart/End.
+- Tests: 13 retry/event-order + 12 compaction (TS spies on `_runAutoCompaction` become
+  `plan_compaction` assertions; extension-hook cases noted on 12.3). L2 print-retry passes.
+
+### 2026-09-26: 10.3a done (AgentSession core)
+- New crate `cortexcode-code-agent-session`: `session.rs` (agent-session.ts core: event
+  processing with session persistence on `message_end`, queue bookkeeping removed before
+  listeners see `message_start`, prompt/steer/followUp/sendCustomMessage/sendUserMessage,
+  abort, setModel/cycleModel (scoped + available), thinking level set/cycle/clamp, tool
+  registry with allow/deny lists and SDK tools, `_rebuildSystemPrompt`, `prepareNextTurn`
+  refresh, executeBash/recordBashResult with deferred flush, session name/colour, stats,
+  JSONL export, dispose -> `cleanup_session_resources`), `stats.rs` (agent-session-stats.ts),
+  `services.rs` (agent-session-services.ts + sdk.ts `createAgentSession`: model/thinking
+  restore, harness `convert_to_llm` + blockImages, context GC transform, per-request auth and
+  headers from the model registry, OpenRouter attribution, session id on the agent),
+  `hooks.rs` (`ResourceLoader` and `ExtensionHooks` traits until 10.5 / 12.3),
+  `auth_guidance.rs`.
+- Tests: 49 ported (suite/agent-session-prompt, -queue, -bash-persistence; the model/thinking
+  cases of suite/agent-session-model-extension; agent-session-stats; the SDK-tool case of
+  agent-session-dynamic-tools; the non-extension agent-session-concurrent cases) plus registry,
+  session-info, export and tool-context checks. Extension-handler cases are noted on 12.3,
+  runtime-events/branching on 10.3c, skill expansion on 10.5.
+- code-cli: `build_session` replaces `build_agent_with_gate`/`LiveTranscript`; tools see the
+  real session branch. Light mode is hoocode's allowlist `[read, write, edit, bash]` over the
+  light override (active order now matches). `--no-session`, `--session-dir`, `--thinking`
+  wired; sessions persist under `sessions_dir()` otherwise, as in hoocode.
+- The 8.2 note is resolved: both sides now send `prompt_cache_key`.
+- Also: `code-session` gained session identity (session-identity.ts: slug, colour slot, colour
+  names; `append_session_info(name, color)`; `session_name` skips colour-only entries) and
+  records `Header.branch` via the new `code-paths::git_branch` (git-branch.ts);
+  `code-paths::{package_dir, docs_path}`; `Agent::with_state`; `AuthLookup::is_oauth`.
+- Default-bundle scenarios (print-tool-search, print-todo-write, print-tool-read-paging) are
+  unchanged: identical tools and messages, only the system prompt differs (10.4c).
+
+### 2026-09-26: 10.3 split into 10.3a/b/c
+- 10.3 (AgentSession: ~4.5K source + ~2.8K test lines) is now 10.3a core (agent-session.ts
+  core, services, stats; print mode on AgentSession; L2 guards print-basic and
+  print-tool-read-light), 10.3b retry + auto-compaction (L2 print-retry; 9.2b now depends on
+  it), and 10.3c tree navigation, fork and runtime rebuild (L2 n/a). Tasks that depended on
+  10.3 now depend on 10.3a (10.7b on 10.3a + 10.3c).
+
+### 2026-09-26: 10.2g l1_done (context GC)
+- `code-tools-fs::context_gc` (context-gc.ts): superseded-read stubs (later successful
+  edit/write, or a later overlapping read; disjoint ranges coexist; dedup pointers neither
+  supersede nor get stubbed; failed edits never evict) and pressure-gated bash eviction (>= 0.6
+  for outputs over 2000 UTF-16 units, >= 0.8 always; side-effecting commands never), returning
+  `None` when nothing changed. `BudgetPressureLatch` is sdk.ts's high-water latch.
+- CLI: `transform_context` runs it when `contextGc.enabled`, with pressure from
+  `estimate_context_tokens` over the model's context window (the extension `context` hook part
+  of sdk.ts's transformContext waits for the extension runtime).
+- Tests: context-gc.test.ts, read-dedup.test.ts's GC x pointer cases, the full 258-sequence
+  read/edit/GC matrix, and the recovery-loop GC case from 10.2c (8 tests). The tests give
+  every tool call a process-unique id: read-dedup's content stamps are keyed by call id in a
+  process-wide map, and Rust runs tests in parallel (vitest runs a file sequentially), which
+  made two tests that both used `call-1` flaky. edit_write.rs's harness got the same fix.
+- L2: `print-tool-read-paging` now matches hoocode in every tool result, superseded stubs
+  included; only the default-bundle system prompt differs → 10.4c.
+
+### 2026-09-26: 10.2f l1_done (TodoWrite, ask_options, task store)
+- New crate `cortexcode-code-task-store` (task-store.ts): tasks + owning agents, batched change
+  notifications (listeners run outside the lock), version counter, create/update (clearable
+  note)/remove/arrange/reset/clear, and the process-wide `task_store()`. Ported here because
+  TodoWrite writes it; 11.5 renders it (ledger notes updated; task-store.ts added to 10.2f's
+  sources).
+- New crate `cortexcode-code-tools-optin`: TodoWrite (reconcile by item content, then leftover
+  slots, drop the tail, keep list order; glyph lines; counts in details) with
+  `settle_dangling_main_tasks`; ask_options behind an `AskOptionsHost` (has_ui, the pane,
+  `/loop` state + halt); `NoUi` gives hoocode's print-mode text. Exact schemas and texts taken
+  from hoocode's dist.
+- CLI: registers ask_options always and TodoWrite when `--enable-todowrite` / `enableTodoWrite`
+  (default true), after the five base tools, as hoocode orders extension and custom tools;
+  the permission gate treats both as read-only. The default prompt's tool list now differs
+  from hoocode's only by SearchHooCode, Task and TaskOutput.
+- Tests: todo-tool.test.ts and the loop cases of ask-options-loop.test.ts ported, plus
+  task-store/identity-reorder/settle cases (8 tests). ask-options.test.ts is the pane (11.3);
+  the `/loop auto` case is noted on 12.5 (the loop extension). Bookkeeping: my first note on
+  10.2f named 7.5a as the loop's owner; corrected to 12.5 before committing.
+- L2: new `print-todo-write` (stable; tool results identical incl. ask_options' no-UI text;
+  only the system prompt differs → 10.4c) and `todo-write` (interactive, phase 11).
+
+### 2026-09-26: 10.2e blocked on a design question (webtools)
+- hoocode's webfetch/websearch do no HTML work themselves: they run the external `webtools`
+  binary (kolisachint/webtools, Rust, downloaded by tools-manager) and format its `--json`
+  output. The design doc planned in-process `htmd` + `dom_smoothie`, which can only
+  approximate that binary; its source was not readable here (add_repo was denied). Asked the
+  user to pick: (A) port the tool layer exactly and run the same binary, (B) in-process as
+  planned, (C) depend on webtools as a library. Continuing with 10.2f meanwhile.
+
+### 2026-09-26: 10.2d l1_done (SearchCodebase); default bundle is now hoocode's five tools
+- New crate `cortexcode-code-tool-search` (tools/search.ts + the runtime half of core/search/):
+  query plan, mode resolution, lexical retriever, grep→chunk adapter, RRF, deterministic
+  reranker (IDF, path affinity, declaration bonus, prose gate), stale hoist, span merge,
+  token-budgeted assembler, jsonl trace (`<agentDir>/embsearch/<sha256[..16]>`), cross-encoder
+  rerank, and an `EmbsearchService` trait for 12.4's daemon client (without one every mode is
+  lexical, with hoocode's degradation texts).
+- The lexical leg reproduces hoocode's `rg --json --hidden --no-require-git --ignore-case
+  --sort path --glob '!**/.git/**'` in-process with ripgrep's crates (`ignore` walker sorted by
+  file name, `.rgignore`, overrides; `grep-searcher` with NUL binary detection). A test
+  compares it with the real `rg` binary on a tree with .gitignore/.ignore/hidden/.git/binary
+  files and globs (skips when rg is absent).
+- code-tools: the default bundle is exactly read, bash, edit, write, SearchCodebase
+  (CODING_TOOL_NAMES); the invented grep/find/ls/webfetch/websearch/todo placeholder tools are
+  gone from it (their free functions remain until 10.2e/10.2f). The permission gate treats
+  SearchCodebase as read-only. The default system prompt's tool list now matches hoocode's
+  up to SearchCodebase; the rest (Task/TodoWrite/ask_options/SearchHooCode, skills, agents,
+  docs, build mode) is 10.4c and friends.
+- Tests: search.test.ts and the non-eval cases of hybrid-search.test.ts ported (14 tests).
+  Eval tooling and native-search.ts go to 12.4 (noted there).
+- L2: new `print-tool-search` (stable): all three SearchCodebase results byte-identical to
+  hoocode (auto→lexical, glob+limit, hybrid degraded with reason); only the system prompt
+  differs → passes with 10.4c. 10.2d stays l1_done like 10.2a-c.
+
+### 2026-09-26: 10.2c l1_done (edit + write tools); print-tool-edit-light green
+- code-tools-fs gains `edit_diff` (edit-diff.ts), `edit`, `write` and `mutation_queue`
+  (file-mutation-queue.ts). The matcher works in UTF-16 units like JS (spans, error columns),
+  with the three tiers (exact, fuzzy-normalized with a source map, indentation-tolerant
+  blocks), the anchored-indent rule, the fuzzy no-op error that names the offending code
+  points, and all of hoocode's error texts. NFKC via `unicode-normalization`, `\p{Mn}` via
+  `regex`.
+- The diff: a port of jsdiff 8.0.4's Myers (tokenizer, diagonal pruning, tie-breaking), not
+  `similar` as the design doc planned, because similar aligns ambiguous lines differently.
+  `tests/fixtures/edit_diff_cases.json` holds 1000 apply cases + 300 diff cases generated
+  from hoocode's own edit-diff.js (`gen_edit_diff_cases.mjs`, deterministic seed); the Rust
+  port reproduces all of them byte for byte, errors included.
+- Mutation queue: a per-real-path FIFO ticket lock (tools run on blocking threads), so
+  edit/write to one file (or a symlink to it) serialize in arrival order.
+- Wiring: code-tools' default bundle and light preset use the real edit/write (the light edit
+  converts the flat oldText/newText to edits[] at execute time, as light.ts does); the
+  placeholder write/edit are gone.
+- Tests: tools.test.ts write/edit/fuzzy/CRLF sections, edit-tool-legacy-input,
+  edit-tool-preserves-untouched-lines, edit-encoding-recovery-loop (except the context-GC
+  case, noted on 10.2g) and file-mutation-queue ported (16 tests) + the reference fixture.
+  edit-tool-no-full-redraw is TUI (phase 11).
+- L2: new `print-tool-edit-light` (pass, stable: exact, fuzzy with tab + smart quotes, not
+  found, nested write, then a read) and `print-tool-edit` (default bundle; differs only in
+  the system prompt → 10.4c). 10.2c stays l1_done until then, like 10.2a/10.2b.
+
+### 2026-09-26: 10.2b l1_done (bash tool); print-tool-bash-light green
+- New crate `cortexcode-code-tool-bash` (bash.ts, bash-executor.ts, output-accumulator.ts,
+  utils/shell.ts): shell resolution (`shellPath`, /bin/bash, bash on PATH, sh; Git Bash on
+  Windows), `get_shell_env` (bin dir first on PATH), sanitize + strip-ansi (ansi-regex 6.2
+  pattern), process-tree kill and detached-child tracking. `LocalBashOperations` spawns
+  through process-wrap (process group on Unix, job object on Windows), kills the group on
+  abort/timeout (`aborted` / `timeout:<s>` errors), and waits at most 100 ms for pipes held
+  by backgrounded children after the shell exits (waitForChildProcess). `OutputAccumulator`:
+  streaming UTF-8 decode, bounded tail, temp-file spill, final compression. The tool keeps
+  hoocode's texts (truncation notices, exit/timeout/abort statuses, allowed/denied command
+  patterns, command prefix, spawn hook) and 100 ms update throttling (a flusher thread
+  plays the timer). `execute_bash_with_operations` is the user-`!` executor.
+- Wiring: code-tools' default bundle and light preset use the real bash tool (placeholder
+  and `bash()`/`format_output` helpers removed); the CLI passes `shellCommandPrefix`,
+  `shellPath` and the `toolOutput` caps (agent-session.ts `_buildRuntime`).
+- Deviations: temp files are `cortex-bash-<16 random alnum>.log` (hoocode: `hoocode-bash-<hex>`);
+  numeric exit only (a signal-killed shell is a success, as in hoocode); after the grace
+  period a reader thread may linger until the orphan closes the pipe (Node destroys the
+  stream).
+- Tests: tools.test.ts bash section + bash-prompt-snippet.test.ts ported (19 integration +
+  7 unit tests, including tree kill on abort and the pipe-holding background child).
+- L2: new `print-tool-bash-light` (pass, selfcheck stable; tool results identical incl. exit 3
+  and timeout texts). New `print-tool-bash` (differs only in the default-bundle system
+  prompt → passes with 10.4c) and `tool-bash` (interactive; hoocode's build mode asks to
+  allow each command, the scenario answers it; needs phase 11 rendering). Both stable on
+  hoocode. 10.2b stays l1_done until they pass, as 10.2a does.
+
+### 2026-09-26: 10.1c done (CLI on code-paths + code-settings; code-config deleted)
+- `cortexcode-code-config` is deleted: its invented `~/.cortexcode/config.json` schema
+  (provider/model/api_key/providers/auto_approve_*) and the `migrate.rs` one-shot copy from
+  `~/.hoocode/settings.json` are replaced by code-settings, which reads the real
+  `settings.json` with the `.hoocode` fallback. The design doc's "keep the migrate.rs
+  one-shot copy" is superseded; the doc's crate tables are updated.
+- code-cli: default provider/model come from `defaultProvider` / `defaultModel`; `--light`
+  falls back to the `light` setting; the read tool takes `toolOutput.maxBytes/maxLines`,
+  `images.autoResize` and `contextGc.enabled`. API keys: CLI flag, env, stored OAuth (the
+  config-file keys, which hoocode never had, are gone; auth.json precedence is 10.4b).
+  Read-only tools stay auto-approved (was the `auto_approve_read_only` config default).
+- Auth store path is `code_paths::auth_path()`; session dirs come from
+  `code_paths::sessions_dir()` (both now honor `*_CODING_AGENT_DIR`). The `cortexcode-code`
+  umbrella re-exports `paths` and `settings` instead of `config`.
+- Ledger bookkeeping: 10.1c's crate list now names `cortexcode-code` instead of the deleted
+  `cortexcode-code-config` (noted on the task).
+- Checks: workspace tests + clippy clean; L2 `print-basic` pass. Full harness: print-basic,
+  print-error, print-retry, print-tool-read-light, print-tool-invalid-light pass; the other
+  failures belong to later tasks (10.2/10.2a/10.3/10.8a/11.x), as before.
+
+### 2026-09-26: 10.1b done (code-settings)
+- New crate `cortexcode-code-settings` (settings-{types,defaults,storage,manager}.ts). Settings
+  stay the raw JSON object (`Settings = serde_json::Map`, preserve_order), so unknown and
+  future keys pass through; the typing is in the getters (enums for the string settings,
+  structs for compaction/retry/branch-summary/learn/warnings, `PackageSource`), which apply
+  the TS defaults, clamps and legacy reads (toolOutputDisplay, migrateSettings).
+- Storage: `FileSettingsStorage` writes `<agentDir>/settings.json` and
+  `<cwd>/.cortexcode/settings.json`. When a cortex file is missing, its `.hoocode` twin is
+  read instead and the first write creates the cortex file (the hoocode file is never written
+  or locked). Lock: `fs4` on a `settings.json.lock` sidecar with TS's 10 x 20 ms retry
+  (hoocode's proper-lockfile uses a `.lock` directory); writes go to a temp file, then rename.
+- Deviations: writes are synchronous (hoocode queues them on a promise chain), so `flush()`
+  is a no-op; the file state after each call is the same. Getters return the default for
+  wrong-typed values where TS would pass the raw value through (e.g. a non-enum
+  `steeringMode`). Numeric setters take integers.
+- Tests: settings-manager.test.ts + settings-manager-bug.test.ts ported (35 tests including
+  the hoocode fallback, migrations, merge, byte-exact output). settings-token-surface.test.ts
+  is the /settings pane; noted on 11.3.
+- Next: 10.1c wires code-cli onto code-paths/code-settings and retires `cortexcode-code-config`.
+
+### 2026-09-26: 10.1a done (code-paths); 10.1 split into 10.1a/b/c
+- Ledger: 10.1 was too big (config.ts + settings-manager.ts + CLI wiring), so it is now 10.1a
+  code-paths, 10.1b code-settings (after 10.1a), and 10.1c wiring (keeps the print-basic L2
+  scenario). 10.3, 10.4b, 10.5 and 11.1 now depend on 10.1c. config.ts install-method /
+  self-update (config.test.ts) is noted on 12.7.
+- New crate `cortexcode-code-paths`: app identity (`cortex`, `~/.cortexcode`, legacy
+  `~/.hoocode`), env overrides with `CORTEXCODE_` / `CORTEX_` / `HOOCODE_` prefixes (the help
+  text says `CORTEX_*`, so all three are read), agent/auth/sessions/bin/themes/debug-log dirs,
+  dispatch dirs, `resolve_agent_file` (falls back to `~/.hoocode/<file>` when only that one
+  exists and there is no env override), and utils/paths.ts (canonicalize, isPathInside,
+  isLocalPath, cwd-relative formatting, `.agents` ancestor walk).
+- Tests: paths.test.ts ported (tests/paths.rs), plus env-order, fallback and path edge cases.
+
+### 2026-09-26: 9.4b done (AgentHarness); phase 9 done except 9.1 (blocked) and 9.2b (needs 10.3)
+- New crate `cortexcode-agent-orchestrator` (re-exported as `cortexcode_agent::orchestrator`):
+  AgentHarness from harness/agent-harness.ts. It cannot live in agent-harness because
+  agent-compaction depends on agent-harness; ledger 9.4b and the design doc crate table say so.
+  Drives `Agent` over `Session<S>`: prepareNextTurn rebuilds the context from the session
+  (system prompt text or callback), message_end appends to the session, mid-turn writes wait
+  for the save point (turn_end), agent_end settles. prompt / skill / prompt_from_template /
+  steer / follow_up / next_turn / append_message / compact / navigate_tree / set_model /
+  set_thinking_level / set_active_tools / set_tools / resources / abort / wait_for_idle /
+  subscribe, and typed `on_*` hooks (before_agent_start, context, before_provider_request,
+  tool_call, tool_result, session_before_compact, session_before_tree; last result wins).
+  App resource types via `SkillLike` / `PromptTemplateLike`.
+- Agent changes: `AgentTool` doc fixed (it is Clone), Agent `set_get_api_key`,
+  `set_on_payload` / `set_on_response` + `AgentOptions.on_payload/on_response`, and
+  AgentLoopConfig's `Box<dyn Fn(String)>` placeholders are now the typed hooks, passed into the
+  loop's SimpleStreamOptions. The harness sets the agent's stream fn to
+  `cortexcode_ai_registry::stream_simple` (TS's default).
+- Deviations: hooks, system-prompt and auth callbacks are synchronous (the agent's hooks are);
+  steer/follow-up queue matching is by equality, not object identity; session append failures
+  inside agent events are dropped. Kept from TS: compact()/navigateTree() errors after the phase
+  is set (no auth, nothing to compact, unknown entry) leave the phase non-idle.
+- Tests: agent-harness.test.ts (both cases) + turns (session writes, events, next-turn and
+  before_agent_start messages, system prompt callback), errors, model/thinking writes,
+  compaction (hook cancel, session_compact), navigate_tree (editor text, leaf move), tool_call
+  block + context hook, all against the faux provider.
+- Next: `ledger.py next` (phase 10). Open question for the user: 9.1 rmcp decision.
+
+### 2026-09-26: 9.3b done (skill + prompt-template loaders, executeShellWithCapture)
+- cortexcode-agent-harness: `frontmatter::parse_frontmatter` (YAML via serde_yaml_ng -> JSON
+  object) and `locale_compare`; `load_skills` / `load_sourced_skills` (SKILL.md makes a
+  directory one skill, root `.md` files are skills, ignore files via the `ignore` crate with
+  rules rebased on the root as in TS, dot entries / node_modules skipped, symlinks resolved,
+  name/description diagnostics); `load_prompt_templates` / `load_sourced_prompt_templates`
+  (non-recursive, 60-char first-line description); `utils::shell_output::
+  execute_shell_with_capture` over ExecutionEnv. Sourced results use `Sourced { item, source }`;
+  TS's optional map callbacks are left to the caller.
+- dep-firewall: `serde_yaml_ng` owners now `cortexcode-agent-harness` + `code-resources`
+  (the TS harness parses frontmatter with `yaml` too). 10.5 can reuse
+  `cortexcode_agent_harness::parse_frontmatter` instead of a second YAML adapter.
+- Deviations: a non-string `description`/`name` counts as missing (TS would throw a TypeError
+  diagnostic); YAML error texts are serde_yaml_ng's; localeCompare is the case-insensitive
+  approximation code-prompts already uses.
+- Tests: skills.test.ts and prompt-templates.test.ts (all cases, unix) + ignore files, name
+  validation, long descriptions, shell capture.
+- Disk: stale test executables in target/debug/deps grew to 21G and filled the session disk;
+  `find target/debug/deps -maxdepth 1 -type f -perm -u+x ! -name '*.so' ! -name '*.rlib'
+  ! -name '*.rmeta' ! -name '*.d' -delete` frees it (they are relinked on demand).
+- Next: 9.4b (agent-harness.ts).
+
+### 2026-09-26: 9.4a done (ExecutionEnv + the local tokio env)
+- cortexcode-agent-harness `env`: `ExecutionEnv` trait (BoxFuture methods: exec, read/write,
+  file_info/list_dir without following symlinks, real_path, exists, create_dir, remove,
+  temp dir/file, cleanup), `FileInfo`, `FileKind`, `FileError` + `FileErrorCode` (io
+  ErrorKind -> the TS codes), `ExecOptions` (cwd, env, timeout seconds, AbortSignal,
+  on_stdout/on_stderr), and `LocalExecutionEnv` (alias `NodeExecutionEnv`): shell from
+  getShellConfig (/bin/bash, which bash, sh; Git Bash on Windows), own process group killed
+  with SIGKILL on abort/timeout (`aborted` / `timeout:<s>` errors), UTF-8 chunk streaming that
+  holds back split characters, mkdtemp-style temp dirs.
+- Deviations: FileError messages are the OS text (Node's read `ENOENT: ..., lstat '...'`);
+  rm on a directory without recursive gives Node's ERR_FS_EISDIR text with code `unknown`,
+  as toFileError maps it.
+- Tests: nodejs-env.test.ts (all cases, unix) + timeout / exit code / rm / custom shell.
+- Next: 9.3b (skill + prompt-template loaders, executeShellWithCapture over ExecutionEnv).
+
+### 2026-09-26: 9.2 split; 9.2a done (harness compaction + branch summarization)
+- Ledger: 9.2 -> 9.2a (harness/compaction/*, both compaction test files) + 9.2b
+  (agent-session-compaction.ts: auto-compaction thresholds, /compact, the `compact-command` L2
+  scenario; depends on 10.3). 9.4b now depends on 9.2a. Remaining phase-9 order: 9.4a -> 9.3b
+  -> 9.4b (9.1 blocked on the rmcp decision).
+- cortexcode-agent-compaction rewritten as the port (the old KeepRecent/Summary strategies were
+  unused placeholders): `utils` (file ops, serializeConversation with the 2000-char tool-result
+  cap, SUMMARIZATION_SYSTEM_PROMPT), `compaction` (token estimates in UTF-16 chars/4,
+  shouldCompact with maxContextRatio, findCutPoint/findTurnStartIndex, prepareCompaction,
+  generateSummary / turn-prefix summary via `cortexcode_ai_registry::complete_simple`, compact
+  with parallel split-turn summaries and tokensAfter), `branch_summarization`
+  (collectEntriesForBranchSummary over a `BranchEntrySource` trait, prepareBranchEntries,
+  generateBranchSummary). Works on `cortexcode_agent_session::FileEntry`.
+- API shape: TS positional (apiKey, headers, signal, thinkingLevel) -> `SummarizeOptions`;
+  `turn_start_index: Option<usize>` for TS -1. Deviation: tool-call args serialize with serde
+  (an integral float prints `1.0`, JS `1`).
+- Tests: agent/test/harness/compaction.test.ts and coding-agent/test/compaction.test.ts (incl.
+  the v1 large-session.jsonl fixture read from target/hoocode-pin, migrated by code-session;
+  the live LLM case is `#[ignore]`, ANTHROPIC_OAUTH_TOKEN), plus split-turn and branch cases.
+- Disk: target/debug/incremental hit the session's disk allowance (11G); deleted it.
+- Next: 9.4a.
+
+### 2026-09-26: 9.3/9.4 split; 9.3a done (harness utils without an ExecutionEnv)
+- Ledger: 9.3 -> 9.3a (env-free utils) + 9.3b (skill/prompt-template loaders and
+  executeShellWithCapture over ExecutionEnv); 9.4 -> 9.4a (ExecutionEnv trait + tokio env,
+  nodejs-env.test.ts) + 9.4b (agent-harness.ts). The loaders' tests use NodeExecutionEnv, which
+  is 9.4's port. 9.2 (compaction) now depends on 9.3a (it needs messages.ts + compressGeneral);
+  its earlier `start` was undone as a bookkeeping fix (noted on the task). Order from here:
+  9.4a -> 9.3b -> 9.2 -> 9.4b.
+- cortexcode-agent-harness: `types` (Skill, PromptTemplate), `messages` (create*SummaryMessage,
+  createCustomMessage with ISO timestamps, summarizeArgs, describeBackgroundTool,
+  createBackgroundPlaceholderText, createBackgroundTaskMessage), `prompt_templates`
+  (parseCommandArgs, substituteArgs with String.replace `$&`/`$$` semantics,
+  formatPromptTemplateInvocation), `skills` (formatSkillInvocation, name/description rules, env
+  path helpers), `system_prompt::format_skills_for_system_prompt`, `utils::{truncate,
+  output_compression, shell_output}` (ShellCapture = executeShellWithCapture's accumulator).
+  JS details kept: UTF-16 lengths, JS trim whitespace, toFixed half-up, ASCII `\b`.
+- The old invented `{{var}}` template struct is now `TextTemplate` (code-prompts still uses
+  `render`); `SystemPromptBuilder` is untouched.
+- Tests: resource-formatting.test.ts and system-prompt.test.ts, plus unit tests for each util.
+- Next: 9.4a.
+
+### 2026-09-26: 9.1 blocked on a design decision (rmcp)
+- Found while starting 9.1: rmcp 3.4.1 parses every result into typed structs (tools/call ->
+  `CallToolResult`), while hoocode feeds the model `JSON.stringify(rawResult, null, 2)`, so tool
+  output would be re-serialized from rmcp's structs (unknown fields dropped, rmcp key order;
+  identical for plain `{content:[{type:"text",text}]}`). And rmcp 3.x has no legacy HTTP+SSE
+  client, which hoocode still uses (`type: "sse"` and the 4xx fallback).
+- Options (in the ledger block): (1) rmcp for stdio + streamable HTTP + OAuth, hand-written
+  legacy SSE, document the re-serialization deviation (recommended); (2) keep the hand-rolled
+  transport, make it async with raw JSON, add streamable-HTTP sessions + OAuth by hand.
+- Also: the `mcp-tool-call` L2 scenario needs app-side MCP loading, which is 10.11, so 9.1 can
+  reach only `l1_done` on its own.
+- Waiting on the user; continuing with 9.2.
+
+### 2026-09-26: 8.8 done (typed onPayload / onResponse); phase 8 complete
+- `cortexcode_ai_types`: `OnPayload<M = Model>` / `OnResponse<M = Model>` (Arc'd async closures
+  with `new` / `sync` constructors, `apply` / `notify` helpers), `ProviderResponse {status,
+  headers}` (`from_pairs` = `headersToRecord`: lower-case, sorted, repeats joined with ", "),
+  `HookFuture`. The `Option<String>` placeholders in SimpleStreamOptions / StreamOptions /
+  ProviderStreamOptions are gone. `cortexcode_ai_util::provider_response(&reqwest::Response)`.
+- Wired as in TS: openai-completions, openai-responses, azure (via `ResponsesRequest`),
+  anthropic (`stream: true` re-forced after the hook), codex (onPayload before the transport
+  choice; onResponse for every SSE response, failures included), google / vertex / gemini-cli
+  (onPayload only; google's hook sees the SDK params), faux (onResponse with a synthetic 200),
+  images/openrouter (`OnPayload<ImagesModel>`). The SDK-backed providers call onResponse only for
+  a successful response (the SDK throws first), as in TS.
+- Tests: `crates/cortexcode-ai/tests/stream_hooks.rs` (onPayload replacement reaches the wire for
+  every registered API; onResponse status/headers; failures skip it; codex reports a 400),
+  faux and images hook tests, and openrouter-cache-write-repro.test.ts as an `#[ignore]` live
+  test (OPENROUTER_API_KEY) plus an offline check of its cache-marker transform.
+- Hook closures need their parameter types written (`|payload: &Value, model: &Model|`): the
+  default model type parameter is not used for inference.
+- Ledger note on 9.4: agent-types' `Box<dyn Fn(String)>` hook placeholders still need mapping
+  onto these.
+- Next: `ledger.py next` (phase 9/10).
+
+### 2026-09-26: 8.4c done (Cloud Code Assist: gemini-cli + antigravity)
+- New `cortexcode-ai-provider-google-gemini-cli` (google-gemini-cli.ts), registered for the
+  `google-gemini-cli` API (both providers): envelope `buildRequest` in TS key order (Antigravity
+  system instruction, `requestType: agent`, Claude tools as `parameters`), Gemini CLI /
+  Antigravity headers (`CORTEXCODE_`/`HOOCODE_ANTIGRAVITY_VERSION`), Antigravity endpoint
+  fallbacks, the TS retry loop verbatim (403/404 cascade, 429/5xx backoff with
+  `extractRetryDelay`, and -- as in TS -- every error raised inside the loop, a plain 400
+  included, is caught and retried 1/2/4 s), empty-stream refetch (0.5/1 s), lazy `start` event,
+  `streamSimple` thinking levels/budgets. Message/tool conversion reused from ai-provider-google.
+- New `cortexcode-ai-oauth-google` (google-gemini-cli.ts, google-antigravity.ts,
+  google-oauth-client.ts): both PKCE logins (verifier = state; new core
+  `CallbackValidation::CodeAndStateDeferred`), pasted-redirect race, token exchange/refresh with
+  the TS error texts, strict (gemini-cli) vs fall-through (antigravity) project discovery with
+  onboarding + operation polling, `get_api_key` = `{token, projectId}` JSON. Client from
+  `CORTEXCODE_{GEMINI_CLI,ANTIGRAVITY}_CLIENT_{ID,SECRET}` (HOOCODE_ twins honored).
+- `cortexcode_ai::builtin_oauth_providers()` / `install_builtin_oauth_providers()` =
+  `BUILT_IN_OAUTH_PROVIDERS` (nothing installed the built-ins before). code-cli: `login
+  google-gemini-cli|gemini-cli|google-antigravity|antigravity`; runtime returns the JSON API
+  key for the Google providers and refreshes them.
+- Tests: google-gemini-cli.test.ts (all cases; registry half in cortexcode-ai
+  `tests/oauth_providers.rs`), mock-server stream/retry/empty-stream cases, OAuth flows with a
+  fake fetch (discovery, refresh, pasted-redirect login). Routing test: PENDING_APIS is empty;
+  gemini-cli gets a successful stream (a 400 would sit through its 7 s of retries).
+- Noticed, not fixed: help_text.rs lists `CORTEX_*` env names (e.g. `CORTEX_GEMINI_CLI_CLIENT_ID`,
+  `CORTEX_CODING_AGENT_DIR`) while the code reads `CORTEXCODE_*`/`HOOCODE_*`; pre-existing.
+- Deviations: onPayload (8.8); Retry-After dates parse RFC 2822/3339 only.
+- Next: `ledger.py next`.
+
+### 2026-09-26: 8.4b done (GitHub Copilot routing)
+- No production code change: Copilot routing was already in place (catalog models on
+  `anthropic-messages` / `openai-responses` / `openai-completions` with the static Copilot
+  headers; Bearer auth + `buildCopilotDynamicHeaders` in all three providers; env key
+  `COPILOT_GITHUB_TOKEN` only; OAuth device flow + token refresh from 8.7). This task adds the
+  missing test coverage in `crates/cortexcode-ai/tests/github_copilot.rs`:
+  github-copilot-anthropic.test.ts (Bearer + static/dynamic headers, no fine-grained beta,
+  Opus 4.8 adaptive thinking, interleaved beta), transform-messages-copilot-openai-to-anthropic
+  .test.ts (all 4 cases), and a routing check that each Copilot backend sends Bearer auth, the
+  catalog headers, `X-Initiator` user/agent and `Copilot-Vision-Request` for image input.
+- Already ported elsewhere: github-copilot-oauth.test.ts (ai-oauth-github-copilot, 8.7),
+  openai-responses-copilot-provider.test.ts (ai-provider-openai-responses, 8.3).
+- Not in this task: applying `modifyModels` (token `proxy-ep` -> model baseUrl for
+  business/enterprise accounts) when models are listed; that is model-registry work (10.4b).
+- Next: `ledger.py next` (8.4c).
+
+### 2026-09-26: 8.4a done (openai-codex provider + ChatGPT OAuth)
+- New `cortexcode-ai-provider-openai-codex` (openai-codex-responses.ts): request body in TS key
+  order (`instructions`, `text.verbosity`, `strict: null` tools, reasoning via thinkingLevelMap),
+  SSE/WebSocket headers (`originator: pi` + `pi (<platform> <release>; <arch>)` UA, account id
+  from the JWT), SSE path with the TS retry loop (every failure but a usage limit, 1/2/4 s) and
+  friendly usage-limit errors, `mapCodexEvents` (stops at the terminal event, so a body that
+  stays open still completes), and the WebSocket transport: per-session connection cache with
+  5 min idle expiry, `previous_response_id` delta continuation, per-session SSE fallback with a
+  `provider_transport_failure` diagnostic, debug stats. WebSocket = `tokio-tungstenite` (owned by
+  this crate in dep-firewall.json; rustls/ring, same as reqwest).
+- New `cortexcode-ai-oauth-openai-codex` (openai-codex.ts): PKCE + state, callback server on 1455
+  (new `CallbackValidation::StateThenCode` in the core server), manual-paste race, prompt
+  fallback, token exchange/refresh with the TS error texts, `accountId` stored flat in auth.json.
+  Wired into code-cli `login` ("openai-codex"/"codex"/"chatgpt") and token refresh.
+- `Transport` enum is now hoocode's (`sse`/`websocket`/`websocket-cached`/`auto`, serde kebab);
+  the unused Stdio/StreamableHttp variants are gone. `ResponsesStreamOptions` gained
+  `resolve_service_tier`. `utils/diagnostics.ts` ported into ai-util.
+- `session-resources.ts` ported as `cortexcode_ai_registry::session_resources` (codex cleanup
+  built in); ledger note on 10.3: `AgentSession.dispose()` must call it.
+- Tests: openai-codex-stream.test.ts (all cases; local HTTP + WebSocket mock servers instead of
+  stubbed globals), openai-codex-oauth.test.ts, cache-affinity e2e (`#[ignore]`, needs
+  `OPENAI_CODEX_OAUTH_TOKEN`), plus fallback/error/retry cases. Routing test covers codex.
+- Deviations: onPayload/onResponse (8.8); JSON parse errors use serde's text; diagnostics have no
+  stack; `os.release()` is empty on non-unix.
+- Next: `ledger.py next`.
 
 ### 2026-09-25: 8.7 done (OAuth split: core + anthropic + github-copilot)
 - `cortexcode-ai-oauth` is the core: types (`OAuthCredentials` now serializes flat like

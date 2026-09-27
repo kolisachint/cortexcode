@@ -1,0 +1,67 @@
+{
+  "description": "The model writes a TodoWrite plan (one item in progress with an activeForm), then answers; renders the TodoWrite call/result and the task panel with the plan.",
+  "phase": "10.2f",
+  "terminal": {
+    "cols": 100,
+    "rows": 34
+  },
+  "llm": [
+    {
+      "text": "Planning.",
+      "tool_calls": [
+        {
+          "id": "call_todo_1",
+          "name": "TodoWrite",
+          "arguments": {
+            "todos": [
+              {
+                "content": "Read the parser",
+                "status": "in_progress",
+                "activeForm": "Reading the parser"
+              },
+              {
+                "content": "Add tests",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Plan recorded."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "plan the work"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Plan recorded",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "after-todo",
+      "contains": [
+        "Plan recorded"
+      ]
+    }
+  ]
+}

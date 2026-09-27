@@ -4,10 +4,13 @@
 //! bash) with shortened descriptions and undocumented parameter schemas. The
 //! terse system prompt is `cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT`.
 
-use crate::placeholder_tools;
 use cortexcode_agent_types::AgentTool;
 use cortexcode_code_tool_api::{tool_definition_from_agent_tool, ToolDefinition};
-use cortexcode_code_tools_fs::{create_read_tool, ReadToolOptions};
+use cortexcode_code_tool_bash::{create_bash_tool, BashToolOptions};
+use cortexcode_code_tools_fs::{
+    create_edit_tool, create_read_tool, create_write_tool, EditToolOptions, ReadToolOptions,
+    WriteToolOptions,
+};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,18 +18,10 @@ use std::sync::Arc;
 /// The only tools a light session exposes.
 pub const LIGHT_TOOL_NAMES: [&str; 4] = ["read", "write", "edit", "bash"];
 
-fn take(tools: &mut Vec<AgentTool>, name: &str) -> AgentTool {
-    let i = tools
-        .iter()
-        .position(|t| t.name == name)
-        .unwrap_or_else(|| panic!("placeholder tool {name} is missing"));
-    tools.swap_remove(i)
-}
-
 /// `createLightTools`: the real tools wearing short descriptions and stripped
-/// parameter schemas (same shapes, no per-property descriptions). The read
-/// tool gets default options and no context, as hoocode's `createReadTool(cwd)`
-/// behind `baseToolsOverride` does.
+/// parameter schemas (same shapes, no per-property descriptions). Each gets
+/// default options and no context, as hoocode's `createReadTool(cwd)` etc.
+/// behind `baseToolsOverride` do.
 pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
     let mut read = create_read_tool(cwd.clone(), ReadToolOptions::default(), None);
     read.description = "Read a file. args: path, offset?, limit?".into();
@@ -40,8 +35,7 @@ pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
         }
     });
 
-    let mut placeholders = placeholder_tools(cwd);
-    let mut write = take(&mut placeholders, "write");
+    let mut write = create_write_tool(cwd.clone(), WriteToolOptions::default(), None);
     write.description = "Write file (overwrites). args: path, content".into();
     write.parameters = json!({
         "type": "object",
@@ -52,10 +46,10 @@ pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
         }
     });
 
-    // Flat single-replacement shape. hoocode converts it to the real edit
-    // tool's edits[] batch; until that port (10.2c) it maps onto the
-    // placeholder edit's argument names.
-    let mut edit = take(&mut placeholders, "edit");
+    // Flat single-replacement shape: the real edit tool validates against its
+    // edits[] schema, so skip its prepareArguments and convert to the batch
+    // form at execute time.
+    let mut edit = create_edit_tool(cwd.clone(), EditToolOptions::default(), None);
     let inner = edit.execute.clone();
     edit.description = "Replace exact text. args: path, oldText, newText".into();
     edit.parameters = json!({
@@ -71,13 +65,15 @@ pub fn create_light_tools(cwd: PathBuf) -> Vec<AgentTool> {
     edit.execute = Arc::new(move |id, params: Value, signal, on_update| {
         let args = json!({
             "path": params.get("path").cloned().unwrap_or(Value::Null),
-            "old_text": params.get("oldText").cloned().unwrap_or(Value::Null),
-            "new_text": params.get("newText").cloned().unwrap_or(Value::Null),
+            "edits": [{
+                "oldText": params.get("oldText").cloned().unwrap_or(Value::Null),
+                "newText": params.get("newText").cloned().unwrap_or(Value::Null),
+            }],
         });
         inner(id, args, signal, on_update)
     });
 
-    let mut bash = take(&mut placeholders, "bash");
+    let mut bash = create_bash_tool(cwd, BashToolOptions::default(), None);
     bash.description = "Run a shell command. args: command, timeout?".into();
     bash.parameters = json!({
         "type": "object",

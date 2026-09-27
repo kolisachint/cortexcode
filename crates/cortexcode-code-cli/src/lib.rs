@@ -19,8 +19,8 @@ pub use args::{
 };
 pub use help::{print_help, render_help};
 
-use cortexcode_code_config::Config;
 use cortexcode_code_print::PrintMode;
+use cortexcode_code_settings::SettingsManager;
 use std::io::{IsTerminal, Read, Write};
 
 /// `VERSION` printed by `--version`.
@@ -171,19 +171,6 @@ pub fn main(argv: &[String]) -> i32 {
         return 1;
     }
 
-    // Auto-migrate settings from the legacy hoocode `~/.hoocode/settings.json`
-    // on first run. Best-effort: a failure must not block the CLI.
-    if let Err(e) = cortexcode_code_config::migrate::auto_migrate() {
-        let _ = writeln!(
-            stderr,
-            "{}",
-            yellow(
-                env,
-                &format!("Warning: failed to load or migrate config: {e}")
-            )
-        );
-    }
-
     let parsed = parse_args(argv);
     match run(&parsed, env, &mut stdout, &mut stderr) {
         Ok(code) => code,
@@ -330,11 +317,12 @@ pub fn run(
     }
 }
 
-/// Load `~/.cortexcode/config.json`, falling back to [`Config::default`] when
-/// it is missing or malformed. Legacy `~/.hoocode/settings.json` migration
-/// runs first in [`main`].
-pub fn config_or_default() -> Config {
-    cortexcode_code_config::load_default().unwrap_or_default()
+/// The global + project settings for the current directory (`SettingsManager.create`).
+/// A settings file that fails to parse is skipped (its errors stay in the
+/// manager's `drain_errors`).
+pub fn load_settings() -> SettingsManager {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    SettingsManager::create_default(cwd)
 }
 
 #[cfg(test)]

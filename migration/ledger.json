@@ -873,7 +873,7 @@
    "id": "8.4a",
    "title": "openai-codex-responses provider crate + ChatGPT OAuth crate ai-oauth-openai-codex",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.3",
     "8.7"
@@ -898,6 +898,18 @@
      "commit": "9538d63",
      "kind": "note",
      "text": "8.5a: utils/diagnostics.ts (createAssistantMessageDiagnostic, appendAssistantMessageDiagnostic, formatThrownValue) is used only by openai-codex-responses.ts; port it with this task (AssistantMessage.diagnostics is Vec<serde_json::Value>)."
+    },
+    {
+     "at": "2026-09-26T03:17:22Z",
+     "commit": "3b28ba0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:31:52Z",
+     "commit": "3b28ba0",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -905,7 +917,7 @@
    "id": "8.4b",
    "title": "GitHub Copilot routing (anthropic + openai backends) via compat/headers",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.2",
     "8.7"
@@ -924,13 +936,26 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:40:38Z",
+     "commit": "b5982c2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:43:42Z",
+     "commit": "b5982c2",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.4c",
    "title": "google-gemini-cli + antigravity provider crate and OAuth crate ai-oauth-google",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.3a",
     "8.7"
@@ -950,7 +975,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:44:12Z",
+     "commit": "bd60aff",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T20:57:29Z",
+     "commit": "bd60aff",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "8.5a",
@@ -1335,7 +1373,7 @@
    "id": "8.8",
    "title": "onPayload/onResponse hooks in stream options (typed callbacks, every provider) + openrouter-cache-write-repro live test",
    "phase": 8,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "8.6e"
    ],
@@ -1359,13 +1397,26 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "Added 2026-09-25 (from 8.6e). SimpleStreamOptions.on_payload/on_response are String placeholders; TS onPayload(params, model) may replace the payload and onResponse({status, headers}, model) is awaited after the response. The agent harness maps them to the before_provider_request / after_provider_response hooks (9.4).",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:58:38Z",
+     "commit": "e460389",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:07:30Z",
+     "commit": "e460389",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "9.1",
    "title": "MCP on rmcp (stdio, streamable HTTP, SSE, OAuth); keep mcp.json loader + tool naming",
    "phase": 9,
-   "status": "todo",
+   "status": "blocked",
    "depends": [
     "7.3b",
     "7.1"
@@ -1386,36 +1437,102 @@
     "mcp-tool-call"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:09:08Z",
+     "commit": "80c5a94",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:10:54Z",
+     "commit": "80c5a94",
+     "kind": "block",
+     "text": "Design decision: rmcp 3.4.1 (a) parses results into typed structs (ServerResult is an untagged union; tools/call -> CallToolResult), so the tool-result text hoocode sends the model (JSON.stringify of the server's raw result) would be re-serialized from rmcp's structs: unknown fields dropped, keys in rmcp's order; identical for plain {content:[{type:text,text}]} results. (b) rmcp 3.x no longer has a legacy HTTP+SSE client, which hoocode still supports (type:sse and the 4xx fallback), so that transport stays hand-written either way. Options: (1) rmcp for stdio + streamable HTTP + OAuth (auth feature), hand-written legacy SSE, accept the result re-serialization deviation; (2) keep the hand-rolled transport (make it async, raw JSON), add streamable-HTTP session handling + OAuth by hand, no rmcp. Recommendation: (1), plan section 3.4 intent, with the deviation documented."
+    }
+   ]
   },
   {
-   "id": "9.2",
-   "title": "Compaction + branch summarization + auto-compaction thresholds",
+   "id": "9.2a",
+   "title": "Harness compaction + branch summarization (compaction.ts, branch-summarization.ts, utils.ts)",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "7.5b"
+    "7.5b",
+    "9.3a"
    ],
    "crates": [
     "cortexcode-agent-compaction"
    ],
    "sources": [
-    "packages/agent/src/harness/compaction/",
+    "packages/agent/src/harness/compaction/"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/compaction.test.ts",
+    "packages/coding-agent/test/compaction.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 9.2 (2026-09-26): the coding-agent side (agent-session-compaction.ts) needs AgentSession (10.3) and is 9.2b.",
+   "log": [
+    {
+     "at": "2026-09-26T21:11:49Z",
+     "commit": "0a5c769",
+     "kind": "note",
+     "text": "Bookkeeping fix (2026-09-26): added dependency on 9.3 and reset to todo. compaction/utils.ts imports compressGeneral (harness/utils/output-compression.ts) and compaction.ts uses harness/messages.ts (convertToLlm, create*SummaryMessage), both 9.3 sources. Also: agent-session-compaction.ts needs AgentSession/ExtensionRunner/ModelRegistry/SettingsManager (10.x), so the compact-command L2 scenario will wait for the interactive app."
+    },
+    {
+     "at": "2026-09-26T21:20:26Z",
+     "commit": "c071fae",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:27:13Z",
+     "commit": "c071fae",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "9.2b",
+   "title": "Auto-compaction thresholds + /compact in the coding agent (agent-session-compaction.ts)",
+   "phase": 9,
+   "status": "todo",
+   "depends": [
+    "9.2a",
+    "10.3b"
+   ],
+   "crates": [
+    "cortexcode-agent-compaction"
+   ],
+   "sources": [
     "packages/coding-agent/src/core/agent-session-compaction.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/agent-session-compaction.test.ts",
+    "packages/coding-agent/test/suite/agent-session-compaction.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "compact-command"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Split from 9.2 (2026-09-26). Needs AgentSession, ExtensionRunner, ModelRegistry, SettingsManager.",
+   "log": [
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: AgentSession::{compact, run_auto_compaction, check_compaction, plan_compaction, abort_compaction, is_compacting, set_auto_compaction_enabled} and the CompactionStart/End events exist (crates/cortexcode-code-agent-session/src/compaction.rs); /compact and threshold UI build on them."
+    }
+   ]
   },
   {
-   "id": "9.3",
-   "title": "Harness utils: skills, prompt-templates, messages, truncate, shell-output, output-compression (deltas since 0.4.x)",
+   "id": "9.3a",
+   "title": "Harness utils without an ExecutionEnv: messages deltas, truncate, output-compression, shell-output capture, skill/prompt-template/system-prompt formatting",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
@@ -1423,22 +1540,78 @@
     "cortexcode-agent-harness"
    ],
    "sources": [
-    "packages/agent/src/harness/"
+    "packages/agent/src/harness/messages.ts",
+    "packages/agent/src/harness/utils/",
+    "packages/agent/src/harness/system-prompt.ts",
+    "packages/agent/src/harness/skills.ts",
+    "packages/agent/src/harness/prompt-templates.ts"
    ],
    "ts_tests": [
-    "packages/agent/test/harness/",
-    "packages/agent/test/utils/"
+    "packages/agent/test/harness/resource-formatting.test.ts",
+    "packages/agent/test/harness/system-prompt.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
-   "log": []
+   "notes": "Split from 9.3 (2026-09-26): skills.ts/prompt-templates.ts loaders and shell-output executeShellWithCapture take an ExecutionEnv (harness/types.ts, NodeExecutionEnv = 9.4a), so only their env-free parts are here.",
+   "log": [
+    {
+     "at": "2026-09-26T21:11:49Z",
+     "commit": "0a5c769",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:18:22Z",
+     "commit": "0a5c769",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
-   "id": "9.4",
-   "title": "Agent harness + execution environment (env/nodejs.ts -> tokio)",
+   "id": "9.3b",
+   "title": "Harness skill + prompt-template loaders over ExecutionEnv (loadSkills, loadSourcedSkills, loadPromptTemplates) and executeShellWithCapture",
    "phase": 9,
-   "status": "todo",
+   "status": "done",
+   "depends": [
+    "9.3a",
+    "9.4a"
+   ],
+   "crates": [
+    "cortexcode-agent-harness"
+   ],
+   "sources": [
+    "packages/agent/src/harness/skills.ts",
+    "packages/agent/src/harness/prompt-templates.ts",
+    "packages/agent/src/harness/utils/shell-output.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/skills.test.ts",
+    "packages/agent/test/harness/prompt-templates.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 9.3 (2026-09-26). Needs gitignore matching (ignore package) and YAML frontmatter.",
+   "log": [
+    {
+     "at": "2026-09-26T21:34:33Z",
+     "commit": "59c420f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:38:00Z",
+     "commit": "59c420f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "9.4a",
+   "title": "ExecutionEnv trait + FileInfo/FileError (harness/types.ts) and the tokio env (env/nodejs.ts)",
+   "phase": 9,
+   "status": "done",
    "depends": [
     "7.5b",
     "8.8"
@@ -1447,30 +1620,126 @@
     "cortexcode-agent-harness"
    ],
    "sources": [
-    "packages/agent/src/harness/agent-harness.ts",
-    "packages/agent/src/harness/env/nodejs.ts"
+    "packages/agent/src/harness/types.ts",
+    "packages/agent/src/harness/env/nodejs.ts",
+    "packages/agent/src/harness/execution-env.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/agent/test/harness/nodejs-env.test.ts"
+   ],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
-   "log": []
+   "notes": "Split from 9.4 (2026-09-26).",
+   "log": [
+    {
+     "at": "2026-09-26T21:29:48Z",
+     "commit": "e8ee46e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:33:06Z",
+     "commit": "e8ee46e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
-   "id": "10.1",
-   "title": "Split code-config into code-paths (dirs, env overrides, .hoocode fallback) + code-settings (types/defaults/manager/storage, fs4 locks, atomic writes, unknown-key passthrough)",
+   "id": "9.4b",
+   "title": "Agent harness (agent-harness.ts) over ExecutionEnv",
+   "phase": 9,
+   "status": "done",
+   "depends": [
+    "9.4a",
+    "9.3b",
+    "9.2a"
+   ],
+   "crates": [
+    "cortexcode-agent-harness",
+    "cortexcode-agent-orchestrator",
+    "cortexcode-agent-core",
+    "cortexcode-agent-loop",
+    "cortexcode-agent-types"
+   ],
+   "sources": [
+    "packages/agent/src/harness/agent-harness.ts"
+   ],
+   "ts_tests": [
+    "packages/agent/test/harness/agent-harness.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 9.4 (2026-09-26). AgentHarness lives in the new crate cortexcode-agent-orchestrator: it needs agent-compaction, which depends on agent-harness (cycle otherwise).",
+   "log": [
+    {
+     "at": "2026-09-26T21:06:45Z",
+     "commit": "e460389",
+     "kind": "note",
+     "text": "8.8: SimpleStreamOptions.on_payload/on_response are typed now (cortexcode_ai_types::OnPayload / OnResponse, async-capable, every provider). cortexcode-agent-types AgentLoopConfig still has Box<dyn Fn(String)> placeholders; map the before_provider_request / after_provider_response hooks onto the typed ones here."
+    },
+    {
+     "at": "2026-09-26T21:39:57Z",
+     "commit": "eca7009",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:49:24Z",
+     "commit": "eca7009",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.1a",
+   "title": "New crate code-paths: app identity, config/agent dirs, env overrides (CORTEXCODE_/HOOCODE_), .hoocode fallback, utils/paths.ts",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.7a"
    ],
    "crates": [
-    "cortexcode-code-paths",
-    "cortexcode-code-settings",
-    "cortexcode-code-config"
+    "cortexcode-code-paths"
    ],
    "sources": [
     "packages/coding-agent/src/config.ts",
+    "packages/coding-agent/src/utils/paths.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/paths.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 10.1 (2026-09-26). config.ts install-method/self-update (detectInstallMethod, getSelfUpdateCommand; config.test.ts) is npm-distribution specific and goes with 12.7 (version check).",
+   "log": [
+    {
+     "at": "2026-09-26T21:50:36Z",
+     "commit": "821deb9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T21:54:52Z",
+     "commit": "821deb9",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.1b",
+   "title": "New crate code-settings: settings types/defaults/storage/manager (fs4 locks, atomic writes, unknown-key passthrough)",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.1a"
+   ],
+   "crates": [
+    "cortexcode-code-settings"
+   ],
+   "sources": [
     "packages/coding-agent/src/core/settings-manager.ts",
     "packages/coding-agent/src/core/settings-types.ts",
     "packages/coding-agent/src/core/settings-defaults.ts",
@@ -1480,23 +1749,92 @@
     "packages/coding-agent/test/settings*.test.ts"
    ],
    "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "Split from 10.1 (2026-09-26).",
+   "log": [
+    {
+     "at": "2026-09-26T21:55:14Z",
+     "commit": "a17195e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:03:07Z",
+     "commit": "a17195e",
+     "kind": "note",
+     "text": "Ported settings-manager.test.ts + settings-manager-bug.test.ts. settings-token-surface.test.ts is the /settings pane (11.3)."
+    },
+    {
+     "at": "2026-09-26T22:03:12Z",
+     "commit": "a17195e",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:03:18Z",
+     "commit": "a17195e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.1c",
+   "title": "Move code-cli (and session/auth paths) from code-config onto code-paths + code-settings; retire the invented Config",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.1a",
+    "10.1b"
+   ],
+   "crates": [
+    "cortexcode-code-cli",
+    "cortexcode-code-session",
+    "cortexcode-code"
+   ],
+   "sources": [
+    "packages/coding-agent/src/config.ts",
+    "packages/coding-agent/src/core/settings-manager.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
    "l2": [
     "print-basic"
    ],
-   "notes": "Highest-churn core area (139 commits): schema isolated in code-settings.",
-   "log": []
+   "notes": "Split from 10.1 (2026-09-26); keeps the print-basic L2 scenario. The crate list names the crates that remain: cortexcode-code-config is deleted by this task, and the umbrella cortexcode-code now re-exports paths/settings.",
+   "log": [
+    {
+     "at": "2026-09-26T22:03:37Z",
+     "commit": "53233ad",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:06:07Z",
+     "commit": "53233ad",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:06:49Z",
+     "commit": "53233ad",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass"
+    }
+   ]
   },
   {
    "id": "10.2b",
    "title": "bash tool: new crate code-tool-bash (process-wrap groups, timeout, abort, output accumulator, shell resolution)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a",
     "7.3b"
    ],
    "crates": [
-    "cortexcode-code-tool-bash"
+    "cortexcode-code-tool-bash",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/bash.ts",
@@ -1504,25 +1842,43 @@
     "packages/coding-agent/src/core/tools/output-accumulator.ts",
     "packages/coding-agent/src/utils/shell.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/tools.test.ts",
+    "packages/coding-agent/test/bash-prompt-snippet.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
+    "print-tool-bash-light",
     "print-tool-bash",
     "tool-bash"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenarios written 2026-09-26. print-tool-bash-light passes now (tool results identical). print-tool-bash differs only in the default-bundle system prompt (10.4c), like print-tool-read. tool-bash needs interactive mode (tool execution rendering, phase 11); hoocode's build mode asks to allow each command, which the scenario answers.",
+   "log": [
+    {
+     "at": "2026-09-26T22:11:02Z",
+     "commit": "e760fc9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:27:03Z",
+     "commit": "e760fc9",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-bash-light=pass, print-tool-bash=fail, tool-bash=fail"
+    }
+   ]
   },
   {
    "id": "10.2c",
    "title": "edit + write tools (edit-diff fuzzy matching via similar, file-mutation-queue)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tools-fs"
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/edit.ts",
@@ -1531,44 +1887,88 @@
     "packages/coding-agent/src/core/tools/file-mutation-queue.ts"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/edit*.test.ts"
+    "packages/coding-agent/test/edit*.test.ts",
+    "packages/coding-agent/test/file-mutation-queue.test.ts",
+    "packages/coding-agent/test/tools.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
-    "print-tool-edit",
-    "tool-edit"
+    "print-tool-edit-light",
+    "print-tool-edit"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenarios written 2026-09-26: print-tool-edit-light passes (exact, fuzzy, not-found edits and a nested write; tool results identical); print-tool-edit differs only in the default-bundle system prompt (10.4c). edit-tool-no-full-redraw.test.ts is TUI rendering (phase 11). The diff is a port of jsdiff 8.0.4's Myers (checked against hoocode on 1300 generated cases), not similar.",
+   "log": [
+    {
+     "at": "2026-09-26T22:29:24Z",
+     "commit": "5657a8c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:40:09Z",
+     "commit": "5657a8c",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:40:48Z",
+     "commit": "5657a8c",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-edit-light=pass, print-tool-edit=fail"
+    }
+   ]
   },
   {
    "id": "10.2d",
    "title": "SearchCodebase lexical mode: new crate code-tool-search (grep-searcher + ignore)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tool-search"
+    "cortexcode-code-tool-search",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/search.ts",
     "packages/coding-agent/src/core/search/"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/search.test.ts",
+    "packages/coding-agent/test/hybrid-search.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "print-tool-search"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Scenario print-tool-search written 2026-09-26 (selfcheck stable): all three SearchCodebase tool results are byte-identical to hoocode; only the default-bundle system prompt differs (10.4c). The eval harness (search/eval*.ts, search-eval.test.ts, the eval cases of hybrid-search.test.ts) and native-search.ts (nativeGrep/collectEntries, native-search.test.ts; collectEntries feeds embsearch repo-scan) go to 12.4 with the embsearch service.",
+   "log": [
+    {
+     "at": "2026-09-26T22:43:50Z",
+     "commit": "65a2a85",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:56:04Z",
+     "commit": "65a2a85",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T22:56:35Z",
+     "commit": "65a2a85",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-search=fail"
+    }
+   ]
   },
   {
    "id": "10.2e",
    "title": "webfetch + websearch: new crate code-tool-web (htmd, dom_smoothie)",
    "phase": 10,
-   "status": "todo",
+   "status": "blocked",
    "depends": [
     "10.2a"
    ],
@@ -1584,36 +1984,69 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T22:58:36Z",
+     "commit": "89768c1",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T22:59:21Z",
+     "commit": "89768c1",
+     "kind": "block",
+     "text": "Design decision needed: hoocode's webfetch/websearch shell out to the external webtools binary (kolisachint/webtools, Rust, downloaded by tools-manager) and parse its --json output. Options: (A) port the tool layer exactly (args, .webtoolsignore, 15-min cache, result formatting, texts) and run the same webtools binary from PATH / ~/.cortexcode/bin, giving output identical to hoocode (deviates from the design doc's htmd+dom_smoothie row); (B) the design doc's in-process htmd + dom_smoothie extraction, only approximately matching the binary's output (its source was not readable here; add_repo was denied); (C) depend on webtools as a library crate (needs access to that repo). Asked the user 2026-09-26."
+    }
+   ]
   },
   {
    "id": "10.2f",
    "title": "Opt-in tools: TodoWrite, ask_options",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
    "crates": [
-    "cortexcode-code-tool-api"
+    "cortexcode-code-task-store",
+    "cortexcode-code-tools-optin",
+    "cortexcode-code-tools"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/todo.ts",
-    "packages/coding-agent/src/extensions/core/ask-options.ts"
+    "packages/coding-agent/src/extensions/core/ask-options.ts",
+    "packages/coding-agent/src/core/task-store.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/todo-tool.test.ts",
+    "packages/coding-agent/test/ask-options-loop.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
+    "print-todo-write",
     "todo-write"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Done 2026-09-26: task-store.ts ported here (TodoWrite needs it; 11.5 renders it). ask_options runs behind an AskOptionsHost (the pane is 11.3; print mode has NoUi). ask-options.test.ts is the pane component (11.3); the '/loop auto' integration case of ask-options-loop.test.ts goes with the loop extension (12.5, Scheduler, /loop). print-todo-write: tool results identical, only the default-bundle system prompt differs (10.4c); todo-write is interactive (phase 11).",
+   "log": [
+    {
+     "at": "2026-09-26T22:59:37Z",
+     "commit": "7153078",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:05:50Z",
+     "commit": "7153078",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-todo-write=fail, todo-write=fail"
+    }
+   ]
   },
   {
    "id": "10.2g",
    "title": "Context GC: evictSupersededReads (stub superseded read results in the outgoing context) + transformContext wiring",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.2a"
    ],
@@ -1634,45 +2067,160 @@
    "l2": [
     "print-tool-read-paging"
    ],
-   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c.",
-   "log": []
+   "notes": "Found by 10.2a: hoocode's transformContext (sdk.ts) runs evictSupersededReads when contextGc.enabled (default true), so superseded read results reach the model as '[Superseded read of X elided ...]'. Not in any task before. print-tool-read-paging also needs 10.4c. From 10.2c: port the 'keeps GC evicting the superseded read once the loop has moved on' case of edit-encoding-recovery-loop.test.ts here (needs evictSupersededReads); the rest of that file is in code-tools-fs/tests/edit_write.rs. Done 2026-09-26: context_gc in code-tools-fs, wired as the CLI's transform_context when contextGc.enabled (budget pressure from estimate_context_tokens with the high-water latch). print-tool-read-paging: every tool result (incl. superseded stubs) now matches hoocode; only the default-bundle system prompt differs (10.4c).",
+   "log": [
+    {
+     "at": "2026-09-26T23:07:31Z",
+     "commit": "71fd6c6",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:11:56Z",
+     "commit": "71fd6c6",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-26T23:12:34Z",
+     "commit": "71fd6c6",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-tool-read-paging=fail"
+    }
+   ]
   },
   {
-   "id": "10.3",
-   "title": "New crate code-agent-session: AgentSession orchestrator (persist, retry, auto-compact, stats, tree navigation, model/thinking switch)",
+   "id": "10.3a",
+   "title": "New crate code-agent-session: AgentSession core (event processing + session persistence, prompt/steer/follow-up queues, abort, model/thinking switch and cycling, active tools + system prompt rebuild, bash execution records, stats, services); print mode runs on it",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.5b",
     "7.4",
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-agent-session"
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session.ts",
-    "packages/coding-agent/src/core/agent-session-runtime.ts",
     "packages/coding-agent/src/core/agent-session-services.ts",
-    "packages/coding-agent/src/core/agent-session-retry.ts",
-    "packages/coding-agent/src/core/agent-session-stats.ts",
-    "packages/coding-agent/src/core/agent-session-tree-navigation.ts"
+    "packages/coding-agent/src/core/agent-session-stats.ts"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/agent-session*.test.ts",
-    "packages/coding-agent/test/suite/"
+    "packages/coding-agent/test/agent-session*.test.ts (non-retry, non-compaction, non-tree)",
+    "packages/coding-agent/test/suite/agent-session-prompt.test.ts",
+    "packages/coding-agent/test/suite/agent-session-queue.test.ts",
+    "packages/coding-agent/test/suite/agent-session-bash-persistence.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
-    "print-continue"
+    "print-basic",
+    "print-tool-read-light"
    ],
-   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it.",
+   "notes": "Header.branch (git branch at session start) is always None until AgentSession records it. Split from 10.3 (2026-09-26, ~4.5K source + ~2.8K test lines). Extension-runner hooks are an optional trait until the extension runtime exists; the L2 scenarios guard that print mode keeps parity once it runs through AgentSession.",
    "log": [
     {
      "at": "2026-09-25T15:16:00Z",
      "commit": "912521f",
      "kind": "note",
      "text": "8.2: hoocode passes sessionId: sessionManager.getSessionId() into the agent (sdk.ts:423), so openai-completions sends prompt_cache_key; cortex code-cli build_agent (runtime.rs) sets no session id, so the key is missing from harness requests (all other non-message fields now match). Wire the session id into AgentOptions here."
+    },
+    {
+     "at": "2026-09-26T20:30:34Z",
+     "commit": "3b28ba0",
+     "kind": "note",
+     "text": "8.4a: AgentSession.dispose() must call cortexcode_ai_registry::session_resources::cleanup_session_resources(Some(session_id)) (TS cleanupSessionResources) so cached openai-codex WebSockets are closed."
+    },
+    {
+     "at": "2026-09-26T23:15:10Z",
+     "commit": "6441f47",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:41:52Z",
+     "commit": "6441f47",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-basic=pass, print-tool-read-light=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.3b",
+   "title": "AgentSession retry and auto-compaction (agent-session-retry.ts, agent-session-compaction.ts)",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.3a",
+    "9.2a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/agent-session-retry.ts",
+    "packages/coding-agent/src/core/agent-session-compaction.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/agent-session-retry-events.test.ts",
+    "packages/coding-agent/test/suite/agent-session-compaction.test.ts",
+    "packages/coding-agent/test/agent-session*retry*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "print-retry"
+   ],
+   "notes": "Split from 10.3 (2026-09-26). 9.2b (auto-compaction thresholds, /compact) builds on this.",
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession (crates/cortexcode-code-agent-session/src/session.rs) leaves the hooks marked '(10.3b)': process_agent_event on agent_end (retry isRetryableError/handleRetryableError, markProviderExhausted, compaction.checkCompaction), message_end resets (resetOverflowRecovery, onSuccessfulAssistantResponse, clearProviderExhaustion), prompt() pre-send checkCompaction on the last assistant + waitForRetry after agent.prompt, abort() retry.abort, isCompacting/isRetrying getters, and the AgentSessionEvent variants compaction_start/end + auto_retry_start/end. Retry controller needs a synchronously created promise per agent_end (TS createPromiseForAgentEnd); events are processed synchronously in the agent listener already."
+    },
+    {
+     "at": "2026-09-26T23:42:53Z",
+     "commit": "74e6c23",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-26T23:53:46Z",
+     "commit": "74e6c23",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-retry=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.3c",
+   "title": "AgentSession tree navigation, fork and runtime rebuild (agent-session-tree-navigation.ts, agent-session-runtime.ts)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/agent-session-tree-navigation.ts",
+    "packages/coding-agent/src/core/agent-session-runtime.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/agent-session-runtime.test.ts",
+    "packages/coding-agent/test/agent-session*tree*.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; exercised by /tree (phase 11) and --fork (10.7b)",
+   "notes": "Split from 10.3 (2026-09-26). L2 n/a: exercised through /tree and --fork (11.x, 10.7b).",
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: port test/agent-session-runtime-events.test.ts and test/agent-session-branching.test.ts here (both skipped in 10.3a). AgentSession has no reload()/runtime rebuild yet: build_runtime/refresh_tool_registry exist (session.rs) and BaseTools::Factory re-reads settings, so reload = settings.reload + build_runtime(active names)."
     }
    ]
   },
@@ -1683,7 +2231,7 @@
    "status": "todo",
    "depends": [
     "10.4a",
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-models",
@@ -1702,7 +2250,20 @@
     "list-models"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T20:44:05Z",
+     "commit": "b5982c2",
+     "kind": "note",
+     "text": "8.4b: apply OAuth modifyModels when building the registry (github-copilot: token proxy-ep -> baseUrl via cortexcode_ai_oauth_github_copilot modify_models; model-registry.ts:397). Today code-cli uses the catalog baseUrl, so Copilot business/enterprise accounts hit the individual endpoint."
+    },
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: services::create_agent_session only picks the defaultProvider/defaultModel setting when no model is given; port findInitialModel there. code-cli runtime.rs CliAuth (AuthLookup: --api-key, env, OAuth store, cached per provider) is the stand-in for AuthStorage; AuthLookup::is_oauth defaults false and must report OAuth credentials (AgentSession.prompt's 'Authentication failed' message). --api-key should become a runtime key for the chosen provider only (main.ts setRuntimeApiKey)."
+    }
+   ]
   },
   {
    "id": "10.5",
@@ -1710,7 +2271,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.1"
+    "10.1c"
    ],
    "crates": [
     "cortexcode-code-resources"
@@ -1730,7 +2291,14 @@
     "print-context-files"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: implement cortexcode_code_agent_session::ResourceLoader (hooks.rs) for the real loader: system_prompt/append_system_prompt/skills/context_files feed _rebuildSystemPrompt, and expand_input must do _expandSkillCommand then tryExpandPromptTemplate returning ExpandedInput{text, template kind, args} (AgentSession.prompt handles user/system/context kinds). Port the skill-expansion case of test/suite/agent-session-prompt.test.ts against it. code-cli runtime.rs resource_loader() is the StaticResourceLoader stand-in to replace."
+    }
+   ]
   },
   {
    "id": "10.5b",
@@ -1761,7 +2329,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-permissions"
@@ -1783,8 +2351,9 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3",
-    "10.4b"
+    "10.4b",
+    "10.3a",
+    "10.3c"
    ],
    "crates": [
     "cortexcode-code-cli"
@@ -1801,7 +2370,14 @@
     "list-models"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: code-cli build_session handles --no-session (in-memory) and --session-dir, and passes --thinking into create_agent_session; --tools/--no-tools/--no-builtin-tools/--disallowed-tools and the disabledTools setting map to CreateAgentSessionOptions {tools, no_tools, disallowed_tools}. --continue/--resume/--session/--fork are not wired."
+    }
+   ]
   },
   {
    "id": "10.8b",
@@ -1809,7 +2385,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-print"
@@ -1824,7 +2400,14 @@
     "json-basic"
    ],
    "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: print JSON mode now subscribes to AgentSession but only records AgentSessionEvent::Agent events; session-level events (queue_update, session_info_changed, thinking_level_changed, later compaction/retry) need serializing in hoocode's shape."
+    }
+   ]
   },
   {
    "id": "10.8c",
@@ -1832,7 +2415,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-rpc"
@@ -1874,7 +2457,20 @@
     "subagent-task"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
+    },
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: AgentSession skips provider-health bookkeeping (markProviderExhausted on exhausted quota errors after retries, clearProviderExhaustion on a good response); add it with the subagent pool."
+    }
+   ]
   },
   {
    "id": "10.10",
@@ -1882,7 +2478,7 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-agent-session",
@@ -1896,7 +2492,14 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: git-branch.ts is ported (cortexcode_code_paths::git_branch: find_git_paths, read_branch_from_head, resolve_branch_with_git, read_git_branch); SessionManager records Header.branch with it. The footer's live branch watcher is still open."
+    }
+   ]
   },
   {
    "id": "10.11",
@@ -1905,7 +2508,7 @@
    "status": "todo",
    "depends": [
     "9.1",
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-mcp"
@@ -1936,8 +2539,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "10.3",
-    "10.1"
+    "10.1c",
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -2005,7 +2608,14 @@
     "session-resume"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T22:03:07Z",
+     "commit": "a17195e",
+     "kind": "note",
+     "text": "settings-token-surface.test.ts (and the other *-settings-pane tests) cover the /settings selector pane: port them here, not in 10.1b."
+    }
+   ]
   },
   {
    "id": "11.4",
@@ -2053,7 +2663,7 @@
    "l2": [
     "subagent-task"
    ],
-   "notes": "",
+   "notes": "task-store.ts was ported in 10.2f (crate cortexcode-code-task-store); this task renders it.",
    "log": []
   },
   {
@@ -2062,7 +2672,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-plugins"
@@ -2082,7 +2692,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-packages"
@@ -2102,7 +2712,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-extensions"
@@ -2114,7 +2724,20 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession takes Option<Arc<dyn ExtensionHooks>> (has_command/run_command/emit_error only). Not wired yet: extension event emission before listeners (_emitExtensionEvent incl. message_end replacement), before/after tool call hooks, input handlers, before_agent_start (custom messages + system prompt), model_select/thinking_level_select, session_start/shutdown, getAllRegisteredTools (tool registry treats custom_tools as the only extension tools), onPayload/onResponse/context hooks in services. Tests left for here: suite/agent-session-model-extension (tool_call/tool_result/context/input/before_agent_start/bindExtensions), agent-session-concurrent (tool_call ordering, slow message_end handlers), agent-session-dynamic-provider, dynamic-tools 'registered after initialization' + 'hidden_tool'."
+    },
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: compaction skips the session_before_compact / session_compact hooks (summaries always come from the model); retry-events 'emits extension events before public subscribers' and 'prompt waits for retry when message_end handling is delayed', and compaction 'extension-provided summary' / 'extension cancel' are left for here."
+    }
+   ]
   },
   {
    "id": "12.4",
@@ -2122,7 +2745,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-capabilities"
@@ -2133,7 +2756,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a",
-   "notes": "Needs a go/no-go decision from the user before starting.",
+   "notes": "Needs a go/no-go decision from the user before starting. From 10.2d: implement cortexcode_code_tool_search::EmbsearchService with the daemon client; port search/eval*.ts + search-eval.test.ts + the eval-scoring cases of hybrid-search.test.ts, and native-search.ts collectEntries (+ native-search.test.ts) for repo-scan.",
    "log": []
   },
   {
@@ -2142,7 +2765,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-scheduler"
@@ -2153,7 +2776,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a",
-   "notes": "Needs a go/no-go decision from the user before starting.",
+   "notes": "Needs a go/no-go decision from the user before starting. From 10.2f: port the '/loop auto flips ask_options into non-blocking mode' case of ask-options-loop.test.ts; drive AskOptionsHost::auto_loop_active/halt_loop from the loop.",
    "log": []
   },
   {
@@ -2162,7 +2785,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-subagents"
@@ -2182,7 +2805,7 @@
    "phase": 12,
    "status": "deferred",
    "depends": [
-    "10.3"
+    "10.3a"
    ],
    "crates": [
     "cortexcode-code-extras"
@@ -2194,7 +2817,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-26T21:51:26Z",
+     "commit": "821deb9",
+     "kind": "note",
+     "text": "From 10.1 split (2026-09-26): config.ts detectInstallMethod / getSelfUpdateCommand / getUpdateInstruction (config.test.ts) belong with the version check; npm/pnpm/bun install detection needs a cortex (binary/cargo) equivalent."
+    }
+   ]
   },
   {
    "id": "13.1",

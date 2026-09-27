@@ -326,6 +326,20 @@ pub fn response_headers(response: &reqwest::Response) -> Vec<(String, String)> {
         .collect()
 }
 
+/// `{ status, headers: headersToRecord(response.headers) }` for the
+/// `onResponse` hook.
+pub fn provider_response(response: &reqwest::Response) -> cortexcode_ai_types::ProviderResponse {
+    cortexcode_ai_types::ProviderResponse::from_pairs(
+        response.status().as_u16(),
+        response.headers().iter().map(|(k, v)| {
+            (
+                k.as_str().to_string(),
+                String::from_utf8_lossy(v.as_bytes()).into_owned(),
+            )
+        }),
+    )
+}
+
 async fn sleep_ms(ms: f64) {
     // setTimeout semantics: NaN or negative sleeps 0, and a delay past what a
     // timer holds becomes 1ms (the overflow the delay cap exists to prevent).

@@ -323,12 +323,14 @@ cortexcode/
     ├── cortexcode-agent-core/         # [leaf] Agent struct + orchestration
     ├── cortexcode-agent-loop/         # [leaf] agent turn loop
     ├── cortexcode-agent-harness/      # [leaf] messages, system prompt, templates
+    ├── cortexcode-agent-orchestrator/ # AgentHarness (agent + session + compaction)
     ├── cortexcode-agent-session/      # [leaf] session persistence
     ├── cortexcode-agent-compaction/   # [leaf] context compaction
     ├── cortexcode-agent-tools/        # [leaf] tool registry
     ├── cortexcode-agent-mcp/          # [leaf] MCP transport
     ├── cortexcode-code/               # [code umbrella] re-exports all code leaves
-    ├── cortexcode-code-config/        # [leaf] settings, config paths
+    ├── cortexcode-code-paths/         # [leaf] app identity, config dirs, env overrides
+    ├── cortexcode-code-settings/      # [leaf] settings.json (global + project)
     ├── cortexcode-code-main/          # [leaf] CLI entry point
     ├── cortexcode-code-tools/         # [leaf] built-in tools (read, bash, edit, ...)
     ├── cortexcode-code-session/       # [leaf] session management
@@ -386,7 +388,8 @@ members = [
 
     # Code namespace
     "crates/cortexcode-code",
-    "crates/cortexcode-code-config",
+    "crates/cortexcode-code-paths",
+    "crates/cortexcode-code-settings",
     "crates/cortexcode-code-extensions",
     "crates/cortexcode-code-main",
     "crates/cortexcode-code-print",
@@ -520,6 +523,7 @@ This allows `use cortexcode_ai::types::*` without specifying the leaf crate dire
 | `cortexcode-agent-core` | `cortexcode::agent::core` | `agent.ts` (Agent struct), `agent-loop.ts` (loop) | T0 | ✅ |
 | `cortexcode-agent-loop` | `cortexcode::agent::loop` | `agent-loop.ts` (standalone loop impl) | T0 | ✅ |
 | `cortexcode-agent-harness` | `cortexcode::agent::harness` | `harness/{messages,system-prompt,prompt-templates,skills}` | T1 | ✅ |
+| `cortexcode-agent-orchestrator` | `cortexcode::agent::orchestrator` | `harness/agent-harness.ts` (AgentHarness; above compaction, which depends on agent-harness) | T1 | ✅ |
 | `cortexcode-agent-session` | `cortexcode::agent::session` | `harness/session/*`, execution environment | T1 | ✅ |
 | `cortexcode-agent-compaction` | `cortexcode::agent::compaction` | `harness/compaction/*` | T1 | ✅ |
 | `cortexcode-agent-tools` | `cortexcode::agent::tools` | `tools/default-tools.ts` | T1 | ✅ |
@@ -537,7 +541,8 @@ Coarser leaves — matches the higher churn rate of the TypeScript `packages/cod
 
 | Crate | Import path | Owns (from TS) | Stability | Published |
 |---|---|---|---|---|
-| `cortexcode-code-config` | `cortexcode::code::config` | `config.ts`, `core/settings-*` | T2 | ✅ |
+| `cortexcode-code-paths` | `cortexcode::code::paths` | `config.ts`, `utils/paths.ts` | T2 | ✅ |
+| `cortexcode-code-settings` | `cortexcode::code::settings` | `core/settings-*` | T2 | ✅ |
 | `cortexcode-code-main` | `cortexcode::code::main` | `main.ts`, `cli/args.ts` | T2 | ✅ |
 | `cortexcode-code-tools` | `cortexcode::code::tools` | `core/tools/{read,bash,edit,write,grep,find,ls}` | T2 | ✅ |
 | `cortexcode-code-session` | `cortexcode::code::session` | `core/agent-session*.ts`, `session-manager.ts` | T2 | ✅ |
@@ -631,7 +636,7 @@ widget crates. **D**eferred: Phase 12, created only on a go decision.
 | `code-tui-selectors` | H | model, session, tree, settings, theme, login selectors | 11.3 |
 | `code-tui-app` | H | `interactive-mode.ts`, command executor (orchestration only) | 11.1–11.4 |
 | `code-main` *(exists)* | S | the `cortex` bin: calls `code-cli` and nothing else | 10.7a |
-| `code-config` *(exists)* | — | retired by 10.1 (re-exports during transition) | 10.1 |
+| `code-config` *(retired)* | — | deleted by 10.1c; its invented `config.json` and `migrate.rs` are replaced by code-settings' `.hoocode` read fallback | 10.1 |
 | `code-tools` *(exists)* | — | retired by 10.2 (re-exports during transition) | 10.2 |
 | `code-plugins`, `code-packages`, `code-extensions`, `code-capabilities`, `code-scheduler`, `code-extras` | D | Phase 12 | 12.x |
 

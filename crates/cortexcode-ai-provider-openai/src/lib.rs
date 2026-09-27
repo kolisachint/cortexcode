@@ -6,8 +6,7 @@
 //! compat ([`request::get_compat`]).
 //!
 //! Client retries follow the `openai` SDK (see
-//! `cortexcode_ai_util::send_with_sdk_retries`). Known deviation: the
-//! `onPayload` / `onResponse` hooks are not supported.
+//! `cortexcode_ai_util::send_with_sdk_retries`).
 
 pub mod request;
 
@@ -17,8 +16,9 @@ use cortexcode_ai_stream::{
     create_assistant_message_event_stream, spawn_producer, AssistantMessageEventStream,
 };
 use cortexcode_ai_types::{
-    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model,
-    SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent, Usage,
+    AbortSignal, AssistantMessage, AssistantMessageEvent, Content, Context, Model, OnPayload,
+    OnResponse, SimpleStreamOptions, StopReason, TextContent, ThinkingContent, ToolCallContent,
+    Usage,
 };
 use cortexcode_ai_util::{droppable_params_named_by, note_rejected_params, DROPPABLE_PARAMS};
 use futures_util::StreamExt;
@@ -165,9 +165,16 @@ async fn drive(
         &compat,
     );
     let params = request::build_params(model, context, options, &compat, &cache_retention);
+    let params = OnPayload::apply(options.on_payload.as_ref(), params, model).await;
     let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
 
     let response = create_with_param_fallback(model, &url, &headers, params, options).await?;
+    OnResponse::notify(
+        options.on_response.as_ref(),
+        cortexcode_ai_util::provider_response(&response),
+        model,
+    )
+    .await;
     sender.push(AssistantMessageEvent::Start {
         partial: state.output.clone(),
     });

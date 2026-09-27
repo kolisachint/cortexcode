@@ -13,7 +13,17 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+cortexcode-agent-harness = { workspace = true }
+cortexcode-agent-session = { workspace = true }
 cortexcode-agent-types = { workspace = true }
+cortexcode-ai-registry = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "std"] }
+
+[dev-dependencies]
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-provider-faux = { workspace = true }
+cortexcode-code-session = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
