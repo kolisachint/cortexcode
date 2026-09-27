@@ -21,8 +21,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
-  `AgentSessionRuntime`). 10.9 split into 10.9a..d; 10.9a done (subagent foundations).
-  Next: **10.9b** (cold subagent pool + lifeguard).
+  `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
+  lifeguard). Next: **10.9e** (child protocol in `--mode json --task-id`), then 10.9c/10.9d.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -34,6 +34,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9b done (subagent pool + lifeguard)
+- code-subagents: `pool::SubagentPool` (tokio; priority FIFO, `spawn`/`wait_for`/`dispatch`/
+  `dispatch_detached`/`collect`/`resume`/`cancel`/`dispose`, verified-result.json settlement,
+  inherited-model retry, output.json/dispatch-log.json, `PoolEvent { name, data }` in hoocode's
+  event names/payloads), `lifeguard::SubagentLifeguard` (load-scaled heartbeat + hard timeouts,
+  process-group kills, 24h sweep), `instance` (shared pool + task-panel activity wiring).
+  Children get `CORTEXCODE_SUBAGENT_DEPTH` (read back through any prefix).
+- The invented JSON-RPC pool (`jsonrpc.rs`, `task_tool`) is gone; nothing outside the crate used it.
+- Tests use shell-script mock children (hoocode's are Node). One TS test is vacuous (the priority
+  test records its own await order); the Rust test checks real completion order
+  (blocker, t2, t1, t3: doc and edit tie in `priorityOf`).
+- Deviations, ledgered: the lifeguard does not hook SIGINT/SIGTERM itself
+  (`graceful_shutdown` for the host); the shared pool's exit-time dispose lands with 10.9d.
+- New task 10.9e: the child side (print-mode under `--task-id`: pings, event filter, max turns,
+  result.json). 10.9d now depends on it.
+- Next: 10.9e (print-mode.ts `isSubagent` branch), then 10.9c (warm pool + inbox), 10.9d.
 
 ### 2026-09-27: 10.9 split; 10.9a done (subagent foundations)
 - 10.9 was ~5.3k TS lines with ~20 test files: split into 10.9a (foundations), 10.9b (cold pool +

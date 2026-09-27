@@ -2932,7 +2932,7 @@
    "id": "10.9b",
    "title": "Subagent pool + lifeguard: children run `--mode json --task-id`, result.json settles them; replace code-subagents' invented JSON-RPC pool (jsonrpc.rs)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.9a"
    ],
@@ -2954,13 +2954,53 @@
    ],
    "l1_cmds": [],
    "l2": [],
-   "notes": "hoocode's cold pool spawns print-mode json children (SUBAGENT_STDOUT_EVENT_TYPES filter, {\"ping\":true} heartbeats, result.json), not RPC. Only the warm pool (10.9c) uses RpcClient.",
+   "notes": "hoocode's cold pool spawns print-mode json children (SUBAGENT_STDOUT_EVENT_TYPES filter, {\"ping\":true} heartbeats, result.json), not RPC. Only the warm pool (10.9c) uses RpcClient. 10.9b keeps the SIGINT/SIGTERM hook out of the library (SubagentLifeguard::graceful_shutdown for the host); the process-exit dispose of the shared pool is wired with the Task tool (10.9d).",
    "log": [
     {
      "at": "2026-09-27T07:10:00Z",
      "commit": "",
      "kind": "note",
      "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-27T07:10:31Z",
+     "commit": "054af8e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:20:27Z",
+     "commit": "054af8e",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9e",
+   "title": "Subagent child protocol in --mode json --task-id: ping heartbeats, SUBAGENT_STDOUT_EVENT_TYPES filter, --max-turns cap, result.json (+ task tree) at the end",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.9a"
+   ],
+   "crates": [
+    "cortexcode-code-print",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/print-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "The parent side (10.9b) is tested with shell mocks; this is the real child. print-mode.ts: isSubagent = json mode + taskId; immediate + periodic {\"ping\":true}; only SUBAGENT_STDOUT_EVENT_TYPES written; maxTurns abort -> partial result; writeSubagentResult with buildTaskForest.",
+   "log": [
+    {
+     "at": "2026-09-27T09:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added while porting 10.9b: the child side of the cold-pool protocol lives in print-mode.ts, outside 10.9b's sources."
     }
    ]
   },
@@ -3002,7 +3042,8 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.9c"
+    "10.9c",
+    "10.9e"
    ],
    "crates": [
     "cortexcode-code-subagents"

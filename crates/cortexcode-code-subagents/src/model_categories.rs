@@ -44,6 +44,30 @@ pub struct CategorySettings {
 }
 
 impl CategorySettings {
+    /// From a settings object (`modelCategories`, `defaultProvider`,
+    /// `defaultModel`).
+    pub fn from_settings(settings: &serde_json::Map<String, serde_json::Value>) -> Self {
+        let text = |value: Option<&serde_json::Value>| {
+            value
+                .and_then(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        };
+        let model_categories = settings
+            .get("modelCategories")
+            .and_then(serde_json::Value::as_object)
+            .map(|c| ModelCategories {
+                fast: text(c.get("fast")),
+                standard: text(c.get("standard")),
+                capable: text(c.get("capable")),
+            });
+        Self {
+            model_categories,
+            default_provider: text(settings.get("defaultProvider")),
+            default_model: text(settings.get("defaultModel")),
+        }
+    }
+
     pub fn from_manager(settings: &SettingsManager) -> Self {
         Self {
             model_categories: settings.model_categories(),
