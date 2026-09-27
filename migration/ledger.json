@@ -3442,7 +3442,7 @@
    "id": "11.1",
    "title": "Interactive shell on ported TUI: new crates code-tui-app, code-tui-theme (theme.ts + JSON themes), code-tui-keybindings; header/editor/footer idle screen",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c",
     "10.3a"
@@ -3463,8 +3463,200 @@
    "l2": [
     "startup"
    ],
+   "notes": "Split into 11.1a (theme), 11.1b (keybindings), 11.1c (app + startup L2). Parent closed by hand as a container (bookkeeping).",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.1a/11.1b/11.1c; parent closed as a container (bookkeeping, not a verify)."
+    }
+   ]
+  },
+  {
+   "id": "11.0a",
+   "title": "TUI library catch-up to the pin, part 1: utils, box (paper sheets), spacer, select-list/settings-list (cursor + selected-row band), loader (○/● toggle), input, markdown, image, undo-stack, keybindings, editor-component, frame.ts",
+   "phase": 11,
+   "status": "in_progress",
+   "depends": [],
+   "crates": [
+    "cortexcode-tui-util",
+    "cortexcode-tui-components",
+    "cortexcode-tui-editing",
+    "cortexcode-tui-keys"
+   ],
+   "sources": [
+    "packages/tui/src/utils.ts",
+    "packages/tui/src/components/box.ts",
+    "packages/tui/src/components/spacer.ts",
+    "packages/tui/src/components/select-list.ts",
+    "packages/tui/src/components/settings-list.ts",
+    "packages/tui/src/components/loader.ts",
+    "packages/tui/src/components/input.ts",
+    "packages/tui/src/components/markdown.ts",
+    "packages/tui/src/components/image.ts",
+    "packages/tui/src/components/frame.ts",
+    "packages/tui/src/components/editor.ts",
+    "packages/tui/src/undo-stack.ts",
+    "packages/tui/src/keybindings.ts",
+    "packages/tui/src/editor-component.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    },
+    {
+     "at": "2026-09-27T11:08:34Z",
+     "commit": "fb8b13a",
+     "kind": "start",
+     "text": "started"
+    }
+   ]
+  },
+  {
+   "id": "11.0b",
+   "title": "TUI library catch-up to the pin, part 2: tui.ts renderer (+1.1K: owned scroll position, chrome dial, floor packing, pinned window), terminal.ts, mouse.ts, terminal-image.ts (Sixel)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-tui-render",
+    "cortexcode-tui-terminal",
+    "cortexcode-tui-images"
+   ],
+   "sources": [
+    "packages/tui/src/tui.ts",
+    "packages/tui/src/terminal.ts",
+    "packages/tui/src/mouse.ts",
+    "packages/tui/src/terminal-image.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    }
+   ]
+  },
+  {
+   "id": "11.1a",
+   "title": "code-tui-theme: theme.ts (color resolution, truecolor/256 detection, fg/bg/bold helpers, loading + validation) and the bundled JSON themes",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "10.1c",
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-theme"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/theme/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T11:07:30Z",
+     "commit": "fb8b13a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Back to todo (bookkeeping): the theme's hooks (SelectListTheme cursor/selectedRow, Box paper) need 11.0a first."
+    }
+   ]
+  },
+  {
+   "id": "11.1b",
+   "title": "code-tui-keybindings: core/keybindings.ts (app actions on top of tui-keys, keybindings.json loading, hint text)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "10.1c",
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-keybindings"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/keybindings.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    }
+   ]
+  },
+  {
+   "id": "11.1c",
+   "title": "code-tui-app: interactive shell on the ported TUI; header, resource summary, editor frame, footer idle screen; replaces run_interactive_mode",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.1a",
+    "11.1b",
+    "11.0b",
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/footer.ts",
+    "packages/coding-agent/src/modes/interactive/resource-display.ts",
+    "packages/coding-agent/src/modes/interactive/chrome-layout.ts",
+    "packages/coding-agent/src/modes/interactive/components/input-frame.ts",
+    "packages/coding-agent/src/core/wordmark.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "startup"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    }
+   ]
   },
   {
    "id": "11.2",
@@ -3472,7 +3664,7 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.1"
+    "11.1c"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",

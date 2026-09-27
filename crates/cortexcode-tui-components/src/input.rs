@@ -15,6 +15,8 @@ use cortexcode_tui_util::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::color::ColorFn;
+
 #[derive(Clone)]
 struct InputState {
     value: String,
@@ -30,11 +32,19 @@ enum LastAction {
 
 pub type OnSubmitFn = Box<dyn FnMut(&str)>;
 
+/// The caret an input line marks itself with (`DEFAULT_INPUT_PROMPT`); the
+/// trailing space is added at render, as for `Editor`'s prompt prefix.
+pub const DEFAULT_INPUT_PROMPT: &str = "\u{276f}";
+
 pub struct Input {
     value: String,
     cursor: usize,
     pub on_submit: Option<OnSubmitFn>,
     pub on_escape: Option<Box<dyn FnMut()>>,
+    /// Caret shown before the value; `""` draws none.
+    pub prompt_prefix: String,
+    /// Colors the caret.
+    pub prompt_color: ColorFn,
 
     focused: bool,
 
@@ -60,6 +70,8 @@ impl Input {
             cursor: 0,
             on_submit: None,
             on_escape: None,
+            prompt_prefix: DEFAULT_INPUT_PROMPT.to_string(),
+            prompt_color: Box::new(|s: &str| s.to_string()),
             focused: false,
             paste_buffer: String::new(),
             is_in_paste: false,
@@ -71,6 +83,12 @@ impl Input {
 
     pub fn get_value(&self) -> &str {
         &self.value
+    }
+
+    /// Cursor offset into the value (a byte offset; hoocode's is UTF-16), for
+    /// hosts that act on arrow keys only once the cursor reaches an end.
+    pub fn get_cursor(&self) -> usize {
+        self.cursor
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -466,11 +484,15 @@ impl Input {
 impl Component for Input {
     fn render(&mut self, width: u16) -> Vec<String> {
         let width = width as usize;
-        let prompt = "> ";
-        let available_width = width as i64 - prompt.chars().count() as i64;
+        let prompt = if self.prompt_prefix.is_empty() {
+            String::new()
+        } else {
+            format!("{} ", self.prompt_prefix)
+        };
+        let available_width = width as i64 - visible_width(&prompt) as i64;
 
         if available_width <= 0 {
-            return vec![prompt.to_string()];
+            return vec![(self.prompt_color)(&prompt)];
         }
         let available_width = available_width as usize;
 
@@ -529,7 +551,10 @@ impl Component for Input {
 
         let visual_length = visible_width(&text_with_cursor);
         let padding = " ".repeat(available_width.saturating_sub(visual_length));
-        vec![format!("{prompt}{text_with_cursor}{padding}")]
+        vec![format!(
+            "{}{text_with_cursor}{padding}",
+            (self.prompt_color)(&prompt)
+        )]
     }
 
     fn is_focusable(&self) -> bool {
@@ -645,7 +670,7 @@ mod tests {
         type_str(&mut input, "hi", &kb());
         let lines = input.render(20);
         assert_eq!(lines.len(), 1);
-        assert!(lines[0].starts_with("> "));
+        assert!(lines[0].starts_with("\u{276f} "));
         assert!(lines[0].contains("hi") || lines[0].contains('h'));
     }
 

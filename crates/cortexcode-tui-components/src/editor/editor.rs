@@ -1476,6 +1476,8 @@ mod tests {
 
     fn select_theme() -> SelectListTheme {
         SelectListTheme {
+            cursor: None,
+            selected_row: None,
             selected_prefix: identity(),
             selected_text: identity(),
             description: identity(),

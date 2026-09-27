@@ -2,9 +2,13 @@
 
 use cortexcode_tui_keys::KeybindingsManager;
 use cortexcode_tui_render::Component;
-use cortexcode_tui_util::{truncate_to_width, visible_width};
+use cortexcode_tui_util::{apply_background_to_line, truncate_to_width, visible_width};
 
 use crate::color::ColorFn;
+
+/// Used when a theme does not name its own cursor: `›`, the app pickers' one
+/// cursor.
+pub const DEFAULT_SELECT_CURSOR: &str = "\u{203a} ";
 
 const DEFAULT_PRIMARY_COLUMN_WIDTH: usize = 32;
 const PRIMARY_COLUMN_GAP: usize = 2;
@@ -32,6 +36,12 @@ pub struct SelectListTheme {
     pub description: ColorFn,
     pub scroll_info: ColorFn,
     pub no_match: ColorFn,
+    /// Marker for the selected row, trailing space included (default
+    /// [`DEFAULT_SELECT_CURSOR`]). Unselected rows are indented by its width.
+    pub cursor: Option<String>,
+    /// Background for the selected row, padded to the full width so the band
+    /// reaches the right edge. `selected_text` still styles the content.
+    pub selected_row: Option<ColorFn>,
 }
 
 pub struct SelectListTruncatePrimaryContext<'a> {
@@ -197,9 +207,9 @@ impl SelectList {
                 item,
                 is_selected,
             }),
-            None => truncate_to_width(display_value, max_width, "...", false),
+            None => truncate_to_width(display_value, max_width, "", false),
         };
-        truncate_to_width(&truncated_value, max_width, "...", false)
+        truncate_to_width(&truncated_value, max_width, "", false)
     }
 
     fn render_item(
@@ -210,8 +220,14 @@ impl SelectList {
         description_single_line: Option<&str>,
         primary_column_width: usize,
     ) -> String {
-        let prefix = if is_selected { "→ " } else { "  " };
-        let prefix_width = visible_width(prefix);
+        let cursor = self
+            .theme
+            .cursor
+            .as_deref()
+            .unwrap_or(DEFAULT_SELECT_CURSOR);
+        let prefix_width = visible_width(cursor);
+        let unselected = " ".repeat(prefix_width);
+        let prefix = if is_selected { cursor } else { &unselected };
 
         if let Some(desc) = description_single_line {
             if width > 40 {
@@ -234,15 +250,16 @@ impl SelectList {
                         .max(1),
                 );
                 let description_start = prefix_width + truncated_value_width + spacing.len();
-                let remaining_width = (width as i64) - (description_start as i64) - 2;
+                let remaining_width = (width as i64) - (description_start as i64);
 
                 if remaining_width > MIN_DESCRIPTION_WIDTH as i64 {
                     let truncated_desc =
-                        truncate_to_width(desc, remaining_width as usize, "...", false);
+                        truncate_to_width(desc, remaining_width as usize, "", false);
                     if is_selected {
-                        return (self.theme.selected_text)(&format!(
-                            "{prefix}{truncated_value}{spacing}{truncated_desc}"
-                        ));
+                        return self.render_selected(
+                            &format!("{prefix}{truncated_value}{spacing}{truncated_desc}"),
+                            width,
+                        );
                     }
                     let desc_text = (self.theme.description)(&format!("{spacing}{truncated_desc}"));
                     return format!("{prefix}{truncated_value}{desc_text}");
@@ -250,12 +267,22 @@ impl SelectList {
             }
         }
 
-        let max_width = width.saturating_sub(prefix_width).saturating_sub(2).max(1);
+        let max_width = width.saturating_sub(prefix_width);
         let truncated_value = self.truncate_primary(item, is_selected, max_width, max_width);
         if is_selected {
-            (self.theme.selected_text)(&format!("{prefix}{truncated_value}"))
+            self.render_selected(&format!("{prefix}{truncated_value}"), width)
         } else {
             format!("{prefix}{truncated_value}")
+        }
+    }
+
+    /// Style the selected row, and fill it to the edge when the theme asks for
+    /// a band.
+    fn render_selected(&self, row: &str, width: usize) -> String {
+        let styled = (self.theme.selected_text)(row);
+        match &self.theme.selected_row {
+            Some(band) => apply_background_to_line(&styled, width, |t| band(t)),
+            None => styled,
         }
     }
 }
@@ -321,6 +348,8 @@ mod tests {
 
     fn theme() -> SelectListTheme {
         SelectListTheme {
+            cursor: None,
+            selected_row: None,
             selected_prefix: identity(),
             selected_text: identity(),
             description: identity(),

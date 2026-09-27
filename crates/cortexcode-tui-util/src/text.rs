@@ -53,7 +53,61 @@ pub fn apply_background_to_line(
 ) -> String {
     let visible_len = visible_width(line);
     let padding = " ".repeat(width.saturating_sub(visible_len));
-    bg_fn(&format!("{line}{padding}"))
+    let repaired = repair_nested_bg_resets(line, &bg_fn);
+    bg_fn(&format!("{repaired}{padding}"))
+}
+
+/// Whether an SGR sequence's parameters put the background back to the
+/// terminal's own: `49`, or `0` (also spelled `ESC[m` or an empty parameter),
+/// alone or inside a compound sequence.
+fn clears_background(params: &str) -> bool {
+    if params.is_empty() {
+        return true;
+    }
+    params
+        .split(';')
+        .any(|p| p.is_empty() || p.parse::<u64>().is_ok_and(|n| n == 0 || n == 49))
+}
+
+/// Re-open the band's background after anything inside the line closed it
+/// (`repairNestedBgResets`). A child that paints and closes its own fill, or
+/// ends with a full `ESC[0m`, would otherwise leave a hole from there to the
+/// end of the row. The opener is recovered from `bg_fn` itself; only the
+/// background is restored.
+fn repair_nested_bg_resets(line: &str, bg_fn: &impl Fn(&str) -> String) -> String {
+    if !line.contains("\x1b[") {
+        return line.to_string();
+    }
+    let sentinel = "\u{0}";
+    let painted = bg_fn(sentinel);
+    let opener = painted.split(sentinel).next().unwrap_or("");
+    if opener.is_empty() {
+        return line.to_string();
+    }
+    // `/\x1b\[([0-9;]*)m/g`, scanning the original line only.
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(pos) = rest.find("\x1b[") {
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + 2..];
+        let params_len = after
+            .bytes()
+            .take_while(|b| b.is_ascii_digit() || *b == b';')
+            .count();
+        if after[params_len..].starts_with('m') {
+            let params = &after[..params_len];
+            out.push_str(&rest[pos..pos + 2 + params_len + 1]);
+            if clears_background(params) {
+                out.push_str(opener);
+            }
+            rest = &after[params_len + 1..];
+        } else {
+            out.push_str("\x1b[");
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ---------------------------------------------------------------------------

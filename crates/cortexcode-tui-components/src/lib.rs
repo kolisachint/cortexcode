@@ -23,12 +23,12 @@ pub use autocomplete::{
     ApplyCompletionResult, AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions,
     CombinedAutocompleteProvider, CommandEntry, SlashCommand,
 };
-pub use box_component::BoxComponent;
+pub use box_component::{BoxComponent, PaperFn, PaperSheet};
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
 pub use editor::{word_wrap_line, Editor, EditorOptions, EditorTheme, TextChunk};
 pub use image::{Image, ImageOptions, ImageTheme};
-pub use input::Input;
+pub use input::{Input, DEFAULT_INPUT_PROMPT};
 pub use loader::{Loader, LoaderIndicatorOptions};
 pub use markdown::{DefaultTextStyle, HighlightCodeFn, Markdown, MarkdownTheme};
 pub use select_list::{
@@ -39,6 +39,6 @@ pub use settings_list::{
     SettingItem, SettingsList, SettingsListOptions, SettingsListTheme, SubmenuFactory,
     SubmenuOutcome,
 };
-pub use spacer::Spacer;
+pub use spacer::{FlexSpacer, Spacer};
 pub use text::Text;
 pub use truncated_text::TruncatedText;

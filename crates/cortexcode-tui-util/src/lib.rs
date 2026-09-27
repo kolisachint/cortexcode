@@ -7,7 +7,7 @@ mod ansi;
 mod text;
 mod width;
 
-pub use ansi::{extract_ansi_code, AnsiCodeTracker};
+pub use ansi::{bare_url_at, extract_ansi_code, hyperlink_at, AnsiCodeTracker};
 pub use text::{
     apply_background_to_line, extract_segments, is_punctuation_char, is_whitespace_char,
     normalize_terminal_output, slice_by_column, slice_with_width, truncate_to_width,

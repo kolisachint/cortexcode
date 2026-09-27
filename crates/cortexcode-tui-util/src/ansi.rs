@@ -390,3 +390,149 @@ mod tests {
         assert!(!t.has_active_codes());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Link lookup for mouse clicks (`hyperlinkAt`, `bareUrlAt`)
+// ---------------------------------------------------------------------------
+
+/// The next grapheme of `rest` (`segmenter.segment(rest)` first segment).
+fn first_grapheme(rest: &str) -> &str {
+    use unicode_segmentation::UnicodeSegmentation;
+    rest.graphemes(true)
+        .next()
+        .unwrap_or(&rest[..char_len_at(rest, 0)])
+}
+
+/// The URL of the OSC 8 hyperlink covering `column` (0-based display cells,
+/// the way a mouse report counts them), if there is one.
+///
+/// The app captures the mouse for the wheel, and a terminal whose mouse is
+/// captured stops resolving clicks on links itself, so the click is answered
+/// from the same line buffer the terminal is showing.
+pub fn hyperlink_at(line: &str, column: i64) -> Option<String> {
+    if column < 0 || !line.contains("\x1b]8;") {
+        return None;
+    }
+    let column = column as usize;
+    let mut active: Option<String> = None;
+    let mut col = 0;
+    let mut i = 0;
+    while i < line.len() {
+        if let Some((code, len)) = extract_ansi_code(line, i) {
+            if let Some(hyperlink) = parse_osc8_hyperlink(code) {
+                active = hyperlink.map(|(_, url, _)| url);
+            }
+            i += len;
+            continue;
+        }
+        let text = first_grapheme(&line[i..]);
+        let width = crate::width::grapheme_width(text);
+        if column < col + width {
+            return active;
+        }
+        col += width;
+        i += text.len();
+    }
+    None
+}
+
+/// Characters a bare URL cannot contain: `[\s<>"'`\x00-\x1f]`.
+fn is_url_stop(c: char) -> bool {
+    c.is_whitespace()
+        || c == '\u{feff}'
+        || matches!(c, '<' | '>' | '"' | '\'' | '`')
+        || (c as u32) < 0x20
+}
+
+fn is_ascii_word(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+/// `BARE_URL` (`/\b(?:https?:\/\/|mailto:)[^\s<>"'`\x00-\x1f]+/g`) matches as
+/// `(byte start, text)`.
+fn bare_url_matches(text: &str) -> Vec<(usize, &str)> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < text.len() {
+        let boundary = text[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !is_ascii_word(c));
+        let prefix = ["https://", "http://", "mailto:"]
+            .into_iter()
+            .find(|p| text[i..].starts_with(p));
+        if let (true, Some(prefix)) = (boundary, prefix) {
+            let body_start = i + prefix.len();
+            let body_len: usize = text[body_start..]
+                .chars()
+                .take_while(|c| !is_url_stop(*c))
+                .map(char::len_utf8)
+                .sum();
+            if body_len > 0 {
+                out.push((i, &text[i..body_start + body_len]));
+                i = body_start + body_len;
+                continue;
+            }
+        }
+        i += char_len_at(text, i);
+    }
+    out
+}
+
+/// `trimUrlTail`: drop a sentence's trailing punctuation and a closing bracket
+/// the URL did not open itself.
+fn trim_url_tail(url: &str) -> &str {
+    let mut trimmed = url;
+    loop {
+        let before = trimmed;
+        trimmed = trimmed.trim_end_matches(['.', ',', ';', ':', '!', '?', '\'', '"']);
+        for (open, close) in [('(', ')'), ('[', ']'), ('{', '}')] {
+            if trimmed.ends_with(close)
+                && trimmed.matches(open).count() < trimmed.matches(close).count()
+            {
+                trimmed = &trimmed[..trimmed.len() - 1];
+            }
+        }
+        if trimmed == before {
+            return trimmed;
+        }
+    }
+}
+
+/// The plain-text URL covering `column`, if there is one: the companion to
+/// [`hyperlink_at`] for text nobody wrapped in OSC 8. Styling is stepped over,
+/// so a URL coloured halfway through is still one URL.
+pub fn bare_url_at(line: &str, column: i64) -> Option<String> {
+    if column < 0
+        || !(line.contains("http://") || line.contains("https://") || line.contains("mailto:"))
+    {
+        return None;
+    }
+    let column = column as usize;
+    // The visible text, and for each of its bytes the cell it starts on.
+    let mut text = String::new();
+    let mut cell_of: Vec<usize> = Vec::new();
+    let mut col = 0;
+    let mut i = 0;
+    while i < line.len() {
+        if let Some((_, len)) = extract_ansi_code(line, i) {
+            i += len;
+            continue;
+        }
+        let grapheme = first_grapheme(&line[i..]);
+        cell_of.extend(std::iter::repeat_n(col, grapheme.len()));
+        text.push_str(grapheme);
+        col += crate::width::grapheme_width(grapheme);
+        i += grapheme.len();
+    }
+    for (start_index, matched) in bare_url_matches(&text) {
+        let url = trim_url_tail(matched);
+        let start = cell_of[start_index];
+        let end_index = start_index + url.len();
+        let end = cell_of.get(end_index).copied().unwrap_or(col);
+        if column >= start && column < end {
+            return Some(url.to_string());
+        }
+    }
+    None
+}

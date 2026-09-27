@@ -28,6 +28,42 @@ impl Component for Spacer {
     }
 }
 
+/// A spacer whose height the renderer decides, so the layout can fill the
+/// screen (`FlexSpacer`). The root measures the frame it just built and tells
+/// this spacer what is left over (`Tui::set_flex_spacer`); put it between the
+/// part that flows from the top and the chrome that hangs off the bottom.
+#[derive(Default)]
+pub struct FlexSpacer {
+    height: usize,
+}
+
+impl FlexSpacer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Rows it is currently contributing.
+    pub fn current_height(&self) -> usize {
+        self.height
+    }
+
+    /// Set the fill; true when it changed and a re-flatten is owed.
+    pub fn set_height(&mut self, height: i64) -> bool {
+        let next = height.max(0) as usize;
+        if next == self.height {
+            return false;
+        }
+        self.height = next;
+        true
+    }
+}
+
+impl Component for FlexSpacer {
+    fn render(&mut self, _width: u16) -> Vec<String> {
+        vec![String::new(); self.height]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
