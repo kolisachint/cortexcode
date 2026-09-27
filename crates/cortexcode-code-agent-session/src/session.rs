@@ -118,11 +118,7 @@ pub enum AgentSessionEvent {
 type SessionListener = Arc<dyn Fn(&AgentSessionEvent) + Send + Sync>;
 
 /// A model to cycle through (`--models`), with an optional pinned thinking level.
-#[derive(Debug, Clone)]
-pub struct ScopedModel {
-    pub model: Model,
-    pub thinking_level: Option<ThinkingLevel>,
-}
+pub use cortexcode_code_models::ScopedModel;
 
 /// `ModelCycleResult`.
 #[derive(Debug, Clone)]

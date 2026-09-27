@@ -24,6 +24,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.4b done (model resolver, auth storage, --list-models, --models)
+- `code-models::resolver` (model-resolver.ts): `parse_model_pattern`, `resolve_model_scope`
+  (globs via `glob` with minimatch options, thinking suffixes, warnings returned),
+  `resolve_cli_model`, `find_initial_model` over a `ModelSource` trait, `DEFAULT_MODEL_PER_PROVIDER`,
+  `locale_compare`. `ModelRegistry::set_model_modifier` runs the OAuth `modifyModels` pass;
+  `resolve_config_value_cached` / `clear_config_value_cache` port the command cache.
+- New `cortexcode-code-auth` (auth-storage.ts + auth-guidance.ts): `AuthStorage` over file or
+  in-memory backends, hoocode-compatible `auth.json` (type-tagged entries, pretty JSON, 0600,
+  `auth.json.lock` dir lock like proper-lockfile), runtime keys, fallback resolver, locked OAuth
+  refresh; implements `AuthLookup`.
+- code-cli: `CliAuth`/`CredentialStore` replaced by `AuthStorage` (login stores `type: oauth`);
+  `--model` via `resolve_cli_model`, `--models`/`enabledModels` scope, `--api-key` as a runtime
+  key for the chosen provider, main.ts diagnostics; `--list-models`. services.rs uses
+  `find_initial_model`.
+- Tests: `code-models/tests/model_resolver.rs` (all of model-resolver.test.ts),
+  `code-auth/tests/auth_storage.rs` (all of auth-storage.test.ts), list-models unit tests.
+- L2 `list-models` (mock + GROQ_API_KEY env auth) passes. Harness fix: tmux options from a
+  config file, and apps run under `sh -c '"$@"; exit $?'` because tmux 3.4 sometimes never draws
+  "Pane is dead" when node exits right away (~1 in 8 runs).
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-27: 10.3c done (tree navigation, fork, runtime replacement)
 - `code-agent-session::tree` (agent-session-tree-navigation.ts): `navigate_tree` (leaf moves,
   editor text for user/custom messages, optional branch summary at the new position, labels,

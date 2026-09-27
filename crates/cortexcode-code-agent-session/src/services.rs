@@ -13,7 +13,9 @@ use cortexcode_agent_core::{
 };
 use cortexcode_agent_types::{AgentMessage, AgentState, AgentTools, PermissionGate};
 use cortexcode_ai_types::{Content, Message, Model, ThinkingDisplay, ThinkingLevel};
-use cortexcode_code_models::{AuthLookup, ModelRegistry};
+use cortexcode_code_models::{
+    find_initial_model, AuthLookup, InitialModelOptions, ModelRegistry, RegistryWithAuth,
+};
 use cortexcode_code_session::{FileEntry, SessionManager};
 use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tool_api::ToolDefinition;
@@ -273,15 +275,34 @@ pub fn create_agent_session(
         }
     }
     if model.is_none() {
-        // findInitialModel (10.4b): the settings default, when it has auth.
-        let (provider, model_id) = {
+        // findInitialModel: the settings default when it has auth, else the first
+        // available known-provider default, else the first available model.
+        // (hoocode also falls back to hoo-config.json `llm.default_provider` /
+        // `default_model`; that file is not read by cortex.)
+        let (default_provider, default_model_id, default_thinking_level) = {
             let s = lock(&settings);
-            (s.default_provider(), s.default_model())
+            (
+                s.default_provider(),
+                s.default_model(),
+                s.default_thinking_level().map(ThinkingLevel::from),
+            )
         };
-        model = provider
-            .zip(model_id)
-            .and_then(|(p, m)| registry.find(&p, &m).cloned())
-            .filter(|m| has_auth(m));
+        let source = RegistryWithAuth {
+            registry: &registry,
+            auth: auth.as_ref(),
+        };
+        model = find_initial_model(
+            InitialModelOptions {
+                is_continuing: has_existing_session,
+                default_provider: default_provider.as_deref(),
+                default_model_id: default_model_id.as_deref(),
+                default_thinking_level,
+                ..Default::default()
+            },
+            &source,
+        )
+        .ok()
+        .and_then(|r| r.model);
         match (&model, &mut model_fallback_message) {
             (None, message) => *message = Some(format_no_models_available_message()),
             (Some(m), Some(message)) => {

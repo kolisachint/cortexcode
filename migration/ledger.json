@@ -2274,7 +2274,7 @@
    "id": "10.4b",
    "title": "Model resolver (--models scoping, patterns) + auth-storage (auth.json compat, locked refresh) in code-models / new code-auth",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.4a",
     "10.1c"
@@ -2308,6 +2308,24 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: services::create_agent_session only picks the defaultProvider/defaultModel setting when no model is given; port findInitialModel there. code-cli runtime.rs CliAuth (AuthLookup: --api-key, env, OAuth store, cached per provider) is the stand-in for AuthStorage; AuthLookup::is_oauth defaults false and must report OAuth credentials (AgentSession.prompt's 'Authentication failed' message). --api-key should become a runtime key for the chosen provider only (main.ts setRuntimeApiKey)."
+    },
+    {
+     "at": "2026-09-27T03:22:51Z",
+     "commit": "3608e70",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:04:26Z",
+     "commit": "3608e70",
+     "kind": "verify",
+     "text": "L1 pass; L2 list-models=pass"
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "OAuth modifyModels now applied via ModelRegistry::set_model_modifier(AuthStorage::model_modifier) (8.4b note resolved). auth.json written by AuthStorage (type-tagged, 0600, proper-lockfile compatible auth.json.lock dir); legacy cortex entries without type read as oauth. auth_guidance moved to code-auth. Harness: tmux options now come from a config file and the app runs under a silent sh wrapper (tmux 3.4 dropped the Pane-is-dead line for fast-exiting node ~1/8 runs)."
     }
    ]
   },
@@ -2422,6 +2440,12 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: code-cli build_session handles --no-session (in-memory) and --session-dir, and passes --thinking into create_agent_session; --tools/--no-tools/--no-builtin-tools/--disallowed-tools and the disabledTools setting map to CreateAgentSessionOptions {tools, no_tools, disallowed_tools}. --continue/--resume/--session/--fork are not wired."
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "10.4b: --list-models (cli/list-models.ts) and --models scoping are implemented in code-cli (list_models.rs, runtime.rs build_session/model_options); the list-models scenario passes. Left for 10.7b: session flags."
     }
    ]
   },
@@ -2788,6 +2812,12 @@
      "commit": "90723c2",
      "kind": "note",
      "text": "10.3c: ExtensionHooks gained has_handlers/emit_session_event (SessionEvent: start, before_switch/fork/tree, shutdown, tree) and AgentSession::bind_extensions/reload. Port here: suite/agent-session-runtime 'persists message_end assistant replacements' and runtime-events 'stale extension ctx' check; withSession/ReplacedSessionContext on AgentSessionRuntime; session_start(reload) after reload with bindings."
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "10.4b: sdk.ts falls back to hoo-config.json llm.default_provider/default_model (extensions/core/config.ts readConfig) when settings have no defaultProvider; services.rs find_initial_model does not read it yet. AuthStorage.login and the registry's OAuth modifyModels pass exist; registerProvider oauth still to port."
     }
    ]
   },

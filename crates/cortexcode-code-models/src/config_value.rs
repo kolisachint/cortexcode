@@ -3,6 +3,42 @@
 
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
+
+/// Shell command results for the process lifetime (TS `commandResultCache`).
+fn command_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// TS `resolveConfigValue`: like [`resolve_config_value`], but a `!command`
+/// result (failures included) is cached per command string for the process.
+pub fn resolve_config_value_cached(config: &str) -> Option<String> {
+    if !config.starts_with('!') {
+        return resolve_config_value(config);
+    }
+    if let Some(hit) = command_cache()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(config)
+    {
+        return hit.clone();
+    }
+    let result = resolve_config_value(config);
+    command_cache()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(config.to_string(), result.clone());
+    result
+}
+
+/// `clearConfigValueCache`.
+pub fn clear_config_value_cache() {
+    command_cache()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
+}
 
 /// Resolve without caching (TS `resolveConfigValueUncached`).
 pub fn resolve_config_value(config: &str) -> Option<String> {

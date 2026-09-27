@@ -103,10 +103,20 @@ class Tmux:
 
     def start(self, argv: list[str], cwd: Path, env: dict[str, str]) -> None:
         env_args = ["env", "-i"] + [f"{k}={v}" for k, v in sorted(env.items())]
-        # Keep the pane around after exit so a crash is still captured.
-        self._run("-f", "/dev/null", "new-session", "-d", "-s", self.name, "-x", str(self.cols), "-y", str(self.rows), "-c", str(cwd), *env_args, *argv)
-        self._run("set-option", "-t", self.name, "remain-on-exit", "on")
-        self._run("set-option", "-t", self.name, "history-limit", "10000")
+        # Keep the pane around after exit so a crash is still captured. The options
+        # come from the server's config file so they are in effect before the app
+        # starts: set afterwards, an app that exits within milliseconds (e.g.
+        # --list-models) races them and loses the "Pane is dead" line, and
+        # history-limit only applies to panes created after it is set.
+        conf = Path(tempfile.gettempdir()) / f"{self.socket}.conf"
+        conf.write_text("set-option -g remain-on-exit on\nset-option -g history-limit 10000\n")
+        # The app runs under a silent `sh` that passes its exit status through: when
+        # the pane's direct child is a process that exits right after writing (node
+        # running hoocode --list-models), tmux 3.4 loses the race between the pty
+        # EOF and the child's exit in ~1 of 8 runs and never draws the
+        # "Pane is dead" line. With sh as the direct child it always does.
+        wrapped = ["sh", "-c", '"$@"; exit $?', "sh", *argv]
+        self._run("-f", str(conf), "new-session", "-d", "-s", self.name, "-x", str(self.cols), "-y", str(self.rows), "-c", str(cwd), *env_args, *wrapped)
 
     def send_text(self, text: str) -> None:
         self._run("send-keys", "-t", self.name, "-l", text)

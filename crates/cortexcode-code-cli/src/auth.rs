@@ -7,18 +7,17 @@
 //! persists the credentials:
 //!
 //! * [`open_browser`] — best-effort platform browser launcher.
-//! * [`CredentialStore`] — reads/writes `~/.cortexcode/auth.json`.
+//! * credentials are stored in `auth.json` through `cortexcode_code_auth::AuthStorage`.
 //! * [`login`] — the top-level driver. hoocode has no `--login` flag (the pinned
 //!   flag set is exact); the `/login` selector (ledger 11.3) will call this.
 
-use std::collections::HashMap;
 use std::io::Write;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use cortexcode_ai_oauth::{
     BoxFuture, OAuthAuthInfo, OAuthCredentials, OAuthLoginCallbacks, OAuthPrompt, OAuthProvider,
 };
+use cortexcode_code_auth::{AuthCredential, AuthStorage};
 
 /// Error type for interactive login operations.
 #[derive(Debug)]
@@ -55,60 +54,6 @@ impl From<std::io::Error> for AuthError {
 impl From<serde_json::Error> for AuthError {
     fn from(e: serde_json::Error) -> Self {
         AuthError::Json(e)
-    }
-}
-
-/// Persistent store for OAuth credentials, keyed by provider id.
-///
-/// Backed by `~/.cortexcode/auth.json` — a JSON object mapping a provider id
-/// (`anthropic`, `github-copilot`) to its [`OAuthCredentials`].
-pub struct CredentialStore {
-    path: PathBuf,
-}
-
-impl CredentialStore {
-    /// Create a store backed by the default `~/.cortexcode/auth.json` path.
-    pub fn default_location() -> Self {
-        Self {
-            path: cortexcode_code_paths::auth_path(),
-        }
-    }
-
-    /// Create a store backed by an explicit path (used in tests).
-    #[cfg(test)]
-    pub fn at(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
-    }
-
-    /// The file backing this store.
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// Load all persisted credentials. A missing or malformed file yields an
-    /// empty map rather than an error, matching the config crate's behavior.
-    pub fn load_all(&self) -> HashMap<String, OAuthCredentials> {
-        let Ok(text) = std::fs::read_to_string(&self.path) else {
-            return HashMap::new();
-        };
-        serde_json::from_str(&text).unwrap_or_default()
-    }
-
-    /// Load the credentials for a single provider, if present.
-    pub fn get(&self, provider: &str) -> Option<OAuthCredentials> {
-        self.load_all().remove(provider)
-    }
-
-    /// Persist credentials for a provider, merging into any existing file.
-    pub fn save(&self, provider: &str, credentials: &OAuthCredentials) -> Result<(), AuthError> {
-        let mut all = self.load_all();
-        all.insert(provider.to_string(), credentials.clone());
-        if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let text = serde_json::to_string_pretty(&all)?;
-        std::fs::write(&self.path, text)?;
-        Ok(())
     }
 }
 
@@ -204,18 +149,23 @@ fn run_login(
 
 /// Log in with `provider` and persist the credentials under `store_key`.
 fn login_with(
-    store: &CredentialStore,
+    store: &AuthStorage,
     store_key: &str,
     label: &str,
     provider: Arc<dyn OAuthProvider>,
     output: &mut dyn Write,
 ) -> Result<OAuthCredentials, AuthError> {
     let credentials = run_login(provider, output)?;
-    store.save(store_key, &credentials)?;
+    store.set(store_key, AuthCredential::OAuth(credentials.clone()));
+    if let Some(error) = store.drain_errors().into_iter().next() {
+        return Err(AuthError::Flow(format!(
+            "could not save credentials: {error}"
+        )));
+    }
     writeln!(
         output,
         "\nLogged in to {label}. Credentials saved to {}.",
-        store.path().display()
+        cortexcode_code_paths::auth_path().display()
     )?;
     Ok(credentials)
 }
@@ -223,7 +173,7 @@ fn login_with(
 /// Run the interactive login for `provider`, persisting the resulting
 /// credentials to the default credential store.
 pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
-    let store = CredentialStore::default_location();
+    let store = AuthStorage::create(None);
     match provider {
         "anthropic" | "claude" => {
             let provider =
@@ -279,43 +229,6 @@ pub fn login(provider: &str, output: &mut dyn Write) -> Result<(), AuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_credential_store_roundtrip() {
-        let dir = std::env::temp_dir().join(format!("cortex-auth-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let store = CredentialStore::at(dir.join("auth.json"));
-
-        assert!(store.get("anthropic").is_none());
-
-        let creds = OAuthCredentials::new("r", "a", 123);
-        store.save("anthropic", &creds).unwrap();
-        assert_eq!(store.get("anthropic"), Some(creds.clone()));
-
-        // A second provider merges rather than overwriting the file.
-        let mut other = OAuthCredentials::new("r2", "a2", 456);
-        other
-            .extra
-            .insert("enterpriseUrl".into(), serde_json::json!("company.ghe.com"));
-        store.save("github-copilot", &other).unwrap();
-        assert_eq!(store.get("anthropic"), Some(creds));
-        assert_eq!(store.get("github-copilot"), Some(other));
-
-        // hoocode's auth.json shape: flat entries.
-        let text = std::fs::read_to_string(dir.join("auth.json")).unwrap();
-        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(json["github-copilot"]["enterpriseUrl"], "company.ghe.com");
-        assert!(json["anthropic"].get("extra").is_none());
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_credential_store_missing_file_is_empty() {
-        let store = CredentialStore::at("/nonexistent/path/auth.json");
-        assert!(store.load_all().is_empty());
-        assert!(store.get("anthropic").is_none());
-    }
 
     #[test]
     fn test_login_unknown_provider() {

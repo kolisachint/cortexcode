@@ -1,0 +1,35 @@
+{
+  "description": "--list-models prints the table of models with configured auth: the mock provider (models.json apiKey) plus a built-in provider authed through its environment variable (GROQ_API_KEY), sorted by provider then id, with token counts formatted (128K, 4.1K, ...).",
+  "phase": "10.4b",
+  "terminal": {
+    "cols": 100,
+    "rows": 16
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--list-models"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "table",
+      "history": true,
+      "contains": [
+        "provider",
+        "mock-model",
+        "groq",
+        "<exited status=0>"
+      ]
+    }
+  ],
+  "env": {
+    "GROQ_API_KEY": "test-groq-key"
+  }
+}
