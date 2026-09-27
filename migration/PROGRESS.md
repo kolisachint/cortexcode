@@ -24,6 +24,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.5c done (context files, agent registry)
+- `code-resources::context_files` (context-files.ts): AGENTS.md/CLAUDE.md from `~/.agents`, the
+  agent dir and the cwd ancestors (root first), per-file 8K/40K and total 24K/64K budgets
+  (trims least specific first), `resolve_prompt_input`.
+- `code-resources::agent_registry` (agent-registry.ts + agent-manifest-paths.ts): built-ins
+  embedded from hoocode `templates/agents/*.md` (branding line "running inside cortex"),
+  precedence chain incl. `.claude/agents`, ancestor `.agents/agents`, explicit paths, `--agent`;
+  `summarize_agent_description`, `format_agents_for_prompt` (checked byte-for-byte against the
+  `<available_agents>` block in hoocode's recorded model request).
+- Tests: context-files-user-scope.test.ts and agent-registry.test.ts ported.
+- Next: 10.5 (DefaultResourceLoader + wiring + print-context-files).
+
 ### 2026-09-27: 10.5 split; 10.5a done (skills, prompt templates, agent frontmatter)
 - Ledger: 10.5 split into 10.5a (this), 10.5c (context files + agent registry) and 10.5
   (resource-loader.ts, session/CLI wiring, print-context-files). Bookkeeping fix: the new tasks'

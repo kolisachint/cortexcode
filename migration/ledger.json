@@ -2382,7 +2382,7 @@
    "id": "10.5c",
    "title": "Resources II: context files (AGENTS.md/CLAUDE.md discovery, user scope) and agent registry",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.5a"
    ],
@@ -2400,7 +2400,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:14:24Z",
+     "commit": "e899605",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:17:17Z",
+     "commit": "e899605",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "10.5",
