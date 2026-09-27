@@ -41,40 +41,14 @@ pub trait FooterSource {
     fn is_using_oauth(&self) -> bool;
 }
 
-/// The tool-output view dial's stops.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ToolOutputView {
-    Radar,
-    #[default]
-    Peek,
-    Full,
-}
+pub use cortexcode_code_settings::ToolOutputView;
 
-impl ToolOutputView {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            ToolOutputView::Radar => "radar",
-            ToolOutputView::Peek => "peek",
-            ToolOutputView::Full => "full",
-        }
-    }
-
-    /// The dial glyph, filling as the view widens.
-    pub fn glyph(self) -> &'static str {
-        match self {
-            ToolOutputView::Radar => "◌",
-            ToolOutputView::Peek => "◍",
-            ToolOutputView::Full => "◉",
-        }
-    }
-
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "radar" => Some(ToolOutputView::Radar),
-            "peek" => Some(ToolOutputView::Peek),
-            "full" => Some(ToolOutputView::Full),
-            _ => None,
-        }
+/// The view dial's glyph, filling as the view widens.
+pub fn tool_output_view_glyph(view: ToolOutputView) -> &'static str {
+    match view {
+        ToolOutputView::Radar => "◌",
+        ToolOutputView::Peek => "◍",
+        ToolOutputView::Full => "◉",
     }
 }
 
@@ -228,7 +202,7 @@ impl FooterComponent {
             source,
             data,
             auto_compact_enabled: true,
-            tool_output_view: ToolOutputView::default(),
+            tool_output_view: ToolOutputView::Peek,
             session_chip_shown: false,
             density: FooterDensity::Full,
         }
@@ -348,7 +322,7 @@ impl FooterComponent {
             ));
         }
         let view = self.tool_output_view;
-        let view_text = format!("{} {}", view.glyph(), view.as_str());
+        let view_text = format!("{} {}", tool_output_view_glyph(view), view.as_str());
         right.push((view_text.clone(), t.fg("dim", &view_text)));
         let l1_right_plain = right
             .iter()

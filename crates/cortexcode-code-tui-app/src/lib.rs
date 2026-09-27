@@ -2,11 +2,15 @@
 //! `modes/interactive/`.
 
 pub mod brand;
+pub mod chrome_layout;
 pub mod embsearch_progress;
 pub mod expandable_text;
 pub mod footer;
 pub mod footer_data;
+pub mod input_frame;
+pub mod notification_panel;
 pub mod progress_bar;
+pub mod resource_display;
 pub mod session_chip;
 pub mod startup_progress;
 pub mod wordmark;

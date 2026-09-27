@@ -37,6 +37,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.1c split; 11.1c1 done (interactive chrome components)
+- 11.1c split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 `startup`); 11.1c
+  is a container closed when both are done (bookkeeping).
+- New crate `cortexcode-code-tui-app`: brand glyphs, compact wordmark, `ExpandableText`,
+  the startup-progress store and embsearch progress mapping, the shared progress bar,
+  session chip, footer (+ `FooterSource` trait the session will implement) and
+  `FooterDataProvider` (polling git-branch watcher), chrome density (`resolve_chrome`,
+  controller over `Slot`s), notification band (polled: `deadline()`/`poll()`),
+  `InputFrame`, and the resource listing (`ResourceListing` in, components out).
+- Goldens from the pin via `migration/tools/goldens/` (`run.sh` copies a script into the
+  pin's dist and runs it with a TTY-like chalk level): footer (13 states), resource listing,
+  wordmark. All matched byte for byte.
+- tui-util: `truncate_to_width` now walks ANSI codes and tabs like the pin (it used to
+  count escape bytes as visible and could cut a sequence in half).
+- Next: 11.1c2 (the mode itself, replacing `run_interactive_mode`; L2 `startup`).
+
 ### 2026-09-27: 11.1b done (keybindings)
 - New crate `cortexcode-code-tui-keybindings`: the full keyboard map (TUI + app bindings in
   hoocode's declaration order, which is also the order `keybindings.json` is written in),

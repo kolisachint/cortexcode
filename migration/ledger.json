@@ -3798,7 +3798,7 @@
    "id": "11.1c1",
    "title": "code-tui-app chrome components: wordmark header (ExpandableText), resource summary (resource-display.ts), footer + footer data provider + startup-progress line, chrome-layout, session chip, input frame, notification panel",
    "phase": 11,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "11.0b",
     "11.0c",
@@ -3836,6 +3836,24 @@
      "commit": "6152858",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:05:03Z",
+     "commit": "bbe019d",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-app (chrome components). Goldens from the pin (generators in migration/tools/goldens/): footer across 13 states, resource listing (4 cases), wordmark. Ported tests: progress-bar (voice-panel cases N/A: no voice UI), session-chip, startup-progress (store, embsearch mapping, footer lines), footer-width, subagent-footer, footer-data-provider (git child_process mocks replaced by real files; fs.watch retry N/A: the watcher polls), chrome-layout (Slot cases live in tui-render), notification-panel (fake clock; the panel is polled via deadline()/poll() instead of owning a timer), input-surface-frame's InputFrame cases (surface cases wait on 11.3 pickers). Fixed tui-util truncate_to_width, which cut escape sequences in half."
+    },
+    {
+     "at": "2026-09-27T16:05:46Z",
+     "commit": "bbe019d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T16:06:08Z",
+     "commit": "bbe019d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
