@@ -4466,12 +4466,226 @@
    ]
   },
   {
+   "id": "11.3a",
+   "title": "Session selector: session-selector (+ search, rename, delete, branch view) over list_sessions/list_all_sessions; alt+h and --resume open it; the missing-session-cwd Continue/Cancel prompt",
+   "phase": 11,
+   "status": "in_progress",
+   "depends": [
+    "11.2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/session-selector-search.test.ts",
+    "packages/coding-agent/test/session-selector-rename.test.ts",
+    "packages/coding-agent/test/session-selector-path-delete.test.ts",
+    "packages/coding-agent/test/session-selector-branch.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "session-resume"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "start",
+     "text": "started"
+    }
+   ]
+  },
+  {
+   "id": "11.3b",
+   "title": "Model selector: model-selector, scoped-models-selector, model-controller (/model, cycling)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a",
+    "11.4"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/model-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts",
+    "packages/coding-agent/src/modes/interactive/model-controller.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "model-selector"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3c",
+   "title": "Small selectors: thinking, theme, show-images, session-color, user-message-selector, ask-options",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/thinking-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/theme-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/show-images-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-color-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/user-message-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/ask-options.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/ask-options.test.ts",
+    "packages/coding-agent/test/ask-options-loop.test.ts",
+    "packages/coding-agent/test/picker-widths.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3d",
+   "title": "Settings selector: settings-selector panes and config-selector",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/config-selector.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/settings-token-surface.test.ts",
+    "packages/coding-agent/test/learn-settings-pane.test.ts",
+    "packages/coding-agent/test/platform-settings-pane.test.ts",
+    "packages/coding-agent/test/plugin-settings-keyboard.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3e",
+   "title": "Tree selector (session tree navigation)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tree-selector.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tree-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3f",
+   "title": "Login: login-dialog, oauth-selector, login-controller",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/login-dialog.ts",
+    "packages/coding-agent/src/modes/interactive/components/oauth-selector.ts",
+    "packages/coding-agent/src/modes/interactive/login-controller.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/oauth-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
    "id": "11.3",
    "title": "Selectors and dialogs: new crate code-tui-selectors (model, session, tree, settings, thinking, theme, login, ask-options)",
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2"
+    "11.3a",
+    "11.3b",
+    "11.3c",
+    "11.3d",
+    "11.3e",
+    "11.3f"
    ],
    "crates": [
     "cortexcode-code-tui-selectors"
@@ -4481,10 +4695,7 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [
-    "model-selector",
-    "session-resume"
-   ],
+   "l2": [],
    "notes": "",
    "log": [
     {
@@ -4504,6 +4715,12 @@
      "commit": "efc0d51",
      "kind": "note",
      "text": "10.7b: --resume is rejected until the session selector exists (session-picker.ts selectSession over list_sessions/list_all_sessions, then SessionManager::open); the missing-session-cwd prompt should be the Continue/Cancel selector too (runtime.rs uses a stdin y/N placeholder)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "note",
+     "text": "Split into 11.3a (session selector, L2 session-resume), 11.3b (model selector, L2 model-selector; needs /model from 11.4), 11.3c (small selectors), 11.3d (settings), 11.3e (tree), 11.3f (login). This card closes as a container (bookkeeping)."
     }
    ]
   },
