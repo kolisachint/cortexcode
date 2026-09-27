@@ -24,6 +24,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.5 split; 10.5a done (skills, prompt templates, agent frontmatter)
+- Ledger: 10.5 split into 10.5a (this), 10.5c (context files + agent registry) and 10.5
+  (resource-loader.ts, session/CLI wiring, print-context-files). Bookkeeping fix: the new tasks'
+  `l2` was first written as a list, which `verify` reads as an unwritten scenario; it is the
+  plain "n/a: ..." string like other library tasks.
+- `cortexcode-code-resources` rewritten as a port (the old crate was invented): `frontmatter`
+  (shares the harness parser), `source_info`, `diagnostics`, `agent_frontmatter`
+  (parseAgentDefinition, normalizeTools Claude shim), `skills` (discovery with ignore files,
+  plugin-root skip via the six manifest paths, `.claude/skills`, collisions, namespaces,
+  `format_skills_for_prompt`), `prompt_templates` (load, parseCommandArgs, substituteArgs with
+  JS `String.replace` `$$`/`$&` semantics, tryExpand), `slash_commands` (built-in list),
+  `node_path` (Node path semantics over strings).
+- Tests: skills.test.ts, agent-frontmatter.test.ts, prompt-templates.test.ts ported (fixtures
+  copied to `crates/cortexcode-code-resources/tests/fixtures`).
+- Next: 10.5c (context-files.ts, agent-registry.ts), then 10.5.
+
 ### 2026-09-27: 10.4b done (model resolver, auth storage, --list-models, --models)
 - `code-models::resolver` (model-resolver.ts): `parse_model_pattern`, `resolve_model_scope`
   (globs via `glob` with minimatch options, thinking suffixes, warnings returned),

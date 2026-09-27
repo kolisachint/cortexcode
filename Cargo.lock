@@ -883,9 +883,13 @@ dependencies = [
 name = "cortexcode-code-resources"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-agent-harness",
+ "cortexcode-code-paths",
+ "dirs",
+ "ignore",
  "serde",
  "serde_json",
- "walkdir",
+ "tempfile",
 ]
 
 [[package]]

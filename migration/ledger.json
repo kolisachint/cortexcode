@@ -2333,7 +2333,7 @@
    "id": "10.5a",
    "title": "Resources I: frontmatter, source-info/diagnostics, agent-frontmatter (normalizeTools), skills discovery + formatSkillsForPrompt, prompt templates, slash-command list",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c"
    ],
@@ -2355,11 +2355,28 @@
     "packages/coding-agent/test/prompt-templates.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [
-    "n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)"
-   ],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:06:07Z",
+     "commit": "e32b25b",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:14:00Z",
+     "commit": "e32b25b",
+     "kind": "verify",
+     "text": "L1 pass; L2 unwritten=['n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)']"
+    },
+    {
+     "at": "2026-09-27T04:14:08Z",
+     "commit": "e32b25b",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "10.5c",
@@ -2381,9 +2398,7 @@
     "packages/coding-agent/test/agent-registry.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [
-    "n/a: library-internal; rendered through 10.5 (print-context-files)"
-   ],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
    "notes": "",
    "log": []
   },
