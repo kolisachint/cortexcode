@@ -21,8 +21,15 @@ pub struct DefaultTextStyle {
 
 pub type HighlightCodeFn = Box<dyn Fn(&str, Option<&str>) -> Vec<String>>;
 
+/// A heading style, given the heading's level.
+pub type HeadingFn = Box<dyn Fn(&str, u8) -> String>;
+
 pub struct MarkdownTheme {
-    pub heading: ColorFn,
+    pub heading: HeadingFn,
+    /// Wrapper applied to a *finished* heading line (`headingBlock`), the hook
+    /// a theme uses to render headings as a filled chip. Separate from
+    /// `heading`, whose output is also spliced around inline tokens.
+    pub heading_block: Option<HeadingFn>,
     pub link: ColorFn,
     pub link_url: ColorFn,
     pub code: ColorFn,
@@ -79,9 +86,9 @@ impl<'a> MarkdownRenderer<'a> {
 
     fn apply_heading_style(&self, level: u8, text: &str) -> String {
         if level == 1 {
-            (self.theme.heading)(&(self.theme.bold)(&(self.theme.underline)(text)))
+            (self.theme.heading)(&(self.theme.bold)(&(self.theme.underline)(text)), level)
         } else {
-            (self.theme.heading)(&(self.theme.bold)(text))
+            (self.theme.heading)(&(self.theme.bold)(text), level)
         }
     }
 
@@ -111,14 +118,15 @@ impl<'a> MarkdownRenderer<'a> {
             Block::Heading { level, inlines } => {
                 let heading_mode = StyleMode::Heading(*level);
                 let text = self.render_inlines(inlines, heading_mode);
-                if *level >= 3 {
+                let styled = if *level >= 3 {
                     let prefix = format!("{} ", "#".repeat(*level as usize));
-                    vec![format!(
-                        "{}{text}",
-                        self.apply_heading_style(*level, &prefix)
-                    )]
+                    format!("{}{text}", self.apply_heading_style(*level, &prefix))
                 } else {
-                    vec![text]
+                    text
+                };
+                match &self.theme.heading_block {
+                    Some(block) => vec![block(&styled, *level)],
+                    None => vec![styled],
                 }
             }
             Block::Paragraph(inlines) => {

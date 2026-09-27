@@ -23,7 +23,7 @@
 mod ast;
 mod render;
 
-pub use render::{DefaultTextStyle, HighlightCodeFn, MarkdownTheme};
+pub use render::{DefaultTextStyle, HeadingFn, HighlightCodeFn, MarkdownTheme};
 
 use cortexcode_tui_images::is_image_line;
 use cortexcode_tui_render::Component;
@@ -148,7 +148,8 @@ mod tests {
 
     fn theme() -> MarkdownTheme {
         MarkdownTheme {
-            heading: identity(),
+            heading: Box::new(|s: &str, _| s.to_string()),
+            heading_block: None,
             link: identity(),
             link_url: identity(),
             code: identity(),

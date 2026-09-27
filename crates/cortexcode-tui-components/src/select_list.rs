@@ -288,6 +288,12 @@ impl SelectList {
 }
 
 impl Component for SelectList {
+    /// Keys go through the global keybindings (`getKeybindings()`).
+    fn handle_input(&mut self, data: &str) {
+        let kb = cortexcode_tui_keys::get_keybindings();
+        self.handle_input_with(data, &kb);
+    }
+
     fn render(&mut self, width: u16) -> Vec<String> {
         let width = width as usize;
         let mut lines = Vec::new();

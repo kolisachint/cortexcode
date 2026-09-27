@@ -192,8 +192,9 @@ pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
             &["ctrl+alt+]", "F"],
             "Jump backward to character",
         ),
-        ("tui.editor.pageUp", &["pageUp"], "Page up"),
-        ("tui.editor.pageDown", &["pageDown"], "Page down"),
+        // Unbound by default: the app gives pageUp/pageDown to the transcript.
+        ("tui.editor.pageUp", &[], "Page up within the prompt"),
+        ("tui.editor.pageDown", &[], "Page down within the prompt"),
         (
             "tui.editor.deleteCharBackward",
             &["backspace"],
@@ -227,6 +228,9 @@ pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
         ("tui.editor.yank", &["ctrl+y"], "Yank"),
         ("tui.editor.yankPop", &["alt+y"], "Yank pop"),
         ("tui.editor.undo", &["ctrl+-"], "Undo"),
+        // alt+u: `\x1b-` is not a key this parser reads, so alt+- would only
+        // work under the Kitty protocol.
+        ("tui.editor.redo", &["alt+u"], "Redo"),
         ("tui.input.newLine", &["shift+enter"], "Insert newline"),
         ("tui.input.submit", &["enter"], "Submit input"),
         ("tui.input.tab", &["tab"], "Tab / autocomplete"),
@@ -246,6 +250,31 @@ pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
         .iter()
         .map(|(id, keys, desc)| (id.to_string(), KeybindingDefinition::new(keys, desc)))
         .collect()
+}
+
+thread_local! {
+    static GLOBAL_KEYBINDINGS: std::cell::RefCell<Option<std::rc::Rc<KeybindingsManager>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// `setKeybindings`: install the manager components consult for their
+/// actions. The TUI is single-threaded, so the global is per thread.
+pub fn set_keybindings(keybindings: KeybindingsManager) {
+    GLOBAL_KEYBINDINGS.with(|g| *g.borrow_mut() = Some(std::rc::Rc::new(keybindings)));
+}
+
+/// `getKeybindings`: the installed manager, or the library defaults.
+pub fn get_keybindings() -> std::rc::Rc<KeybindingsManager> {
+    GLOBAL_KEYBINDINGS.with(|g| {
+        g.borrow_mut()
+            .get_or_insert_with(|| {
+                std::rc::Rc::new(KeybindingsManager::new(
+                    default_tui_keybindings(),
+                    HashMap::new(),
+                ))
+            })
+            .clone()
+    })
 }
 
 #[cfg(test)]

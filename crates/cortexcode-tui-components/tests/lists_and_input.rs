@@ -260,8 +260,8 @@ fn caret_is_coloured_without_stealing_a_column() {
     let mut plain = Input::new();
     let mut coloured = Input::new();
     coloured.prompt_color = Box::new(|t: &str| format!("\x1b[2m{t}\x1b[22m"));
-    plain.set_value(&"x".repeat(40));
-    coloured.set_value(&"x".repeat(40));
+    plain.set_value("x".repeat(40));
+    coloured.set_value("x".repeat(40));
     assert_eq!(
         visible_width(&coloured.render(20)[0]),
         visible_width(&plain.render(20)[0])

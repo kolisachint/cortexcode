@@ -37,6 +37,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.1 split; TUI catch-up tasks 11.0a/b/c added; 11.0a done
+- 11.1 split into 11.1a (theme), 11.1b (app keybindings), 11.1c (tui-app idle screen + L2 `startup`).
+- Found: the tui-* crates were ported 2026-07-20 from hoocode ~713e5dd; `packages/tui` grew +2.6K lines
+  in 35 commits before the pin. New tasks: 11.0a (utils/components delta), 11.0b (tui.ts renderer
+  +1.1K, terminal, mouse, terminal-image/Sixel, image), 11.0c (re-port Editor: the Rust one diverged
+  from hoocode even before the delta). Diff with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`.
+- 11.0a done: tui-util `hyperlink_at` / `bare_url_at`, band repair in `apply_background_to_line`;
+  Box paper sheets (`set_paper`, `PaperSheet`); `Frame` + `render_frame_edge` (new frame.rs);
+  SelectList/SettingsList cursor + selected-row band, no 2-col right margin, `""` ellipsis fixes
+  (the old port used "..."); SettingsList value_suffix/keywords; Loader ○/● pulse, single line;
+  Input `❯` prompt_prefix/prompt_color; FlexSpacer; UndoStack redo; keybindings redo + unbound
+  editor pageUp/Down; markdown heading level + heading_block; thread-local
+  `get_keybindings()/set_keybindings()` and `Component::handle_input` on Input/SelectList/
+  SettingsList/CancellableLoader. Tests ported from the pin's test files.
+- Noted for 11.2: the Rust markdown is a custom AST renderer, not a port of hoocode's.
+- Next: 11.0b (renderer), then 11.0c (editor), then 11.1a/b/c.
+
 ### 2026-09-27: 10.10c done (tls-ca); 10.10 complete
 - `cortexcode_ai_util::tls`: `TlsSources` (argv pre-scan for `--ca-cert` / `--use-system-ca` +
   `CORTEX_CA_CERT` / `NODE_EXTRA_CA_CERTS` / `CORTEX_USE_SYSTEM_CA`), `resolve_trusted_cas`

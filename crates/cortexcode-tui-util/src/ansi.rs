@@ -332,65 +332,6 @@ fn char_len_at(s: &str, byte_idx: usize) -> usize {
         .unwrap_or(1)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_ansi_code_csi() {
-        let s = "\x1b[31mhello";
-        let (code, len) = extract_ansi_code(s, 0).unwrap();
-        assert_eq!(code, "\x1b[31m");
-        assert_eq!(len, 5);
-    }
-
-    #[test]
-    fn test_extract_ansi_code_none_for_plain_text() {
-        assert!(extract_ansi_code("hello", 0).is_none());
-    }
-
-    #[test]
-    fn test_extract_ansi_code_osc_bel() {
-        let s = "\x1b]8;;https://x\x07link\x1b]8;;\x07";
-        let (code, len) = extract_ansi_code(s, 0).unwrap();
-        assert_eq!(code, "\x1b]8;;https://x\x07");
-        assert_eq!(len, code.len());
-    }
-
-    #[test]
-    fn test_ansi_tracker_bold_and_reset() {
-        let mut t = AnsiCodeTracker::new();
-        t.process("\x1b[1m");
-        assert!(t.has_active_codes());
-        assert_eq!(t.active_codes(), "\x1b[1m");
-        t.process("\x1b[0m");
-        assert!(!t.has_active_codes());
-    }
-
-    #[test]
-    fn test_ansi_tracker_256_color() {
-        let mut t = AnsiCodeTracker::new();
-        t.process("\x1b[38;5;196m");
-        assert_eq!(t.active_codes(), "\x1b[38;5;196m");
-    }
-
-    #[test]
-    fn test_ansi_tracker_underline_line_end_reset() {
-        let mut t = AnsiCodeTracker::new();
-        t.process("\x1b[4m");
-        assert_eq!(t.line_end_reset(), "\x1b[24m");
-    }
-
-    #[test]
-    fn test_ansi_tracker_hyperlink_roundtrip() {
-        let mut t = AnsiCodeTracker::new();
-        t.process("\x1b]8;;https://example.com\x07");
-        assert!(t.active_codes().contains("https://example.com"));
-        t.process("\x1b]8;;\x07");
-        assert!(!t.has_active_codes());
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Link lookup for mouse clicks (`hyperlinkAt`, `bareUrlAt`)
 // ---------------------------------------------------------------------------
@@ -535,4 +476,63 @@ pub fn bare_url_at(line: &str, column: i64) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_ansi_code_csi() {
+        let s = "\x1b[31mhello";
+        let (code, len) = extract_ansi_code(s, 0).unwrap();
+        assert_eq!(code, "\x1b[31m");
+        assert_eq!(len, 5);
+    }
+
+    #[test]
+    fn test_extract_ansi_code_none_for_plain_text() {
+        assert!(extract_ansi_code("hello", 0).is_none());
+    }
+
+    #[test]
+    fn test_extract_ansi_code_osc_bel() {
+        let s = "\x1b]8;;https://x\x07link\x1b]8;;\x07";
+        let (code, len) = extract_ansi_code(s, 0).unwrap();
+        assert_eq!(code, "\x1b]8;;https://x\x07");
+        assert_eq!(len, code.len());
+    }
+
+    #[test]
+    fn test_ansi_tracker_bold_and_reset() {
+        let mut t = AnsiCodeTracker::new();
+        t.process("\x1b[1m");
+        assert!(t.has_active_codes());
+        assert_eq!(t.active_codes(), "\x1b[1m");
+        t.process("\x1b[0m");
+        assert!(!t.has_active_codes());
+    }
+
+    #[test]
+    fn test_ansi_tracker_256_color() {
+        let mut t = AnsiCodeTracker::new();
+        t.process("\x1b[38;5;196m");
+        assert_eq!(t.active_codes(), "\x1b[38;5;196m");
+    }
+
+    #[test]
+    fn test_ansi_tracker_underline_line_end_reset() {
+        let mut t = AnsiCodeTracker::new();
+        t.process("\x1b[4m");
+        assert_eq!(t.line_end_reset(), "\x1b[24m");
+    }
+
+    #[test]
+    fn test_ansi_tracker_hyperlink_roundtrip() {
+        let mut t = AnsiCodeTracker::new();
+        t.process("\x1b]8;;https://example.com\x07");
+        assert!(t.active_codes().contains("https://example.com"));
+        t.process("\x1b]8;;\x07");
+        assert!(!t.has_active_codes());
+    }
 }

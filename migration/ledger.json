@@ -3475,9 +3475,9 @@
   },
   {
    "id": "11.0a",
-   "title": "TUI library catch-up to the pin, part 1: utils, box (paper sheets), spacer, select-list/settings-list (cursor + selected-row band), loader (○/● toggle), input, markdown, image, undo-stack, keybindings, editor-component, frame.ts",
+   "title": "TUI library catch-up to the pin, part 1: utils, box (paper sheets), spacer, select-list/settings-list (cursor + selected-row band), loader (○/● toggle), input, markdown, undo-stack, keybindings, frame.ts",
    "phase": 11,
-   "status": "in_progress",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-tui-util",
@@ -3494,12 +3494,9 @@
     "packages/tui/src/components/loader.ts",
     "packages/tui/src/components/input.ts",
     "packages/tui/src/components/markdown.ts",
-    "packages/tui/src/components/image.ts",
     "packages/tui/src/components/frame.ts",
-    "packages/tui/src/components/editor.ts",
     "packages/tui/src/undo-stack.ts",
-    "packages/tui/src/keybindings.ts",
-    "packages/tui/src/editor-component.ts"
+    "packages/tui/src/keybindings.ts"
    ],
    "ts_tests": [],
    "l1_cmds": [],
@@ -3517,6 +3514,30 @@
      "commit": "fb8b13a",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-27T18:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Markdown here is only the pin delta (heading level + headingBlock); the Rust markdown is its own AST renderer, not a port of hoocode's marked-based one: re-check it against the pin in 11.2. Components now implement Component::handle_input through a thread-local get_keybindings()/set_keybindings()."
+    },
+    {
+     "at": "2026-09-27T11:18:35Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:18:51Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:19:01Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -3537,7 +3558,8 @@
     "packages/tui/src/tui.ts",
     "packages/tui/src/terminal.ts",
     "packages/tui/src/mouse.ts",
-    "packages/tui/src/terminal-image.ts"
+    "packages/tui/src/terminal-image.ts",
+    "packages/tui/src/components/image.ts"
    ],
    "ts_tests": [],
    "l1_cmds": [],
@@ -3549,6 +3571,36 @@
      "commit": "",
      "kind": "note",
      "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    }
+   ]
+  },
+  {
+   "id": "11.0c",
+   "title": "Re-port the Editor faithfully at the pin: components/editor.ts (layout, scrollOffset over layout lines at 30% of terminal rows, frame border box/rule/none + top-border label, redo, autocomplete visibility, word-wrap atomic-grapheme fix) and editor.test.ts",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/tui/src/components/editor.ts",
+    "packages/tui/src/editor-component.ts"
+   ],
+   "ts_tests": [
+    "packages/tui/test/editor.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T18:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The Rust Editor diverged from hoocode before the pin (a viewport over logical lines instead of scrollOffset over layout lines, caller-owned preferredVisualCol, a select-list theme factory; touched by 8f5693e). Re-port from the pin rather than patching the 713e5dd..pin delta."
     }
    ]
   },
@@ -3626,10 +3678,11 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.1a",
-    "11.1b",
+    "10.3a",
     "11.0b",
-    "10.3a"
+    "11.0c",
+    "11.1a",
+    "11.1b"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -3688,6 +3741,12 @@
      "commit": "9b29742",
      "kind": "note",
      "text": "10.5b: mode-plan scenario (L2 gate of 10.5b) needs the editor + footer mode badge ('⬢ PLAN') and must consume ModesExtension::take_actions after run_command (Notify, Reload, NewSessionWithMessage, SendFollowUp)."
+    },
+    {
+     "at": "2026-09-27T18:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "cortexcode-tui-components' markdown is a custom AST renderer, not a port of the pin's marked-based markdown.ts; port it faithfully (with markdown.test.ts) before chat-basic parity."
     }
    ]
   },

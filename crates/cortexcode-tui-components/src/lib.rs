@@ -9,6 +9,7 @@ mod box_component;
 mod cancellable_loader;
 mod color;
 mod editor;
+mod frame;
 mod image;
 mod input;
 mod loader;
@@ -27,10 +28,14 @@ pub use box_component::{BoxComponent, PaperFn, PaperSheet};
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
 pub use editor::{word_wrap_line, Editor, EditorOptions, EditorTheme, TextChunk};
+pub use frame::{
+    render_frame_edge, Frame, FrameBorderChars, FrameBorderCharsOverride, FrameBorderStyle,
+    FrameEdge, FrameEdgeOptions, FrameLabel, FrameOptions, LABEL_RIGHT_INSET, MIN_LABEL_LEAD_IN,
+};
 pub use image::{Image, ImageOptions, ImageTheme};
 pub use input::{Input, DEFAULT_INPUT_PROMPT};
 pub use loader::{Loader, LoaderIndicatorOptions};
-pub use markdown::{DefaultTextStyle, HighlightCodeFn, Markdown, MarkdownTheme};
+pub use markdown::{DefaultTextStyle, HeadingFn, HighlightCodeFn, Markdown, MarkdownTheme};
 pub use select_list::{
     SelectItem, SelectList, SelectListLayoutOptions, SelectListTheme,
     SelectListTruncatePrimaryContext,
