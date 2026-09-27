@@ -21,8 +21,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
-  `AgentSessionRuntime`). Next: **10.9** (subagents onto `RpcClient`, drop code-subagents'
-  jsonrpc.rs) — check `ledger.py next`.
+  `AgentSessionRuntime`). 10.9 split into 10.9a..d; 10.9a done (subagent foundations).
+  Next: **10.9b** (cold subagent pool + lifeguard).
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -34,6 +34,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9 split; 10.9a done (subagent foundations)
+- 10.9 was ~5.3k TS lines with ~20 test files: split into 10.9a (foundations), 10.9b (cold pool +
+  lifeguard), 10.9c (warm pool + inbox), 10.9d (Task/TaskOutput tools, agents roster, L2
+  subagent-task). Correction to the old card: hoocode's cold pool spawns `--mode json --task-id`
+  children (progress events + `{"ping":true}` heartbeats on stdout, `result.json` settles them);
+  only the warm pool drives `--mode rpc` children through `RpcClient`.
+- code-subagents gains `depth` (env contract; any CORTEXCODE_/CORTEX_/HOOCODE_ prefix, `SubagentEnv`
+  so tests pass explicit envs), `dispatch` (DispatchEvaluator), `events` (+ `classify_subagent_line`),
+  `result` (result.json build/write, task forest), `output_verifier`, `token_budget`,
+  `model_categories`, `agent_log`. The invented JSON-RPC pool in lib.rs is untouched until 10.9b.
+- code-agent-session gains `provider_health`; AgentSession clears exhaustion on a good response and
+  marks it when a quota error outlives retries (the 10.3b ledger note).
+- Next: 10.9b. Read subagent-pool.ts (1174 lines) + lifeguard.ts; tests subagent-pool*.test.ts,
+  lifeguard.test.ts. The pool needs the agent registry/frontmatter (code-resources has
+  agent_registry.rs) and `--mode json`'s SUBAGENT_STDOUT_EVENT_TYPES filter under `--task-id`.
 
 ### 2026-09-27: 10.8d done (RPC session commands on AgentSessionRuntime)
 - `cortexcode_code_rpc::RuntimeHost`: an `RpcHost` over `AgentSessionRuntime`; new_session,

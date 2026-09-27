@@ -2859,41 +2859,183 @@
    ]
   },
   {
-   "id": "10.9",
-   "title": "Subagents: pool, Task/TaskOutput tools, depth guard, lifeguard, inbox on the RPC protocol",
+   "id": "10.9a",
+   "title": "Subagent foundations: depth guard, dispatch evaluator, events, result parsing, agent log, output verifier, token budget, model categories, provider health",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "10.8c",
     "10.8e"
    ],
    "crates": [
-    "cortexcode-code-subagents"
+    "cortexcode-code-subagents",
+    "cortexcode-code-agent-session"
    ],
    "sources": [
-    "packages/coding-agent/src/core/subagent-pool.ts",
-    "packages/coding-agent/src/core/tools/subagent.ts",
-    "packages/coding-agent/src/core/lifeguard.ts",
-    "packages/coding-agent/src/core/dispatch-evaluator.ts"
+    "packages/coding-agent/src/core/subagent-depth.ts",
+    "packages/coding-agent/src/core/dispatch-evaluator.ts",
+    "packages/coding-agent/src/core/subagent-events.ts",
+    "packages/coding-agent/src/core/subagent-result.ts",
+    "packages/coding-agent/src/core/agent-log.ts",
+    "packages/coding-agent/src/core/output-verifier.ts",
+    "packages/coding-agent/src/core/token-budget.ts",
+    "packages/coding-agent/src/core/model-categories.ts",
+    "packages/coding-agent/src/core/provider-health.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/subagent-depth.test.ts",
+    "packages/coding-agent/test/dispatch-evaluator.test.ts",
+    "packages/coding-agent/test/subagent-events.test.ts",
+    "packages/coding-agent/test/subagent-result.test.ts",
+    "packages/coding-agent/test/subagent-line-classify.test.ts",
+    "packages/coding-agent/test/model-categories.test.ts",
+    "packages/coding-agent/test/output-verifier.test.ts",
+    "packages/coding-agent/test/provider-health.test.ts",
+    "packages/coding-agent/test/token-budget.test.ts"
+   ],
    "l1_cmds": [],
-   "l2": [
-    "subagent-task"
-   ],
-   "notes": "",
+   "l2": [],
+   "notes": "Pure logic the pool and tools build on. provider_health lives in code-agent-session (AgentSession marks/clears exhaustion, as agent-session.ts does). Env vars read any of CORTEXCODE_/CORTEX_/HOOCODE_ prefixes.",
    "log": [
     {
-     "at": "2026-09-26T23:42:24Z",
-     "commit": "6441f47",
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
      "kind": "note",
-     "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
     },
     {
      "at": "2026-09-26T23:53:59Z",
      "commit": "74e6c23",
      "kind": "note",
      "text": "10.3b: AgentSession skips provider-health bookkeeping (markProviderExhausted on exhausted quota errors after retries, clearProviderExhaustion on a good response); add it with the subagent pool."
+    },
+    {
+     "at": "2026-09-27T07:02:32Z",
+     "commit": "c4c1ec7",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:09:25Z",
+     "commit": "c4c1ec7",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:09:36Z",
+     "commit": "c4c1ec7",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9b",
+   "title": "Subagent pool + lifeguard: children run `--mode json --task-id`, result.json settles them; replace code-subagents' invented JSON-RPC pool (jsonrpc.rs)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.9a"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/subagent-pool.ts",
+    "packages/coding-agent/src/core/subagent-pool-instance.ts",
+    "packages/coding-agent/src/core/lifeguard.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/subagent-pool.test.ts",
+    "packages/coding-agent/test/subagent-pool-protocol.test.ts",
+    "packages/coding-agent/test/subagent-pool-registry.test.ts",
+    "packages/coding-agent/test/subagent-pool-inherited-model.test.ts",
+    "packages/coding-agent/test/subagent-claude-agent.test.ts",
+    "packages/coding-agent/test/lifeguard.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "hoocode's cold pool spawns print-mode json children (SUBAGENT_STDOUT_EVENT_TYPES filter, {\"ping\":true} heartbeats, result.json), not RPC. Only the warm pool (10.9c) uses RpcClient.",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    }
+   ]
+  },
+  {
+   "id": "10.9c",
+   "title": "Warm subagent pool and subagent inbox",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.9b"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/warm-subagent-pool.ts",
+    "packages/coding-agent/src/core/warm-subagent-pool-instance.ts",
+    "packages/coding-agent/src/core/subagent-inbox.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/warm-subagent-pool.test.ts",
+    "packages/coding-agent/test/subagent-inbox.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "warm-subagent-pool.ts drives `--mode rpc` children through RpcClient (10.8e).",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    }
+   ]
+  },
+  {
+   "id": "10.9d",
+   "title": "Task/TaskOutput tools on the pool; agents roster in the system prompt",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.9c"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/subagent.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/subagent.test.ts",
+    "packages/coding-agent/test/subagent-skills.test.ts",
+    "packages/coding-agent/test/subagent-footer.test.ts",
+    "packages/coding-agent/test/subagent-progress-roster.test.ts",
+    "packages/coding-agent/test/task-output.test.ts",
+    "packages/coding-agent/test/mode-subagent-appendix.test.ts",
+    "packages/coding-agent/test/suite/subagent-execution.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "subagent-task"
+   ],
+   "notes": "subagent-dispatch-tui-output.test.ts and canvas-shim-dispatch.test.ts render in the TUI: phase 11.",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-26T23:42:24Z",
+     "commit": "6441f47",
+     "kind": "note",
+     "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
     }
    ]
   },
@@ -3093,7 +3235,7 @@
    "status": "todo",
    "depends": [
     "11.2",
-    "10.9"
+    "10.9d"
    ],
    "crates": [
     "cortexcode-code-tui-widgets"

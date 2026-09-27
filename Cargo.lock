@@ -969,12 +969,18 @@ dependencies = [
 name = "cortexcode-code-subagents"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "cortexcode-agent-tools",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "cortexcode-code-paths",
+ "cortexcode-code-settings",
+ "cortexcode-code-task-store",
  "cortexcode-code-tools",
+ "regex",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -730,7 +730,11 @@ impl AgentSession {
                 lock(&self.inner.state).last_assistant_message = Some(assistant.clone());
                 if assistant.stop_reason != cortexcode_ai_types::StopReason::Error {
                     self.reset_overflow_recovery();
-                    // Provider-exhaustion bookkeeping arrives with subagents (10.9).
+                    // A successful response clears any prior provider-exhaustion
+                    // flag so subagent dispatch is unblocked once it recovers.
+                    if let Some(model) = self.model() {
+                        crate::provider_health::clear_provider_exhaustion(&model.provider);
+                    }
                     self.on_successful_assistant_response();
                 }
             }
@@ -748,10 +752,22 @@ impl AgentSession {
     /// The `agent_end` tail: retry a transient error, else check compaction.
     async fn after_agent_end(&self, message: AssistantMessage) {
         let model = self.model();
-        if crate::retry::is_retryable_error(&message, model.as_ref())
-            && self.handle_retryable_error(&message).await
-        {
-            return;
+        if crate::retry::is_retryable_error(&message, model.as_ref()) {
+            if self.handle_retryable_error(&message).await {
+                return;
+            }
+            // Retries exhausted/disabled and a quota or rate-limit error
+            // persists: flag the provider so subagent dispatch skips pointless
+            // spawns (subagents inherit it). Self-expires; cleared on success.
+            if let Some(model) = &model {
+                if crate::provider_health::is_provider_quota_error(message.error_message.as_deref())
+                {
+                    crate::provider_health::mark_provider_exhausted(
+                        &model.provider,
+                        message.error_message.as_deref().unwrap_or("provider error"),
+                    );
+                }
+            }
         }
         self.resolve_retry();
         self.check_compaction(&message, true).await;
