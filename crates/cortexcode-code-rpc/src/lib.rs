@@ -12,6 +12,6 @@ pub mod mode;
 
 pub use jsonl::{serialize_json_line, JsonlLineReader};
 pub use mode::{
-    error, run_rpc_mode, success, ForkChange, HostFuture, RpcHost, RpcMode, RpcOutput,
+    error, run_rpc_mode, success, ForkChange, HostFuture, RpcHost, RpcMode, RpcOutput, RuntimeHost,
     SessionChange, SingleSessionHost,
 };

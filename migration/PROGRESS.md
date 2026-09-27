@@ -20,8 +20,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
-  10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`). Next: **10.8d** (RPC
-  new_session/switch_session/fork/clone: the CLI's rpc mode needs an AgentSessionRuntime host).
+  10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
+  `AgentSessionRuntime`). Next: **10.9** (subagents onto `RpcClient`, drop code-subagents'
+  jsonrpc.rs) — check `ledger.py next`.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -33,6 +34,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.8d done (RPC session commands on AgentSessionRuntime)
+- `cortexcode_code_rpc::RuntimeHost`: an `RpcHost` over `AgentSessionRuntime`; new_session,
+  switch_session, fork and clone replace the session and RPC mode rebinds to it.
+- CLI: `build_session` split into `initial_session_manager` + `create_runtime` (main.ts's
+  `createRuntime` factory; `AuthStorage` shared across runtimes, settings/models per cwd,
+  `session_start_event` passed through). `--mode rpc` builds the runtime with that factory.
+- `SessionError::NotFound` now reads hoocode's `Entry <id> not found` (clone on a fresh session
+  fails with it in both apps: the leaf isn't on disk yet).
+- Runtime callback boxes are `Send + Sync` so runtime futures can run behind a tokio mutex.
+- New L2 `rpc-session` (clone/fork errors, clone, new_session, prompt after). L1
+  `code-rpc/tests/runtime_host.rs` also covers switch_session and fork-before-message.
+- Next: 10.9.
 
 ### 2026-09-27: 10.8e done (Rust RpcClient)
 - `cortexcode_code_rpc::client::RpcClient` (rpc-client.ts): spawns `<exe> --mode rpc`, `req_<n>`

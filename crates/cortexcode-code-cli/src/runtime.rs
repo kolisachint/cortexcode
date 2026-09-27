@@ -11,8 +11,9 @@ use cortexcode_ai_types::{Model, ThinkingLevel};
 use cortexcode_code_auth::AuthStorage;
 
 use cortexcode_code_agent_session::{
-    create_agent_session, AgentSession, AgentSessionServices, BaseTools, CreateAgentSessionOptions,
-    DefaultResources, PromptOptions, ScopedModel,
+    create_agent_session, AgentSession, AgentSessionRuntime, AgentSessionRuntimeDiagnostic,
+    AgentSessionServices, BaseTools, CreateAgentSessionOptions, CreatedRuntime, DefaultResources,
+    PromptOptions, ScopedModel, SessionStartEvent,
 };
 use cortexcode_code_models::{resolve_cli_model, resolve_model_scope, AuthLookup, ModelRegistry};
 use cortexcode_code_print::{format_text_output, json_line, text_result, PrintMode};
@@ -80,14 +81,25 @@ pub(crate) fn install_oauth_providers() {
 /// `AuthStorage.create()` and `ModelRegistry.create(authStorage)`: built-ins plus
 /// models.json, with the OAuth providers' `modifyModels` applied.
 pub(crate) fn load_auth_and_registry() -> (Arc<AuthStorage>, ModelRegistry) {
+    let auth = load_auth();
+    let registry = load_registry(&auth);
+    (auth, registry)
+}
+
+/// `AuthStorage.create()`.
+fn load_auth() -> Arc<AuthStorage> {
     install_oauth_providers();
-    let auth = Arc::new(AuthStorage::create(None));
+    Arc::new(AuthStorage::create(None))
+}
+
+/// `ModelRegistry.create(authStorage)`.
+fn load_registry(auth: &Arc<AuthStorage>) -> ModelRegistry {
     let mut registry = match cortexcode_code_models::default_models_json_path() {
         Some(path) => ModelRegistry::create(path),
         None => ModelRegistry::in_memory(),
     };
     registry.set_model_modifier(auth.model_modifier());
-    (auth, registry)
+    registry
 }
 
 /// `AgentSessionRuntimeDiagnostic` (errors and warnings; main.ts reports them
@@ -278,62 +290,88 @@ fn build_permission_gate(interactive: bool, cwd: &std::path::Path) -> Arc<dyn Pe
     ))
 }
 
-/// Build the session for a CLI run (the `createRuntime` factory of main.ts):
-/// auth.json + models.json, the `--models` scope, the model from the flags (or
-/// `findInitialModel` inside `create_agent_session`), `--api-key` as a runtime
-/// key for the chosen provider, the default or light tools, and a persisted
-/// session unless `--no-session`. Diagnostics are for the caller to report.
+/// Build the session for a CLI run: the initial session manager, then the
+/// `createRuntime` factory on it. Diagnostics are for the caller to report.
 fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) {
-    let settings = crate::load_settings();
-    let (auth, registry) = load_auth_and_registry();
-    let mut diagnostics = Diagnostics::new();
+    let auth = load_auth();
+    let session_manager = initial_session_manager(args, interactive);
+    let cwd = std::path::PathBuf::from(session_manager.cwd());
+    let (session, _, diagnostics) = create_runtime(
+        args,
+        &auth,
+        cwd,
+        cortexcode_code_paths::agent_dir(),
+        session_manager,
+        None,
+        interactive,
+    );
+    (session, diagnostics)
+}
 
+/// The session manager a run starts on (`--session`, `--continue`, ...). A
+/// session whose cwd is gone falls back to the startup cwd after asking
+/// (interactive) or exits (otherwise).
+fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
+    let settings = crate::load_settings();
     let startup_cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let env = crate::Env::detect();
     let session_dir = crate::session_flags::session_dir(args, &settings);
-    let mut session_manager = crate::session_flags::create_session_manager(
+    let session_manager = crate::session_flags::create_session_manager(
         args,
         &startup_cwd.to_string_lossy(),
         session_dir.clone(),
         env,
     );
-    if let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
+    let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
         &session_manager,
         &startup_cwd,
-    ) {
-        // hoocode asks with a selector in interactive mode (TUI, 11.3); the
-        // placeholder asks on stdin.
-        let message =
-            cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
-                .to_string();
-        if !interactive {
-            eprintln!("{}", crate::red(env.color, &message));
-            std::process::exit(1);
-        }
-        println!(
-            "{}",
-            cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
-        );
-        print!("Continue? [y/N] ");
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-        let mut answer = String::new();
-        let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
-        if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
-            std::process::exit(0);
-        }
-        session_manager = SessionManager::open(
-            issue.session_file.clone().unwrap_or_default(),
-            session_dir,
-            Some(issue.fallback_cwd.clone()),
-        );
-    }
-    // The runtime runs in the session's cwd (it may be another project's).
-    let cwd = std::path::PathBuf::from(session_manager.cwd());
-    let settings = if cwd == startup_cwd {
-        settings
-    } else {
-        SettingsManager::create_default(&cwd)
+    ) else {
+        return session_manager;
     };
+    // hoocode asks with a selector in interactive mode (TUI, 11.3); the
+    // placeholder asks on stdin.
+    let message =
+        cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
+            .to_string();
+    if !interactive {
+        eprintln!("{}", crate::red(env.color, &message));
+        std::process::exit(1);
+    }
+    println!(
+        "{}",
+        cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
+    );
+    print!("Continue? [y/N] ");
+    let _ = std::io::Write::flush(&mut std::io::stdout());
+    let mut answer = String::new();
+    let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
+    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+        std::process::exit(0);
+    }
+    SessionManager::open(
+        issue.session_file.clone().unwrap_or_default(),
+        session_dir,
+        Some(issue.fallback_cwd.clone()),
+    )
+}
+
+/// The `createRuntime` factory of main.ts: settings for the cwd, models.json,
+/// the `--models` scope, the model from the flags (or `findInitialModel`
+/// inside `create_agent_session`), `--api-key` as a runtime key for the chosen
+/// provider, and the default or light tools. `auth` is shared across runtimes.
+#[allow(clippy::type_complexity)]
+fn create_runtime(
+    args: &Args,
+    auth: &Arc<AuthStorage>,
+    cwd: std::path::PathBuf,
+    agent_dir: std::path::PathBuf,
+    session_manager: SessionManager,
+    session_start_event: Option<SessionStartEvent>,
+    interactive: bool,
+) -> (AgentSession, AgentSessionServices, Diagnostics) {
+    let settings = SettingsManager::create_default(&cwd);
+    let registry = load_registry(auth);
+    let mut diagnostics = Diagnostics::new();
 
     let patterns = args.models.clone().or_else(|| settings.enabled_models());
     let scoped_models = match patterns.filter(|p| !p.is_empty()) {
@@ -376,18 +414,19 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
         }
     }
 
-    let session = assemble_session(
+    let (session, services) = assemble_session(
         args,
         cwd,
-        cortexcode_code_paths::agent_dir(),
+        agent_dir,
         settings,
         registry,
-        auth,
+        auth.clone(),
         session_manager,
         options,
+        session_start_event,
         interactive,
     );
-    (session, diagnostics)
+    (session, services, diagnostics)
 }
 
 /// The session over resolved parts. Light preset (`--light`, else the
@@ -402,8 +441,9 @@ fn assemble_session(
     auth: Arc<dyn AuthLookup + Send + Sync>,
     session_manager: SessionManager,
     model_options: ModelOptions,
+    session_start_event: Option<SessionStartEvent>,
     interactive: bool,
-) -> AgentSession {
+) -> (AgentSession, AgentSessionServices) {
     let light = args.light.unwrap_or_else(|| settings.light());
     // main.ts: the light preset is an allowlist of the four short-schema tools
     // (their order is the active order), which also keeps extension tools off.
@@ -488,6 +528,7 @@ fn assemble_session(
             permission_gate: Some(build_permission_gate(interactive, &services.cwd)),
             disallowed_tools,
             extensions: Some(modes),
+            session_start_event,
             ..Default::default()
         },
     )
@@ -495,7 +536,7 @@ fn assemble_session(
     if let Some(tools) = mode_tools {
         session.set_active_tools_by_name(&tools);
     }
-    session
+    (session, services)
 }
 
 /// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider
@@ -622,9 +663,21 @@ pub fn run_print_mode(
 }
 
 /// `--mode rpc`: JSON commands on stdin, responses and session events on
-/// stdout, until stdin ends.
+/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
+/// new_session/switch_session/fork/clone replace it through the factory.
 pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
-    let (session, diagnostics) = build_session(args, false);
+    let auth = load_auth();
+    let session_manager = initial_session_manager(args, false);
+    let cwd = std::path::PathBuf::from(session_manager.cwd());
+    let (session, services, diagnostics) = create_runtime(
+        args,
+        &auth,
+        cwd,
+        cortexcode_code_paths::agent_dir(),
+        session_manager,
+        None,
+        false,
+    );
     report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -632,6 +685,34 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
     {
         return Ok(1);
     }
+    let factory_args = args.clone();
+    let factory: cortexcode_code_agent_session::RuntimeFactory = Arc::new(move |request| {
+        let (session, services, diagnostics) = create_runtime(
+            &factory_args,
+            &auth,
+            request.cwd,
+            request.agent_dir,
+            request.session_manager,
+            request.session_start_event,
+            false,
+        );
+        let created = CreatedRuntime {
+            session,
+            services,
+            diagnostics: runtime_diagnostics(diagnostics),
+            model_fallback_message: None,
+        };
+        Box::pin(async move { Ok(created) })
+    });
+    let runtime = AgentSessionRuntime::new(
+        CreatedRuntime {
+            session,
+            services,
+            diagnostics: runtime_diagnostics(diagnostics),
+            model_fallback_message: None,
+        },
+        factory,
+    );
     let stdout = Arc::new(Mutex::new(std::io::stdout()));
     let output: cortexcode_code_rpc::RpcOutput = Arc::new(move |value| {
         let line = cortexcode_code_rpc::serialize_json_line(value);
@@ -639,12 +720,26 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         let _ = stdout.write_all(line.as_bytes());
         let _ = stdout.flush();
     });
-    let host = Arc::new(cortexcode_code_rpc::SingleSessionHost::new(session));
+    let host = Arc::new(cortexcode_code_rpc::RuntimeHost::new(runtime));
     Ok(async_runtime().block_on(cortexcode_code_rpc::run_rpc_mode(
         host,
         tokio::io::stdin(),
         output,
     )))
+}
+
+/// The CLI's diagnostics as `AgentSessionRuntimeDiagnostic`s.
+fn runtime_diagnostics(diagnostics: Diagnostics) -> Vec<AgentSessionRuntimeDiagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|(kind, message)| AgentSessionRuntimeDiagnostic {
+            kind: match kind {
+                DiagnosticKind::Error => cortexcode_code_agent_session::DiagnosticKind::Error,
+                DiagnosticKind::Warning => cortexcode_code_agent_session::DiagnosticKind::Warning,
+            },
+            message,
+        })
+        .collect()
 }
 
 /// Write the queued `--mode json` lines.
@@ -775,7 +870,7 @@ mod tests {
     fn prompt_for(argv: &[&str]) -> (String, Vec<String>) {
         let args = crate::args::parse_args(&argv.iter().map(|a| a.to_string()).collect::<Vec<_>>());
         let agent_dir = tempfile::tempdir().unwrap();
-        let session = assemble_session(
+        let (session, _) = assemble_session(
             &args,
             std::path::PathBuf::from("/w"),
             agent_dir.path().to_path_buf(),
@@ -784,6 +879,7 @@ mod tests {
             Arc::new(cortexcode_code_models::NoAuth),
             SessionManager::in_memory("/w"),
             ModelOptions::default(),
+            None,
             false,
         );
         (session.system_prompt(), session.get_active_tool_names())

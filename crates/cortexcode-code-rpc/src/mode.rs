@@ -11,8 +11,9 @@ use std::sync::{Arc, Mutex};
 
 use cortexcode_ai_types::{ImageContent, ThinkingLevel};
 use cortexcode_code_agent_session::{
-    compaction_result_json, AgentSession, CycleDirection, InputSource, PreflightResult,
-    PromptOptions, SessionSubscription, StreamingBehavior,
+    compaction_result_json, AgentSession, AgentSessionRuntime, CycleDirection, ForkPosition,
+    InputSource, NewSessionRequest, PreflightResult, PromptOptions, SessionSubscription,
+    StreamingBehavior,
 };
 use cortexcode_code_settings::QueueMode;
 use serde_json::{json, Map, Value};
@@ -32,7 +33,7 @@ pub struct SessionChange {
 /// Outcome of `fork` (`{ selectedText, cancelled }`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForkChange {
-    pub selected_text: String,
+    pub selected_text: Option<String>,
     pub cancelled: bool,
 }
 
@@ -55,8 +56,95 @@ pub trait RpcHost: Send + Sync {
     fn dispose(&self) -> HostFuture<'_, ()>;
 }
 
-/// A host with one fixed session. Session-replacing commands fail until the
-/// CLI runs RPC mode on an `AgentSessionRuntime` (ledger 10.8d).
+/// The CLI's host: an `AgentSessionRuntime` whose session new/switch/fork
+/// replace.
+pub struct RuntimeHost {
+    runtime: tokio::sync::Mutex<AgentSessionRuntime>,
+    /// The runtime's current session, readable without waiting on a
+    /// replacement in flight.
+    current: Mutex<AgentSession>,
+}
+
+impl RuntimeHost {
+    pub fn new(runtime: AgentSessionRuntime) -> Self {
+        let current = Mutex::new(runtime.session().clone());
+        Self {
+            runtime: tokio::sync::Mutex::new(runtime),
+            current,
+        }
+    }
+
+    fn sync_current(&self, runtime: &AgentSessionRuntime) {
+        *self.current.lock().unwrap_or_else(|e| e.into_inner()) = runtime.session().clone();
+    }
+}
+
+impl RpcHost for RuntimeHost {
+    fn session(&self) -> AgentSession {
+        self.current
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+    fn new_session(
+        &self,
+        parent_session: Option<String>,
+    ) -> HostFuture<'_, Result<SessionChange, String>> {
+        Box::pin(async move {
+            let mut runtime = self.runtime.lock().await;
+            let result = runtime
+                .new_session(NewSessionRequest {
+                    parent_session,
+                    setup: None,
+                })
+                .await;
+            self.sync_current(&runtime);
+            let result = result.map_err(|e| e.to_string())?;
+            Ok(SessionChange {
+                cancelled: result.cancelled,
+            })
+        })
+    }
+    fn switch_session(
+        &self,
+        session_path: String,
+    ) -> HostFuture<'_, Result<SessionChange, String>> {
+        Box::pin(async move {
+            let mut runtime = self.runtime.lock().await;
+            let result = runtime
+                .switch_session(std::path::Path::new(&session_path), None)
+                .await;
+            self.sync_current(&runtime);
+            let result = result.map_err(|e| e.to_string())?;
+            Ok(SessionChange {
+                cancelled: result.cancelled,
+            })
+        })
+    }
+    fn fork(&self, entry_id: String, at: bool) -> HostFuture<'_, Result<ForkChange, String>> {
+        Box::pin(async move {
+            let position = if at {
+                ForkPosition::At
+            } else {
+                ForkPosition::Before
+            };
+            let mut runtime = self.runtime.lock().await;
+            let result = runtime.fork(&entry_id, position).await;
+            self.sync_current(&runtime);
+            let result = result.map_err(|e| e.to_string())?;
+            Ok(ForkChange {
+                selected_text: result.selected_text,
+                cancelled: result.cancelled,
+            })
+        })
+    }
+    fn dispose(&self) -> HostFuture<'_, ()> {
+        Box::pin(async move { self.runtime.lock().await.dispose().await })
+    }
+}
+
+/// A host with one fixed session: session-replacing commands fail. For
+/// embedding RPC mode without a runtime factory.
 pub struct SingleSessionHost {
     session: AgentSession,
 }
@@ -67,8 +155,7 @@ impl SingleSessionHost {
     }
 }
 
-const NO_RUNTIME: &str =
-    "This command needs the session runtime, which cortex RPC mode does not run yet";
+const NO_RUNTIME: &str = "This command needs a session runtime, which this host does not have";
 
 impl RpcHost for SingleSessionHost {
     fn session(&self) -> AgentSession {
@@ -501,9 +588,12 @@ impl RpcMode {
                 if !change.cancelled {
                     self.rebind_session();
                 }
-                ok(Some(
-                    json!({"text": change.selected_text, "cancelled": change.cancelled}),
-                ))
+                let mut data = Map::new();
+                if let Some(text) = change.selected_text {
+                    data.insert("text".into(), Value::String(text));
+                }
+                data.insert("cancelled".into(), Value::Bool(change.cancelled));
+                ok(Some(Value::Object(data)))
             }
             "clone" => {
                 let leaf = session.session_manager().leaf_id().map(String::from);

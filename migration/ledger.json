@@ -2755,7 +2755,7 @@
    "id": "10.8d",
    "title": "RPC session commands on AgentSessionRuntime: new_session, switch_session, fork, clone (CLI rpc mode runs a runtime host)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8c"
    ],
@@ -2769,11 +2769,40 @@
     "packages/coding-agent/src/core/agent-session-runtime.ts",
     "packages/coding-agent/src/main.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/rpc.test.ts"
+   ],
    "l1_cmds": [],
-   "l2": [],
-   "notes": "10.8c answers these commands with an error until the CLI builds an AgentSessionRuntime.",
-   "log": []
+   "l2": [
+    "rpc-session"
+   ],
+   "notes": "CLI --mode rpc runs an AgentSessionRuntime (RuntimeHost); the CLI's createRuntime factory is shared with print/interactive setup. Session-switch by path is L1-only (random file names).",
+   "log": [
+    {
+     "at": "2026-09-27T06:51:43Z",
+     "commit": "9e04f27",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T06:58:24Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T06:58:30Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T06:58:49Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 pass; L2 rpc-session=pass"
+    }
+   ]
   },
   {
    "id": "10.8e",
