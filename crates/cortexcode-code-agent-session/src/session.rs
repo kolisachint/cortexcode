@@ -1148,8 +1148,13 @@ impl AgentSession {
             );
             state.base_system_prompt.clone()
         };
-        // `before_agent_start` handlers may replace the prompt (12.3); reset to base.
-        let mut system_prompt = base_prompt;
+        // `before_agent_start` handlers may replace the prompt; else reset to base.
+        let mut system_prompt = self
+            .inner
+            .extensions
+            .before_agent_start(&expanded.text, &base_prompt)
+            .filter(|p| !p.is_empty())
+            .unwrap_or(base_prompt);
         if expanded.template == Some(TemplateKind::System) {
             if !system_prompt.is_empty() {
                 system_prompt.push_str("\n\n");

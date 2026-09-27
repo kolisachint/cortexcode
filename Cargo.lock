@@ -795,6 +795,7 @@ dependencies = [
  "cortexcode-code-auth",
  "cortexcode-code-media",
  "cortexcode-code-models",
+ "cortexcode-code-modes",
  "cortexcode-code-paths",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
@@ -849,6 +850,16 @@ dependencies = [
  "dirs",
  "glob",
  "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-modes"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-agent-session",
+ "cortexcode-code-paths",
  "serde_json",
  "tempfile",
 ]

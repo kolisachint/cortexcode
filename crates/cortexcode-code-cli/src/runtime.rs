@@ -395,6 +395,22 @@ fn assemble_session(
     };
     let settings = Arc::new(Mutex::new(settings));
     let resources = resource_loader(args, light, &cwd, &agent_dir, &settings);
+    // hoo-core's mode system: the active mode's prompt block and tool filter.
+    let cwd_str = cwd.to_string_lossy().into_owned();
+    let modes = Arc::new(cortexcode_code_modes::ModesExtension::new(
+        cortexcode_code_modes::ModeSession {
+            cwd: cwd.clone(),
+            session_id: session_manager.session_id().to_string(),
+            light,
+            mode_search_paths: args
+                .mode_paths
+                .iter()
+                .flatten()
+                .map(|p| cortexcode_code_resources::node_path::resolve_config_path(p, &cwd_str))
+                .collect(),
+        },
+    ));
+    let mode_tools = modes.active().enabled_tools.clone();
     let services = AgentSessionServices {
         cwd,
         agent_dir,
@@ -404,7 +420,7 @@ fn assemble_session(
         resource_loader: Arc::new(resources),
         diagnostics: Vec::new(),
     };
-    create_agent_session(
+    let session = create_agent_session(
         &services,
         session_manager,
         CreateAgentSessionOptions {
@@ -415,10 +431,15 @@ fn assemble_session(
             custom_tools: custom,
             base_tools,
             permission_gate: Some(build_permission_gate(interactive)),
+            extensions: Some(modes),
             ..Default::default()
         },
     )
-    .session
+    .session;
+    if let Some(tools) = mode_tools {
+        session.set_active_tools_by_name(&tools);
+    }
+    session
 }
 
 /// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider

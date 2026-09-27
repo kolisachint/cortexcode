@@ -26,6 +26,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.5b l1_done (code-modes)
+- New crate `cortexcode-code-modes` (extensions/core/{modes,config}.ts, core/mode-prompts.ts):
+  hoo-config.json read/merge/write, the four mode prompts and grill prompts embedded verbatim,
+  plan-file parsing (matches hoocode's multiline regex, which keeps only a section's first line),
+  `/mode /plan /grill /goal /approve` returning `ModeAction`s, and `ModesExtension`.
+- `ExtensionHooks::before_agent_start` added; `AgentSession::prompt` applies it (hoocode's
+  emitBeforeAgentStart system-prompt override).
+- code-cli installs `ModesExtension` per session (`--mode-path`, mode `enabled_tools`).
+- Tests: mode-tool-filter, mode-commands, grill-command, goal-command (54).
+- print-context-files: the build-mode appendix matches hoocode now; the remaining request diff
+  is the agents roster (10.9) and the "About <app> itself" docs section.
+- L2 `mode-plan` (new, stable) waits on the interactive TUI (11.x); nothing consumes
+  `ModeAction`s yet (see the 11.2 note).
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-27: 10.5 l1_done (DefaultResourceLoader, builtin skills, wiring)
 - `code-resources::resource_loader` (resource-loader.ts): `DefaultResourceLoader` over the local
   resolve (10.5d): skills (+ namespaces, source info), prompt templates + slash commands (default

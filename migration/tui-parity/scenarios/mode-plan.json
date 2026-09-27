@@ -1,0 +1,15 @@
+{
+  "description": "/plan switches to plan mode: the command writes active_mode to hoo-config.json, notifies, and reloads; the footer shows the plan mode, and the next request's system prompt carries the plan-mode block with the per-session plan path.",
+  "phase": "10.5b",
+  "terminal": {"cols": 100, "rows": 30},
+  "llm": [{"text": "Planning now."}],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/plan"},
+    {"keys": ["Enter"]},
+    {"wait_for": "(?i)plan", "timeout": 30},
+    {"wait_stable": 2.0, "timeout": 30},
+    {"snapshot": "plan-mode", "contains": ["plan"]}
+  ]
+}

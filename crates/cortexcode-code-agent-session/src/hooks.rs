@@ -108,6 +108,11 @@ pub trait ExtensionHooks: Send + Sync {
     fn has_handlers(&self, _event_type: &str) -> bool {
         false
     }
+    /// `emitBeforeAgentStart`: a handler may replace the system prompt for
+    /// this turn (`Some`); `None` keeps the base prompt.
+    fn before_agent_start(&self, _prompt: &str, _system_prompt: &str) -> Option<String> {
+        None
+    }
     /// `emit(event)` for session lifecycle events.
     fn emit_session_event(&self, _event: SessionEvent) -> SessionEventFuture {
         Box::pin(async { SessionEventResult::default() })

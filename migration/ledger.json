@@ -2521,7 +2521,7 @@
    "id": "10.5b",
    "title": "New crate code-modes: ask/plan/build/debug modes, mode prompts, /mode /plan /approve semantics",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.5"
    ],
@@ -2538,7 +2538,26 @@
     "mode-plan"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:36:15Z",
+     "commit": "9b29742",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "verify",
+     "text": "L1 pass; L2 mode-plan=fail"
+    },
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "note",
+     "text": "New crate code-modes: hoo-config.json (read/merge/write), mode prompts + grill prompts embedded verbatim, plan parsing (reproduces hoocode's multiline-regex first-line capture), /mode /plan /grill /goal /approve as ModeAction lists, ModesExtension (ExtensionHooks: commands + new before_agent_start hook). CLI installs it per session (--mode-path, enabled_tools). print-context-files: the build-mode appendix now matches hoocode byte for byte. mode-plan L2 (stable) waits on the interactive TUI (11.x: editor, footer mode badge) — cortex's interactive mode is still the placeholder. The host must carry out ModeActions (Notify, Reload, NewSessionWithMessage, SendFollowUp via take_actions); nothing consumes them yet (interactive 11.x; StartAutoLoop needs /loop, 12.5). Not ported: mode prompt in subagents is skipped via SUBAGENT_DEPTH env (10.9 must set CORTEXCODE_SUBAGENT_DEPTH); hoo.setMode footer, argument completions (11.x)."
+    }
+   ]
   },
   {
    "id": "10.6",
@@ -2808,7 +2827,14 @@
     "tool-edit"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "note",
+     "text": "10.5b: mode-plan scenario (L2 gate of 10.5b) needs the editor + footer mode badge ('⬢ PLAN') and must consume ModesExtension::take_actions after run_command (Notify, Reload, NewSessionWithMessage, SendFollowUp)."
+    }
+   ]
   },
   {
    "id": "11.3",
