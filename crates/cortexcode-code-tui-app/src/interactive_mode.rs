@@ -10,6 +10,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use cortexcode_agent_types::{AgentEvent, AgentMessage};
@@ -49,7 +50,9 @@ use cortexcode_tui_terminal::Terminal;
 use crate::chrome_layout::{
     ChromeLayoutController, ChromeSurfaces, FooterLayout, SMALL_TERMINAL_ROWS,
 };
+use crate::dialog_bridge::{set_dialog_sink, DialogRequest};
 use crate::expandable_text::{Expandable, ExpandableText};
+use crate::extension_selector::{ExtensionSelectorComponent, SelectorOutcome};
 use crate::footer::{FooterComponent, FooterDensity, FooterModel, FooterSource};
 use crate::footer_data::FooterDataProvider;
 use crate::input_frame::set_input_frame_border;
@@ -142,6 +145,12 @@ const LIVE_TOOL_WINDOW: usize = 50;
 /// Minimum gap between re-renders of the streaming message.
 const STREAM_RENDER_THROTTLE: Duration = Duration::from_millis(100);
 
+/// The open extension selector and the channel its answer goes back on.
+type OpenSelector = (
+    Rc<RefCell<ExtensionSelectorComponent>>,
+    mpsc::Sender<Option<String>>,
+);
+
 /// App actions the prompt editor raises; handled by the mode after the
 /// keystroke (the editor is borrowed while it dispatches).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +169,8 @@ enum Action {
     /// The editor submitted this text (it has already cleared itself).
     Submit(String),
     AutocompleteVisibility(bool),
+    /// The extension selector closed.
+    SelectorDone(SelectorOutcome),
 }
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
@@ -242,6 +253,8 @@ enum AppEvent {
     PromptDone(Result<(), String>),
     Rerender,
     ThemeChanged,
+    /// A question or notice from off the UI thread (the permission gate).
+    Dialog(DialogRequest),
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -403,6 +416,9 @@ struct Mode {
     image_width_cells: u32,
     code_block_indent: String,
     editor: Rc<RefCell<CustomEditor>>,
+    editor_container: Rc<RefCell<Container>>,
+    /// The open extension selector and where its answer goes.
+    selector: Option<OpenSelector>,
     actions: Rc<RefCell<Vec<Action>>>,
     notifications: Rc<RefCell<NotificationPanel>>,
     footer: Rc<RefCell<FooterComponent>>,
@@ -639,6 +655,8 @@ impl Mode {
             image_width_cells,
             code_block_indent,
             editor,
+            editor_container,
+            selector: None,
             actions,
             notifications,
             footer,
@@ -939,6 +957,53 @@ impl Mode {
         for block in &freezable[..excess] {
             block.borrow_mut().freeze();
         }
+    }
+
+    /// `showSelector`: swap the selector into the editor's slot.
+    fn show_selector(
+        &mut self,
+        title: &str,
+        options: Vec<String>,
+        reply: mpsc::Sender<Option<String>>,
+    ) {
+        if let Some((previous, previous_reply)) = self.selector.take() {
+            previous.borrow_mut().dispose();
+            let _ = previous_reply.send(None);
+        }
+        let sink = self.actions.clone();
+        let selector = handle(ExtensionSelectorComponent::new(
+            title,
+            options,
+            None,
+            Box::new(move |outcome| sink.borrow_mut().push(Action::SelectorDone(outcome))),
+        ));
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&selector));
+        }
+        self.tui.set_focus(Some(as_component(&selector)));
+        self.selector = Some((selector, reply));
+        self.dirty.set(true);
+    }
+
+    /// `hideSelector` + `restoreEditor`, answering the asker.
+    fn close_selector(&mut self, outcome: SelectorOutcome) {
+        let Some((selector, reply)) = self.selector.take() else {
+            return;
+        };
+        selector.borrow_mut().dispose();
+        let _ = reply.send(match outcome {
+            SelectorOutcome::Selected(option) => Some(option),
+            SelectorOutcome::Cancelled => None,
+        });
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&self.editor));
+        }
+        self.tui.set_focus(Some(as_component(&self.editor)));
+        self.dirty.set(true);
     }
 
     /// `showStatus`: a dim line in the chat; back-to-back statuses update the
@@ -1324,6 +1389,7 @@ impl Mode {
                     }
                 }
             }
+            Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::AutocompleteVisibility(visible) => {
                 if self.chrome.set_autocomplete_open(visible) {
                     self.dirty.set(true);
@@ -1345,6 +1411,13 @@ impl Mode {
         }
         if let Some(loader) = &self.loader {
             wait = wait.min(loader.borrow().interval());
+        }
+        if let Some(deadline) = self
+            .selector
+            .as_ref()
+            .and_then(|(s, _)| s.borrow().deadline())
+        {
+            wait = wait.min(deadline.saturating_duration_since(now));
         }
         if self.stream_render_pending {
             if let Some(at) = self.stream_render_at {
@@ -1375,6 +1448,13 @@ impl Mode {
         }
         self.render_resources();
 
+        let tx = Mutex::new(self.tx.clone());
+        set_dialog_sink(Some(Box::new(move |request| {
+            tx.lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .send(AppEvent::Dialog(request))
+                .is_ok()
+        })));
         let tx = self.tx.clone();
         on_theme_change(move || {
             let _ = tx.send(AppEvent::ThemeChanged);
@@ -1457,6 +1537,12 @@ impl Mode {
                         }
                     }
                     AppEvent::Rerender => self.dirty.set(true),
+                    AppEvent::Dialog(DialogRequest::Select {
+                        title,
+                        options,
+                        reply,
+                    }) => self.show_selector(&title, options, reply),
+                    AppEvent::Dialog(DialogRequest::Notify(message)) => self.show_status(&message),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -1465,6 +1551,13 @@ impl Mode {
                 }
             }
             if self.notifications.borrow_mut().poll() {
+                self.dirty.set(true);
+            }
+            if self
+                .selector
+                .as_ref()
+                .is_some_and(|(s, _)| s.borrow_mut().poll())
+            {
                 self.dirty.set(true);
             }
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
@@ -1489,6 +1582,10 @@ impl Mode {
             }
         }
 
+        set_dialog_sink(None);
+        if let Some((_, reply)) = self.selector.take() {
+            let _ = reply.send(None);
+        }
         progress.unsubscribe();
         self.footer_data.off_branch_change(branch);
         self.footer_data.dispose();

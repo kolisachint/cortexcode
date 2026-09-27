@@ -4183,7 +4183,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2c"
+    "11.2c",
+    "11.2e"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
@@ -4212,6 +4213,74 @@
      "commit": "",
      "kind": "note",
      "text": "Handoff from 11.2c2: highlighted read-result goldens wait on the highlighter (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:56:24Z",
+     "commit": "5b19d0d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Paused: tool-bash L2 needs the permission prompt on the TUI; 11.2e added first (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2e",
+   "title": "Extension selector dialog on the TUI (extension-dialogs showSelector, extension-selector, selected-row-list, dynamic-border, countdown-timer) and the permission gate's prompt through it (replaces the crossterm TerminalPermissionUi in interactive mode)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2c"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/extension-dialogs.ts",
+    "packages/coding-agent/src/modes/interactive/components/extension-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/selected-row-list.ts",
+    "packages/coding-agent/src/modes/interactive/components/dynamic-border.ts",
+    "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: the dialog is rendered by permission-prompt (10.6) and tool-bash (11.2d); with this task the prompt snapshot differs from hoocode only in the bash block, which 11.2d ports",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added: prerequisite of 11.2d's tool-bash L2 and 10.6's permission-prompt L2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:59:44Z",
+     "commit": "",
+     "kind": "note",
+     "text": "permission-prompt run: selector matches; remaining diff is the bash call line/'Took' (11.2d bash renderer). L2 re-scoped to n/a (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:00:13Z",
+     "commit": "5b19d0d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T21:00:40Z",
+     "commit": "5b19d0d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

@@ -358,7 +358,7 @@ fn subagent_tools(
 /// for bash/write/edit/web tools only when there is a UI to ask.
 fn build_permission_gate(interactive: bool, cwd: &std::path::Path) -> Arc<dyn PermissionGate> {
     let ui: Option<Arc<dyn cortexcode_code_permissions::PermissionUi>> =
-        interactive.then(|| Arc::new(crate::permission_dialog::TerminalPermissionUi) as _);
+        interactive.then(|| Arc::new(cortexcode_code_tui_app::dialog_bridge::TuiPermissionUi) as _);
     Arc::new(cortexcode_code_permissions::HooPermissionGate::new(
         cwd.to_path_buf(),
         ui,

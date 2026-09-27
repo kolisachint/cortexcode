@@ -11,7 +11,6 @@ mod help;
 mod help_text;
 pub mod initial_message;
 mod list_models;
-mod permission_dialog;
 mod runtime;
 mod session_flags;
 

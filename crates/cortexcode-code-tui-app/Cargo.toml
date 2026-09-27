@@ -16,6 +16,7 @@ publish = false
 cortexcode-agent-types = { workspace = true }
 cortexcode-code-agent-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }
+cortexcode-code-permissions = { workspace = true }
 cortexcode-code-resources = { workspace = true }
 cortexcode-code-settings = { workspace = true }
 cortexcode-code-task-store = { workspace = true }

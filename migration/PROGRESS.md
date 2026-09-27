@@ -37,6 +37,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2e added and done (selector dialog; permission prompt on the TUI)
+- 11.2e was added (bookkeeping) because tool-bash (11.2d) and permission-prompt (10.6)
+  both need the gate's "Allow: …" prompt on the TUI.
+- `code-tui-app::extension_selector`: `ExtensionSelectorComponent` (an InputFrame with the
+  title in the border, select keys plus `j`/`k`, and hints), `SelectedRowList`,
+  `DynamicBorder` and `CountdownTimer` (driven by `poll`, not a timer thread).
+- `dialog_bridge`: `TuiPermissionUi` sends `DialogRequest`s to the running mode through
+  a global sink and blocks on the reply. The mode swaps the selector into the editor
+  slot (`showSelector`/`hideSelector`/`restoreEditor`); `notify` is `showStatus`.
+- code-cli drops the crossterm `TerminalPermissionUi` and its crossterm dependency. The
+  dep firewall's last `pending` entry is gone.
+- permission-prompt now differs from hoocode only in the bash block (`$ ls` call line,
+  `Took` line), which 11.2d ports; 10.6's L2 should pass after that.
+- Next: 11.2d.
+
 ### 2026-09-27: 11.2c2 done; 11.2c done (remaining tool renderers)
 - New `tools::{web, subagent, plugins}` renderers: webfetch/websearch (with the token,
   truncation and outline/match notes), Task (`Agent [type]` in the agent's colour),
