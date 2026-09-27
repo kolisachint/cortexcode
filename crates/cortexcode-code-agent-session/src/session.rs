@@ -3,8 +3,9 @@
 //! and thinking-level management, the tool registry and system prompt, and
 //! user bash runs.
 //!
-//! Auto-retry and compaction (ledger 10.3b), tree navigation and runtime
-//! replacement (10.3c), and the extension runner (12.3) plug in later.
+//! Auto-retry (`retry.rs`), compaction (`compaction.rs`) and tree navigation
+//! (`tree.rs`) extend it; `runtime.rs` replaces it for /new, /resume, /fork
+//! and /cd. The extension runner (12.3) plugs in later.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -33,7 +34,10 @@ use cortexcode_code_tool_bash::{
 
 use crate::auth_guidance::{format_no_api_key_found_message, format_no_model_selected_message};
 use crate::compaction::{CompactionReason, CompactionState};
-use crate::hooks::{ExtensionError, ExtensionHooks, NoExtensions, ResourceLoader, TemplateKind};
+use crate::hooks::{
+    ExtensionError, ExtensionHooks, NoExtensions, ResourceLoader, SessionEvent, SessionStartEvent,
+    TemplateKind,
+};
 use crate::retry::RetryState;
 use crate::stats::{self, ContextUsage, ForkableMessage, SessionStats, TranscriptSelection};
 use cortexcode_agent_compaction::CompactionResult;
@@ -114,11 +118,7 @@ pub enum AgentSessionEvent {
 type SessionListener = Arc<dyn Fn(&AgentSessionEvent) + Send + Sync>;
 
 /// A model to cycle through (`--models`), with an optional pinned thinking level.
-#[derive(Debug, Clone)]
-pub struct ScopedModel {
-    pub model: Model,
-    pub thinking_level: Option<ThinkingLevel>,
-}
+pub use cortexcode_code_models::ScopedModel;
 
 /// `ModelCycleResult`.
 #[derive(Debug, Clone)]
@@ -240,6 +240,8 @@ pub struct AgentSessionConfig {
     pub disallowed_tool_names: Option<Vec<String>>,
     pub base_tools: BaseTools,
     pub extensions: Option<Arc<dyn ExtensionHooks>>,
+    /// Emitted by [`AgentSession::bind_extensions`]; default `startup`.
+    pub session_start_event: Option<SessionStartEvent>,
 }
 
 struct DefinitionEntry {
@@ -273,6 +275,7 @@ struct Inner {
     cwd: PathBuf,
     resource_loader: Arc<dyn ResourceLoader>,
     extensions: Arc<dyn ExtensionHooks>,
+    session_start_event: SessionStartEvent,
     custom_tools: Vec<ToolDefinition>,
     model_registry: Arc<ModelRegistry>,
     auth: Arc<dyn AuthLookup + Send + Sync>,
@@ -396,6 +399,9 @@ impl AgentSession {
             cwd: config.cwd,
             resource_loader: config.resource_loader,
             extensions: config.extensions.unwrap_or_else(|| Arc::new(NoExtensions)),
+            session_start_event: config
+                .session_start_event
+                .unwrap_or_else(SessionStartEvent::startup),
             custom_tools: config.custom_tools,
             model_registry: config.model_registry,
             auth: config.auth,
@@ -659,6 +665,38 @@ impl AgentSession {
         &self.inner.agent
     }
 
+    /// `extensionRunner`: the extension hooks this session emits to.
+    pub fn extensions(&self) -> &Arc<dyn ExtensionHooks> {
+        &self.inner.extensions
+    }
+
+    /// `reload()`: re-read settings and resources and rebuild the tool
+    /// registry and system prompt, keeping the active tools. (The
+    /// `session_start` reload event needs extension bindings, 12.3.)
+    pub async fn reload(&self) {
+        if self.inner.extensions.has_handlers("session_shutdown") {
+            self.inner
+                .extensions
+                .emit_session_event(SessionEvent::Shutdown {
+                    reason: crate::hooks::SessionShutdownReason::Reload,
+                    target_session_file: None,
+                })
+                .await;
+        }
+        self.settings().reload();
+        self.inner.resource_loader.reload();
+        self.build_runtime(Some(self.get_active_tool_names()), true);
+    }
+
+    /// `bindExtensions()`: emit this session's `session_start` event (UI and
+    /// command bindings arrive with the extension runtime, 12.3).
+    pub async fn bind_extensions(&self) {
+        self.inner
+            .extensions
+            .emit_session_event(SessionEvent::Start(self.inner.session_start_event.clone()))
+            .await;
+    }
+
     /// The session manager (hold the guard briefly).
     pub fn session_manager(&self) -> MutexGuard<'_, SessionManager> {
         lock(&self.inner.session_manager)
@@ -690,6 +728,11 @@ impl AgentSession {
 
     pub fn is_streaming(&self) -> bool {
         self.inner.agent.with_state(|s| s.is_streaming)
+    }
+
+    /// `resourceLoader`: skills, prompt templates and context files in use.
+    pub fn resource_loader(&self) -> &Arc<dyn ResourceLoader> {
+        &self.inner.resource_loader
     }
 
     /// The effective system prompt.
@@ -1105,8 +1148,13 @@ impl AgentSession {
             );
             state.base_system_prompt.clone()
         };
-        // `before_agent_start` handlers may replace the prompt (12.3); reset to base.
-        let mut system_prompt = base_prompt;
+        // `before_agent_start` handlers may replace the prompt; else reset to base.
+        let mut system_prompt = self
+            .inner
+            .extensions
+            .before_agent_start(&expanded.text, &base_prompt)
+            .filter(|p| !p.is_empty())
+            .unwrap_or(base_prompt);
         if expanded.template == Some(TemplateKind::System) {
             if !system_prompt.is_empty() {
                 system_prompt.push_str("\n\n");

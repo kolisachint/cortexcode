@@ -31,6 +31,9 @@ impl AuthLookup for TestAuth {
     }
 }
 
+/// Builds the session manager from the harness temp dir.
+pub type MakeSessionManager = Box<dyn FnOnce(&std::path::Path) -> SessionManager>;
+
 #[derive(Default)]
 pub struct HarnessOptions {
     pub tools: Vec<ToolDefinition>,
@@ -43,6 +46,8 @@ pub struct HarnessOptions {
     pub allowed_tool_names: Option<Vec<String>>,
     pub disallowed_tool_names: Option<Vec<String>>,
     pub initial_active_tool_names: Option<Vec<String>>,
+    /// Defaults to an in-memory manager rooted at the temp dir.
+    pub session_manager: Option<MakeSessionManager>,
 }
 
 pub struct Harness {
@@ -92,7 +97,10 @@ impl Harness {
         };
         let session = AgentSession::new(AgentSessionConfig {
             agent,
-            session_manager: SessionManager::in_memory(temp_dir.path().to_string_lossy()),
+            session_manager: match options.session_manager {
+                Some(make) => make(temp_dir.path()),
+                None => SessionManager::in_memory(temp_dir.path().to_string_lossy()),
+            },
             settings: Arc::new(Mutex::new(SettingsManager::in_memory(options.settings))),
             cwd: temp_dir.path().to_path_buf(),
             scoped_models: vec![],
@@ -107,6 +115,7 @@ impl Harness {
             disallowed_tool_names: options.disallowed_tool_names,
             base_tools: BaseTools::Override(options.tools),
             extensions: options.extensions,
+            session_start_event: None,
         });
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = events.clone();

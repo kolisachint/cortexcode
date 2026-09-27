@@ -1,11 +1,15 @@
 //! Model registry: built-in models plus `models.json` custom providers and overrides.
 //!
 //! Port of hoocode `packages/coding-agent/src/core/model-registry.ts` (pinned v0.5.89).
-//! Not yet ported: dynamic provider registration by extensions (`registerProvider`),
-//! OAuth `modifyModels`, and auth-storage lookups (ledger 10.4b); callers pass an
-//! [`AuthLookup`] instead.
+//! Not yet ported: dynamic provider registration by extensions (`registerProvider`).
+//! Credentials come through [`AuthLookup`] (implemented by `cortexcode-code-auth`'s
+//! `AuthStorage`); OAuth `modifyModels` through [`ModelRegistry::set_model_modifier`].
+//!
+//! [`resolver`] ports `model-resolver.ts` (`--model` / `--models` patterns and
+//! initial model selection).
 
 pub mod config_value;
+pub mod resolver;
 
 use cortexcode_ai_types::{Model, ModelCost};
 use serde::Deserialize;
@@ -13,7 +17,18 @@ use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-pub use config_value::{resolve_config_value, resolve_config_value_or_err, resolve_headers_or_err};
+pub use config_value::{
+    clear_config_value_cache, resolve_config_value, resolve_config_value_cached,
+    resolve_config_value_or_err, resolve_headers_or_err,
+};
+pub use resolver::{
+    default_model_for_provider, find_exact_model_reference_match, find_initial_model,
+    locale_compare, parse_model_pattern, parse_thinking_level, resolve_cli_model,
+    resolve_model_scope, InitialModelOptions, InitialModelResult, ModelScope, ModelSource,
+    ParsedModelResult, RegistryWithAuth, ResolveCliModelResult, ScopedModel,
+    DEFAULT_MODEL_PER_PROVIDER,
+};
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // models.json schema (ModelsConfigSchema)
@@ -223,7 +238,7 @@ fn apply_model_override(model: &Model, over: &ModelOverride) -> Model {
 // ---------------------------------------------------------------------------
 
 /// Credentials stored outside models.json (auth.json / OAuth), by provider.
-/// Real implementation: ledger 10.4b (`code-auth`).
+/// Implemented by `cortexcode_code_auth::AuthStorage`.
 pub trait AuthLookup {
     /// API key from auth storage, without env-var fallback (`includeFallback: false`).
     fn api_key(&self, provider: &str) -> Option<String>;
@@ -274,9 +289,13 @@ struct CustomModels {
     model_overrides: HashMap<String, HashMap<String, ModelOverride>>,
 }
 
+/// Rewrites the loaded models (OAuth `modifyModels`, e.g. Copilot's base URL).
+pub type ModelModifier = Arc<dyn Fn(Vec<Model>) -> Vec<Model> + Send + Sync>;
+
 /// Built-in + custom models and per-provider request configuration.
 pub struct ModelRegistry {
     models: Vec<Model>,
+    model_modifier: Option<ModelModifier>,
     provider_request_configs: HashMap<String, ProviderRequestConfig>,
     model_request_headers: HashMap<String, HashMap<String, String>>,
     load_error: Option<String>,
@@ -301,6 +320,7 @@ impl ModelRegistry {
     fn empty(path: Option<PathBuf>) -> Self {
         Self {
             models: Vec::new(),
+            model_modifier: None,
             provider_request_configs: HashMap::new(),
             model_request_headers: HashMap::new(),
             load_error: None,
@@ -314,6 +334,13 @@ impl ModelRegistry {
         self.model_request_headers.clear();
         self.load_error = None;
         self.load_models();
+    }
+
+    /// Install the OAuth `modifyModels` pass (`loadModels` runs it after merging
+    /// custom models) and apply it now; it runs again on every [`Self::refresh`].
+    pub fn set_model_modifier(&mut self, modifier: ModelModifier) {
+        self.models = modifier(std::mem::take(&mut self.models));
+        self.model_modifier = Some(modifier);
     }
 
     /// Error from loading models.json, if any (built-ins are still available).
@@ -361,7 +388,11 @@ impl ModelRegistry {
             None => CustomModels::default(),
         };
         let built_in = load_built_in_models(&custom.overrides, &custom.model_overrides);
-        self.models = merge_custom_models(built_in, custom.models);
+        let combined = merge_custom_models(built_in, custom.models);
+        self.models = match &self.model_modifier {
+            Some(modify) => modify(combined),
+            None => combined,
+        };
     }
 
     fn load_custom_models(&mut self, path: &Path) -> Result<CustomModels, String> {

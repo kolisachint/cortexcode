@@ -1,0 +1,23 @@
+{
+  "description": "Interactive bash tool call: the permission gate asks 'Allow: $ ls' with Yes (once) / No (block) / Always; choosing No blocks the call with 'Denied by permission gate' and the model's follow-up is shown.",
+  "phase": "10.6",
+  "terminal": {"cols": 100, "rows": 30},
+  "llm": [
+    {"text": "Listing files.", "tool_calls": [{"id": "call_bash_1", "name": "bash", "arguments": {"command": "ls"}}]},
+    {"text": "The command was denied."}
+  ],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "list the files"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Allow: \\$ ls", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "prompt", "contains": ["Allow: $ ls", "Yes (once)", "No (block)", "Always"]},
+    {"keys": ["Down"]},
+    {"keys": ["Enter"]},
+    {"wait_for": "The command was denied", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "denied", "contains": ["Denied by permission gate", "The command was denied."]}
+  ]
+}

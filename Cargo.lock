@@ -740,9 +740,11 @@ dependencies = [
  "cortexcode-ai-registry",
  "cortexcode-ai-types",
  "cortexcode-ai-util",
+ "cortexcode-code-auth",
  "cortexcode-code-models",
  "cortexcode-code-paths",
  "cortexcode-code-prompts",
+ "cortexcode-code-resources",
  "cortexcode-code-session",
  "cortexcode-code-settings",
  "cortexcode-code-tool-api",
@@ -750,6 +752,22 @@ dependencies = [
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
  "regex-lite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "cortexcode-code-auth"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-env",
+ "cortexcode-ai-oauth",
+ "cortexcode-ai-types",
+ "cortexcode-code-models",
+ "cortexcode-code-paths",
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "tempfile",
@@ -774,11 +792,15 @@ dependencies = [
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
  "cortexcode-code-agent-session",
+ "cortexcode-code-auth",
  "cortexcode-code-media",
  "cortexcode-code-models",
+ "cortexcode-code-modes",
  "cortexcode-code-paths",
+ "cortexcode-code-permissions",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
+ "cortexcode-code-resources",
  "cortexcode-code-rpc",
  "cortexcode-code-session",
  "cortexcode-code-settings",
@@ -787,8 +809,10 @@ dependencies = [
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
  "cortexcode-code-tools-optin",
+ "cortexcode-tui-fuzzy",
  "crossterm",
  "serde_json",
+ "tempfile",
  "tokio",
  "url",
 ]
@@ -825,7 +849,18 @@ dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-types",
  "dirs",
+ "glob",
  "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-modes"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-agent-session",
+ "cortexcode-code-paths",
  "serde_json",
  "tempfile",
 ]
@@ -835,6 +870,17 @@ name = "cortexcode-code-paths"
 version = "0.0.1"
 dependencies = [
  "dirs",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-permissions"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-agent-types",
+ "cortexcode-code-modes",
+ "regex",
+ "serde_json",
  "tempfile",
 ]
 
@@ -862,9 +908,16 @@ dependencies = [
 name = "cortexcode-code-resources"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-agent-harness",
+ "cortexcode-code-paths",
+ "cortexcode-code-settings",
+ "dirs",
+ "glob",
+ "ignore",
  "serde",
  "serde_json",
- "walkdir",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]

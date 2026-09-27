@@ -5,6 +5,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
+- Disk: if builds fail with ENOSPC / "Bus error" in ld, `rm -rf target/debug` (keep
+  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0`.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -12,9 +14,16 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
-  block); 9.2b is unblocked (10.3b done).
+  block); 9.2b is l1_done (L2 compact-command waits on the interactive app).
 - 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
-  (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
+  (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done.
+- 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
+  scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
+  and 10.9 agents roster); 10.7b done. Next: **10.8b** (`--mode json` event shape: contentIndex,
+  `content` on *_end, toolCall, reason, plus session-level events) — not started.
+- Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
+  `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
+  `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
   reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
@@ -23,6 +32,157 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.7b done (CLI session flags)
+- code-cli `session_flags.rs`: `--fork`, `--session` (path / id prefix / other project with a y/N
+  fork prompt), `--continue`, `--no-session`, session dir from flag / env / setting; the runtime
+  runs in the session's cwd. `--tools`, `--no-tools`, `--no-builtin-tools`, `--thinking`,
+  `--session-dir` are no longer rejected.
+- Harness: `pre_runs` (arg lists run to completion before the recorded run).
+- L2: `print-continue` (new) and `list-models` pass.
+- Left: `--resume` (session picker, 11.3) and `--export` (export-html, phase 12) still error.
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.6 l1_done (code-permissions)
+- New crate `cortexcode-code-permissions`: `HooPermissionGate` ports permission-gate.ts over the
+  merged hoo-config.json (hard rules always; prompt / allowed_write_paths / auto_allow with a UI;
+  "Always" writes the global auto_allow). Replaces the CLI's invented PolicyPermissionGate, so
+  print mode no longer denies unknown tools.
+- CLI: `--disallowed-tools` (+ `disabledTools` setting) is supported.
+- Tests: permission-gate-mutation-path.test.ts + the hard-enforcement rules (11).
+- L2 `permission-prompt` (new, stable) waits on the TUI selector (11.3).
+- Left: the `.webtoolsignore` webfetch rule (10.2e).
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.5b l1_done (code-modes)
+- New crate `cortexcode-code-modes` (extensions/core/{modes,config}.ts, core/mode-prompts.ts):
+  hoo-config.json read/merge/write, the four mode prompts and grill prompts embedded verbatim,
+  plan-file parsing (matches hoocode's multiline regex, which keeps only a section's first line),
+  `/mode /plan /grill /goal /approve` returning `ModeAction`s, and `ModesExtension`.
+- `ExtensionHooks::before_agent_start` added; `AgentSession::prompt` applies it (hoocode's
+  emitBeforeAgentStart system-prompt override).
+- code-cli installs `ModesExtension` per session (`--mode-path`, mode `enabled_tools`).
+- Tests: mode-tool-filter, mode-commands, grill-command, goal-command (54).
+- print-context-files: the build-mode appendix matches hoocode now; the remaining request diff
+  is the agents roster (10.9) and the "About <app> itself" docs section.
+- L2 `mode-plan` (new, stable) waits on the interactive TUI (11.x); nothing consumes
+  `ModeAction`s yet (see the 11.2 note).
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.5 l1_done (DefaultResourceLoader, builtin skills, wiring)
+- `code-resources::resource_loader` (resource-loader.ts): `DefaultResourceLoader` over the local
+  resolve (10.5d): skills (+ namespaces, source info), prompt templates + slash commands (default
+  dirs incl. `.claude/commands`, `.agents/commands` ancestors, dedupe collisions), context files,
+  system prompt / append inputs, overrides, `extend_resources`. Extensions (12.3), themes (11.1)
+  and package sources (12.2) are not ported.
+- `code-resources::builtin_skills` (builtin-skills.ts): hoocode's `templates/skills` embedded
+  verbatim, so the cache dir hash (965fb5cbad49) and the `<location>` match hoocode.
+- `code-resources::skill_blocks` (agent-session-skills.ts): `parse_skill_block`,
+  `expand_skill_command`.
+- `code-agent-session::DefaultResources` implements `ResourceLoader` (skills, context files,
+  `/skill:` + template expansion); `AgentSession::resource_loader()`.
+- code-cli: the loader replaces `StaticResourceLoader`; `--skill`, `--no-skills`,
+  `--prompt-template`, `--slash-command`, `--no-prompt-templates`, `--no-slash-commands`,
+  `--no-context-files` are supported; light mode drops skills and context files.
+- Tests: resource-loader.test.ts (minus extensions/themes), builtin-skills.test.ts,
+  sdk-skills.test.ts, and the skill-expansion case of agent-session-prompt.test.ts.
+- L2 `print-context-files` (new, stable): the context and skills sections match hoocode; the
+  request still differs by the default-bundle remainder (agents roster 10.9, docs section,
+  build-mode appendix 10.5b), like print-tool-read.
+- Disk: the session disk allowance filled up (target/debug grew to 20G). `rm -rf target/debug`
+  (never `cargo clean`: it deletes target/hoocode-pin) and prefer `CARGO_INCREMENTAL=0`.
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.5d done (package resource discovery, local resolve)
+- `code-resources::package_discovery` (package-resource-discovery.ts): recursive collection with
+  ignore files, skill layouts (hoocode vs `.agents`), prompt/theme/extension auto-discovery
+  (package.json `hoocode`/`pi`/`cortexcode` manifests, index.ts), include/exclude/force patterns.
+- `code-resources::package_resolve`: the settings-entries + auto-discovery half of
+  `DefaultPackageManager.resolve()` with precedence ranks and symlink dedupe (`home` passed in
+  instead of reading `$HOME` at each call). Package sources (npm/git) remain 12.2.
+- Tests: 34 cases from package-manager.test.ts (resolve, skill metadata, `.agents/skills`, ignore
+  files, top-level patterns, force include/exclude, multi-file extension discovery).
+- Next: 10.5 (DefaultResourceLoader, builtin skills, session/CLI wiring, print-context-files).
+
+### 2026-09-27: 10.5c done (context files, agent registry)
+- `code-resources::context_files` (context-files.ts): AGENTS.md/CLAUDE.md from `~/.agents`, the
+  agent dir and the cwd ancestors (root first), per-file 8K/40K and total 24K/64K budgets
+  (trims least specific first), `resolve_prompt_input`.
+- `code-resources::agent_registry` (agent-registry.ts + agent-manifest-paths.ts): built-ins
+  embedded from hoocode `templates/agents/*.md` (branding line "running inside cortex"),
+  precedence chain incl. `.claude/agents`, ancestor `.agents/agents`, explicit paths, `--agent`;
+  `summarize_agent_description`, `format_agents_for_prompt` (checked byte-for-byte against the
+  `<available_agents>` block in hoocode's recorded model request).
+- Tests: context-files-user-scope.test.ts and agent-registry.test.ts ported.
+- Next: 10.5 (DefaultResourceLoader + wiring + print-context-files).
+
+### 2026-09-27: 10.5 split; 10.5a done (skills, prompt templates, agent frontmatter)
+- Ledger: 10.5 split into 10.5a (this), 10.5c (context files + agent registry) and 10.5
+  (resource-loader.ts, session/CLI wiring, print-context-files). Bookkeeping fix: the new tasks'
+  `l2` was first written as a list, which `verify` reads as an unwritten scenario; it is the
+  plain "n/a: ..." string like other library tasks.
+- `cortexcode-code-resources` rewritten as a port (the old crate was invented): `frontmatter`
+  (shares the harness parser), `source_info`, `diagnostics`, `agent_frontmatter`
+  (parseAgentDefinition, normalizeTools Claude shim), `skills` (discovery with ignore files,
+  plugin-root skip via the six manifest paths, `.claude/skills`, collisions, namespaces,
+  `format_skills_for_prompt`), `prompt_templates` (load, parseCommandArgs, substituteArgs with
+  JS `String.replace` `$$`/`$&` semantics, tryExpand), `slash_commands` (built-in list),
+  `node_path` (Node path semantics over strings).
+- Tests: skills.test.ts, agent-frontmatter.test.ts, prompt-templates.test.ts ported (fixtures
+  copied to `crates/cortexcode-code-resources/tests/fixtures`).
+- Next: 10.5c (context-files.ts, agent-registry.ts), then 10.5.
+
+### 2026-09-27: 10.4b done (model resolver, auth storage, --list-models, --models)
+- `code-models::resolver` (model-resolver.ts): `parse_model_pattern`, `resolve_model_scope`
+  (globs via `glob` with minimatch options, thinking suffixes, warnings returned),
+  `resolve_cli_model`, `find_initial_model` over a `ModelSource` trait, `DEFAULT_MODEL_PER_PROVIDER`,
+  `locale_compare`. `ModelRegistry::set_model_modifier` runs the OAuth `modifyModels` pass;
+  `resolve_config_value_cached` / `clear_config_value_cache` port the command cache.
+- New `cortexcode-code-auth` (auth-storage.ts + auth-guidance.ts): `AuthStorage` over file or
+  in-memory backends, hoocode-compatible `auth.json` (type-tagged entries, pretty JSON, 0600,
+  `auth.json.lock` dir lock like proper-lockfile), runtime keys, fallback resolver, locked OAuth
+  refresh; implements `AuthLookup`.
+- code-cli: `CliAuth`/`CredentialStore` replaced by `AuthStorage` (login stores `type: oauth`);
+  `--model` via `resolve_cli_model`, `--models`/`enabledModels` scope, `--api-key` as a runtime
+  key for the chosen provider, main.ts diagnostics; `--list-models`. services.rs uses
+  `find_initial_model`.
+- Tests: `code-models/tests/model_resolver.rs` (all of model-resolver.test.ts),
+  `code-auth/tests/auth_storage.rs` (all of auth-storage.test.ts), list-models unit tests.
+- L2 `list-models` (mock + GROQ_API_KEY env auth) passes. Harness fix: tmux options from a
+  config file, and apps run under `sh -c '"$@"; exit $?'` because tmux 3.4 sometimes never draws
+  "Pane is dead" when node exits right away (~1 in 8 runs).
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.3c done (tree navigation, fork, runtime replacement)
+- `code-agent-session::tree` (agent-session-tree-navigation.ts): `navigate_tree` (leaf moves,
+  editor text for user/custom messages, optional branch summary at the new position, labels,
+  `session_before_tree`/`session_tree` hooks), `abort_branch_summary`; branch summarization
+  counts as `is_compacting` and the abort races the summary request.
+- `code-agent-session::runtime` (agent-session-runtime.ts + session-cwd.ts):
+  `AgentSessionRuntime` over a `RuntimeFactory` closure with `new_session`, `switch_session`,
+  `fork` (before/at, persisted and in-memory), `change_directory` (pinned session dir travels),
+  `import_from_jsonl`, `dispose`, rebind / before-invalidate callbacks;
+  `assert_session_cwd_exists`.
+- `ExtensionHooks` gained `has_handlers` + `emit_session_event(SessionEvent)`; sessions carry
+  a `session_start_event` emitted by `bind_extensions()`; `AgentSession::reload()`.
+- Tests: `tests/runtime.rs` (suite runtime + runtime-events + branching, faux models reach
+  the registry via models.json; agent dir isolated by env), `tests/tree_navigation.rs`.
+  Extension-only cases (message_end replacement, stale ctx, withSession) noted on 12.3.
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 9.2b l1_done (/compact, compaction e2e tests)
+- `tests/compaction_e2e.rs` ports `test/agent-session-compaction.test.ts` (live-model e2e) onto
+  the faux provider: manual compact, usable after compaction, persisted to the session file
+  (reopened from disk), in-memory `--no-session`, compaction_start/end events. With
+  `keepRecentTokens: 1` the cut splits the last turn, so each compact makes two summary
+  requests (history + turn prefix). The suite file was ported in 10.3b. Test harness gained
+  `HarnessOptions::session_manager`.
+- L2 `compact-command` scenario written; `selfcheck` stable. hoocode shows the `/compact`
+  slash menu, then the chat rebuilt with the `[compaction]` block (rendered twice at the pin:
+  once from the rebuilt messages, once appended by `compaction_end`; port it as-is). It waits
+  on the interactive app (11.1+), so 9.2b is `l1_done`.
+- Stopgap interactive loop accepts `/compact [instructions]` until 11.1 replaces it.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.3b done (AgentSession retry + auto-compaction)
 - `code-agent-session::retry` (agent-session-retry.ts): retry is armed synchronously on

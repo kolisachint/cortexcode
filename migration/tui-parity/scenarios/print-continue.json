@@ -1,0 +1,18 @@
+{
+  "description": "--continue in print mode: a first -p run leaves a session in the project's session dir; `-c -p` reopens the most recent one, so the second request carries the first exchange before the new prompt. Compares the model requests (messages).",
+  "compare_requests": true,
+  "request_fields": ["messages"],
+  "phase": "10.7b",
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "pre_runs": [["--offline", "--light", "--provider", "mock", "--model", "mock-model", "-p", "remember the word apple"]],
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model", "-c", "-p", "what was the word?"],
+  "llm": [
+    {"text": "Noted: apple."},
+    {"text": "The word was apple."}
+  ],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["The word was apple.", "<exited status=0>"]}
+  ]
+}

@@ -22,6 +22,8 @@ cortexcode-ai-registry = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-ai-util = { workspace = true }
 cortexcode-code-models = { workspace = true }
+cortexcode-code-auth = { workspace = true }
+cortexcode-code-resources = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-prompts = { workspace = true }
 cortexcode-code-session = { workspace = true }

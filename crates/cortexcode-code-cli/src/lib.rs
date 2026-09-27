@@ -10,8 +10,10 @@ pub mod auth;
 mod help;
 mod help_text;
 pub mod initial_message;
+mod list_models;
 mod permission_dialog;
 mod runtime;
+mod session_flags;
 
 pub use args::{
     is_valid_thinking_level, parse_args, Args, Diagnostic, DiagnosticKind, FlagValue, ListModels,
@@ -103,20 +105,10 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 41] = [
-        (a.thinking.is_some(), "--thinking"),
-        (a.continue_.is_some(), "--continue"),
+    let checks: [(bool, &'static str); 22] = [
         (a.resume.is_some(), "--resume"),
         (a.max_turns.is_some(), "--max-turns"),
-        (a.session.is_some(), "--session"),
         (a.team.is_some(), "--team"),
-        (a.fork.is_some(), "--fork"),
-        (a.session_dir.is_some(), "--session-dir"),
-        (a.models.is_some(), "--models"),
-        (a.tools.is_some(), "--tools"),
-        (a.disallowed_tools.is_some(), "--disallowed-tools"),
-        (a.no_tools.is_some(), "--no-tools"),
-        (a.no_builtin_tools.is_some(), "--no-builtin-tools"),
         (a.subagent == Some(true), "--enable-subagents"),
         (a.subagent == Some(false), "--no-subagents"),
         (a.warm_subagents.is_some(), "--warm-subagents"),
@@ -132,18 +124,9 @@ pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
         (a.use_system_ca.is_some(), "--use-system-ca"),
         (a.extensions.is_some(), "--extension"),
         (a.no_extensions.is_some(), "--no-extensions"),
-        (a.no_skills.is_some(), "--no-skills"),
-        (a.skills.is_some(), "--skill"),
         (a.agents.is_some(), "--agent"),
-        (a.prompt_templates.is_some(), "--prompt-template"),
-        (a.no_prompt_templates.is_some(), "--no-prompt-templates"),
-        (a.slash_commands.is_some(), "--slash-command"),
-        (a.no_slash_commands.is_some(), "--no-slash-commands"),
         (a.themes.is_some(), "--theme"),
         (a.no_themes.is_some(), "--no-themes"),
-        (a.mode_paths.is_some(), "--mode-path"),
-        (a.no_context_files.is_some(), "--no-context-files"),
-        (a.list_models.is_some(), "--list-models"),
         (a.verbose.is_some(), "--verbose"),
     ];
     checks
@@ -273,6 +256,17 @@ pub fn run(
         return Ok(1);
     }
 
+    // main.ts builds the runtime (auth.json + models.json) first, then lists.
+    if let Some(list) = &parsed.list_models {
+        let (auth, registry) = runtime::load_auth_and_registry();
+        let search = match list {
+            ListModels::Search(pattern) => Some(pattern.as_str()),
+            ListModels::All => None,
+        };
+        list_models::list_models(&registry, auth.as_ref(), search, env.color, output, err)?;
+        return Ok(0);
+    }
+
     // `readPipedStdin`: RPC mode owns stdin; otherwise a non-TTY stdin is read
     // whole and becomes the start of the initial message.
     let stdin_content = if app_mode != AppMode::Rpc && !env.stdin_is_tty {
@@ -389,13 +383,13 @@ mod tests {
 
     #[test]
     fn unsupported_flags_fail_clearly() {
-        let (code, out, err) = run_with(&["--continue", "--tools", "read", "-p", "hi"], TTY);
+        let (code, out, err) = run_with(&["--resume", "--theme", "t.json", "-p", "hi"], TTY);
         assert_eq!(code, 1);
         assert!(out.is_empty());
         assert_eq!(
             err,
-            "Error: --continue is not yet supported by cortex\n\
-             Error: --tools is not yet supported by cortex\n"
+            "Error: --resume is not yet supported by cortex\n\
+             Error: --theme is not yet supported by cortex\n"
         );
     }
 

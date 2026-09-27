@@ -413,6 +413,12 @@
      "commit": "8be2e1f",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail, print-multi=fail"
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "note",
+     "text": "10.5: skills (builtin artifact-design) and context files are in the default system prompt now; remaining default-bundle gaps: agents roster (10.9), docs section, mode appendix (10.5b), SearchHooCode (12.4)."
     }
    ]
   },
@@ -1499,13 +1505,14 @@
    "id": "9.2b",
    "title": "Auto-compaction thresholds + /compact in the coding agent (agent-session-compaction.ts)",
    "phase": 9,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "9.2a",
     "10.3b"
    ],
    "crates": [
-    "cortexcode-agent-compaction"
+    "cortexcode-agent-compaction",
+    "cortexcode-code-agent-session"
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session-compaction.ts"
@@ -1525,6 +1532,30 @@
      "commit": "74e6c23",
      "kind": "note",
      "text": "10.3b: AgentSession::{compact, run_auto_compaction, check_compaction, plan_compaction, abort_compaction, is_compacting, set_auto_compaction_enabled} and the CompactionStart/End events exist (crates/cortexcode-code-agent-session/src/compaction.rs); /compact and threshold UI build on them."
+    },
+    {
+     "at": "2026-09-27T02:15:13Z",
+     "commit": "5a99df8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T02:21:57Z",
+     "commit": "5a99df8",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=fail"
+    },
+    {
+     "at": "2026-09-27T02:23:04Z",
+     "commit": "5a99df8",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=fail"
+    },
+    {
+     "at": "2026-09-27T02:23:04Z",
+     "commit": "5a99df8",
+     "kind": "note",
+     "text": "Ported both TS files (suite in 10.3b; e2e cases on the faux provider in tests/compaction_e2e.rs). compact-command scenario written + selfcheck stable; L2 waits on the interactive app (11.1+: slash menu, compaction loader, [compaction] block, footer auto@N%). Stopgap loop accepts /compact [instructions]."
     }
    ]
   },
@@ -2197,7 +2228,7 @@
    "id": "10.3c",
    "title": "AgentSession tree navigation, fork and runtime rebuild (agent-session-tree-navigation.ts, agent-session-runtime.ts)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -2206,11 +2237,14 @@
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session-tree-navigation.ts",
-    "packages/coding-agent/src/core/agent-session-runtime.ts"
+    "packages/coding-agent/src/core/agent-session-runtime.ts",
+    "packages/coding-agent/src/core/session-cwd.ts"
    ],
    "ts_tests": [
     "packages/coding-agent/test/suite/agent-session-runtime.test.ts",
-    "packages/coding-agent/test/agent-session*tree*.test.ts"
+    "packages/coding-agent/test/agent-session*tree*.test.ts",
+    "packages/coding-agent/test/agent-session-runtime-events.test.ts",
+    "packages/coding-agent/test/agent-session-branching.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal; exercised by /tree (phase 11) and --fork (10.7b)",
@@ -2221,6 +2255,24 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: port test/agent-session-runtime-events.test.ts and test/agent-session-branching.test.ts here (both skipped in 10.3a). AgentSession has no reload()/runtime rebuild yet: build_runtime/refresh_tool_registry exist (session.rs) and BaseTools::Factory re-reads settings, so reload = settings.reload + build_runtime(active names)."
+    },
+    {
+     "at": "2026-09-27T02:34:48Z",
+     "commit": "90723c2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T02:43:57Z",
+     "commit": "90723c2",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    },
+    {
+     "at": "2026-09-27T02:44:03Z",
+     "commit": "90723c2",
+     "kind": "note",
+     "text": "AgentSessionRuntime (runtime.rs: new/switch/fork/cd/import/dispose + session-cwd.ts), navigate_tree/abort_branch_summary (tree.rs), reload(). Tests: runtime.rs (15: suite runtime + runtime-events + branching on faux, models via models.json), tree_navigation.rs (11). Extension-only cases noted on 12.3."
     }
    ]
   },
@@ -2228,7 +2280,7 @@
    "id": "10.4b",
    "title": "Model resolver (--models scoping, patterns) + auth-storage (auth.json compat, locked refresh) in code-models / new code-auth",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.4a",
     "10.1c"
@@ -2262,14 +2314,32 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: services::create_agent_session only picks the defaultProvider/defaultModel setting when no model is given; port findInitialModel there. code-cli runtime.rs CliAuth (AuthLookup: --api-key, env, OAuth store, cached per provider) is the stand-in for AuthStorage; AuthLookup::is_oauth defaults false and must report OAuth credentials (AgentSession.prompt's 'Authentication failed' message). --api-key should become a runtime key for the chosen provider only (main.ts setRuntimeApiKey)."
+    },
+    {
+     "at": "2026-09-27T03:22:51Z",
+     "commit": "3608e70",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:04:26Z",
+     "commit": "3608e70",
+     "kind": "verify",
+     "text": "L1 pass; L2 list-models=pass"
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "OAuth modifyModels now applied via ModelRegistry::set_model_modifier(AuthStorage::model_modifier) (8.4b note resolved). auth.json written by AuthStorage (type-tagged, 0600, proper-lockfile compatible auth.json.lock dir); legacy cortex entries without type read as oauth. auth_guidance moved to code-auth. Harness: tmux options now come from a config file and the app runs under a silent sh wrapper (tmux 3.4 dropped the Pane-is-dead line for fast-exiting node ~1/8 runs)."
     }
    ]
   },
   {
-   "id": "10.5",
-   "title": "Resources: resource-loader, skills, prompt templates, context files, slash-command discovery, agent frontmatter/registry (serde_yaml_ng)",
+   "id": "10.5a",
+   "title": "Resources I: frontmatter, source-info/diagnostics, agent-frontmatter (normalizeTools), skills discovery + formatSkillsForPrompt, prompt templates, slash-command list",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c"
    ],
@@ -2277,15 +2347,138 @@
     "cortexcode-code-resources"
    ],
    "sources": [
-    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/utils/frontmatter.ts",
+    "packages/coding-agent/src/core/source-info.ts",
+    "packages/coding-agent/src/core/diagnostics.ts",
+    "packages/coding-agent/src/core/agent-frontmatter.ts",
     "packages/coding-agent/src/core/skills.ts",
     "packages/coding-agent/src/core/prompt-templates.ts",
+    "packages/coding-agent/src/core/slash-commands.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/agent-frontmatter.test.ts",
+    "packages/coding-agent/test/skills.test.ts",
+    "packages/coding-agent/test/prompt-templates.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T04:06:07Z",
+     "commit": "e32b25b",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:14:00Z",
+     "commit": "e32b25b",
+     "kind": "verify",
+     "text": "L1 pass; L2 unwritten=['n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)']"
+    },
+    {
+     "at": "2026-09-27T04:14:08Z",
+     "commit": "e32b25b",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.5c",
+   "title": "Resources II: context files (AGENTS.md/CLAUDE.md discovery, user scope) and agent registry",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.5a"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
     "packages/coding-agent/src/core/context-files.ts",
-    "packages/coding-agent/src/core/slash-commands.ts",
-    "packages/coding-agent/src/core/agent-frontmatter.ts",
     "packages/coding-agent/src/core/agent-registry.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/context-files-user-scope.test.ts",
+    "packages/coding-agent/test/agent-registry.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T04:14:24Z",
+     "commit": "e899605",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:17:17Z",
+     "commit": "e899605",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.5d",
+   "title": "Resources IV: package-resource-discovery.ts + the local/auto part of DefaultPackageManager.resolve (settings resource entries, auto-discovered dirs incl. .agents/.claude, patterns and overrides, precedence); npm/git packages stay 12.2",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.5a"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/package-resource-discovery.ts",
+    "packages/coding-agent/src/core/package-manager.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/package-manager.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
+   "notes": "Port only the resolve() cases of package-manager.test.ts that need no npm/git package sources (describe blocks: resolve, auto-discovered skill metadata, .agents/skills auto-discovery, ignore files, pattern filtering in top-level arrays, force-include/force-exclude top-level, multi-file extension discovery). The rest belongs to 12.2.",
+   "log": [
+    {
+     "at": "2026-09-27T04:19:10Z",
+     "commit": "6cad3ac",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:22:37Z",
+     "commit": "6cad3ac",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.5",
+   "title": "Resources III: DefaultResourceLoader (resource-loader.ts) as the AgentSession ResourceLoader, wired into code-cli (skills, templates, context files in the system prompt)",
+   "phase": 10,
+   "status": "l1_done",
+   "depends": [
+    "10.5a",
+    "10.5c",
+    "10.5d"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/core/builtin-skills.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/resource-loader.test.ts",
+    "packages/coding-agent/test/sdk-skills.test.ts",
+    "packages/coding-agent/test/builtin-skills.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "print-context-files"
@@ -2297,6 +2490,30 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: implement cortexcode_code_agent_session::ResourceLoader (hooks.rs) for the real loader: system_prompt/append_system_prompt/skills/context_files feed _rebuildSystemPrompt, and expand_input must do _expandSkillCommand then tryExpandPromptTemplate returning ExpandedInput{text, template kind, args} (AgentSession.prompt handles user/system/context kinds). Port the skill-expansion case of test/suite/agent-session-prompt.test.ts against it. code-cli runtime.rs resource_loader() is the StaticResourceLoader stand-in to replace."
+    },
+    {
+     "at": "2026-09-27T12:00:00Z",
+     "commit": "e550a22",
+     "kind": "note",
+     "text": "Split: 10.5a (frontmatter, skills, prompt templates, slash commands, agent-frontmatter) and 10.5c (context files, agent registry) were carved out; 10.5 keeps resource-loader.ts, the session/CLI wiring and the print-context-files L2 gate. 10.5b (modes) keeps depending on 10.5. The existing cortexcode-code-resources crate was invented (not a port) and is replaced by these tasks."
+    },
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "HEAD",
+     "kind": "note",
+     "text": "Split again: 10.5d takes package-resource-discovery.ts and the local/auto half of package-manager resolve() (the loader's source of default skill/prompt/theme/extension dirs). 10.5 also takes builtin-skills.ts (the artifact-design skill 10.4c's notes assign here). print-context-files must run in default mode (light mode disables context files), so its request comparison waits on the default-bundle prompt gates like print-tool-read (user decision 2026-09-25)."
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-context-files=fail"
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "note",
+     "text": "print-context-files: the # Project Context section and the skills block (builtin artifact-design at the same cache hash 965fb5cbad49) now match hoocode byte for byte; the request diff left is the default-bundle remainder: <available_agents> (10.9 Task tool; format_agents_for_prompt exists in code-resources), the '# About <app> itself' docs section, and the hoo-core build-mode appendix (10.5b). Not ported here: extensions (12.3), themes (11.1), package sources (12.2); skill-expansion read errors are not reported (the extension runner's error event, 12.3)."
     }
    ]
   },
@@ -2304,7 +2521,7 @@
    "id": "10.5b",
    "title": "New crate code-modes: ask/plan/build/debug modes, mode prompts, /mode /plan /approve semantics",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.5"
    ],
@@ -2321,13 +2538,32 @@
     "mode-plan"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:36:15Z",
+     "commit": "9b29742",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "verify",
+     "text": "L1 pass; L2 mode-plan=fail"
+    },
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "note",
+     "text": "New crate code-modes: hoo-config.json (read/merge/write), mode prompts + grill prompts embedded verbatim, plan parsing (reproduces hoocode's multiline-regex first-line capture), /mode /plan /grill /goal /approve as ModeAction lists, ModesExtension (ExtensionHooks: commands + new before_agent_start hook). CLI installs it per session (--mode-path, enabled_tools). print-context-files: the build-mode appendix now matches hoocode byte for byte. mode-plan L2 (stable) waits on the interactive TUI (11.x: editor, footer mode badge) — cortex's interactive mode is still the placeholder. The host must carry out ModeActions (Notify, Reload, NewSessionWithMessage, SendFollowUp via take_actions); nothing consumes them yet (interactive 11.x; StartAutoLoop needs /loop, 12.5). Not ported: mode prompt in subagents is skipped via SUBAGENT_DEPTH env (10.9 must set CORTEXCODE_SUBAGENT_DEPTH); hoo.setMode footer, argument completions (11.x)."
+    }
+   ]
   },
   {
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.3a"
    ],
@@ -2343,13 +2579,32 @@
     "permission-prompt"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:59:49Z",
+     "commit": "24570c8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "verify",
+     "text": "L1 pass; L2 permission-prompt=fail"
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "note",
+     "text": "New crate code-permissions: HooPermissionGate ports permission-gate.ts over code-modes' merged hoo-config.json (read on every call): denied_tools, enabled_tools allowlist, denied/allowed_bash_commands (regex crate; no look-around), then with a UI allowed_write_paths, auto_allow and the 'Allow: …' Yes/No/Always prompt ('Always' appends to the global auto_allow). Headless (print) sessions now run every tool not hard-blocked, as in hoocode (the invented PolicyPermissionGate denied unknown tools like webfetch in print mode; it stays in code-tools unused by the CLI). CLI: --disallowed-tools + disabledTools setting feed CreateAgentSessionOptions.disallowed_tools. Left: .webtoolsignore host rule (10.2e, blockedHostForUrl); the gate runs in the loop before before_tool_call on the raw (prepared) args. permission-prompt L2 (stable on hoocode) waits on the TUI selector (11.3); cortex's prompt is the crossterm placeholder (TerminalPermissionUi)."
+    }
+   ]
   },
   {
    "id": "10.7b",
    "title": "CLI session flags (--continue/--resume/--session/--fork/--no-session/--session-dir), --list-models, --export, --tools/--no-tools, --thinking",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.4b",
     "10.3a",
@@ -2376,6 +2631,30 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: code-cli build_session handles --no-session (in-memory) and --session-dir, and passes --thinking into create_agent_session; --tools/--no-tools/--no-builtin-tools/--disallowed-tools and the disabledTools setting map to CreateAgentSessionOptions {tools, no_tools, disallowed_tools}. --continue/--resume/--session/--fork are not wired."
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "10.4b: --list-models (cli/list-models.ts) and --models scoping are implemented in code-cli (list_models.rs, runtime.rs build_session/model_options); the list-models scenario passes. Left for 10.7b: session flags."
+    },
+    {
+     "at": "2026-09-27T05:04:34Z",
+     "commit": "efc0d51",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-continue=pass, list-models=pass"
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "note",
+     "text": "Session flags: code-cli session_flags.rs ports resolveSessionPath / validateForkFlags / createSessionManager (--no-session, --fork, --session incl. the other-project y/N fork prompt, --continue) and the session dir (--session-dir, CORTEXCODE_CODING_AGENT_SESSION_DIR, sessionDir setting). The runtime cwd is the session's (settings reloaded for it); a missing stored cwd errors in print mode and asks y/N on stdin in the placeholder interactive mode (hoocode: selector, 11.3). --tools/--no-tools/--no-builtin-tools/--thinking/--session-dir are no longer rejected. Still unsupported: --resume (session picker, 11.3 session-resume) and --export (export-html, phase 12). Harness: scenarios may declare pre_runs (arg lists run to completion first, stdin /dev/null). print-continue passes with identical requests."
     }
    ]
   },
@@ -2585,7 +2864,14 @@
     "tool-edit"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:59:33Z",
+     "commit": "9b29742",
+     "kind": "note",
+     "text": "10.5b: mode-plan scenario (L2 gate of 10.5b) needs the editor + footer mode badge ('⬢ PLAN') and must consume ModesExtension::take_actions after run_command (Notify, Reload, NewSessionWithMessage, SendFollowUp)."
+    }
+   ]
   },
   {
    "id": "11.3",
@@ -2614,6 +2900,18 @@
      "commit": "a17195e",
      "kind": "note",
      "text": "settings-token-surface.test.ts (and the other *-settings-pane tests) cover the /settings selector pane: port them here, not in 10.1b."
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "note",
+     "text": "10.6: permission-prompt scenario (10.6's L2 gate): the gate's select ('Allow: $ ls', three choices, bordered, title right-aligned in the top border) must implement cortexcode_code_permissions::PermissionUi; replace permission_dialog::TerminalPermissionUi."
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "note",
+     "text": "10.7b: --resume is rejected until the session selector exists (session-picker.ts selectSession over list_sessions/list_all_sessions, then SessionManager::open); the missing-session-cwd prompt should be the Continue/Cancel selector too (runtime.rs uses a stdin y/N placeholder)."
     }
    ]
   },
@@ -2736,6 +3034,18 @@
      "commit": "74e6c23",
      "kind": "note",
      "text": "10.3b: compaction skips the session_before_compact / session_compact hooks (summaries always come from the model); retry-events 'emits extension events before public subscribers' and 'prompt waits for retry when message_end handling is delayed', and compaction 'extension-provided summary' / 'extension cancel' are left for here."
+    },
+    {
+     "at": "2026-09-27T02:44:03Z",
+     "commit": "90723c2",
+     "kind": "note",
+     "text": "10.3c: ExtensionHooks gained has_handlers/emit_session_event (SessionEvent: start, before_switch/fork/tree, shutdown, tree) and AgentSession::bind_extensions/reload. Port here: suite/agent-session-runtime 'persists message_end assistant replacements' and runtime-events 'stale extension ctx' check; withSession/ReplacedSessionContext on AgentSessionRuntime; session_start(reload) after reload with bindings."
+    },
+    {
+     "at": "2026-09-27T04:04:34Z",
+     "commit": "3608e70",
+     "kind": "note",
+     "text": "10.4b: sdk.ts falls back to hoo-config.json llm.default_provider/default_model (extensions/core/config.ts readConfig) when settings have no defaultProvider; services.rs find_initial_model does not read it yet. AuthStorage.login and the registry's OAuth modifyModels pass exist; registerProvider oauth still to port."
     }
    ]
   },

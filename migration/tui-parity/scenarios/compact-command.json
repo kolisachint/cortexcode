@@ -1,0 +1,31 @@
+{
+  "description": "Two prompts, then /compact: the manual compaction loader, then the chat rebuilt with the compaction summary block. keepRecentTokens is 1 so the tiny session has something to summarize; the cut splits the last turn, so two summary requests run in parallel and both get the same scripted text (their order is not deterministic).",
+  "phase": "9.2b",
+  "terminal": {"cols": 100, "rows": 34},
+  "settings": {"compaction": {"keepRecentTokens": 1}},
+  "llm": [
+    {"text": "First answer."},
+    {"text": "Second answer."},
+    {"text": "## Goal\nMock summary of the conversation."},
+    {"text": "## Goal\nMock summary of the conversation."}
+  ],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "first question"},
+    {"keys": ["Enter"]},
+    {"wait_for": "First answer", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "second question"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Second answer", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/compact"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "slash-menu", "contains": ["/compact"]},
+    {"keys": ["Enter"]},
+    {"wait_for": "(?i)compact", "timeout": 30},
+    {"wait_stable": 2.0, "timeout": 30},
+    {"snapshot": "compacted", "contains": ["[compaction]", "Compacted", "Second answer."]}
+  ]
+}

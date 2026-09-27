@@ -19,6 +19,11 @@ cortexcode-code-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-settings = { workspace = true }
 cortexcode-code-models = { workspace = true }
+cortexcode-code-auth = { workspace = true }
+cortexcode-code-resources = { workspace = true }
+cortexcode-code-modes = { workspace = true }
+cortexcode-code-permissions = { workspace = true }
+cortexcode-tui-fuzzy = { workspace = true }
 cortexcode-ai-registry = { workspace = true }
 cortexcode-code-prompts = { workspace = true }
 cortexcode-code-rpc = { workspace = true }
@@ -45,4 +50,5 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 url = "2"
 
 [dev-dependencies]
+tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
