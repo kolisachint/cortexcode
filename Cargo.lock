@@ -1181,6 +1181,7 @@ dependencies = [
  "cortexcode-code-paths",
  "cortexcode-code-session",
  "cortexcode-tui-components",
+ "cortexcode-tui-highlight",
  "cortexcode-tui-render",
  "cortexcode-tui-util",
  "serde_json",
@@ -1237,7 +1238,6 @@ dependencies = [
  "cortexcode-tui-render",
  "cortexcode-tui-terminal",
  "cortexcode-tui-util",
- "fancy-regex",
  "once_cell",
  "serde_json",
  "unicode-segmentation",
@@ -1251,6 +1251,15 @@ version = "0.0.1"
 [[package]]
 name = "cortexcode-tui-fuzzy"
 version = "0.0.1"
+
+[[package]]
+name = "cortexcode-tui-highlight"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-tui-util",
+ "once_cell",
+ "serde_json",
+]
 
 [[package]]
 name = "cortexcode-tui-images"
@@ -1292,6 +1301,7 @@ dependencies = [
 name = "cortexcode-tui-util"
 version = "0.0.1"
 dependencies = [
+ "fancy-regex",
  "unicode-segmentation",
  "unicode-width",
 ]

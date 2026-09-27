@@ -37,6 +37,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2d2 done (code highlighting: highlight.js 10.7.3 port)
+- New crate `cortexcode-tui-highlight`: highlight.js 10.7.3's engine ported over its own
+  grammars, which `migration/tools/goldens/hljs-grammars.mjs` dumps as an object graph
+  (identity, frozen flags, named callbacks) to `data/hljs-grammars.json`. The engine mutates
+  them as hljs does, so each thread keeps its own copy.
+- `highlight` colors like cli-highlight (caller theme, then its `DEFAULT_THEME` with chalk 4
+  nesting). `code-tui-theme` installs it as the default `CodeHighlighter` (`CliHighlight`).
+- Golden: `highlight.mjs` -> `tests/fixtures/highlight-gold.json`, 435 cases (pin and
+  cortexcode sources, snippets, a polyglot snippet in all 191 languages), byte-identical.
+  The debug-mode test takes about 40s; release highlights about 1,900 lines of TS in about 100ms.
+- `js_regex` moved to `cortexcode-tui-util`. Multiline `^`/`$` now also treat `\r`, U+2028
+  and U+2029 as line ends, as JS does (CRLF files).
+- `needs_highlighter` has been removed from `tool_renderers_gold.rs`.
+- Next: verify 11.2d (container), then 11.2.
+
 ### 2026-09-27: 11.2d split; 11.2d1 done (bash/diff/edit; L2 `tool-bash`); 10.6 done
 - 11.2d is split (bookkeeping): 11.2d1 covers bash, diff, edit and bash-execution;
   11.2d2 covers code highlighting (highlightCode); 11.2d closes after both.

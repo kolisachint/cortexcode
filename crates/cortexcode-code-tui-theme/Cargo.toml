@@ -15,6 +15,7 @@ publish = false
 [dependencies]
 cortexcode-code-paths = { workspace = true }
 cortexcode-tui-components = { workspace = true }
+cortexcode-tui-highlight = { workspace = true }
 cortexcode-tui-util = { workspace = true }
 serde_json = { version = "1", features = ["preserve_order"] }
 

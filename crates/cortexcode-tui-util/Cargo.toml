@@ -13,5 +13,6 @@ readme = "README.md"
 publish = true
 
 [dependencies]
+fancy-regex = "0.14"
 unicode-width = "0.2"
 unicode-segmentation = "1"

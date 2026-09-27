@@ -49,10 +49,17 @@ impl<'a> CliHighlightTheme<'a> {
     /// `text` styled for a highlight class; unchanged for a class the theme
     /// does not map.
     pub fn style(&self, class: &str, text: &str) -> String {
-        match CLI_HIGHLIGHT_CLASSES.iter().find(|(c, _)| *c == class) {
-            Some((_, token)) => self.theme.fg(token, text),
-            None => text.to_string(),
-        }
+        self.try_style(class, text)
+            .unwrap_or_else(|| text.to_string())
+    }
+
+    /// `text` styled for a highlight class, or `None` when the theme has no
+    /// entry for it (cli-highlight then uses its `DEFAULT_THEME`).
+    pub fn try_style(&self, class: &str, text: &str) -> Option<String> {
+        CLI_HIGHLIGHT_CLASSES
+            .iter()
+            .find(|(c, _)| *c == class)
+            .map(|(_, token)| self.theme.fg(token, text))
     }
 }
 
@@ -69,13 +76,42 @@ pub trait CodeHighlighter: Send + Sync {
     ) -> Result<String, String>;
 }
 
-fn highlighter_slot() -> &'static RwLock<Option<Arc<dyn CodeHighlighter>>> {
-    static SLOT: RwLock<Option<Arc<dyn CodeHighlighter>>> = RwLock::new(None);
-    &SLOT
+/// `cli-highlight` over highlight.js 10.7.3 (`cortexcode-tui-highlight`).
+pub struct CliHighlight;
+
+impl CodeHighlighter for CliHighlight {
+    fn supports_language(&self, lang: &str) -> bool {
+        cortexcode_tui_highlight::supports_language(lang)
+    }
+
+    fn highlight(
+        &self,
+        code: &str,
+        lang: &str,
+        theme: &CliHighlightTheme<'_>,
+    ) -> Result<String, String> {
+        // cli-highlight's own chalk is off exactly when ours is.
+        let style = |class: &str, text: &str| {
+            if chalk::enabled() {
+                theme.try_style(class, text)
+            } else {
+                Some(text.to_string())
+            }
+        };
+        cortexcode_tui_highlight::highlight(code, lang, true, &style)
+            .ok_or_else(|| format!("Unknown language: \"{lang}\""))
+    }
 }
 
-/// Install the highlighter [`highlight_code`] and markdown code blocks use.
-/// Without one, every language counts as unsupported.
+fn highlighter_slot() -> &'static RwLock<Option<Arc<dyn CodeHighlighter>>> {
+    static SLOT: std::sync::OnceLock<RwLock<Option<Arc<dyn CodeHighlighter>>>> =
+        std::sync::OnceLock::new();
+    SLOT.get_or_init(|| RwLock::new(Some(Arc::new(CliHighlight))))
+}
+
+/// Replace the highlighter [`highlight_code`] and markdown code blocks use
+/// ([`CliHighlight`] by default). With none, every language counts as
+/// unsupported.
 pub fn set_code_highlighter(highlighter: Option<Arc<dyn CodeHighlighter>>) {
     *highlighter_slot()
         .write()

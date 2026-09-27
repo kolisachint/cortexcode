@@ -4,7 +4,7 @@
 //! `marked`'s own regex sources); rendering follows markdown.ts token by
 //! token (`render.rs`).
 
-mod js_regex;
+pub use cortexcode_tui_util::js_regex;
 pub mod lexer;
 mod render;
 mod rules;

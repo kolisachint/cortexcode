@@ -4295,7 +4295,7 @@
    "id": "11.2d2",
    "title": "Code highlighting: highlightCode (cli-highlight / highlight.js with the theme's cli-highlight palette) behind code-tui-theme's CodeHighlighter; used by markdown code blocks, read and write previews",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2d1"
    ],
@@ -4316,6 +4316,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:10:20Z",
+     "commit": "824c569",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:36:22Z",
+     "commit": "824c569",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

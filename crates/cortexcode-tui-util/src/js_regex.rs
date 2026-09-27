@@ -76,7 +76,8 @@ pub fn translate(source: &str, flags: &str) -> String {
     if flags.contains('i') {
         out.push_str("(?i)");
     }
-    if flags.contains('m') {
+    let multiline = flags.contains('m');
+    if multiline {
         out.push_str("(?m)");
     }
     let chars: Vec<char> = source.chars().collect();
@@ -196,6 +197,9 @@ pub fn translate(source: &str, flags: &str) -> String {
                 }
             }
             '.' => out.push_str(r"[^\n\r\x{2028}\x{2029}]"),
+            // JS line terminators include `\r`, U+2028 and U+2029.
+            '^' if multiline => out.push_str(r"(?:^|(?<=[\r\x{2028}\x{2029}]))"),
+            '$' if multiline => out.push_str(r"(?:$|(?=[\r\x{2028}\x{2029}]))"),
             '{' => {
                 let rest: String = chars[i..].iter().take_while(|&&c| c != '}').collect();
                 let closes = chars.get(i + rest.len()) == Some(&'}');
@@ -314,6 +318,21 @@ impl<'h> Match<'h> {
         self.get(i).filter(|s| !s.is_empty())
     }
 
+    /// Number of groups, including group 0.
+    pub fn len(&self) -> usize {
+        self.groups.len()
+    }
+
+    /// Always false: a match has group 0.
+    pub fn is_empty(&self) -> bool {
+        self.groups.is_empty()
+    }
+
+    /// Byte range of group `i`, if it participated.
+    pub fn range(&self, i: usize) -> Option<(usize, usize)> {
+        self.groups.get(i).copied().flatten()
+    }
+
     /// The whole match.
     pub fn whole(&self) -> &'h str {
         self.get(0).unwrap()
@@ -322,12 +341,17 @@ impl<'h> Match<'h> {
 
 impl JsRegex {
     pub fn new(source: &str, flags: &str) -> Self {
+        Self::try_new(source, flags).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    /// Compile, reporting a source the translation cannot express.
+    pub fn try_new(source: &str, flags: &str) -> Result<Self, String> {
         let translated = translate(source, flags);
         let re = RegexBuilder::new(&translated)
             .backtrack_limit(50_000_000)
             .build()
-            .unwrap_or_else(|e| panic!("bad regex {source:?} -> {translated:?}: {e}"));
-        Self { re }
+            .map_err(|e| format!("bad regex {source:?} -> {translated:?}: {e}"))?;
+        Ok(Self { re })
     }
 
     /// `regex.exec(hay)` for a non-global regex.
@@ -344,6 +368,12 @@ impl JsRegex {
             .map(|i| caps.get(i).map(|m| (m.start(), m.end())))
             .collect();
         Some(Match { hay, groups })
+    }
+
+    /// Number of capture groups (JavaScript's `exec('').length - 1` on an
+    /// always-matching variant).
+    pub fn captures_len(&self) -> usize {
+        self.re.captures_len() - 1
     }
 
     /// `regex.test(hay)`.

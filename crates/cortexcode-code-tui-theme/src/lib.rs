@@ -38,6 +38,6 @@ pub use tui::{
     apply_block_fill, apply_paper_sheet, get_editor_theme, get_language_from_path,
     get_markdown_theme, get_paper_shadow_fn, get_select_list_theme, get_settings_list_theme,
     highlight_code, message_label, paint_selected_row, select_gutter, set_code_highlighter,
-    style_input, BlockFill, CliHighlightTheme, CodeHighlighter, CLI_HIGHLIGHT_CLASSES, PAPER_INSET,
-    SELECT_CURSOR,
+    style_input, BlockFill, CliHighlight, CliHighlightTheme, CodeHighlighter,
+    CLI_HIGHLIGHT_CLASSES, PAPER_INSET, SELECT_CURSOR,
 };

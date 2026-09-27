@@ -76,6 +76,7 @@ members = [
     "crates/cortexcode-tui-components",
     "crates/cortexcode-tui-editing",
     "crates/cortexcode-tui-fuzzy",
+    "crates/cortexcode-tui-highlight",
     "crates/cortexcode-tui-images",
     "crates/cortexcode-tui-keys",
     "crates/cortexcode-tui-render",
@@ -164,6 +165,7 @@ cortexcode-code-tui-theme = { path = "crates/cortexcode-code-tui-theme" }
 cortexcode-tui-components = { path = "crates/cortexcode-tui-components" }
 cortexcode-tui-editing = { path = "crates/cortexcode-tui-editing" }
 cortexcode-tui-fuzzy = { path = "crates/cortexcode-tui-fuzzy" }
+cortexcode-tui-highlight = { path = "crates/cortexcode-tui-highlight" }
 cortexcode-tui-images = { path = "crates/cortexcode-tui-images" }
 cortexcode-tui-keys = { path = "crates/cortexcode-tui-keys" }
 cortexcode-tui-render = { path = "crates/cortexcode-tui-render" }

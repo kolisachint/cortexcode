@@ -1,0 +1,21 @@
+[package]
+name = "cortexcode-tui-highlight"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Syntax highlighting for the cortex TUI: a port of highlight.js 10.7.3 over its own grammars"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = true
+
+[dependencies]
+cortexcode-tui-util = { workspace = true }
+once_cell = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+serde_json = "1"

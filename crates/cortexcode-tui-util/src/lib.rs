@@ -4,6 +4,7 @@
 //! Ported from TypeScript `@kolisachint/hoocode-tui` → `utils.ts`.
 
 mod ansi;
+pub mod js_regex;
 mod text;
 mod width;
 

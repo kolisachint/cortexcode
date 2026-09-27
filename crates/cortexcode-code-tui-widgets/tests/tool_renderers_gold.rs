@@ -14,17 +14,6 @@ use support::lock;
 
 const CWD: &str = "/work/project";
 
-/// Result bodies the pin highlights (the path has a language) need the
-/// syntax highlighter, which task 11.2d installs; it removes this check.
-fn needs_highlighter(args: &Value) -> bool {
-    let path = args
-        .get("path")
-        .or_else(|| args.get("file_path"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    cortexcode_code_tui_theme::get_language_from_path(path).is_some()
-}
-
 fn definition(tool: &str) -> ToolRenderDefinition {
     builtin_tool_definition(tool, CWD).unwrap_or_else(|| registered_tool_definition(tool))
 }
@@ -119,7 +108,7 @@ fn renderers_match_the_pin() {
         // Durations are wall-clock: compare them as a placeholder.
         let res = res.map(normalize_took);
         let want_res = want_res.map(normalize_took);
-        if res != want_res && !(tool == "read" && needs_highlighter(args)) {
+        if res != want_res {
             failures.push(format!(
                 "{tool} {args} result (expanded={expanded})\n  want {want_res:?}\n  got  {res:?}"
             ));
