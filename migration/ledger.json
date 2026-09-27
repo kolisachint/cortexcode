@@ -1499,13 +1499,14 @@
    "id": "9.2b",
    "title": "Auto-compaction thresholds + /compact in the coding agent (agent-session-compaction.ts)",
    "phase": 9,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "9.2a",
     "10.3b"
    ],
    "crates": [
-    "cortexcode-agent-compaction"
+    "cortexcode-agent-compaction",
+    "cortexcode-code-agent-session"
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session-compaction.ts"
@@ -1525,6 +1526,30 @@
      "commit": "74e6c23",
      "kind": "note",
      "text": "10.3b: AgentSession::{compact, run_auto_compaction, check_compaction, plan_compaction, abort_compaction, is_compacting, set_auto_compaction_enabled} and the CompactionStart/End events exist (crates/cortexcode-code-agent-session/src/compaction.rs); /compact and threshold UI build on them."
+    },
+    {
+     "at": "2026-09-27T02:15:13Z",
+     "commit": "5a99df8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T02:21:57Z",
+     "commit": "5a99df8",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=fail"
+    },
+    {
+     "at": "2026-09-27T02:23:04Z",
+     "commit": "5a99df8",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=fail"
+    },
+    {
+     "at": "2026-09-27T02:23:04Z",
+     "commit": "5a99df8",
+     "kind": "note",
+     "text": "Ported both TS files (suite in 10.3b; e2e cases on the faux provider in tests/compaction_e2e.rs). compact-command scenario written + selfcheck stable; L2 waits on the interactive app (11.1+: slash menu, compaction loader, [compaction] block, footer auto@N%). Stopgap loop accepts /compact [instructions]."
     }
    ]
   },

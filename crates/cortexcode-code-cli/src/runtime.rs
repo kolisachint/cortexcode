@@ -534,7 +534,7 @@ pub fn run_interactive_mode(
 
     writeln!(
         output,
-        "{} Interactive Cortex mode. /quit or Ctrl+C to exit.",
+        "{} Interactive Cortex mode. /compact, /quit or Ctrl+C to exit.",
         "TUI".bold()
     )?;
 
@@ -554,6 +554,25 @@ pub fn run_interactive_mode(
                         let line = input.trim();
                         if line == "/quit" {
                             break;
+                        }
+                        if line == "/compact" || line.starts_with("/compact ") {
+                            // handleCompactCommand: the session decides whether
+                            // compaction is possible and reports why not.
+                            let instructions = line["/compact".len()..].trim();
+                            let instructions = (!instructions.is_empty()).then_some(instructions);
+                            match async_runtime().block_on(session.compact(instructions)) {
+                                Ok(result) => writeln!(
+                                    output,
+                                    "\nCompacted {} → {} tokens\n",
+                                    result.tokens_before,
+                                    result
+                                        .tokens_after
+                                        .map_or_else(|| "?".to_string(), |t| t.to_string())
+                                )?,
+                                Err(e) => writeln!(output, "\nCompaction failed: {}\n", e)?,
+                            }
+                            input.clear();
+                            continue;
                         }
                         if !line.is_empty() {
                             writeln!(output, "\nYou: {}", line)?;

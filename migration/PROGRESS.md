@@ -12,7 +12,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 8 is complete (16/16): every catalog API is registered and every provider honors the
   typed onPayload/onResponse hooks.
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
-  block); 9.2b is unblocked (10.3b done).
+  block); 9.2b is l1_done (L2 compact-command waits on the interactive app).
 - 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
   (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
@@ -23,6 +23,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 9.2b l1_done (/compact, compaction e2e tests)
+- `tests/compaction_e2e.rs` ports `test/agent-session-compaction.test.ts` (live-model e2e) onto
+  the faux provider: manual compact, usable after compaction, persisted to the session file
+  (reopened from disk), in-memory `--no-session`, compaction_start/end events. With
+  `keepRecentTokens: 1` the cut splits the last turn, so each compact makes two summary
+  requests (history + turn prefix). The suite file was ported in 10.3b. Test harness gained
+  `HarnessOptions::session_manager`.
+- L2 `compact-command` scenario written; `selfcheck` stable. hoocode shows the `/compact`
+  slash menu, then the chat rebuilt with the `[compaction]` block (rendered twice at the pin:
+  once from the rebuilt messages, once appended by `compaction_end`; port it as-is). It waits
+  on the interactive app (11.1+), so 9.2b is `l1_done`.
+- Stopgap interactive loop accepts `/compact [instructions]` until 11.1 replaces it.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.3b done (AgentSession retry + auto-compaction)
 - `code-agent-session::retry` (agent-session-retry.ts): retry is armed synchronously on
