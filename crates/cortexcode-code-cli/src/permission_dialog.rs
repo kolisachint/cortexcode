@@ -1,10 +1,8 @@
-//! Interactive permission dialog for dangerous tool calls.
-//!
-//! Displays the tool name and arguments and asks the user to approve, deny,
-//! or always approve the tool. Implemented with crossterm to match the
-//! existing interactive mode in this crate.
+//! The permission gate's prompt (`ctx.ui.select` with the gate's three
+//! choices) for the placeholder interactive mode, drawn with crossterm until
+//! the TUI selectors arrive (11.3).
 
-use cortexcode_agent_types::{AgentToolCall, PermissionDecision, PermissionGate};
+use cortexcode_code_permissions::PermissionUi;
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEventKind},
@@ -14,19 +12,23 @@ use crossterm::{
 };
 use std::io::Write;
 
-/// Interactive permission gate that prompts the user in the terminal.
+/// Terminal prompt for the permission gate.
 #[derive(Debug, Default)]
-pub struct InteractivePermissionGate;
+pub struct TerminalPermissionUi;
 
-impl PermissionGate for InteractivePermissionGate {
-    fn request(&self, tool_call: &AgentToolCall) -> PermissionDecision {
-        match prompt(tool_call) {
-            PromptResult::Yes => PermissionDecision::Grant,
-            PromptResult::Always => PermissionDecision::GrantAlways,
-            PromptResult::No => PermissionDecision::Deny {
-                reason: "User denied the tool call".into(),
-            },
-        }
+impl PermissionUi for TerminalPermissionUi {
+    /// Y / N / A pick the gate's options in order.
+    fn select(&self, title: &str, options: &[&str]) -> Option<String> {
+        let index = match prompt(title) {
+            PromptResult::Yes => 0,
+            PromptResult::No => 1,
+            PromptResult::Always => 2,
+        };
+        options.get(index).map(|o| o.to_string())
+    }
+
+    fn notify(&self, message: &str) {
+        println!("\r{message}");
     }
 }
 
@@ -37,7 +39,7 @@ enum PromptResult {
     Always,
 }
 
-fn prompt(tool_call: &AgentToolCall) -> PromptResult {
+fn prompt(title: &str) -> PromptResult {
     // Best-effort terminal UI. If raw mode is already enabled, keep it; otherwise
     // clear and draw a dialog. If anything goes wrong, default to deny.
     let mut stdout = std::io::stdout();
@@ -46,21 +48,14 @@ fn prompt(tool_call: &AgentToolCall) -> PromptResult {
             .queue(cursor::MoveToColumn(0))?
             .queue(terminal::Clear(ClearType::CurrentLine))?
             .queue(style::Print("\n"))?
-            .queue(style::Print("Tool call requires approval:\n".bold()))?
-            .queue(style::Print(format!(
-                "  {}\n",
-                tool_call.name.clone().yellow()
-            )))?;
-
-        if let Ok(args) = serde_json::to_string_pretty(&tool_call.arguments) {
-            for line in args.lines() {
-                stdout.queue(style::Print(format!("  {}\n", line.dim())))?;
-            }
-        }
+            .queue(style::Print(format!("{}\n", title.to_string().bold())))?;
 
         stdout
             .queue(style::Print("\n"))?
-            .queue(style::Print("[Y] Yes  [N] No  [A] Always approve\n".bold()))?
+            .queue(style::Print(
+                "[Y] Yes (once)  [N] No (block)  [A] Always (add to auto-allow for this mode)\n"
+                    .bold(),
+            ))?
             .queue(style::Print("Choice: "))?
             .flush()?;
         Ok(())

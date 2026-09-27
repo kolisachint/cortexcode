@@ -20,7 +20,6 @@ use cortexcode_code_resources::DefaultResourceLoaderOptions;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tool_api::ToolDefinition;
-use cortexcode_code_tools::{permissions::PermissionPolicy, PolicyPermissionGate};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -268,22 +267,14 @@ fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> 
 }
 
 /// Build the permission gate for the current CLI mode. Read-only tools are
-/// always auto-approved.
-fn build_permission_gate(interactive: bool) -> Arc<dyn PermissionGate> {
-    if interactive {
-        let inner = Arc::new(crate::permission_dialog::InteractivePermissionGate);
-        return Arc::new(PolicyPermissionGate::new(
-            PermissionPolicy::Ask,
-            true,
-            Some(inner),
-        ));
-    }
-
-    // Non-interactive (print) mode: auto-approve dangerous tools.
-    Arc::new(PolicyPermissionGate::new(
-        PermissionPolicy::Auto,
-        true,
-        None,
+/// hoocode's permission gate (hoo-core): per-mode hard rules always; prompts
+/// for bash/write/edit/web tools only when there is a UI to ask.
+fn build_permission_gate(interactive: bool, cwd: &std::path::Path) -> Arc<dyn PermissionGate> {
+    let ui: Option<Arc<dyn cortexcode_code_permissions::PermissionUi>> =
+        interactive.then(|| Arc::new(crate::permission_dialog::TerminalPermissionUi) as _);
+    Arc::new(cortexcode_code_permissions::HooPermissionGate::new(
+        cwd.to_path_buf(),
+        ui,
     ))
 }
 
@@ -411,6 +402,20 @@ fn assemble_session(
         },
     ));
     let mode_tools = modes.active().enabled_tools.clone();
+    // main.ts: `--disallowed-tools` plus the persisted per-tool disables.
+    let mut disallowed_tools = args.disallowed_tools.clone();
+    let disabled = settings
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .disabled_tools();
+    if !disabled.is_empty() {
+        let list = disallowed_tools.get_or_insert_with(Vec::new);
+        for tool in disabled {
+            if !list.contains(&tool) {
+                list.push(tool);
+            }
+        }
+    }
     let services = AgentSessionServices {
         cwd,
         agent_dir,
@@ -430,7 +435,8 @@ fn assemble_session(
             tools,
             custom_tools: custom,
             base_tools,
-            permission_gate: Some(build_permission_gate(interactive)),
+            permission_gate: Some(build_permission_gate(interactive, &services.cwd)),
+            disallowed_tools,
             extensions: Some(modes),
             ..Default::default()
         },

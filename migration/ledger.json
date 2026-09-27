@@ -2563,7 +2563,7 @@
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.3a"
    ],
@@ -2579,7 +2579,26 @@
     "permission-prompt"
    ],
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:59:49Z",
+     "commit": "24570c8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "verify",
+     "text": "L1 pass; L2 permission-prompt=fail"
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "note",
+     "text": "New crate code-permissions: HooPermissionGate ports permission-gate.ts over code-modes' merged hoo-config.json (read on every call): denied_tools, enabled_tools allowlist, denied/allowed_bash_commands (regex crate; no look-around), then with a UI allowed_write_paths, auto_allow and the 'Allow: …' Yes/No/Always prompt ('Always' appends to the global auto_allow). Headless (print) sessions now run every tool not hard-blocked, as in hoocode (the invented PolicyPermissionGate denied unknown tools like webfetch in print mode; it stays in code-tools unused by the CLI). CLI: --disallowed-tools + disabledTools setting feed CreateAgentSessionOptions.disallowed_tools. Left: .webtoolsignore host rule (10.2e, blockedHostForUrl); the gate runs in the loop before before_tool_call on the raw (prepared) args. permission-prompt L2 (stable on hoocode) waits on the TUI selector (11.3); cortex's prompt is the crossterm placeholder (TerminalPermissionUi)."
+    }
+   ]
   },
   {
    "id": "10.7b",
@@ -2863,6 +2882,12 @@
      "commit": "a17195e",
      "kind": "note",
      "text": "settings-token-surface.test.ts (and the other *-settings-pane tests) cover the /settings selector pane: port them here, not in 10.1b."
+    },
+    {
+     "at": "2026-09-27T05:04:19Z",
+     "commit": "24570c8",
+     "kind": "note",
+     "text": "10.6: permission-prompt scenario (10.6's L2 gate): the gate's select ('Allow: $ ls', three choices, bordered, title right-aligned in the top border) must implement cortexcode_code_permissions::PermissionUi; replace permission_dialog::TerminalPermissionUi."
     }
    ]
   },

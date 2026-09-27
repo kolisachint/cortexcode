@@ -26,6 +26,17 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.6 l1_done (code-permissions)
+- New crate `cortexcode-code-permissions`: `HooPermissionGate` ports permission-gate.ts over the
+  merged hoo-config.json (hard rules always; prompt / allowed_write_paths / auto_allow with a UI;
+  "Always" writes the global auto_allow). Replaces the CLI's invented PolicyPermissionGate, so
+  print mode no longer denies unknown tools.
+- CLI: `--disallowed-tools` (+ `disabledTools` setting) is supported.
+- Tests: permission-gate-mutation-path.test.ts + the hard-enforcement rules (11).
+- L2 `permission-prompt` (new, stable) waits on the TUI selector (11.3).
+- Left: the `.webtoolsignore` webfetch rule (10.2e).
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-27: 10.5b l1_done (code-modes)
 - New crate `cortexcode-code-modes` (extensions/core/{modes,config}.ts, core/mode-prompts.ts):
   hoo-config.json read/merge/write, the four mode prompts and grill prompts embedded verbatim,

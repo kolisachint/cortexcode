@@ -55,6 +55,7 @@ members = [
     "crates/cortexcode-code-models",
     "crates/cortexcode-code-auth",
     "crates/cortexcode-code-modes",
+    "crates/cortexcode-code-permissions",
     "crates/cortexcode-code-print",
     "crates/cortexcode-code-prompts",
     "crates/cortexcode-code-resources",
@@ -139,6 +140,7 @@ cortexcode-code-print = { path = "crates/cortexcode-code-print" }
 cortexcode-code-models = { path = "crates/cortexcode-code-models" }
 cortexcode-code-auth = { path = "crates/cortexcode-code-auth" }
 cortexcode-code-modes = { path = "crates/cortexcode-code-modes" }
+cortexcode-code-permissions = { path = "crates/cortexcode-code-permissions" }
 cortexcode-ai-registry = { path = "crates/cortexcode-ai-registry" }
 cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }

@@ -1,0 +1,22 @@
+[package]
+name = "cortexcode-code-permissions"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Permission gate for the cortex coding agent: per-mode tool policy from hoo-config.json and approval prompts"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-agent-types = { workspace = true }
+cortexcode-code-modes = { workspace = true }
+regex = "1"
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
