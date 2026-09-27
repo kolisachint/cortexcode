@@ -105,14 +105,9 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 21] = [
+    let checks: [(bool, &'static str); 16] = [
         (a.resume.is_some(), "--resume"),
         (a.team.is_some(), "--team"),
-        (a.subagent == Some(true), "--enable-subagents"),
-        (a.subagent == Some(false), "--no-subagents"),
-        (a.warm_subagents.is_some(), "--warm-subagents"),
-        (a.max_subagent_depth.is_some(), "--max-subagent-depth"),
-        (a.delegate_allow.is_some(), "--delegate-allow"),
         (a.todo_write.is_some(), "--enable-todowrite"),
         (a.enable_web_tools.is_some(), "--enable-webtools"),
         (a.enable_plugin_tools.is_some(), "--enable-plugintools"),
@@ -276,7 +271,7 @@ pub fn run(
         None
     };
 
-    match app_mode {
+    let code = match app_mode {
         AppMode::Json => runtime::run_print_mode(
             parsed,
             PrintMode::Json,
@@ -301,7 +296,10 @@ pub fn run(
                 Ok(1)
             }
         },
-    }
+    };
+    // `process.once("exit", () => pool.dispose())`: no subagent outlives us.
+    cortexcode_code_subagents::instance::dispose_subagent_pool();
+    code
 }
 
 /// The global + project settings for the current directory (`SettingsManager.create`).

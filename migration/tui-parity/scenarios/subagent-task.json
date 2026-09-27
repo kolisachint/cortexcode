@@ -1,0 +1,71 @@
+{
+  "description": "Print mode (default bundle, subagents on by default): the model delegates with the Task tool to the general-purpose agent in the foreground; a real child process (the same app, --mode json --task-id) answers from the same mock LLM, and its answer comes back inline as the tool result the parent's final answer builds on.",
+  "phase": "10.9f",
+  "terminal": {
+    "cols": 140,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "-p",
+    "Ask a subagent what 6 times 7 is."
+  ],
+  "llm": [
+    {
+      "text": "",
+      "tool_calls": [
+        {
+          "id": "call_task_1",
+          "name": "Task",
+          "arguments": {
+            "description": "Compute a product",
+            "prompt": "What is 6 times 7? Reply with the number only.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "text": "42"
+    },
+    {
+      "text": "The subagent says 6 times 7 is 42."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "The subagent says 6 times 7 is 42.",
+      "timeout": 60
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 10
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "The subagent says 6 times 7 is 42."
+      ]
+    }
+  ],
+  "normalize": [
+    {
+      "pattern": "dispatch-\\d{13}-[0-9a-z]{6}",
+      "replace": "dispatch-<ts>-<rand>",
+      "_comment": "the pool task id is Date.now() plus random base36"
+    },
+    {
+      "pattern": "^<exited status=0>$",
+      "replace": "",
+      "_comment": "pinned hoocode never exits after a print-mode run that dispatched a subagent: the lifeguard's setInterval is not unref'd, so its event loop stays alive (hoocode bug, ledger 10.9f). cortex exits 0; only a clean exit is dropped, a failing one still shows."
+    }
+  ]
+}

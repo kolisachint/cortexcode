@@ -22,8 +22,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
-  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools).
-  Next: **10.9f** (Task tool in sessions + L2 subagent-task).
+  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools),
+  10.9f done (Task tool in sessions). Phase-10 subagents are complete; check `ledger.py next`.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -35,6 +35,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9f done (Task tool in sessions)
+- CLI (`subagent_tools` in runtime.rs, main.ts's buildSessionOptions block): seeds
+  `CORTEXCODE_SUBAGENT_MAX_DEPTH` / `CORTEXCODE_NESTED_SUBAGENT_CONCURRENCY` when unset, sets or clears
+  `--delegate-allow`, registers Task + TaskOutput when not light, below the depth cap and
+  `--enable-subagents` / `enableSubagent` (default on), and sets `WARM_SUBAGENTS` for a root with
+  `--warm-subagents` / `warmSubagents`. TodoWrite is no longer registered inside a spawned child.
+  The Task appendix (`build_task_main_prompt`) goes into the loader's append-system-prompt; skill
+  paths are forwarded to both pools; the shared pool is disposed when a run ends. The five subagent
+  flags are no longer "unsupported".
+- AgentSession lists `<available_agents>` (the registry) when the Task tool is active.
+- L2 `subagent-task`: a real foreground dispatch in print mode (child = the same binary). The child's
+  model request matches hoocode byte for byte; Task/TaskOutput schemas, the roster and the appendix
+  do too. Pinned hoocode never exits after such a run (lifeguard setInterval not unref'd); the
+  scenario drops only a clean exit marker, commented and ledgered.
+- Tests: suite/subagent-execution (remaining cases), subagent-skills, mode-subagent-appendix.
 
 ### 2026-09-27: 10.9d done (Task/TaskOutput tools); 10.9d split off 10.9f
 - 10.9d was split: the tools here; session wiring (flags/settings, task-main appendix, agents roster,

@@ -3151,14 +3151,15 @@
    "id": "10.9f",
    "title": "Task tool in sessions: enableSubagent / --enable-subagents / --no-subagents / --delegate-allow / --warm-subagents / --max-subagent-depth, the task-main appendix, the agents roster in the system prompt, subagent skill forwarding, shared pools disposed at exit",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.9d"
    ],
    "crates": [
     "cortexcode-code-cli",
     "cortexcode-code-agent-session",
-    "cortexcode-code-subagents"
+    "cortexcode-code-subagents",
+    "cortexcode-code-modes"
    ],
    "sources": [
     "packages/coding-agent/src/main.ts",
@@ -3187,6 +3188,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 10.9d."
+    },
+    {
+     "at": "2026-09-27T09:55:57Z",
+     "commit": "fd88793",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T12:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Pinned hoocode never exits after a print-mode run that dispatched a subagent: SubagentLifeguard's setInterval is not unref'd. cortex exits 0; the subagent-task scenario drops only a clean exit marker (commented in the scenario). The child's model request matches hoocode byte for byte; the parent's differs only by default-bundle tools owned by other tasks (Cron*, SearchHooCode)."
+    },
+    {
+     "at": "2026-09-27T10:05:25Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:07:21Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:07:57Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-task=pass"
     }
    ]
   },

@@ -33,5 +33,7 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "process", "io-uti
 libc = "0.2"
 
 [dev-dependencies]
+cortexcode-code-models = { workspace = true }
+cortexcode-code-prompts = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

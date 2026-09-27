@@ -1198,6 +1198,25 @@ impl AgentSession {
             }
             (valid, snippets, guidelines)
         };
+        // The agents are listed only while the Task tool is active.
+        let agents = if valid.iter().any(|n| n == "Task") {
+            cortexcode_code_resources::load_agent_registry(
+                &cortexcode_code_resources::LoadAgentRegistryOptions::new(
+                    self.inner.cwd.to_string_lossy(),
+                ),
+            )
+            .list()
+            .iter()
+            .map(|a| cortexcode_code_prompts::PromptAgent {
+                name: a.name.clone(),
+                description: a.description.clone(),
+                tools: a.tools.clone().unwrap_or_default(),
+                model: a.model.clone(),
+            })
+            .collect()
+        } else {
+            Vec::new()
+        };
         let loader = &self.inner.resource_loader;
         let append = loader.append_system_prompt();
         cortexcode_code_prompts::build_system_prompt(&BuildSystemPromptOptions {
@@ -1209,8 +1228,7 @@ impl AgentSession {
             cwd: self.inner.cwd.to_string_lossy().into_owned(),
             context_files: loader.context_files(),
             skills: loader.skills(),
-            // The agents list needs the Task tool and the agent registry (10.9).
-            agents: Vec::new(),
+            agents,
             ..Default::default()
         })
     }

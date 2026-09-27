@@ -259,15 +259,21 @@ fn resource_loader(
 /// Extension-registered tools in hoocode, SDK tools here: ask_options always
 /// (no UI in print mode: it says so), TodoWrite with `--enable-todowrite` or
 /// the `enableTodoWrite` setting.
-fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> {
+fn custom_tools(
+    args: &Args,
+    settings: &SettingsManager,
+    cwd: &std::path::Path,
+) -> Vec<ToolDefinition> {
     let mut tools = vec![
         cortexcode_code_tools_optin::create_ask_options_tool_definition(Arc::new(
             cortexcode_code_tools_optin::NoUi,
         )),
     ];
-    if args
-        .todo_write
-        .unwrap_or_else(|| settings.enable_todo_write())
+    tools.extend(subagent_tools(args, settings, false, cwd));
+    if args.task_id.is_none()
+        && args
+            .todo_write
+            .unwrap_or_else(|| settings.enable_todo_write())
     {
         tools.push(
             cortexcode_code_tools_optin::create_todo_write_tool_definition(
@@ -276,6 +282,75 @@ fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> 
         );
     }
     tools
+}
+
+/// main.ts's subagent block of `buildSessionOptions`: seed the tree-wide depth
+/// cap and nested concurrency into the environment (a root only; descendants
+/// inherit them), set or clear `--delegate-allow`, and decide whether this
+/// process gets the Task/TaskOutput tools (and warm workers, root only).
+fn subagent_tools(
+    args: &Args,
+    settings: &SettingsManager,
+    light: bool,
+    cwd: &std::path::Path,
+) -> Vec<ToolDefinition> {
+    use cortexcode_code_subagents::depth::{self, ProcessEnv, SubagentEnv};
+    let is_subagent_child = args.task_id.is_some();
+    if ProcessEnv.var(depth::SUBAGENT_MAX_DEPTH_ENV).is_none() {
+        let cap = depth::resolve_max_subagent_depth(
+            Some(
+                args.max_subagent_depth
+                    .unwrap_or_else(|| settings.max_subagent_depth()) as f64,
+            ),
+            &std::collections::HashMap::<String, String>::new(),
+        );
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::SUBAGENT_MAX_DEPTH_ENV),
+            cap.to_string(),
+        );
+    }
+    if ProcessEnv.var(depth::NESTED_CONCURRENCY_ENV).is_none() {
+        let n = depth::resolve_nested_concurrency(
+            Some(settings.nested_subagent_concurrency() as f64),
+            &std::collections::HashMap::<String, String>::new(),
+        );
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::NESTED_CONCURRENCY_ENV),
+            n.to_string(),
+        );
+    }
+    // --delegate-allow is authoritative: a restricted parent's scope never
+    // leaks into a child that was not given its own.
+    for prefix in cortexcode_code_paths::ENV_PREFIXES {
+        std::env::remove_var(format!("{prefix}{}", depth::DELEGATE_ALLOW_ENV));
+    }
+    if let Some(allow) = args.delegate_allow.as_ref().filter(|a| !a.is_empty()) {
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::DELEGATE_ALLOW_ENV),
+            allow.join(","),
+        );
+    }
+    let enabled = args.subagent.unwrap_or_else(|| settings.enable_subagent());
+    if light || !depth::can_spawn_subagent(None, &ProcessEnv) || !enabled {
+        return Vec::new();
+    }
+    if !is_subagent_child
+        && args
+            .warm_subagents
+            .unwrap_or_else(|| settings.warm_subagents())
+    {
+        std::env::set_var(
+            format!(
+                "CORTEXCODE_{}",
+                cortexcode_code_subagents::warm::WARM_SUBAGENTS_ENV
+            ),
+            "1",
+        );
+    }
+    vec![
+        cortexcode_code_subagents::tools::create_task_tool_definition(cwd),
+        cortexcode_code_subagents::tools::create_task_output_tool_definition(),
+    ]
 }
 
 /// Build the permission gate for the current CLI mode. Read-only tools are
@@ -448,6 +523,8 @@ fn assemble_session(
     // main.ts: the light preset is an allowlist of the four short-schema tools
     // (their order is the active order), which also keeps extension tools off.
     let (base_tools, custom, tools) = if light {
+        // Still seeds the subagent env; light mode gets no Task tool.
+        subagent_tools(args, &settings, true, &cwd);
         (
             Some(BaseTools::Override(
                 cortexcode_code_tools::light::light_tool_definitions(cwd.clone()),
@@ -460,7 +537,7 @@ fn assemble_session(
             ),
         )
     } else {
-        (None, custom_tools(args, &settings), None)
+        (None, custom_tools(args, &settings, &cwd), None)
     };
     // main.ts: explicit tool flags win over the light preset's allowlist.
     let explicit =
@@ -473,8 +550,19 @@ fn assemble_session(
     } else {
         None
     };
+    // main.ts: the main-session subagent instructions when subagents are on.
+    let subagents_on = !light && args.subagent.unwrap_or_else(|| settings.enable_subagent());
     let settings = Arc::new(Mutex::new(settings));
     let resources = resource_loader(args, light, &cwd, &agent_dir, &settings);
+    if subagents_on {
+        resources.loader().add_append_system_prompt(
+            cortexcode_code_subagents::tools::build_task_main_prompt(&cwd),
+        );
+    }
+    // AgentSession's constructor: forward the skill paths to subagents.
+    let skill_paths = resources.loader().skill_paths();
+    cortexcode_code_subagents::instance::update_subagent_skill_paths(skill_paths.clone());
+    cortexcode_code_subagents::warm::update_warm_subagent_skill_paths(skill_paths);
     // hoo-core's mode system: the active mode's prompt block and tool filter.
     let cwd_str = cwd.to_string_lossy().into_owned();
     let modes = Arc::new(cortexcode_code_modes::ModesExtension::new(
@@ -1062,7 +1150,7 @@ mod tests {
         let (prompt, tools) = prompt_for(&[]);
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains(
-            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
+            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- Task: delegate a self-contained task to a specialized subagent (choose via subagent_type)\n- TaskOutput: check status / list / collect the results of background subagents\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
         ));
         assert_eq!(
             tools,
@@ -1073,6 +1161,8 @@ mod tests {
                 "write",
                 "SearchCodebase",
                 "ask_options",
+                "Task",
+                "TaskOutput",
                 "TodoWrite"
             ]
         );

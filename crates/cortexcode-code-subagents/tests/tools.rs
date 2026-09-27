@@ -6,7 +6,7 @@
 //! runs as one serialized test.
 
 use std::path::{Path, PathBuf};
-use std::sync::Once;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use cortexcode_agent_types::{AgentToolCall, AgentToolResult};
@@ -613,4 +613,172 @@ async fn task_tool_execute_paths() {
     set_subagent_pool_for_testing(None);
     task_store().clear();
     subagent_inbox().clear();
+}
+
+// suite/subagent-execution.test.ts: the cases the paths above do not cover.
+
+fn argv_child(dir: &Path) -> PathBuf {
+    let path = dir.join("mock-argv.sh");
+    let result =
+        json!({"summary": "ok", "files_changed": [], "confidence": 0.9, "status": "complete"});
+    std::fs::write(
+        &path,
+        format!(
+            "#!/bin/sh\nprintf '%s\\0' \"$@\" > argv.bin\ntid=unknown; prev=; for a in \"$@\"; do [ \"$prev\" = \"--task-id\" ] && tid=$a; prev=$a; done\nmkdir -p {DIR}/dispatch/$tid\nprintf '%s' '{result}' > {DIR}/dispatch/$tid/result.json\n"
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    path
+}
+
+fn model_arg(dir: &Path) -> Option<String> {
+    let bytes = std::fs::read(dir.join("argv.bin")).unwrap();
+    let argv: Vec<String> = bytes
+        .split(|b| *b == 0)
+        .map(|s| String::from_utf8_lossy(s).into_owned())
+        .collect();
+    let i = argv.iter().position(|a| a == "--model")?;
+    argv.get(i + 1).cloned()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn task_tool_passes_complexity_or_the_parent_model() {
+    let _serial = SERIAL.lock().await;
+    isolate_agent_dir();
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().canonicalize().unwrap();
+    // An agent that inherits the model (built-ins pin a category, which wins).
+    let agents = cwd.join(DIR).join("agents");
+    std::fs::create_dir_all(&agents).unwrap();
+    std::fs::write(
+        agents.join("helper.md"),
+        "---\nname: helper\ndescription: Inherits the model.\ntools: read\nmodel: inherit\n---\nHelp.",
+    )
+    .unwrap();
+    let tool = create_task_tool_definition(&cwd);
+    task_store().clear();
+    let model: cortexcode_ai_types::Model = serde_json::from_value(json!({
+        "id": "parent-model", "name": "p", "api": "openai-completions", "provider": "prov",
+        "baseUrl": "http://x", "contextWindow": 1000, "maxTokens": 100,
+    }))
+    .unwrap();
+    // `complexity` goes to the pool as the model; the pool resolves the tier.
+    let pool = SubagentPool::new(SubagentPoolOptions {
+        executable: argv_child(&cwd),
+        cwd: Some(cwd.clone()),
+        settings: Some(
+            cortexcode_code_subagents::model_categories::CategorySettings {
+                model_categories: Some(cortexcode_code_settings::ModelCategories {
+                    fast: Some("fast-model".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ),
+        ..Default::default()
+    });
+    set_subagent_pool_for_testing(Some(pool.clone()));
+    let with_model = || ToolContext {
+        model: Some(model.clone()),
+        ..ctx(&cwd)
+    };
+    execute(
+        tool.clone(),
+        json!({"description": "quick read", "prompt": "read one file", "subagent_type": "helper", "complexity": "fast"}),
+        with_model(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(model_arg(&cwd).as_deref(), Some("fast-model"));
+    // Without it, the parent's model.
+    execute(
+        tool.clone(),
+        json!({"description": "do work", "prompt": "do some work", "subagent_type": "helper"}),
+        with_model(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(model_arg(&cwd).as_deref(), Some("parent-model"));
+    pool.dispose();
+    set_subagent_pool_for_testing(None);
+    task_store().clear();
+}
+
+#[test]
+fn a_project_agent_opting_into_background_runs_detached() {
+    isolate_agent_dir();
+    let dir = tempfile::tempdir().unwrap();
+    let agents = dir.path().join(DIR).join("agents");
+    std::fs::create_dir_all(&agents).unwrap();
+    std::fs::write(
+        agents.join("watcher.md"),
+        "---\nname: watcher\ndescription: A non-blocking background agent.\nbackground: true\n---\nBody.",
+    )
+    .unwrap();
+    let tool = create_task_tool_definition(dir.path());
+    let predicate = tool.background_when.clone().unwrap();
+    let call = |agent: &str| AgentToolCall {
+        id: "c".into(),
+        name: "Task".into(),
+        arguments: json!({"subagent_type": agent}),
+    };
+    assert!(predicate(&call("watcher")));
+    assert!(predicate(&call("explore")));
+    assert!(!predicate(&call("general-purpose")));
+    assert!(!predicate(&call("does-not-exist")));
+}
+
+fn active_tool_names(with_task: bool) -> Vec<String> {
+    use cortexcode_code_agent_session::{
+        create_agent_session, AgentSessionServices, CreateAgentSessionOptions, StaticResourceLoader,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let model: cortexcode_ai_types::Model = serde_json::from_value(json!({
+        "id": "m", "name": "m", "api": "openai-completions", "provider": "prov",
+        "baseUrl": "http://x", "contextWindow": 1000, "maxTokens": 100,
+    }))
+    .unwrap();
+    let services = AgentSessionServices {
+        cwd: dir.path().to_path_buf(),
+        agent_dir: dir.path().to_path_buf(),
+        auth: Arc::new(cortexcode_code_models::NoAuth),
+        settings: Arc::new(std::sync::Mutex::new(
+            cortexcode_code_settings::SettingsManager::in_memory(Default::default()),
+        )),
+        model_registry: Arc::new(cortexcode_code_models::ModelRegistry::in_memory()),
+        resource_loader: Arc::new(StaticResourceLoader::default()),
+        diagnostics: vec![],
+    };
+    let created = create_agent_session(
+        &services,
+        cortexcode_code_session::SessionManager::in_memory(dir.path().to_string_lossy()),
+        CreateAgentSessionOptions {
+            model: Some(model),
+            custom_tools: if with_task {
+                vec![create_task_tool_definition(dir.path())]
+            } else {
+                vec![]
+            },
+            ..Default::default()
+        },
+    );
+    let names = created.session.get_active_tool_names();
+    created.session.dispose();
+    names
+}
+
+#[test]
+fn the_task_tool_is_active_only_when_registered() {
+    isolate_agent_dir();
+    let on = active_tool_names(true);
+    assert!(on.contains(&"Task".to_string()));
+    assert!(on.contains(&"read".to_string()));
+    let off = active_tool_names(false);
+    assert!(!off.contains(&"Task".to_string()));
+    assert!(off.contains(&"read".to_string()));
 }
