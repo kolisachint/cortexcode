@@ -37,6 +37,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.1a done (theme)
+- New crate `cortexcode-code-tui-theme` (port of `modes/interactive/theme/theme.ts` + the 8
+  bundled JSON themes, embedded): color-mode detection, hex/256/HSL math with JS rounding,
+  WCAG contrast, chip fills (lift / magenta deepen), schema validation with typebox's exact
+  messages, `Theme` (fg/bg/fill/has/…), loader (built-in, custom `themes/`, registered,
+  retired names), the process-wide current theme (`theme()`, `init_theme`, `set_theme`,
+  `set_theme_instance`, `on_theme_change`), custom-theme watcher, export colors, and the TUI
+  hooks (`get_select_list_theme`, `get_settings_list_theme`, `get_editor_theme`,
+  `get_markdown_theme`, `apply_paper_sheet`, `apply_block_fill`, `message_label`, ...).
+  Hooks resolve the current theme when called, so a theme switch reaches existing components.
+- Tests: goldens from the pin for every token's ANSI in both modes; theme-contrast (51),
+  theme-cutout-tokens (radar-row cases wait on 11.2's tool-signal), theme-export + loader.
+- Deviations (ledger note): pluggable `CodeHighlighter` until tui-highlight (11.2); polling
+  watcher; built-ins have no file path.
+- Next: 11.1b (keybindings).
+
 ### 2026-09-27: 11.0c done (Editor re-port at the pin)
 - `components/editor.ts` re-ported from the pin instead of patching the old divergent Editor:
   `Editor::new(EditorHost{rows, request_render}, EditorTheme, EditorOptions)`; scrollOffset over

@@ -1121,6 +1121,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-tui-theme"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-paths",
+ "cortexcode-code-session",
+ "cortexcode-tui-components",
+ "cortexcode-tui-render",
+ "cortexcode-tui-util",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "cortexcode-tui"
 version = "0.0.1"
 dependencies = [

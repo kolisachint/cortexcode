@@ -3646,7 +3646,7 @@
    "id": "11.1a",
    "title": "code-tui-theme: theme.ts (color resolution, truecolor/256 detection, fg/bg/bold helpers, loading + validation) and the bundled JSON themes",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c",
     "11.0a"
@@ -3679,6 +3679,24 @@
      "commit": "",
      "kind": "note",
      "text": "Back to todo (bookkeeping): the theme's hooks (SelectListTheme cursor/selectedRow, Box paper) need 11.0a first."
+    },
+    {
+     "at": "2026-09-27T15:26:04Z",
+     "commit": "b0c1366",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:40:11Z",
+     "commit": "b0c1366",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-theme. Ported theme-contrast (51 Rust tests incl. it.each expansions), theme-export (+ loader/global/watcher tests), theme-cutout-tokens (N/A until 11.2: the two radar-row cases need tool-signal's renderToolSignalLine). Goldens: every token's fg/bg/fill ANSI for all 8 themes x truecolor/256color, resolved + export colors, agent/session palette mapping, and validation error text, all captured from the pinned build. Deviations: cli-highlight is a pluggable CodeHighlighter (set_code_highlighter; tui-highlight lands in 11.2 and should install one); the custom-theme watcher polls the file (50ms, 100ms debounce) instead of fs.watch; built-in themes are embedded, so ThemeInfo.path is None for them; SourceInfo on Theme not carried (extensions are deferred)."
+    },
+    {
+     "at": "2026-09-27T15:40:24Z",
+     "commit": "b0c1366",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
