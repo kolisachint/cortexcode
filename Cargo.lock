@@ -751,6 +751,8 @@ dependencies = [
  "cortexcode-code-tool-bash",
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
+ "cortexcode-tui-util",
+ "libc",
  "regex-lite",
  "serde",
  "serde_json",

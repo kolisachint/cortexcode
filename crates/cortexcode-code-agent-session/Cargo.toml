@@ -32,11 +32,15 @@ cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tool-bash = { workspace = true }
 cortexcode-code-tools = { workspace = true }
 cortexcode-code-tools-fs = { workspace = true }
+cortexcode-tui-util = { workspace = true }
 chrono = "0.4"
 regex-lite = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "sync", "time"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 cortexcode-ai-provider-faux = { workspace = true }

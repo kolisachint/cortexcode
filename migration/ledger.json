@@ -3225,7 +3225,7 @@
    "id": "10.10",
    "title": "Small core modules: exec, event-bus, git-branch, format-*, token-budget, output-guard, resolve-config-value, utils (paths, git, mime, tls-ca)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -3240,13 +3240,129 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "notes": "Split into 10.10a (exec/event-bus/format/output-guard), 10.10b (utils/git), 10.10c (tls-ca). Bookkeeping: this parent is marked done by hand because it is now only a container; its children carry the gates.",
    "log": [
     {
      "at": "2026-09-26T23:42:24Z",
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: git-branch.ts is ported (cortexcode_code_paths::git_branch: find_git_paths, read_branch_from_head, resolve_branch_with_git, read_git_branch); SessionManager records Header.branch with it. The footer's live branch watcher is still open."
+    },
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 10.10a/10.10b/10.10c; parent closed as a container (bookkeeping, not a verify)."
+    }
+   ]
+  },
+  {
+   "id": "10.10a",
+   "title": "Small core modules: exec, event-bus, format-tokens, format-list, output-guard",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session",
+    "cortexcode-tui-util",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/exec.ts",
+    "packages/coding-agent/src/core/event-bus.ts",
+    "packages/coding-agent/src/core/format-tokens.ts",
+    "packages/coding-agent/src/core/format-list.ts",
+    "packages/coding-agent/src/core/output-guard.ts",
+    "packages/coding-agent/src/core/format-duration.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/format-tokens.test.ts",
+    "packages/coding-agent/test/format-list.test.ts",
+    "packages/coding-agent/test/format-duration.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:35:58Z",
+     "commit": "f454947",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:44:14Z",
+     "commit": "f454947",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.10b",
+   "title": "utils/git: parseGitUrl (hosted-git-info semantics for github/gitlab/bitbucket/gist/sourcehut)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-paths"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/git.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/git-ssh-url.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    }
+   ]
+  },
+  {
+   "id": "10.10c",
+   "title": "utils/tls-ca: --ca-cert / CORTEX_CA_CERT / NODE_EXTRA_CA_CERTS / --use-system-ca trust set, threaded into every reqwest client",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-ai-util",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/tls-ca.ts",
+    "packages/coding-agent/src/cli.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tls-ca.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
     }
    ]
   },

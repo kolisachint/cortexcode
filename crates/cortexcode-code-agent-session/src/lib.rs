@@ -7,7 +7,11 @@
 
 pub use cortexcode_code_auth::auth_guidance;
 pub mod compaction;
+pub mod event_bus;
+pub mod exec;
+pub mod format;
 pub mod hooks;
+pub mod output_guard;
 pub mod provider_health;
 pub mod resources;
 pub mod retry;

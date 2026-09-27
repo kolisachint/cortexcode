@@ -36,6 +36,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.10 split; 10.10a done (exec, event-bus, format-*, output-guard)
+- 10.10 split into 10.10a/b/c (parent closed as a container, noted in the ledger). Already ported
+  before the split: token-budget, format-duration, mime, resolve-config-value, utils/paths, git-branch.
+- code-agent-session: `format` (format_tokens, format_duration_secs moved here from code-subagents
+  and re-exported there, plural/pad_cell/truncate_visible/wrap_indented/render_list/
+  render_compact_rows, `js_to_fixed` with toFixed's exact-tie rounding), `exec` (execCommand:
+  SIGTERM then SIGKILL after 5s, `code ?? 0`, spawn error -> code 1, 100ms stdio grace after exit),
+  `event_bus` (EventBus on/emit/clear, handler errors reported, re-entrant), `output_guard`
+  (explicit take_over/write_stdout/write_raw_stdout; Rust can't patch stdout, so nothing wires it yet).
+- tui-util fix: `visible_width` counted every U+2600..27BF symbol (e.g. `✓`) as 2 columns; hoocode
+  only widens RGI emoji. Goldens from the pinned build are in the tests.
+- Next: 10.10b (utils/git parseGitUrl with hosted-git-info semantics), then 10.10c (tls-ca, threading
+  the CA set into every reqwest client builder).
+
 ### 2026-09-27: 10.9f done (Task tool in sessions)
 - CLI (`subagent_tools` in runtime.rs, main.ts's buildSessionOptions block): seeds
   `CORTEXCODE_SUBAGENT_MAX_DEPTH` / `CORTEXCODE_NESTED_SUBAGENT_CONCURRENCY` when unset, sets or clears
