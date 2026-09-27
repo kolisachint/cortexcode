@@ -288,13 +288,51 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
     let (auth, registry) = load_auth_and_registry();
     let mut diagnostics = Diagnostics::new();
 
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    // Session flags beyond --no-session / --session-dir arrive with 10.7b.
-    let cwd_str = cwd.to_string_lossy().into_owned();
-    let session_manager = if args.no_session == Some(true) {
-        SessionManager::in_memory(cwd_str)
+    let startup_cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let env = crate::Env::detect();
+    let session_dir = crate::session_flags::session_dir(args, &settings);
+    let mut session_manager = crate::session_flags::create_session_manager(
+        args,
+        &startup_cwd.to_string_lossy(),
+        session_dir.clone(),
+        env,
+    );
+    if let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
+        &session_manager,
+        &startup_cwd,
+    ) {
+        // hoocode asks with a selector in interactive mode (TUI, 11.3); the
+        // placeholder asks on stdin.
+        let message =
+            cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
+                .to_string();
+        if !interactive {
+            eprintln!("{}", crate::red(env.color, &message));
+            std::process::exit(1);
+        }
+        println!(
+            "{}",
+            cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
+        );
+        print!("Continue? [y/N] ");
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+        let mut answer = String::new();
+        let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
+        if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+            std::process::exit(0);
+        }
+        session_manager = SessionManager::open(
+            issue.session_file.clone().unwrap_or_default(),
+            session_dir,
+            Some(issue.fallback_cwd.clone()),
+        );
+    }
+    // The runtime runs in the session's cwd (it may be another project's).
+    let cwd = std::path::PathBuf::from(session_manager.cwd());
+    let settings = if cwd == startup_cwd {
+        settings
     } else {
-        SessionManager::create(cwd_str, args.session_dir.as_ref().map(Into::into))
+        SettingsManager::create_default(&cwd)
     };
 
     let patterns = args.models.clone().or_else(|| settings.enabled_models());
@@ -384,6 +422,17 @@ fn assemble_session(
     } else {
         (None, custom_tools(args, &settings), None)
     };
+    // main.ts: explicit tool flags win over the light preset's allowlist.
+    let explicit =
+        args.tools.is_some() || args.no_tools == Some(true) || args.no_builtin_tools == Some(true);
+    let tools = if explicit { args.tools.clone() } else { tools };
+    let no_tools = if args.no_tools == Some(true) {
+        Some(cortexcode_code_agent_session::NoTools::All)
+    } else if args.no_builtin_tools == Some(true) {
+        Some(cortexcode_code_agent_session::NoTools::Builtin)
+    } else {
+        None
+    };
     let settings = Arc::new(Mutex::new(settings));
     let resources = resource_loader(args, light, &cwd, &agent_dir, &settings);
     // hoo-core's mode system: the active mode's prompt block and tool filter.
@@ -433,6 +482,7 @@ fn assemble_session(
             thinking_level: model_options.thinking_level,
             scoped_models: model_options.scoped_models,
             tools,
+            no_tools,
             custom_tools: custom,
             base_tools,
             permission_gate: Some(build_permission_gate(interactive, &services.cwd)),

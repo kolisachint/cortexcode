@@ -412,6 +412,15 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     normalizer = Normalizer.load(sc.get("normalize"), {"HOME": str(home), "WORK": str(work), "TMP": str(tmp)})
     result: dict = {"ok": True, "error": None, "snapshots": {}}
     try:
+        # `pre_runs`: argument lists run to completion first (same workspace,
+        # home and mock LLM), e.g. to leave a session behind for --continue.
+        for pre in sc.get("pre_runs") or []:
+            done = subprocess.run(
+                app_cmd(app) + list(pre), cwd=work, env=env, stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, timeout=120,
+            )
+            if done.returncode != 0:
+                raise StepError(f"pre_run {pre} exited {done.returncode}: {done.stderr[-2000:]}")
         tmux.start(argv, work, env)
         for i, step in enumerate(sc["steps"]):
             try:

@@ -2604,7 +2604,7 @@
    "id": "10.7b",
    "title": "CLI session flags (--continue/--resume/--session/--fork/--no-session/--session-dir), --list-models, --export, --tools/--no-tools, --thinking",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.4b",
     "10.3a",
@@ -2637,6 +2637,24 @@
      "commit": "3608e70",
      "kind": "note",
      "text": "10.4b: --list-models (cli/list-models.ts) and --models scoping are implemented in code-cli (list_models.rs, runtime.rs build_session/model_options); the list-models scenario passes. Left for 10.7b: session flags."
+    },
+    {
+     "at": "2026-09-27T05:04:34Z",
+     "commit": "efc0d51",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-continue=pass, list-models=pass"
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "note",
+     "text": "Session flags: code-cli session_flags.rs ports resolveSessionPath / validateForkFlags / createSessionManager (--no-session, --fork, --session incl. the other-project y/N fork prompt, --continue) and the session dir (--session-dir, CORTEXCODE_CODING_AGENT_SESSION_DIR, sessionDir setting). The runtime cwd is the session's (settings reloaded for it); a missing stored cwd errors in print mode and asks y/N on stdin in the placeholder interactive mode (hoocode: selector, 11.3). --tools/--no-tools/--no-builtin-tools/--thinking/--session-dir are no longer rejected. Still unsupported: --resume (session picker, 11.3 session-resume) and --export (export-html, phase 12). Harness: scenarios may declare pre_runs (arg lists run to completion first, stdin /dev/null). print-continue passes with identical requests."
     }
    ]
   },
@@ -2888,6 +2906,12 @@
      "commit": "24570c8",
      "kind": "note",
      "text": "10.6: permission-prompt scenario (10.6's L2 gate): the gate's select ('Allow: $ ls', three choices, bordered, title right-aligned in the top border) must implement cortexcode_code_permissions::PermissionUi; replace permission_dialog::TerminalPermissionUi."
+    },
+    {
+     "at": "2026-09-27T05:12:47Z",
+     "commit": "efc0d51",
+     "kind": "note",
+     "text": "10.7b: --resume is rejected until the session selector exists (session-picker.ts selectSession over list_sessions/list_all_sessions, then SessionManager::open); the missing-session-cwd prompt should be the Continue/Cancel selector too (runtime.rs uses a stdin y/N placeholder)."
     }
    ]
   },

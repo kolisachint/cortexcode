@@ -26,6 +26,16 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.7b done (CLI session flags)
+- code-cli `session_flags.rs`: `--fork`, `--session` (path / id prefix / other project with a y/N
+  fork prompt), `--continue`, `--no-session`, session dir from flag / env / setting; the runtime
+  runs in the session's cwd. `--tools`, `--no-tools`, `--no-builtin-tools`, `--thinking`,
+  `--session-dir` are no longer rejected.
+- Harness: `pre_runs` (arg lists run to completion before the recorded run).
+- L2: `print-continue` (new) and `list-models` pass.
+- Left: `--resume` (session picker, 11.3) and `--export` (export-html, phase 12) still error.
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-27: 10.6 l1_done (code-permissions)
 - New crate `cortexcode-code-permissions`: `HooPermissionGate` ports permission-gate.ts over the
   merged hoo-config.json (hard rules always; prompt / allowed_write_paths / auto_allow with a UI;

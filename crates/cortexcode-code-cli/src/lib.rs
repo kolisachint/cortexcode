@@ -13,6 +13,7 @@ pub mod initial_message;
 mod list_models;
 mod permission_dialog;
 mod runtime;
+mod session_flags;
 
 pub use args::{
     is_valid_thinking_level, parse_args, Args, Diagnostic, DiagnosticKind, FlagValue, ListModels,
@@ -104,18 +105,10 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 30] = [
-        (a.thinking.is_some(), "--thinking"),
-        (a.continue_.is_some(), "--continue"),
+    let checks: [(bool, &'static str); 22] = [
         (a.resume.is_some(), "--resume"),
         (a.max_turns.is_some(), "--max-turns"),
-        (a.session.is_some(), "--session"),
         (a.team.is_some(), "--team"),
-        (a.fork.is_some(), "--fork"),
-        (a.session_dir.is_some(), "--session-dir"),
-        (a.tools.is_some(), "--tools"),
-        (a.no_tools.is_some(), "--no-tools"),
-        (a.no_builtin_tools.is_some(), "--no-builtin-tools"),
         (a.subagent == Some(true), "--enable-subagents"),
         (a.subagent == Some(false), "--no-subagents"),
         (a.warm_subagents.is_some(), "--warm-subagents"),
@@ -390,13 +383,13 @@ mod tests {
 
     #[test]
     fn unsupported_flags_fail_clearly() {
-        let (code, out, err) = run_with(&["--continue", "--tools", "read", "-p", "hi"], TTY);
+        let (code, out, err) = run_with(&["--resume", "--theme", "t.json", "-p", "hi"], TTY);
         assert_eq!(code, 1);
         assert!(out.is_empty());
         assert_eq!(
             err,
-            "Error: --continue is not yet supported by cortex\n\
-             Error: --tools is not yet supported by cortex\n"
+            "Error: --resume is not yet supported by cortex\n\
+             Error: --theme is not yet supported by cortex\n"
         );
     }
 
