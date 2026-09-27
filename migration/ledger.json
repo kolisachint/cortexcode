@@ -3912,12 +3912,143 @@
    ]
   },
   {
+   "id": "11.2a",
+   "title": "Markdown: faithful re-port of the pin's marked-based components/markdown.ts (block/inline token semantics of marked 15) with markdown.test.ts",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.1c2"
+   ],
+   "crates": [
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/tui/src/components/markdown.ts"
+   ],
+   "ts_tests": [
+    "packages/tui/test/markdown.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.2b chat-basic",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2b",
+   "title": "Turn transcript: user-message, assistant-message (streaming, thinking display), working loader, turn cost line, wired into the interactive mode",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/user-message.ts",
+    "packages/coding-agent/src/modes/interactive/components/assistant-message.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "chat-basic"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2c",
+   "title": "Tool blocks: tool-execution, tool-chain (+summary), tool-signal (radar), read-output, visual-truncate; the view dial",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2b"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tool-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain-summary.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-signal.ts",
+    "packages/coding-agent/src/modes/interactive/components/read-output.ts",
+    "packages/coding-agent/src/modes/interactive/components/visual-truncate.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "tool-read"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2d",
+   "title": "Bash and diff: bash-execution, diff rendering (edit/write), and tui-highlight (syntect) for code",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2c"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-tui-highlight",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/bash-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/diff.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "tool-bash"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    }
+   ]
+  },
+  {
    "id": "11.2",
    "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (syntect); user/assistant messages, tool execution, diff, bash, summaries, usage line",
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.1c2"
+    "11.2a",
+    "11.2b",
+    "11.2c",
+    "11.2d"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
@@ -3947,6 +4078,12 @@
      "commit": "",
      "kind": "note",
      "text": "cortexcode-tui-components' markdown is a custom AST renderer, not a port of the pin's marked-based markdown.ts; port it faithfully (with markdown.test.ts) before chat-basic parity."
+    },
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2a (markdown), 11.2b (turn transcript, chat-basic), 11.2c (tool blocks, tool-read), 11.2d (bash/diff/highlight, tool-bash); this card closes as a container once they are done (bookkeeping). tool-edit scenario: still to be written, under 11.2d."
     }
    ]
   },
@@ -3998,7 +4135,7 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2"
+    "11.2b"
    ],
    "crates": [
     "cortexcode-code-tui-app",
