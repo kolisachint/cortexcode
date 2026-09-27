@@ -2,7 +2,10 @@
 //! `modes/interactive/components/`.
 
 mod assistant_message;
+pub mod bash_execution;
+pub mod diff;
 mod js_json;
+pub mod jsdiff;
 pub mod read_output;
 pub mod render_utils;
 pub mod tool_chain;

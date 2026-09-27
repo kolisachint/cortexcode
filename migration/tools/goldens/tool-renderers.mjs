@@ -5,6 +5,8 @@ import { setKeybindings } from "@kolisachint/hoocode-tui";
 import { KeybindingsManager } from "./core/keybindings.js";
 import { initTheme, theme } from "./modes/interactive/theme/theme.js";
 import { createReadToolDefinition } from "./core/tools/read.js";
+import { createBashToolDefinition } from "./core/tools/bash.js";
+import { createEditToolDefinition } from "./core/tools/edit.js";
 import { createWriteToolDefinition } from "./core/tools/write.js";
 import { createSearchToolDefinition } from "./core/tools/search.js";
 import { createWebFetchToolDefinition } from "./core/tools/webfetch.js";
@@ -21,6 +23,8 @@ setKeybindings(new KeybindingsManager());
 const cwd = "/work/project";
 const defs = {
   read: createReadToolDefinition(cwd),
+  bash: createBashToolDefinition(cwd),
+  edit: createEditToolDefinition(cwd),
   write: createWriteToolDefinition(cwd),
   SearchCodebase: createSearchToolDefinition(cwd),
   webfetch: createWebFetchToolDefinition(cwd),
@@ -34,6 +38,15 @@ const defs = {
 const txt = (t) => ({ content: [{ type: "text", text: t }], details: {} });
 const many = (n) => Array.from({ length: n }, (_, i) => `row ${i + 1}`).join("\n");
 const cases = [
+  ["bash", { command: "ls -la" }, txt("a\nb\nc")],
+  ["bash", { command: "seq 30", timeout: 10 }, txt(many(30))],
+  ["bash", { command: 5 }, undefined],
+  ["bash", { command: "" }, txt("")],
+  ["bash", { command: "big" }, { content: [{ type: "text", text: "tail" }], details: { truncation: { truncated: true, truncatedBy: "lines", outputLines: 800, totalLines: 5000 }, fullOutputPath: "/tmp/out.log" } }],
+  ["bash", { command: "big2" }, { content: [{ type: "text", text: "tail" }], details: { truncation: { truncated: true, truncatedBy: "bytes", outputLines: 12 } } }],
+  ["bash", { command: "boom" }, txt("boom\n\nCommand exited with code 3"), { isError: true }],
+  ["edit", { path: "missing.txt", edits: [{ oldText: "a", newText: "b" }] }, { content: [{ type: "text", text: "Could not edit file: missing.txt. Error code: ENOENT." }], details: {} }, { isError: true }],
+  ["edit", { path: "x.ts", oldText: "before", newText: "after" }, { content: [], details: { diff: "-1 before\n+1 after", firstChangedLine: 1 } }],
   ["read", { path: "notes.txt" }, txt("alpha\nbeta\n")],
   ["read", { path: "/work/project/src/a.txt", offset: 10, limit: 3 }, txt("x\ny\nz")],
   ["read", { file_path: "big.txt" }, txt(many(12))],
@@ -73,8 +86,15 @@ for (const [tool, args, result, extra] of cases) {
     const ctx = (last) => ({ args, toolCallId: "t", invalidate() {}, lastComponent: last, state, cwd, executionStarted: true, argsComplete: true, isPartial: false, expanded, showImages: false, isError });
     const def = defs[tool];
     let call = null, res = null;
-    if (def.renderCall) call = def.renderCall(args, theme, ctx(undefined)).render(120);
+    // Settled state: renderers that compute in the background (edit's
+    // preview) invalidate when done, which re-runs both slots.
+    if (def.renderCall) {
+      const first = def.renderCall(args, theme, ctx(undefined));
+      await new Promise((r) => setTimeout(r, 50));
+      call = def.renderCall(args, theme, ctx(first));
+    }
     if (result && def.renderResult) res = def.renderResult(result, { expanded, isPartial: false }, theme, ctx(undefined)).render(120);
+    if (call) call = call.render(120);
     out.push({ tool, args, result: result ?? null, isError, expanded, call, res });
   }
 }

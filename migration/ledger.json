@@ -2563,7 +2563,7 @@
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -2597,6 +2597,12 @@
      "commit": "24570c8",
      "kind": "note",
      "text": "New crate code-permissions: HooPermissionGate ports permission-gate.ts over code-modes' merged hoo-config.json (read on every call): denied_tools, enabled_tools allowlist, denied/allowed_bash_commands (regex crate; no look-around), then with a UI allowed_write_paths, auto_allow and the 'Allow: …' Yes/No/Always prompt ('Always' appends to the global auto_allow). Headless (print) sessions now run every tool not hard-blocked, as in hoocode (the invented PolicyPermissionGate denied unknown tools like webfetch in print mode; it stays in code-tools unused by the CLI). CLI: --disallowed-tools + disabledTools setting feed CreateAgentSessionOptions.disallowed_tools. Left: .webtoolsignore host rule (10.2e, blockedHostForUrl); the gate runs in the loop before before_tool_call on the raw (prepared) args. permission-prompt L2 (stable on hoocode) waits on the TUI selector (11.3); cortex's prompt is the crossterm placeholder (TerminalPermissionUi)."
+    },
+    {
+     "at": "2026-09-27T21:09:56Z",
+     "commit": "8859079",
+     "kind": "verify",
+     "text": "L1 pass; L2 permission-prompt=pass"
     }
    ]
   },
@@ -4183,8 +4189,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2c",
-    "11.2e"
+    "11.2d1",
+    "11.2d2"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
@@ -4197,10 +4203,8 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [
-    "tool-bash"
-   ],
-   "notes": "Remove needs_highlighter() from cortexcode-code-tui-widgets/tests/tool_renderers_gold.rs once the highlighter is installed (two read cases with .md paths). Also owns the edit-renderer case of tool-execution-component.test.ts.",
+   "l2": "n/a: container for 11.2d1/11.2d2",
+   "notes": "",
    "log": [
     {
      "at": "2026-09-27T16:27:05Z",
@@ -4225,6 +4229,93 @@
      "commit": "",
      "kind": "note",
      "text": "Paused: tool-bash L2 needs the permission prompt on the TUI; 11.2e added first (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:00:53Z",
+     "commit": "8859079",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2d1 (bash/diff/edit, L2 tool-bash) and 11.2d2 (code highlighting) (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2d1",
+   "title": "Bash and diff: bash tool renderer (live Elapsed/Took), edit renderer (framed preview + result), diff.ts with a jsdiff diffWords port, bash-execution.ts (the ! command block)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2e"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/bash-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/diff.ts",
+    "packages/coding-agent/src/core/tools/bash.ts",
+    "packages/coding-agent/src/core/tools/edit.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/bash-execution-width.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "tool-bash"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:09:19Z",
+     "commit": "8859079",
+     "kind": "verify",
+     "text": "L1 pass; L2 tool-bash=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2d2",
+   "title": "Code highlighting: highlightCode (cli-highlight / highlight.js with the theme's cli-highlight palette) behind code-tui-theme's CodeHighlighter; used by markdown code blocks, read and write previews",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2d1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-theme",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/theme/theme.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: covered by goldens against cli-highlight output",
+   "notes": "Remove needs_highlighter() from cortexcode-code-tui-widgets/tests/tool_renderers_gold.rs once the highlighter is installed (two read cases with .md paths). Exact parity needs highlight.js's tokenizer, not syntect.",
+   "log": [
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2d (bookkeeping)."
     }
    ]
   },

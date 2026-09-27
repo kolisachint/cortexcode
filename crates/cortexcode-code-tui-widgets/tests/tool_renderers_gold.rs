@@ -33,6 +33,28 @@ fn content(result: &Value) -> Vec<Content> {
     serde_json::from_value(result["content"].clone()).unwrap()
 }
 
+fn normalize_took(lines: Vec<String>) -> Vec<String> {
+    let re = regex_lite_took();
+    lines.into_iter().map(|l| re(&l)).collect()
+}
+
+/// `Took 1.2s` -> `Took <DUR>` (and `Elapsed`).
+fn regex_lite_took() -> impl Fn(&str) -> String {
+    |line: &str| {
+        for label in ["Took ", "Elapsed "] {
+            if let Some(i) = line.find(label) {
+                let start = i + label.len();
+                let end = line[start..]
+                    .find('s')
+                    .map(|j| start + j)
+                    .unwrap_or(line.len());
+                return format!("{}<DUR>{}", &line[..start], &line[end..]);
+            }
+        }
+        line.to_string()
+    }
+}
+
 #[test]
 fn renderers_match_the_pin() {
     let _g = lock();
@@ -46,11 +68,13 @@ fn renderers_match_the_pin() {
         let is_error = case["isError"].as_bool().unwrap();
         let def = definition(tool);
         let mut state = serde_json::Map::new();
+        let mut objects = std::collections::HashMap::new();
         let mut ctx = ToolRenderContext {
             args,
             tool_call_id: "t",
             last_component: None,
             state: &mut state,
+            objects: &mut objects,
             cwd: CWD,
             execution_started: true,
             args_complete: true,
@@ -59,16 +83,7 @@ fn renderers_match_the_pin() {
             show_images: false,
             is_error,
         };
-        let call = def
-            .render_call
-            .as_ref()
-            .map(|f| f(args, &mut ctx).unwrap().borrow_mut().render(120));
-        let want_call: Option<Vec<String>> = serde_json::from_value(case["call"].clone()).unwrap();
-        if call != want_call {
-            failures.push(format!(
-                "{tool} {args} call (expanded={expanded})\n  want {want_call:?}\n  got  {call:?}"
-            ));
-        }
+        let call_component = def.render_call.as_ref().map(|f| f(args, &mut ctx).unwrap());
         let result = &case["result"];
         let res = match (&def.render_result, result.is_null()) {
             (Some(f), false) => {
@@ -91,7 +106,19 @@ fn renderers_match_the_pin() {
             }
             _ => None,
         };
+        // Rendered after the result slot ran, as the block does (edit's result
+        // slot settles the call's preview).
+        let call = call_component.map(|c| c.borrow_mut().render(120));
+        let want_call: Option<Vec<String>> = serde_json::from_value(case["call"].clone()).unwrap();
+        if call != want_call {
+            failures.push(format!(
+                "{tool} {args} call (expanded={expanded})\n  want {want_call:?}\n  got  {call:?}"
+            ));
+        }
         let want_res: Option<Vec<String>> = serde_json::from_value(case["res"].clone()).unwrap();
+        // Durations are wall-clock: compare them as a placeholder.
+        let res = res.map(normalize_took);
+        let want_res = want_res.map(normalize_took);
         if res != want_res && !(tool == "read" && needs_highlighter(args)) {
             failures.push(format!(
                 "{tool} {args} result (expanded={expanded})\n  want {want_res:?}\n  got  {res:?}"

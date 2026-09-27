@@ -7,8 +7,10 @@ use std::rc::Rc;
 use cortexcode_tui_components::Text;
 use cortexcode_tui_render::ComponentHandle;
 
-use crate::tool_execution::{RenderShell, ToolRenderDefinition};
+use crate::tool_execution::ToolRenderDefinition;
 
+pub mod bash;
+pub mod edit;
 pub mod plugins;
 pub mod read;
 pub mod search;
@@ -26,12 +28,8 @@ pub fn builtin_tool_definition(name: &str, _cwd: &str) -> Option<ToolRenderDefin
         "SearchCodebase" => Some(search::definition()),
         "webfetch" => Some(web::webfetch_definition()),
         "websearch" => Some(web::websearch_definition()),
-        // Renderers ported with the diff and bash work (11.2d).
-        "bash" => Some(ToolRenderDefinition::default()),
-        "edit" => Some(ToolRenderDefinition {
-            render_shell: Some(RenderShell::SelfRendered),
-            ..Default::default()
-        }),
+        "bash" => Some(bash::definition()),
+        "edit" => Some(edit::definition()),
         _ => None,
     }
 }

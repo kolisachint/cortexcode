@@ -1,9 +1,7 @@
 //! Port of the pin's `test/tool-execution-component.test.ts`.
 //!
-//! Not here: "uses built-in rendering for built-in overrides without custom
-//! renderers" needs the edit renderer (task 11.2d, the diff view), and "bash
-//! execute emits an initial empty partial update" tests the bash tool itself
-//! (in `cortexcode-code-tool-bash/tests/bash_tool.rs`).
+//! Not here: "bash execute emits an initial empty partial update" tests the
+//! bash tool itself (in `cortexcode-code-tool-bash/tests/bash_tool.rs`).
 
 mod support;
 
@@ -134,6 +132,30 @@ mod parity {
         let rendered = strip_all(&c.render(120));
         assert!(rendered.contains("custom call"));
         assert!(rendered.contains("custom result"));
+    }
+
+    #[test]
+    fn uses_built_in_rendering_for_built_in_overrides_without_custom_renderers() {
+        let _g = lock();
+        let mut c = component(
+            "edit",
+            "tool-2",
+            json!({"path": "README.md", "oldText": "before", "newText": "after"}),
+            Full,
+            Some(base()),
+        );
+        c.update_result(
+            ToolResult {
+                content: vec![],
+                details: json!({"diff": "+1 after", "firstChangedLine": 1}),
+                is_error: false,
+            },
+            false,
+        );
+        let rendered = strip_all(&c.render(120));
+        assert!(rendered.contains("edit"));
+        assert!(rendered.contains("README.md"));
+        assert!(!rendered.contains(":1"));
     }
 
     #[test]

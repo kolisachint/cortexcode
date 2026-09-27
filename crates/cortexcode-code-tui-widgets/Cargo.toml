@@ -21,6 +21,7 @@ cortexcode-code-subagents = { workspace = true }
 cortexcode-code-task-store = { workspace = true }
 cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tool-bash = { workspace = true }
+cortexcode-code-tools-fs = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-tui-components = { workspace = true }

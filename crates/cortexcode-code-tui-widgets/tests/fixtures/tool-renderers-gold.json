@@ -1,5 +1,525 @@
 [
  {
+  "tool": "bash",
+  "args": {
+   "command": "ls -la"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "a\nb\nc"
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ ls -la\u001b[22m\u001b[39m                                                                                                                "
+  ],
+  "res": [
+   "",
+   "\u001b[38;2;168;168;168ma\u001b[39m                                                                                                                       ",
+   "\u001b[38;2;168;168;168mb\u001b[39m                                                                                                                       ",
+   "\u001b[38;2;168;168;168mc\u001b[39m                                                                                                                       ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "ls -la"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "a\nb\nc"
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ ls -la\u001b[22m\u001b[39m                                                                                                                "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168ma\u001b[39m                                                                                                                       ",
+   "\u001b[38;2;168;168;168mb\u001b[39m                                                                                                                       ",
+   "\u001b[38;2;168;168;168mc\u001b[39m                                                                                                                       ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "seq 30",
+   "timeout": 10
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "row 1\nrow 2\nrow 3\nrow 4\nrow 5\nrow 6\nrow 7\nrow 8\nrow 9\nrow 10\nrow 11\nrow 12\nrow 13\nrow 14\nrow 15\nrow 16\nrow 17\nrow 18\nrow 19\nrow 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25\nrow 26\nrow 27\nrow 28\nrow 29\nrow 30"
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ seq 30\u001b[22m\u001b[39m\u001b[38;2;168;168;168m (timeout 10s)\u001b[39m                                                                                                  "
+  ],
+  "res": [
+   "",
+   "\u001b[38;2;168;168;168m... (25 earlier lines,\u001b[39m \u001b[38;2;152;152;152mctrl+o\u001b[39m\u001b[38;2;168;168;168m to expand\u001b[39m)",
+   "\u001b[38;2;168;168;168mrow 26\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 27\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 28\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 29\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 30\u001b[39m                                                                                                                  ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "seq 30",
+   "timeout": 10
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "row 1\nrow 2\nrow 3\nrow 4\nrow 5\nrow 6\nrow 7\nrow 8\nrow 9\nrow 10\nrow 11\nrow 12\nrow 13\nrow 14\nrow 15\nrow 16\nrow 17\nrow 18\nrow 19\nrow 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25\nrow 26\nrow 27\nrow 28\nrow 29\nrow 30"
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ seq 30\u001b[22m\u001b[39m\u001b[38;2;168;168;168m (timeout 10s)\u001b[39m                                                                                                  "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mrow 1\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 2\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 3\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 4\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 5\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 6\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 7\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 8\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 9\u001b[39m                                                                                                                   ",
+   "\u001b[38;2;168;168;168mrow 10\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 11\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 12\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 13\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 14\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 15\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 16\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 17\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 18\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 19\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 20\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 21\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 22\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 23\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 24\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 25\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 26\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 27\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 28\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 29\u001b[39m                                                                                                                  ",
+   "\u001b[38;2;168;168;168mrow 30\u001b[39m                                                                                                                  ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": 5
+  },
+  "result": null,
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ \u001b[38;2;213;129;129m[invalid arg]\u001b[39m\u001b[22m\u001b[39m                                                                                                         "
+  ],
+  "res": null
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": 5
+  },
+  "result": null,
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ \u001b[38;2;213;129;129m[invalid arg]\u001b[39m\u001b[22m\u001b[39m                                                                                                         "
+  ],
+  "res": null
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": ""
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": ""
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ \u001b[38;2;168;168;168m...\u001b[39m\u001b[22m\u001b[39m                                                                                                                   "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": ""
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": ""
+    }
+   ],
+   "details": {}
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ \u001b[38;2;168;168;168m...\u001b[39m\u001b[22m\u001b[39m                                                                                                                   "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "big"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "tail"
+    }
+   ],
+   "details": {
+    "truncation": {
+     "truncated": true,
+     "truncatedBy": "lines",
+     "outputLines": 800,
+     "totalLines": 5000
+    },
+    "fullOutputPath": "/tmp/out.log"
+   }
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ big\u001b[22m\u001b[39m                                                                                                                   "
+  ],
+  "res": [
+   "",
+   "\u001b[38;2;168;168;168mtail\u001b[39m                                                                                                                    ",
+   "                                                                                                                        ",
+   "\u001b[38;2;255;255;0m[Full output: /tmp/out.log. Truncated: showing 800 of 5000 lines]\u001b[39m                                                       ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "big"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "tail"
+    }
+   ],
+   "details": {
+    "truncation": {
+     "truncated": true,
+     "truncatedBy": "lines",
+     "outputLines": 800,
+     "totalLines": 5000
+    },
+    "fullOutputPath": "/tmp/out.log"
+   }
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ big\u001b[22m\u001b[39m                                                                                                                   "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mtail\u001b[39m                                                                                                                    ",
+   "                                                                                                                        ",
+   "\u001b[38;2;255;255;0m[Full output: /tmp/out.log. Truncated: showing 800 of 5000 lines]\u001b[39m                                                       ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "big2"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "tail"
+    }
+   ],
+   "details": {
+    "truncation": {
+     "truncated": true,
+     "truncatedBy": "bytes",
+     "outputLines": 12
+    }
+   }
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ big2\u001b[22m\u001b[39m                                                                                                                  "
+  ],
+  "res": [
+   "",
+   "\u001b[38;2;168;168;168mtail\u001b[39m                                                                                                                    ",
+   "                                                                                                                        ",
+   "\u001b[38;2;255;255;0m[Truncated: 12 lines shown (32.0KB limit)]\u001b[39m                                                                              ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "big2"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "tail"
+    }
+   ],
+   "details": {
+    "truncation": {
+     "truncated": true,
+     "truncatedBy": "bytes",
+     "outputLines": 12
+    }
+   }
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ big2\u001b[22m\u001b[39m                                                                                                                  "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mtail\u001b[39m                                                                                                                    ",
+   "                                                                                                                        ",
+   "\u001b[38;2;255;255;0m[Truncated: 12 lines shown (32.0KB limit)]\u001b[39m                                                                              ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "boom"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "boom\n\nCommand exited with code 3"
+    }
+   ],
+   "details": {}
+  },
+  "isError": true,
+  "expanded": false,
+  "call": [
+   "\u001b[39m\u001b[1m$ boom\u001b[22m\u001b[39m                                                                                                                  "
+  ],
+  "res": [
+   "",
+   "\u001b[38;2;168;168;168mboom\u001b[39m                                                                                                                    ",
+   "\u001b[38;2;168;168;168m\u001b[39m                                                                                                                        ",
+   "\u001b[38;2;168;168;168mCommand exited with code 3\u001b[39m                                                                                              ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "bash",
+  "args": {
+   "command": "boom"
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "boom\n\nCommand exited with code 3"
+    }
+   ],
+   "details": {}
+  },
+  "isError": true,
+  "expanded": true,
+  "call": [
+   "\u001b[39m\u001b[1m$ boom\u001b[22m\u001b[39m                                                                                                                  "
+  ],
+  "res": [
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mboom\u001b[39m                                                                                                                    ",
+   "\u001b[38;2;168;168;168m\u001b[39m                                                                                                                        ",
+   "\u001b[38;2;168;168;168mCommand exited with code 3\u001b[39m                                                                                              ",
+   "                                                                                                                        ",
+   "\u001b[38;2;168;168;168mTook 0.1s\u001b[39m                                                                                                               "
+  ]
+ },
+ {
+  "tool": "edit",
+  "args": {
+   "path": "missing.txt",
+   "edits": [
+    {
+     "oldText": "a",
+     "newText": "b"
+    }
+   ]
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "Could not edit file: missing.txt. Error code: ENOENT."
+    }
+   ],
+   "details": {}
+  },
+  "isError": true,
+  "expanded": false,
+  "call": [
+   "\u001b[48;2;36;26;26m \u001b[39m\u001b[1medit\u001b[22m\u001b[39m \u001b[38;2;92;200;187mmissing.txt\u001b[39m                                                                                                       \u001b[49m",
+   "\u001b[48;2;36;26;26m                                                                                                                        \u001b[49m",
+   "\u001b[48;2;36;26;26m \u001b[38;2;213;129;129mCould not edit file: missing.txt. Error code: ENOENT.\u001b[39m                                                                  \u001b[49m"
+  ],
+  "res": []
+ },
+ {
+  "tool": "edit",
+  "args": {
+   "path": "missing.txt",
+   "edits": [
+    {
+     "oldText": "a",
+     "newText": "b"
+    }
+   ]
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "Could not edit file: missing.txt. Error code: ENOENT."
+    }
+   ],
+   "details": {}
+  },
+  "isError": true,
+  "expanded": true,
+  "call": [
+   "\u001b[48;2;36;26;26m \u001b[39m\u001b[1medit\u001b[22m\u001b[39m \u001b[38;2;92;200;187mmissing.txt\u001b[39m                                                                                                       \u001b[49m",
+   "\u001b[48;2;36;26;26m                                                                                                                        \u001b[49m",
+   "\u001b[48;2;36;26;26m \u001b[38;2;213;129;129mCould not edit file: missing.txt. Error code: ENOENT.\u001b[39m                                                                  \u001b[49m"
+  ],
+  "res": []
+ },
+ {
+  "tool": "edit",
+  "args": {
+   "path": "x.ts",
+   "oldText": "before",
+   "newText": "after"
+  },
+  "result": {
+   "content": [],
+   "details": {
+    "diff": "-1 before\n+1 after",
+    "firstChangedLine": 1
+   }
+  },
+  "isError": false,
+  "expanded": false,
+  "call": [
+   "\u001b[48;2;26;36;26m \u001b[39m\u001b[1medit\u001b[22m\u001b[39m \u001b[38;2;92;200;187mx.ts\u001b[39m                                                                                                              \u001b[49m",
+   "\u001b[48;2;26;36;26m                                                                                                                        \u001b[49m",
+   "\u001b[48;2;26;36;26m \u001b[38;2;213;129;129m-1 \u001b[7mbefore\u001b[27m\u001b[39m                                                                                                              \u001b[49m",
+   "\u001b[48;2;26;36;26m \u001b[38;2;181;189;104m+1 \u001b[7mafter\u001b[27m\u001b[39m                                                                                                               \u001b[49m"
+  ],
+  "res": []
+ },
+ {
+  "tool": "edit",
+  "args": {
+   "path": "x.ts",
+   "oldText": "before",
+   "newText": "after"
+  },
+  "result": {
+   "content": [],
+   "details": {
+    "diff": "-1 before\n+1 after",
+    "firstChangedLine": 1
+   }
+  },
+  "isError": false,
+  "expanded": true,
+  "call": [
+   "\u001b[48;2;26;36;26m \u001b[39m\u001b[1medit\u001b[22m\u001b[39m \u001b[38;2;92;200;187mx.ts\u001b[39m                                                                                                              \u001b[49m",
+   "\u001b[48;2;26;36;26m                                                                                                                        \u001b[49m",
+   "\u001b[48;2;26;36;26m \u001b[38;2;213;129;129m-1 \u001b[7mbefore\u001b[27m\u001b[39m                                                                                                              \u001b[49m",
+   "\u001b[48;2;26;36;26m \u001b[38;2;181;189;104m+1 \u001b[7mafter\u001b[27m\u001b[39m                                                                                                               \u001b[49m"
+  ],
+  "res": []
+ },
+ {
   "tool": "read",
   "args": {
    "path": "notes.txt"

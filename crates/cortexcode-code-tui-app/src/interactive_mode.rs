@@ -412,6 +412,8 @@ struct Mode {
     dial_reverse_taught: HashSet<&'static str>,
     /// The last status line, updated in place when nothing followed it.
     last_status: Option<(ComponentHandle, Rc<RefCell<Text>>)>,
+    /// When running tool blocks that tick (bash's `Elapsed`) last re-rendered.
+    last_tool_tick: Instant,
     show_images: bool,
     image_width_cells: u32,
     code_block_indent: String,
@@ -651,6 +653,7 @@ impl Mode {
             chain_closed_for_current_message: false,
             dial_reverse_taught: HashSet::new(),
             last_status: None,
+            last_tool_tick: Instant::now(),
             show_images,
             image_width_cells,
             code_block_indent,
@@ -1559,6 +1562,15 @@ impl Mode {
                 .is_some_and(|(s, _)| s.borrow_mut().poll())
             {
                 self.dirty.set(true);
+            }
+            if self.last_tool_tick.elapsed() >= Duration::from_secs(1) {
+                self.last_tool_tick = Instant::now();
+                for block in self.pending_tools.values() {
+                    if block.borrow().is_ticking() {
+                        block.borrow_mut().invalidate();
+                        self.dirty.set(true);
+                    }
+                }
             }
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
                 self.dirty.set(true);

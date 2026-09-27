@@ -37,6 +37,29 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2d split; 11.2d1 done (bash/diff/edit; L2 `tool-bash`); 10.6 done
+- 11.2d is split (bookkeeping): 11.2d1 covers bash, diff, edit and bash-execution;
+  11.2d2 covers code highlighting (highlightCode); 11.2d closes after both.
+- `jsdiff`: a literal port of jsdiff 8's Myers core and `diffWords` (tokenizer and
+  whitespace dedupe). `diff::render_diff` is diff.ts. Goldens from the real
+  jsdiff/renderDiff (`migration/tools/goldens/diff.mjs`: 1210 word pairs, 66 diffs)
+  match exactly.
+- `tools::bash`: `$ cmd` with the timeout suffix; a peek of the last visual lines;
+  truncation and full-output notes; `Took`/`Elapsed`. Bash sets a `ticking` state flag
+  while partial, and the mode invalidates ticking blocks once a second, as the pin's
+  `setInterval` does.
+- `tools::edit` is a framed call whose header band is tinted by the preview (pending,
+  success or error), plus a diff or error body; the result slot shows only what the
+  preview did not. `ToolRenderContext.objects` gives both slots a shared Rust object
+  (the pin keeps the call component in `state`). The preview is computed synchronously
+  (the pin computes it in the background and re-renders), so only the settled state
+  matches: the golden generator waits for the preview.
+- `bash_execution`: the `!` command block (it gets wired in with `!` input in 11.4).
+- Goldens: `tool-renderers.mjs` now covers bash and edit; the Took/Elapsed durations are
+  compared as a placeholder. The edit case of tool-execution-component.test.ts is ported.
+- With the bash renderer in place, 10.6's permission-prompt L2 passes, so 10.6 is done.
+- Next: 11.2d2 (highlighting).
+
 ### 2026-09-27: 11.2e added and done (selector dialog; permission prompt on the TUI)
 - 11.2e was added (bookkeeping) because tool-bash (11.2d) and permission-prompt (10.6)
   both need the gate's "Allow: …" prompt on the TUI.

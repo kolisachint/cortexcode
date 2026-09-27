@@ -1199,6 +1199,7 @@ dependencies = [
  "cortexcode-code-task-store",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
+ "cortexcode-code-tools-fs",
  "cortexcode-code-tui-keybindings",
  "cortexcode-code-tui-theme",
  "cortexcode-tui-components",

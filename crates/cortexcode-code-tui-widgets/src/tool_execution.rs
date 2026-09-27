@@ -6,7 +6,9 @@
 //! built-in table ([`crate::tools::builtin_tool_definition`]) and the tool's
 //! registered definition, slot by slot, as in the pin.
 
+use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use cortexcode_ai_types::Content;
@@ -40,6 +42,9 @@ pub struct ToolRenderContext<'a> {
     pub last_component: Option<ComponentHandle>,
     /// State shared by the call and result renderers of one block.
     pub state: &'a mut serde_json::Map<String, Value>,
+    /// Renderer-owned objects shared by the slots (the pin keeps components
+    /// in `state`), e.g. a call component the result slot updates.
+    pub objects: &'a mut HashMap<String, Rc<dyn Any>>,
     pub cwd: &'a str,
     pub execution_started: bool,
     pub args_complete: bool,
@@ -192,6 +197,7 @@ pub struct ToolExecutionComponent {
     call_component: Option<ComponentHandle>,
     result_component: Option<ComponentHandle>,
     renderer_state: serde_json::Map<String, Value>,
+    renderer_objects: HashMap<String, Rc<dyn Any>>,
     image_handles: Vec<ComponentHandle>,
     tool_name: String,
     tool_call_id: String,
@@ -235,6 +241,7 @@ impl ToolExecutionComponent {
             call_component: None,
             result_component: None,
             renderer_state: serde_json::Map::new(),
+            renderer_objects: HashMap::new(),
             image_handles: Vec::new(),
             tool_name: tool_name.to_string(),
             tool_call_id: tool_call_id.to_string(),
@@ -472,6 +479,13 @@ impl ToolExecutionComponent {
         self.update_display();
     }
 
+    /// Whether a renderer asked to be re-run every second (bash's live
+    /// `Elapsed`, `setInterval(invalidate, 1000)` in the pin).
+    pub fn is_ticking(&self) -> bool {
+        self.renderer_state
+            .contains_key(crate::tools::bash::TICKING_KEY)
+    }
+
     /// A finished, visible result still holding its payloads.
     pub fn is_freezable(&self) -> bool {
         !self.frozen && !self.is_partial && !self.hide_component && self.result.is_some()
@@ -488,6 +502,7 @@ impl ToolExecutionComponent {
         self.result = None;
         self.image_handles.clear();
         self.renderer_state.clear();
+        self.renderer_objects.clear();
         self.call_component = None;
         self.result_component = None;
         self.children.clear();
@@ -599,8 +614,14 @@ impl ToolExecutionComponent {
                         let args = self.args.clone();
                         let cwd = self.cwd.clone();
                         let id = self.tool_call_id.clone();
-                        let mut ctx =
-                            flags.borrow(&args, &id, last, &mut self.renderer_state, &cwd);
+                        let mut ctx = flags.borrow(
+                            &args,
+                            &id,
+                            last,
+                            &mut self.renderer_state,
+                            &mut self.renderer_objects,
+                            &cwd,
+                        );
                         let rendered = render_call(&args, &mut ctx);
                         let component = match rendered {
                             Ok(component) => {
@@ -642,8 +663,14 @@ impl ToolExecutionComponent {
                             content: &result.content,
                             details: &result.details,
                         };
-                        let mut ctx =
-                            flags.borrow(&args, &id, last, &mut self.renderer_state, &cwd);
+                        let mut ctx = flags.borrow(
+                            &args,
+                            &id,
+                            last,
+                            &mut self.renderer_state,
+                            &mut self.renderer_objects,
+                            &cwd,
+                        );
                         match render_result(&view, options, &mut ctx) {
                             Ok(component) => {
                                 self.result_component = Some(component.clone());
@@ -787,6 +814,7 @@ impl ToolRenderContextOwned {
         tool_call_id: &'a str,
         last_component: Option<ComponentHandle>,
         state: &'a mut serde_json::Map<String, Value>,
+        objects: &'a mut HashMap<String, Rc<dyn Any>>,
         cwd: &'a str,
     ) -> ToolRenderContext<'a> {
         ToolRenderContext {
@@ -794,6 +822,7 @@ impl ToolRenderContextOwned {
             tool_call_id,
             last_component,
             state,
+            objects,
             cwd,
             execution_started: self.execution_started,
             args_complete: self.args_complete,
