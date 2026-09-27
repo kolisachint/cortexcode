@@ -16,7 +16,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
   block); 9.2b is l1_done (L2 compact-command waits on the interactive app).
 - 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
-  (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done; next in that line: 10.6, 10.8b.
+  (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done.
+- 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
+  scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
+  and 10.9 agents roster); 10.7b done. Next: **10.8b** (`--mode json` event shape: contentIndex,
+  `content` on *_end, toolCall, reason, plus session-level events) — not started.
+- Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
+  `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
+  `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
   reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
