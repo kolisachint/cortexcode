@@ -1126,12 +1126,14 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-code-agent-session",
  "cortexcode-code-paths",
+ "cortexcode-code-task-store",
  "cortexcode-code-tui-keybindings",
  "cortexcode-code-tui-theme",
  "cortexcode-tui-components",
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
  "cortexcode-tui-util",
+ "serde_json",
  "tempfile",
 ]
 

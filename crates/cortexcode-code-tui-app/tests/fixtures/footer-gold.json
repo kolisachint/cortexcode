@@ -1,0 +1,214 @@
+{
+ "idle": {
+  "so": {},
+  "dO": {},
+  "opts": {},
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                          \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                               \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "branch_name": {
+  "so": {
+   "name": "refactor-auth"
+  },
+  "dO": {
+   "branch": "main"
+  },
+  "opts": {
+   "chip": false
+  },
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m \u001b[38;2;152;152;152m⑂\u001b[39m \u001b[38;2;168;168;168mmain\u001b[39m\u001b[38;2;152;152;152m • refactor-auth\u001b[39m                                                  \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                               \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "chip_wide": {
+  "so": {
+   "name": "refactor-auth"
+  },
+  "dO": {
+   "branch": "main"
+  },
+  "opts": {
+   "chip": true
+  },
+  "width": 120,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m \u001b[38;2;152;152;152m⑂\u001b[39m \u001b[38;2;168;168;168mmain\u001b[39m                                                                                      \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                                                   \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "chip_narrow": {
+  "so": {
+   "name": "refactor-auth"
+  },
+  "dO": {},
+  "opts": {
+   "chip": true
+  },
+  "width": 40,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • refactor-auth\u001b[39m   ",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m   \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "usage": {
+  "so": {
+   "reasoning": true,
+   "thinking": "high",
+   "usage": {
+    "input": 12345,
+    "output": 6789,
+    "cacheRead": 1000,
+    "cacheWrite": 50,
+    "cost": {
+     "total": 1.2345
+    }
+   },
+   "ctx": {
+    "contextWindow": 128000,
+    "percent": 85.25
+   }
+  },
+  "dO": {
+   "providers": 2
+  },
+  "opts": {},
+  "width": 120,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                                              \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;213;129;129m▰▰▰▰▰▰▰\u001b[39m\u001b[38;2;152;152;152m▱\u001b[39m \u001b[38;2;213;129;129m85.3%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m  \u001b[38;2;152;152;152m↑\u001b[39m\u001b[38;2;168;168;168m12k\u001b[39m  \u001b[38;2;152;152;152m↓\u001b[39m\u001b[38;2;168;168;168m6.8k\u001b[39m  \u001b[38;2;152;152;152mR\u001b[39m\u001b[38;2;168;168;168m1.0k\u001b[39m  \u001b[38;2;152;152;152mW\u001b[39m\u001b[38;2;168;168;168m50\u001b[39m  \u001b[38;2;168;168;168m$1.234\u001b[39m                                   \u001b[38;2;152;152;152m(mock) \u001b[39m\u001b[38;2;168;168;168mmock-model\u001b[39m\u001b[38;2;152;152;152m • high\u001b[39m"
+  ]
+ },
+ "reasoning_off": {
+  "so": {
+   "reasoning": true
+  },
+  "dO": {
+   "providers": 2
+  },
+  "opts": {},
+  "width": 60,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                  \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m        \u001b[38;2;168;168;168mmock-model\u001b[39m\u001b[38;2;152;152;152m • thinking off\u001b[39m"
+  ]
+ },
+ "unknown_pct": {
+  "so": {
+   "ctx": {
+    "contextWindow": 200000,
+    "percent": null
+   },
+   "cw": 200000,
+   "oauth": true
+  },
+  "dO": {
+   "mode": "plan"
+  },
+  "opts": {
+   "view": "full"
+  },
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ PLAN\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                           \u001b[38;2;152;152;152m◉ full\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m?\u001b[39m \u001b[38;2;152;152;152m200k auto@92%\u001b[39m  \u001b[38;2;168;168;168m$0.000 (sub)\u001b[39m                                                    \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "no_autocompact": {
+  "so": {
+   "ctx": {
+    "contextWindow": 128000,
+    "percent": 72
+   }
+  },
+  "dO": {},
+  "opts": {
+   "auto": false
+  },
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                          \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;255;255;0m▰▰▰▰▰▰\u001b[39m\u001b[38;2;152;152;152m▱▱\u001b[39m \u001b[38;2;255;255;0m72.0%\u001b[39m \u001b[38;2;152;152;152m128k\u001b[39m                                                                       \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "no_model": {
+  "so": {
+   "noModel": true,
+   "ctx": null
+  },
+  "dO": {},
+  "opts": {},
+  "width": 80,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                      \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m0 auto\u001b[39m                                                    \u001b[38;2;168;168;168mno-model\u001b[39m"
+  ]
+ },
+ "line": {
+  "so": {},
+  "dO": {},
+  "opts": {
+   "density": "line"
+  },
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                      \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "statuses": {
+  "so": {},
+  "dO": {
+   "statuses": [
+    [
+     "b",
+     "beta\tstatus\n  x"
+    ],
+    [
+     "a",
+     "alpha"
+    ]
+   ]
+  },
+  "opts": {},
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                          \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                               \u001b[38;2;168;168;168mmock-model\u001b[39m",
+   "alpha beta status x"
+  ]
+ },
+ "truncated": {
+  "so": {
+   "cwd": "/very/long/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/path/"
+  },
+  "dO": {
+   "branch": "feature/x"
+  },
+  "opts": {},
+  "width": 50,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/very/long/path/path/path/path/path/path\u001b[0m\u001b[38;2;152;152;152m…\u001b[39m\u001b[0m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m             \u001b[38;2;168;168;168mmock-model\u001b[39m"
+  ]
+ },
+ "startup": {
+  "so": {},
+  "dO": {},
+  "opts": {
+   "startup": true
+  },
+  "width": 100,
+  "lines": [
+   "\u001b[1m\u001b[38;2;92;200;187m⬢ BUILD\u001b[39m\u001b[22m  \u001b[38;2;168;168;168m/tmp/project\u001b[39m\u001b[38;2;152;152;152m • amber-harbor\u001b[39m                                                          \u001b[38;2;152;152;152m◍ peek\u001b[39m",
+   "\u001b[38;2;92;200;187m\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m0.0%\u001b[39m \u001b[38;2;152;152;152m128k auto@87%\u001b[39m                                                               \u001b[38;2;168;168;168mmock-model\u001b[39m",
+   "\u001b[39mfd\u001b[39m \u001b[38;2;92;200;187m▰▰▰▰▰\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m44%\u001b[39m \u001b[38;2;152;152;152m· 3.5 MB / 8.0 MB\u001b[39m",
+   "\u001b[39mripgrep\u001b[39m \u001b[38;2;152;152;152m1.0 MB…\u001b[39m",
+   "\u001b[39mBuilding semantic search index\u001b[39m \u001b[38;2;92;200;187m▰▰▰\u001b[39m\u001b[38;2;152;152;152m▱▱▱▱▱▱▱▱▱\u001b[39m \u001b[38;2;168;168;168m25%\u001b[39m \u001b[38;2;152;152;152m· 120/480 files\u001b[39m",
+   "\u001b[38;2;152;152;152mSemantic search index unavailable: embsearch binary not found (PATH or embsearchBinaryPath setting)\u001b[39m"
+  ]
+ }
+}

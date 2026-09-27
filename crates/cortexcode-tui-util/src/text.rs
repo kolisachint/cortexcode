@@ -342,20 +342,71 @@ pub fn wrap_text_with_ansi(text: &str, width: usize) -> Vec<String> {
 // Truncation
 // ---------------------------------------------------------------------------
 
+/// One piece of a line for width-aware walking: an ANSI code, a tab, or a
+/// run of text containing neither.
+enum Piece<'a> {
+    Ansi(&'a str),
+    Tab,
+    Run(&'a str),
+}
+
+fn pieces(text: &str) -> Vec<Piece<'_>> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < text.len() {
+        if let Some((code, len)) = crate::ansi::extract_ansi_code(text, i) {
+            out.push(Piece::Ansi(code));
+            i += len;
+            continue;
+        }
+        if text.as_bytes()[i] == b'\t' {
+            out.push(Piece::Tab);
+            i += 1;
+            continue;
+        }
+        let mut end = i;
+        while end < text.len()
+            && text.as_bytes()[end] != b'\t'
+            && crate::ansi::extract_ansi_code(text, end).is_none()
+        {
+            end += text[end..].chars().next().map_or(1, char::len_utf8);
+        }
+        out.push(Piece::Run(&text[i..end]));
+        i = end;
+    }
+    out
+}
+
 fn truncate_fragment_to_width(text: &str, max_width: usize) -> (String, usize) {
     if max_width == 0 || text.is_empty() {
         return (String::new(), 0);
     }
-
     let mut result = String::new();
     let mut width = 0;
-    for g in text.graphemes(true) {
-        let w = grapheme_width(g);
-        if width + w > max_width {
-            break;
+    let mut pending_ansi = String::new();
+    for piece in pieces(text) {
+        match piece {
+            Piece::Ansi(code) => pending_ansi.push_str(code),
+            Piece::Tab => {
+                if width + 3 > max_width {
+                    break;
+                }
+                result.push_str(&std::mem::take(&mut pending_ansi));
+                result.push('\t');
+                width += 3;
+            }
+            Piece::Run(run) => {
+                for g in run.graphemes(true) {
+                    let w = grapheme_width(g);
+                    if width + w > max_width {
+                        return (result, width);
+                    }
+                    result.push_str(&std::mem::take(&mut pending_ansi));
+                    result.push_str(g);
+                    width += w;
+                }
+            }
         }
-        result.push_str(g);
-        width += w;
     }
     (result, width)
 }
@@ -419,28 +470,52 @@ pub fn truncate_to_width(text: &str, max_width: usize, ellipsis: &str, pad: bool
 
     let target_width = max_width - ellipsis_width;
     let mut result = String::new();
+    let mut pending_ansi = String::new();
     let mut visible_so_far = 0usize;
     let mut kept_width = 0usize;
     let mut keep_contiguous_prefix = true;
     let mut overflowed = false;
 
-    for g in text.graphemes(true) {
-        let w = grapheme_width(g);
-        if keep_contiguous_prefix && kept_width + w <= target_width {
-            result.push_str(g);
-            kept_width += w;
-        } else {
-            keep_contiguous_prefix = false;
-        }
-        visible_so_far += w;
-        if visible_so_far > max_width {
-            overflowed = true;
-            break;
+    'walk: for piece in pieces(text) {
+        match piece {
+            Piece::Ansi(code) => pending_ansi.push_str(code),
+            Piece::Tab => {
+                if keep_contiguous_prefix && kept_width + 3 <= target_width {
+                    result.push_str(&std::mem::take(&mut pending_ansi));
+                    result.push('\t');
+                    kept_width += 3;
+                } else {
+                    keep_contiguous_prefix = false;
+                    pending_ansi.clear();
+                }
+                visible_so_far += 3;
+                if visible_so_far > max_width {
+                    overflowed = true;
+                    break 'walk;
+                }
+            }
+            Piece::Run(run) => {
+                for g in run.graphemes(true) {
+                    let w = grapheme_width(g);
+                    if keep_contiguous_prefix && kept_width + w <= target_width {
+                        result.push_str(&std::mem::take(&mut pending_ansi));
+                        result.push_str(g);
+                        kept_width += w;
+                    } else {
+                        keep_contiguous_prefix = false;
+                        pending_ansi.clear();
+                    }
+                    visible_so_far += w;
+                    if visible_so_far > max_width {
+                        overflowed = true;
+                        break 'walk;
+                    }
+                }
+            }
         }
     }
-    let exhausted = !overflowed;
 
-    if !overflowed && exhausted && visible_so_far <= max_width && kept_width == visible_so_far {
+    if !overflowed {
         return if pad {
             format!(
                 "{text}{}",

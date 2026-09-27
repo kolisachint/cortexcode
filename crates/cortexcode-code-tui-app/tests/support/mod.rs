@@ -12,6 +12,8 @@ static LOCK: Mutex<()> = Mutex::new(());
 /// startup-progress store empty.
 pub fn lock(theme: Option<&str>) -> MutexGuard<'static, ()> {
     let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // Goldens were captured in truecolor.
+    std::env::set_var("COLORTERM", "truecolor");
     init_theme(theme, false);
     cortexcode_code_tui_app::startup_progress::clear();
     guard
