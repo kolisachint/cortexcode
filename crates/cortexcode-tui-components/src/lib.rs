@@ -13,7 +13,7 @@ mod frame;
 mod image;
 mod input;
 mod loader;
-mod markdown;
+pub mod markdown;
 mod select_list;
 mod settings_list;
 mod spacer;

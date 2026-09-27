@@ -37,6 +37,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2a done (markdown on a marked lexer port)
+- `cortexcode-tui-components/src/markdown/` now parses with a literal port of the pinned
+  marked 15 lexer (`lexer.rs`) instead of pulldown-cmark. The rules are marked's own
+  compiled GFM regex sources (`rules_gen.rs`, regenerate with
+  `migration/tools/goldens/marked-rules.mjs`), run on fancy-regex through a JS-to-Rust
+  regex translator (`js_regex.rs`: ASCII `\d \w \b`, the JS `\s` set and `.`, literal
+  `[`/`{` where JS allows them). The inline queue, token merges and markdown.ts's
+  strict-strikethrough `del` are kept.
+- One known divergence: masks in the emphasis scan are byte-aligned, where marked keeps
+  UTF-16 lengths. They only differ for an escaped astral symbol (`\😀`), where marked's
+  own mask misaligns.
+- `render.rs` is a re-port of markdown.ts: style-prefix restore after inline resets,
+  table sizing, per-width line cache, and a token cache.
+- Tests: all 59 cases of markdown.test.ts (`tests/markdown.rs`, with TUI cell checks on the
+  shared vt100 support). `tests/markdown_gold.rs` checks token streams against real marked
+  (175 corpus docs plus 1500 fuzzed docs, byte-exact JSON) and renders against real
+  markdown.ts (4 variants per doc). Generators: `migration/tools/goldens/markdown.mjs`
+  and `markdown-fuzz.mjs`.
+- Next: 11.2b (turn transcript; L2 chat-basic).
+
 ### 2026-09-27: 11.1c2 done; 11.1c done (interactive mode on the TUI, L2 `startup` passes)
 - `cortexcode-code-tui-app::interactive_mode` replaces code-cli's crossterm REPL: the banner,
   the flex fill, the resource listing, notification band, prompt editor with the app's key

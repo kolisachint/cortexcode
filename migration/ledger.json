@@ -3915,7 +3915,7 @@
    "id": "11.2a",
    "title": "Markdown: faithful re-port of the pin's marked-based components/markdown.ts (block/inline token semantics of marked 15) with markdown.test.ts",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.1c2"
    ],
@@ -3937,6 +3937,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:27:15Z",
+     "commit": "4f99ecc",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:23:20Z",
+     "commit": "4f99ecc",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:23:42Z",
+     "commit": "4f99ecc",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

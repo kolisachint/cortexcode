@@ -78,6 +78,21 @@ impl Handle {
         out
     }
 
+    /// Whether the cell at `(row, col)` of the screen is italic.
+    pub fn cell_italic(&self, row: u16, col: u16) -> bool {
+        let parser = self.parser.lock().unwrap();
+        parser.screen().cell(row, col).is_some_and(|c| c.italic())
+    }
+
+    /// Whether the cell at `(row, col)` of the screen is underlined.
+    pub fn cell_underline(&self, row: u16, col: u16) -> bool {
+        let parser = self.parser.lock().unwrap();
+        parser
+            .screen()
+            .cell(row, col)
+            .is_some_and(|c| c.underline())
+    }
+
     /// `(row, col)` of the cursor.
     pub fn cursor(&self) -> (u16, u16) {
         self.parser.lock().unwrap().screen().cursor_position()

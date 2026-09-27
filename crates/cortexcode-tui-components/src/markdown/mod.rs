@@ -1,35 +1,28 @@
 //! Markdown-to-terminal rendering component, ported from `components/markdown.ts`.
 //!
-//! **Reduced fidelity** relative to the original (a deliberate scope
-//! trade-off — see the crate root docs): the original parses with
-//! `marked` (a token-tree parser) and a custom strict-strikethrough
-//! tokenizer variant; this port parses with `pulldown-cmark` (a flat
-//! event-stream parser) via a small intermediate AST (`ast.rs`) built to
-//! resemble `marked`'s tree closely enough to reuse the same rendering
-//! structure. Consequences:
-//! - The "reapply outer style prefix after an inner ANSI reset" trick
-//!   (used so bold/italic text inside a colored heading or blockquote
-//!   doesn't lose its outer color) is not ported; nested emphasis can
-//!   locally reset to the terminal's default color.
-//! - Table column sizing uses natural-width-then-proportional-shrink
-//!   instead of the original's two-phase min-word-width-preserving
-//!   algorithm; tables still wrap and fit the given width, but column
-//!   proportions can differ in edge cases.
-//! - Footnotes, definition lists, and inline images are not represented.
-//! - No render-output caching (matches the simplification already applied
-//!   throughout this crate and `cortexcode-tui-render`: re-render is
-//!   always correct, just not memoized).
+//! Parsing is a literal port of the pinned `marked` lexer (`lexer.rs`, over
+//! `marked`'s own regex sources); rendering follows markdown.ts token by
+//! token (`render.rs`).
 
-mod ast;
+mod js_regex;
+pub mod lexer;
 mod render;
+mod rules;
+mod rules_gen;
 
 pub use render::{DefaultTextStyle, HeadingFn, HighlightCodeFn, MarkdownTheme};
+
+use std::collections::VecDeque;
 
 use cortexcode_tui_images::is_image_line;
 use cortexcode_tui_render::Component;
 use cortexcode_tui_util::{apply_background_to_line, visible_width, wrap_text_with_ansi};
 
-use render::MarkdownRenderer;
+use lexer::Token;
+use render::Renderer;
+
+/// Rendered widths kept per text (markdown.ts `LINE_CACHE_WIDTHS`).
+const LINE_CACHE_WIDTHS: usize = 3;
 
 pub struct Markdown {
     text: String,
@@ -37,6 +30,9 @@ pub struct Markdown {
     padding_y: usize,
     default_text_style: Option<DefaultTextStyle>,
     theme: MarkdownTheme,
+    line_cache: VecDeque<(usize, Vec<String>)>,
+    line_cache_text: Option<String>,
+    cached_tokens: Option<(String, Vec<Token>)>,
 }
 
 impl Markdown {
@@ -53,31 +49,66 @@ impl Markdown {
             padding_y,
             default_text_style,
             theme,
+            line_cache: VecDeque::new(),
+            line_cache_text: None,
+            cached_tokens: None,
         }
     }
 
     pub fn set_text(&mut self, text: impl Into<String>) {
         self.text = text.into();
+        self.invalidate_lines();
+    }
+
+    /// Drop rendered lines (they bake in theme and width) but keep the lexed
+    /// tokens, which depend on the text alone.
+    fn invalidate_lines(&mut self) {
+        self.line_cache.clear();
+        self.line_cache_text = None;
+    }
+
+    fn store_lines(&mut self, width: usize, lines: &[String]) {
+        if self.line_cache.len() >= LINE_CACHE_WIDTHS {
+            self.line_cache.pop_front();
+        }
+        self.line_cache.push_back((width, lines.to_vec()));
     }
 }
 
 impl Component for Markdown {
+    fn invalidate(&mut self) {
+        self.invalidate_lines();
+    }
+
     fn render(&mut self, width: u16) -> Vec<String> {
         let width = width as usize;
+        if self.line_cache_text.as_deref() == Some(self.text.as_str()) {
+            if let Some((_, lines)) = self.line_cache.iter().find(|(w, _)| *w == width) {
+                return lines.clone();
+            }
+        } else {
+            self.line_cache.clear();
+            self.line_cache_text = Some(self.text.clone());
+        }
+
         let content_width = width.saturating_sub(self.padding_x * 2).max(1);
 
-        if self.text.trim().is_empty() {
+        if js_regex::js_trim(&self.text).is_empty() {
+            self.store_lines(width, &[]);
             return Vec::new();
         }
 
-        let normalized = self.text.replace('\t', "   ");
-        let blocks = ast::parse_markdown(&normalized);
+        if self.cached_tokens.as_ref().map(|(t, _)| t) != Some(&self.text) {
+            let tokens = lexer::lex(&self.text.replace('\t', "   ")).tokens;
+            self.cached_tokens = Some((self.text.clone(), tokens));
+        }
+        let tokens = &self.cached_tokens.as_ref().unwrap().1;
 
-        let renderer = MarkdownRenderer {
+        let renderer = Renderer {
             theme: &self.theme,
             default_style: self.default_text_style.as_ref(),
         };
-        let rendered_lines = renderer.render_document(&blocks, content_width);
+        let rendered_lines = renderer.render_tokens(tokens, content_width);
 
         let mut wrapped_lines = Vec::new();
         for line in &rendered_lines {
@@ -130,11 +161,13 @@ impl Component for Markdown {
         result.extend(content_lines);
         result.extend(empty_lines);
 
-        if result.is_empty() {
+        let result = if result.is_empty() {
             vec![String::new()]
         } else {
             result
-        }
+        };
+        self.store_lines(width, &result);
+        result
     }
 }
 
