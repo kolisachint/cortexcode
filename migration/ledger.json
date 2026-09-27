@@ -2419,7 +2419,7 @@
    "id": "10.5d",
    "title": "Resources IV: package-resource-discovery.ts + the local/auto part of DefaultPackageManager.resolve (settings resource entries, auto-discovered dirs incl. .agents/.claude, patterns and overrides, precedence); npm/git packages stay 12.2",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.5a"
    ],
@@ -2436,7 +2436,20 @@
    "l1_cmds": [],
    "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
    "notes": "Port only the resolve() cases of package-manager.test.ts that need no npm/git package sources (describe blocks: resolve, auto-discovered skill metadata, .agents/skills auto-discovery, ignore files, pattern filtering in top-level arrays, force-include/force-exclude top-level, multi-file extension discovery). The rest belongs to 12.2.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T04:19:10Z",
+     "commit": "6cad3ac",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T04:22:37Z",
+     "commit": "6cad3ac",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "10.5",

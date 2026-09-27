@@ -24,6 +24,17 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.5d done (package resource discovery, local resolve)
+- `code-resources::package_discovery` (package-resource-discovery.ts): recursive collection with
+  ignore files, skill layouts (hoocode vs `.agents`), prompt/theme/extension auto-discovery
+  (package.json `hoocode`/`pi`/`cortexcode` manifests, index.ts), include/exclude/force patterns.
+- `code-resources::package_resolve`: the settings-entries + auto-discovery half of
+  `DefaultPackageManager.resolve()` with precedence ranks and symlink dedupe (`home` passed in
+  instead of reading `$HOME` at each call). Package sources (npm/git) remain 12.2.
+- Tests: 34 cases from package-manager.test.ts (resolve, skill metadata, `.agents/skills`, ignore
+  files, top-level patterns, force include/exclude, multi-file extension discovery).
+- Next: 10.5 (DefaultResourceLoader, builtin skills, session/CLI wiring, print-context-files).
+
 ### 2026-09-27: 10.5c done (context files, agent registry)
 - `code-resources::context_files` (context-files.ts): AGENTS.md/CLAUDE.md from `~/.agents`, the
   agent dir and the cwd ancestors (root first), per-file 8K/40K and total 24K/64K budgets

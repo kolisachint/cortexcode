@@ -14,6 +14,8 @@ pub mod diagnostics;
 pub mod frontmatter;
 mod js;
 pub mod node_path;
+pub mod package_discovery;
+pub mod package_resolve;
 pub mod prompt_templates;
 pub mod skills;
 pub mod slash_commands;

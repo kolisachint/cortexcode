@@ -886,6 +886,7 @@ dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-code-paths",
  "dirs",
+ "glob",
  "ignore",
  "serde",
  "serde_json",
