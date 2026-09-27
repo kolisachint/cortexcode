@@ -22,7 +22,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
-  lifeguard), 10.9e done (child protocol). Next: **10.9c** (warm pool + inbox), then 10.9d.
+  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox). Next: **10.9d** (Task/TaskOutput
+  tools, agents roster, L2 subagent-task).
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -34,6 +35,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9c done (warm subagent pool + inbox)
+- code-subagents `warm`: `WarmSubagentWorker` (a `--mode rpc` child through `RpcClient`: prompt and
+  wait, last assistant text, session-stats usage, `new_session` reset) and `WarmSubagentPool`
+  (keyed per agent/model/provider, up to 2 idle per key, 30s idle reclaim, infra failures are
+  `WarmWorkerError` for cold fallback), plus the shared instance and the `WARM_SUBAGENTS` env gate.
+  hoocode's warm-child env "delete DEFER_MCP_SCHEMAS" is a no-op (its RpcClient spreads
+  process.env back), so the Rust worker only adds env vars, like hoocode.
+- code-subagents `inbox`: the notify-and-pull records for background Task/TaskOutput (labels,
+  lifecycle, collect-once body, 50 settled kept, `wait_for`/`wait_for_all` on a Notify), observed
+  per pool via the new `SubagentPool::id`.
+- Tests: the fake RPC child is a shell port of `fixtures/fake-rpc-child.mjs` (crash knob via an arg
+  instead of process env).
+- Next: 10.9d: tools/subagent.ts (Task/TaskOutput on the pool, warm fallback, inbox), the agents
+  roster in the system prompt, shared-pool dispose at exit, and L2 `subagent-task`.
 
 ### 2026-09-27: 10.9e done (subagent child protocol in print mode)
 - `--mode json --task-id <id>`: an immediate `{"ping":true}` then one every 30s, only

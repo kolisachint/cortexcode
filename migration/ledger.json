@@ -3036,7 +3036,7 @@
    "id": "10.9c",
    "title": "Warm subagent pool and subagent inbox",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.9b"
    ],
@@ -3061,6 +3061,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-27T07:37:31Z",
+     "commit": "8cc8900",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:41:33Z",
+     "commit": "8cc8900",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:41:43Z",
+     "commit": "8cc8900",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },

@@ -265,6 +265,7 @@ struct PoolState {
 }
 
 struct PoolInner {
+    id: u64,
     max_concurrency: usize,
     executable: PathBuf,
     prefix_args: Vec<String>,
@@ -343,7 +344,9 @@ impl SubagentPool {
             .cwd
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()));
         let lifeguard = SubagentLifeguard::new(&cwd);
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let inner = Arc::new(PoolInner {
+            id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             max_concurrency: options.max_concurrency.unwrap_or(5),
             executable: options.executable,
             prefix_args: options.prefix_args,
@@ -375,6 +378,11 @@ impl SubagentPool {
             inner.emit(name, json!({"task_id": task_id, "pid": pid}));
         });
         Self { inner }
+    }
+
+    /// A process-unique id for this pool.
+    pub fn id(&self) -> u64 {
+        self.inner.id
     }
 
     /// Listen for pool events.

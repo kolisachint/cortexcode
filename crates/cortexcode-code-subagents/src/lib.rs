@@ -12,6 +12,7 @@ pub mod agent_log;
 pub mod depth;
 pub mod dispatch;
 pub mod events;
+pub mod inbox;
 pub mod instance;
 pub mod lifeguard;
 pub mod model_categories;
@@ -19,6 +20,7 @@ pub mod output_verifier;
 pub mod pool;
 pub mod result;
 pub mod token_budget;
+pub mod warm;
 
 pub use pool::{
     DispatchOptions, PoolError, PoolEvent, SubagentPool, SubagentPoolOptions, SubagentPoolTask,
