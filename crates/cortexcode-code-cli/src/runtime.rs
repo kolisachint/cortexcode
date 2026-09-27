@@ -621,6 +621,32 @@ pub fn run_print_mode(
     }
 }
 
+/// `--mode rpc`: JSON commands on stdin, responses and session events on
+/// stdout, until stdin ends.
+pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
+    let (session, diagnostics) = build_session(args, false);
+    report_diagnostics(err, color, &diagnostics)?;
+    if diagnostics
+        .iter()
+        .any(|(kind, _)| *kind == DiagnosticKind::Error)
+    {
+        return Ok(1);
+    }
+    let stdout = Arc::new(Mutex::new(std::io::stdout()));
+    let output: cortexcode_code_rpc::RpcOutput = Arc::new(move |value| {
+        let line = cortexcode_code_rpc::serialize_json_line(value);
+        let mut stdout = stdout.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = stdout.write_all(line.as_bytes());
+        let _ = stdout.flush();
+    });
+    let host = Arc::new(cortexcode_code_rpc::SingleSessionHost::new(session));
+    Ok(async_runtime().block_on(cortexcode_code_rpc::run_rpc_mode(
+        host,
+        tokio::io::stdin(),
+        output,
+    )))
+}
+
 /// Write the queued `--mode json` lines.
 fn write_lines(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,

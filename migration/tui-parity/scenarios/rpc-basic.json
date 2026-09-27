@@ -1,0 +1,201 @@
+{
+  "description": "--mode rpc driven over stdin: get_state, a prompt with one read tool call (response after preflight, then the event stream), get_last_assistant_text, set_session_name, get_session_stats, get_messages, an unknown command, set_steering_mode, then EOF shuts down (exit 0). stdout is compared line by line after masking timestamps and session ids/files.",
+  "phase": "10.8c",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\nbeta\ngamma\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "--mode",
+    "rpc"
+  ],
+  "llm": [
+    {
+      "text": "Let me read it.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt",
+            "limit": 2
+          }
+        }
+      ]
+    },
+    {
+      "text": "The file starts with alpha and beta."
+    }
+  ],
+  "stdout_jsonl": {
+    "_comment": "Session id/file are random. message_update's `message` and `assistantMessageEvent.partial` are hoocode's live partial message, mutated while the event is queued (timing-dependent); see json-basic.",
+    "mask_keys": [
+      "timestamp",
+      "sessionId",
+      "sessionFile"
+    ],
+    "mask_fields": {
+      "message_update": [
+        "message",
+        "assistantMessageEvent.partial"
+      ]
+    }
+  },
+  "normalize": [
+    {
+      "pattern": "http://127\\.0\\.0\\.1:\\d+",
+      "replace": "http://127.0.0.1:<mock-port>",
+      "_comment": "the mock LLM listens on a random port (model baseUrl in get_state)"
+    }
+  ],
+  "steps": [
+    {
+      "type": "{\"id\":\"s1\",\"type\":\"get_state\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"get_state\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"p1\",\"type\":\"prompt\",\"message\":\"read notes.txt\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"type\":\"agent_end\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"t1\",\"type\":\"get_last_assistant_text\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"get_last_assistant_text\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"n1\",\"type\":\"set_session_name\",\"name\":\"  notes  \"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"set_session_name\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"n2\",\"type\":\"set_session_name\",\"name\":\"   \"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"error\":\"Session name cannot be empty\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"st\",\"type\":\"get_session_stats\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"get_session_stats\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"m1\",\"type\":\"get_messages\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"get_messages\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"u1\",\"type\":\"no_such_command\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "Unknown command",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"q1\",\"type\":\"set_steering_mode\",\"mode\":\"all\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"command\":\"set_steering_mode\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"s2\",\"type\":\"get_state\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"steeringMode\":\"all\"",
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "C-d"
+      ]
+    },
+    {
+      "wait_exit": true,
+      "timeout": 20
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

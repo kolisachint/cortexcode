@@ -294,13 +294,7 @@ pub fn run(
             output,
             err,
         ),
-        AppMode::Rpc => match cortexcode_code_rpc::start_stdio_server() {
-            Ok(()) => Ok(0),
-            Err(e) => {
-                writeln!(err, "rpc error: {e}")?;
-                Ok(1)
-            }
-        },
+        AppMode::Rpc => runtime::run_rpc_mode(parsed, env.color, err),
         AppMode::Interactive => match runtime::run_interactive_mode(parsed, output, err) {
             Ok(()) => Ok(0),
             Err(e) => {

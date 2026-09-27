@@ -63,6 +63,22 @@ pub trait ResourceLoader: Send + Sync {
     }
     /// `reload()`: re-read resources from disk.
     fn reload(&self) {}
+    /// Prompt templates then skills (`skill:<name>`), for RPC `get_commands`.
+    fn slash_commands(&self) -> Vec<SlashCommandInfo> {
+        Vec::new()
+    }
+}
+
+/// A command a client can invoke through `prompt` (`RpcSlashCommand`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SlashCommandInfo {
+    /// Without the leading slash.
+    pub name: String,
+    pub description: Option<String>,
+    /// `"extension" | "prompt" | "skill"`.
+    pub source: &'static str,
+    /// The TS `SourceInfo` object.
+    pub source_info: serde_json::Value,
 }
 
 /// A loader with no resources, or only a fixed system prompt (and appends).

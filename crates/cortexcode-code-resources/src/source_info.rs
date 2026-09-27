@@ -26,6 +26,31 @@ pub struct SourceInfo {
     pub base_dir: Option<String>,
 }
 
+impl SourceInfo {
+    /// The TS `SourceInfo` object (`{path, source, scope, origin, baseDir?}`).
+    pub fn to_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert("path".into(), self.path.clone().into());
+        map.insert("source".into(), self.source.clone().into());
+        let scope = match self.scope {
+            SourceScope::User => "user",
+            SourceScope::Project => "project",
+            SourceScope::Temporary => "temporary",
+        };
+        map.insert("scope".into(), scope.into());
+        let origin = match self.origin {
+            SourceOrigin::Package => "package",
+            SourceOrigin::TopLevel => "top-level",
+            SourceOrigin::ClaudeCode => "claude-code",
+        };
+        map.insert("origin".into(), origin.into());
+        if let Some(base_dir) = &self.base_dir {
+            map.insert("baseDir".into(), base_dir.clone().into());
+        }
+        serde_json::Value::Object(map)
+    }
+}
+
 /// `createSyntheticSourceInfo`: scope defaults to temporary, origin to top-level.
 pub fn create_synthetic_source_info(
     path: &str,

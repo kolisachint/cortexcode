@@ -115,6 +115,25 @@ pub enum AgentSessionEvent {
     },
 }
 
+/// The TS `CompactionResult` object (`{summary, firstKeptEntryId, tokensBefore,
+/// tokensAfter?, details?}`), as RPC `compact` and `compaction_end` carry it.
+pub fn compaction_result_json(result: &CompactionResult) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    map.insert("summary".into(), result.summary.clone().into());
+    map.insert(
+        "firstKeptEntryId".into(),
+        result.first_kept_entry_id.clone().into(),
+    );
+    map.insert("tokensBefore".into(), result.tokens_before.into());
+    if let Some(after) = result.tokens_after {
+        map.insert("tokensAfter".into(), after.into());
+    }
+    if let Some(details) = &result.details {
+        map.insert("details".into(), details.clone());
+    }
+    serde_json::Value::Object(map)
+}
+
 impl AgentSessionEvent {
     /// The event as hoocode's `--mode json` / RPC stream prints it
     /// (`JSON.stringify` of the TS `AgentSessionEvent`; `undefined` fields are
@@ -160,21 +179,7 @@ impl AgentSessionEvent {
             } => object(vec![
                 ("type", Some("compaction_end".into())),
                 ("reason", Some(reason(r).into())),
-                (
-                    "result",
-                    result.as_ref().map(|c| {
-                        object(vec![
-                            ("summary", Some(c.summary.as_str().into())),
-                            (
-                                "firstKeptEntryId",
-                                Some(c.first_kept_entry_id.as_str().into()),
-                            ),
-                            ("tokensBefore", Some(c.tokens_before.into())),
-                            ("tokensAfter", c.tokens_after.map(Value::from)),
-                            ("details", c.details.clone()),
-                        ])
-                    }),
-                ),
+                ("result", result.as_ref().map(compaction_result_json)),
                 ("aborted", Some((*aborted).into())),
                 ("willRetry", Some((*will_retry).into())),
                 ("errorMessage", error_message.as_deref().map(Value::from)),
@@ -260,6 +265,39 @@ pub struct PromptOptions {
     /// Required while streaming.
     pub streaming_behavior: Option<StreamingBehavior>,
     pub source: InputSource,
+    /// `preflightResult`: told once whether the prompt was accepted (sent,
+    /// queued or handled as a command) or rejected before reaching the model.
+    /// RPC mode answers the `prompt` command from it.
+    pub preflight_result: Option<PreflightResult>,
+}
+
+/// Callback for [`PromptOptions::preflight_result`].
+#[derive(Clone)]
+pub struct PreflightResult(pub Arc<dyn Fn(bool) + Send + Sync>);
+
+impl std::fmt::Debug for PreflightResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PreflightResult")
+    }
+}
+
+/// Reports a prompt's preflight outcome at most once.
+struct Preflight {
+    callback: Option<PreflightResult>,
+    reported: std::sync::atomic::AtomicBool,
+}
+
+impl Preflight {
+    fn report(&self, success: bool) {
+        if !self
+            .reported
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            if let Some(callback) = &self.callback {
+                (callback.0)(success);
+            }
+        }
+    }
 }
 
 impl Default for PromptOptions {
@@ -269,6 +307,7 @@ impl Default for PromptOptions {
             images: Vec::new(),
             streaming_behavior: None,
             source: InputSource::Interactive,
+            preflight_result: None,
         }
     }
 }
@@ -801,6 +840,16 @@ impl AgentSession {
         &self.inner.model_registry
     }
 
+    /// `modelRegistry.getAvailable()`: models with configured auth.
+    pub fn get_available_models(&self) -> Vec<Model> {
+        self.inner
+            .model_registry
+            .get_available(self.inner.auth.as_ref())
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
     pub fn cwd(&self) -> &Path {
         &self.inner.cwd
     }
@@ -1151,7 +1200,25 @@ impl AgentSession {
     /// `prompt()`: run extension commands, expand skills and templates, queue
     /// while streaming (per `streaming_behavior`), else validate the model and
     /// its auth and run a turn.
-    pub async fn prompt(&self, text: &str, options: PromptOptions) -> Result<()> {
+    pub async fn prompt(&self, text: &str, mut options: PromptOptions) -> Result<()> {
+        let preflight = Preflight {
+            callback: options.preflight_result.take(),
+            reported: Default::default(),
+        };
+        let result = self.prompt_inner(text, options, &preflight).await;
+        // Anything that failed before the turn started is a preflight failure.
+        if result.is_err() {
+            preflight.report(false);
+        }
+        result
+    }
+
+    async fn prompt_inner(
+        &self,
+        text: &str,
+        options: PromptOptions,
+        preflight: &Preflight,
+    ) -> Result<()> {
         if options.expand_prompt_templates && text.starts_with('/') {
             let (name, args) = Self::split_command(text);
             if self.inner.extensions.has_command(name) {
@@ -1162,6 +1229,7 @@ impl AgentSession {
                         error,
                     });
                 }
+                preflight.report(true);
                 return Ok(());
             }
         }
@@ -1183,6 +1251,7 @@ impl AgentSession {
                 Some(StreamingBehavior::FollowUp) => self.queue_follow_up(&expanded.text, &images),
                 Some(StreamingBehavior::Steer) => self.queue_steer(&expanded.text, &images),
             }
+            preflight.report(true);
             return Ok(());
         }
 
@@ -1253,6 +1322,7 @@ impl AgentSession {
         }
         self.inner.agent.set_system_prompt(system_prompt);
 
+        preflight.report(true);
         self.inner
             .agent
             .prompt(messages)
@@ -1391,6 +1461,7 @@ impl AgentSession {
                 images,
                 streaming_behavior: deliver_as,
                 source: InputSource::Extension,
+                preflight_result: None,
             },
         )
         .await

@@ -469,9 +469,13 @@ impl Model {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
+    #[serde(serialize_with = "js_f64")]
     pub input: f64,
+    #[serde(serialize_with = "js_f64")]
     pub output: f64,
+    #[serde(serialize_with = "js_f64")]
     pub cache_read: f64,
+    #[serde(serialize_with = "js_f64")]
     pub cache_write: f64,
 }
 

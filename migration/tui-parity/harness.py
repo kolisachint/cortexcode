@@ -429,7 +429,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
         tmux.start(argv, work, env, stdout_file)
         for i, step in enumerate(sc["steps"]):
             try:
-                run_step(tmux, step, out, normalizer, result)
+                run_step(tmux, step, out, normalizer, result, stdout_file)
             except StepError as e:
                 raise StepError(f"step {i} {json.dumps(step)}: {e}") from None
     except (StepError, RuntimeError) as e:
@@ -513,9 +513,19 @@ def normalize_jsonl(raw: str, normalizer: "Normalizer", opts: dict) -> str:
     return normalizer.apply_text("\n".join(lines) + ("\n" if lines else ""))
 
 
-def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: dict) -> None:
+def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: dict, stdout_file: Path | None = None) -> None:
     timeout = float(step.get("timeout", 15))
-    if "type" in step:
+    if "wait_stdout" in step:
+        # `stdout_jsonl` scenarios: wait until the captured stdout matches.
+        if stdout_file is None:
+            raise StepError("wait_stdout needs stdout_jsonl")
+        pattern = re.compile(step["wait_stdout"], re.M)
+        deadline = time.time() + timeout
+        while not (stdout_file.exists() and pattern.search(stdout_file.read_text(errors="replace"))):
+            if time.time() > deadline:
+                raise StepError(f"stdout did not match {step['wait_stdout']!r} within {timeout}s")
+            time.sleep(0.05)
+    elif "type" in step:
         tmux.send_text(step["type"])
     elif "keys" in step:
         tmux.send_keys(step["keys"] if isinstance(step["keys"], list) else [step["keys"]])

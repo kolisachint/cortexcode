@@ -26,6 +26,7 @@ Each `*.json` file is one scenario, run against the real hoocode (pinned build i
     {"wait_gone": "regex"},
     {"wait_stable": 1.0},                         // screen unchanged for N seconds
     {"wait_exit": true},                          // app process exited (print mode)
+    {"wait_stdout": "regex"},                     // captured stdout matches (stdout_jsonl scenarios)
     {"type": "literal text"},
     {"keys": ["Enter", "C-c", "Escape", "Up", "Tab"]},   // tmux key names
     {"sleep": 0.5},

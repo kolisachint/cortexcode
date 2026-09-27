@@ -924,10 +924,19 @@ dependencies = [
 name = "cortexcode-code-rpc"
 version = "0.0.1"
 dependencies = [
- "cortexcode-agent-tools",
- "cortexcode-code-tools",
+ "cortexcode-agent-core",
+ "cortexcode-agent-harness",
+ "cortexcode-agent-types",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
+ "cortexcode-code-models",
+ "cortexcode-code-session",
+ "cortexcode-code-settings",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -962,7 +971,6 @@ dependencies = [
  "cortexcode-agent-tools",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
- "cortexcode-code-rpc",
  "cortexcode-code-tools",
  "serde",
  "serde_json",

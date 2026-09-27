@@ -7,7 +7,9 @@
 
 use cortexcode_agent_types::{AgentTool, AgentToolResult};
 use cortexcode_ai_types::{Content, TextContent};
-use cortexcode_code_rpc::{Request, Response, RpcError};
+mod jsonrpc;
+
+use jsonrpc::{Request, Response, RpcError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;

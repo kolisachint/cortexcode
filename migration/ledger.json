@@ -2707,27 +2707,95 @@
   },
   {
    "id": "10.8c",
-   "title": "RPC protocol parity (rpc-types/rpc-mode/jsonl) + Rust rpc client; replaces generic JSON-RPC server",
+   "title": "RPC mode core: jsonl framing, rpc-types, rpc-mode command loop over AgentSession (replaces the generic JSON-RPC server)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
    "crates": [
-    "cortexcode-code-rpc"
+    "cortexcode-code-rpc",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-cli",
+    "cortexcode-code-resources",
+    "cortexcode-code-subagents",
+    "cortexcode-ai-types"
    ],
    "sources": [
-    "packages/coding-agent/src/modes/rpc/",
+    "packages/coding-agent/src/modes/rpc/jsonl.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-types.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
     "packages/coding-agent/docs/rpc.md"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/rpc*.test.ts"
+    "packages/coding-agent/test/rpc-jsonl.test.ts",
+    "packages/coding-agent/test/rpc-prompt-response-semantics.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
     "rpc-basic"
    ],
-   "notes": "",
+   "notes": "Split 2026-09-27: session-replacing commands (new_session/switch_session/fork/clone) need the CLI on AgentSessionRuntime -> 10.8d; the Rust RpcClient (rpc-client.ts, rpc.test.ts, rpc-client-clone.test.ts) -> 10.8e. export_html waits on phase 12; extension_ui_request dialogs on the extension runner (12.3).",
+   "log": [
+    {
+     "at": "2026-09-27T05:43:13Z",
+     "commit": "fe447b9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:52:40Z",
+     "commit": "fe447b9",
+     "kind": "verify",
+     "text": "L1 pass; L2 rpc-basic=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.8d",
+   "title": "RPC session commands on AgentSessionRuntime: new_session, switch_session, fork, clone (CLI rpc mode runs a runtime host)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.8c"
+   ],
+   "crates": [
+    "cortexcode-code-rpc",
+    "cortexcode-code-cli",
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+    "packages/coding-agent/src/core/agent-session-runtime.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "10.8c answers these commands with an error until the CLI builds an AgentSessionRuntime.",
+   "log": []
+  },
+  {
+   "id": "10.8e",
+   "title": "Rust RpcClient (rpc-client.ts): spawn cortex --mode rpc, typed commands, events, promptAndWait",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.8c"
+   ],
+   "crates": [
+    "cortexcode-code-rpc"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/rpc/rpc-client.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/rpc-client-clone.test.ts",
+    "packages/coding-agent/test/rpc.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "rpc.test.ts needs a live Anthropic key: port it against the faux/mock provider, keep a live variant #[ignore]d.",
    "log": []
   },
   {
@@ -2736,7 +2804,8 @@
    "phase": 10,
    "status": "todo",
    "depends": [
-    "10.8c"
+    "10.8c",
+    "10.8e"
    ],
    "crates": [
     "cortexcode-code-subagents"

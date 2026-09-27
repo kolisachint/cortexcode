@@ -19,7 +19,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done.
 - 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
-  and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape).
+  and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
+  10.8c done (`--mode rpc` core). Next: 10.8d (RPC session commands on AgentSessionRuntime) or
+  10.8e (Rust RpcClient); `ledger.py next` decides.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -31,6 +33,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.8c done (--mode rpc core); split off 10.8d / 10.8e
+- `cortexcode-code-rpc` rewritten on hoocode's protocol: `jsonl` (LF-only framing, `\r`
+  stripped, maxBuffer) and `mode` (`RpcMode::handle_line`, `run_rpc_mode`, `RpcHost`). Every
+  command in rpc-types.ts is handled; long ones (prompt, compact, bash, abort, session
+  switches) run in the background like hoocode's un-awaited handlers, the rest in order.
+- The invented JSON-RPC 2.0 server is gone; its types live on privately in code-subagents
+  (`jsonrpc.rs`) until 10.9 moves subagents onto the real protocol.
+- code-agent-session: `PromptOptions::preflight_result` (hoocode's `preflightResult`),
+  `get_available_models`, `ResourceLoader::slash_commands` (get_commands),
+  `compaction_result_json`; stats `cost`/`percent` and `ModelCost` print as JS numbers.
+- Gaps (ledgered): new_session/switch_session/fork/clone answer an error until the CLI runs
+  an `AgentSessionRuntime` (10.8d); the Rust RpcClient is 10.8e; export_html (phase 12) and
+  extension UI dialogs (12.3) are not there; parse-error text is serde's, not V8's.
+- Harness: `wait_stdout` step. L2 `rpc-basic` (new, stable) passes.
+- Tests: rpc-jsonl.test.ts, rpc-prompt-response-semantics.test.ts (+ id/unknown/parse cases).
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.8b done (--mode json event stream)
 - Wire serializers: `AssistantMessageEvent::to_json` (ai-types; contentIndex, `content` on

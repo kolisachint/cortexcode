@@ -21,7 +21,7 @@ pub use hooks::{
     CommandFuture, ExpandedInput, ExtensionError, ExtensionHooks, ExtensionSummary, ForkPosition,
     NoExtensions, ResourceLoader, SessionEvent, SessionEventFuture, SessionEventResult,
     SessionShutdownReason, SessionStartEvent, SessionStartReason, SessionSwitchReason,
-    StaticResourceLoader, TemplateKind, TreePreparation,
+    SlashCommandInfo, StaticResourceLoader, TemplateKind, TreePreparation,
 };
 pub use resources::DefaultResources;
 pub use runtime::{
@@ -34,10 +34,10 @@ pub use services::{
     CreatedAgentSession, DiagnosticKind, NoTools,
 };
 pub use session::{
-    AgentSession, AgentSessionConfig, AgentSessionError, AgentSessionEvent, BaseTools,
-    BaseToolsContext, BaseToolsFactory, CycleDirection, DeliverAs, InputSource, ModelCycleResult,
-    PromptOptions, ScopedModel, SessionSubscription, StreamingBehavior, ToolInfo, ToolSource,
-    DEFAULT_ACTIVE_TOOL_NAMES, DEFAULT_THINKING_LEVEL,
+    compaction_result_json, AgentSession, AgentSessionConfig, AgentSessionError, AgentSessionEvent,
+    BaseTools, BaseToolsContext, BaseToolsFactory, CycleDirection, DeliverAs, InputSource,
+    ModelCycleResult, PreflightResult, PromptOptions, ScopedModel, SessionSubscription,
+    StreamingBehavior, ToolInfo, ToolSource, DEFAULT_ACTIVE_TOOL_NAMES, DEFAULT_THINKING_LEVEL,
 };
 pub use stats::{
     AssistantUsageTotals, ContextUsage, ForkableMessage, SessionStats, TokenStats,
