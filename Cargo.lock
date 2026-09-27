@@ -933,6 +933,7 @@ dependencies = [
  "cortexcode-code-models",
  "cortexcode-code-session",
  "cortexcode-code-settings",
+ "libc",
  "serde",
  "serde_json",
  "tempfile",

@@ -6,6 +6,7 @@
 //! The wire format is hoocode's (`docs/rpc.md`); it is also what subagents
 //! speak (`--mode rpc`).
 
+pub mod client;
 pub mod jsonl;
 pub mod mode;
 

@@ -20,8 +20,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
-  10.8c done (`--mode rpc` core). Next: 10.8d (RPC session commands on AgentSessionRuntime) or
-  10.8e (Rust RpcClient); `ledger.py next` decides.
+  10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`). Next: **10.8d** (RPC
+  new_session/switch_session/fork/clone: the CLI's rpc mode needs an AgentSessionRuntime host).
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -33,6 +33,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.8e done (Rust RpcClient)
+- `cortexcode_code_rpc::client::RpcClient` (rpc-client.ts): spawns `<exe> --mode rpc`, `req_<n>`
+  ids, every typed command, `on_event`/`on_exit`, `wait_for_idle`, `collect_events`,
+  `prompt_and_wait`, fail-fast on child exit, SIGTERM then kill on `stop`. `RpcClient::attach`
+  drives any stream pair (tests run it against in-process `run_rpc_mode` on the faux provider).
+- Tests: rpc-client-clone.test.ts, rpc.test.ts ported off the live Anthropic key (9).
+- Next: 10.8d, then 10.9 (subagents move onto this client and drop code-subagents' jsonrpc.rs).
 
 ### 2026-09-27: 10.8c done (--mode rpc core); split off 10.8d / 10.8e
 - `cortexcode-code-rpc` rewritten on hoocode's protocol: `jsonl` (LF-only framing, `\r`

@@ -2779,7 +2779,7 @@
    "id": "10.8e",
    "title": "Rust RpcClient (rpc-client.ts): spawn cortex --mode rpc, typed commands, events, promptAndWait",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8c"
    ],
@@ -2796,7 +2796,38 @@
    "l1_cmds": [],
    "l2": [],
    "notes": "rpc.test.ts needs a live Anthropic key: port it against the faux/mock provider, keep a live variant #[ignore]d.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T05:56:52Z",
+     "commit": "47ff716",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:57:38Z",
+     "commit": "47ff716",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:58:00Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T05:58:06Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T05:58:18Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
   },
   {
    "id": "10.9",
