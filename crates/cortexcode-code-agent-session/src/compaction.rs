@@ -30,6 +30,8 @@ pub(crate) struct CompactionState {
     pub(crate) auto_abort: Option<AbortSignal>,
     /// One compact-and-retry per overflow; cleared by new input or a good response.
     pub(crate) overflow_recovery_attempted: bool,
+    /// Tree navigation's branch summarization (`TreeNavigationController`).
+    pub(crate) branch_summary_abort: Option<AbortSignal>,
 }
 
 /// What `checkCompaction` decided.
@@ -65,10 +67,12 @@ impl AgentSession {
         }
     }
 
-    /// Whether manual or auto compaction is running.
+    /// Whether manual or auto compaction, or branch summarization, is running.
     pub fn is_compacting(&self) -> bool {
         let state = self.compaction_state();
-        state.manual_abort.is_some() || state.auto_abort.is_some()
+        state.manual_abort.is_some()
+            || state.auto_abort.is_some()
+            || state.branch_summary_abort.is_some()
     }
 
     pub fn auto_compaction_enabled(&self) -> bool {

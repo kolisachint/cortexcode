@@ -21,7 +21,7 @@ use cortexcode_code_tool_bash::BashToolOptions;
 use cortexcode_code_tools_fs::ReadToolOptions;
 
 use crate::auth_guidance::format_no_models_available_message;
-use crate::hooks::{ExtensionHooks, ResourceLoader};
+use crate::hooks::{ExtensionHooks, ResourceLoader, SessionStartEvent};
 use crate::session::{
     AgentSession, AgentSessionConfig, BaseTools, BaseToolsContext, ScopedModel,
     DEFAULT_ACTIVE_TOOL_NAMES, DEFAULT_THINKING_LEVEL,
@@ -103,6 +103,8 @@ pub struct CreateAgentSessionOptions {
     pub permission_gate: Option<Arc<dyn PermissionGate>>,
     /// Default: the API registry's `stream_simple`.
     pub stream_fn: Option<SharedStreamFn>,
+    /// Default: `startup`.
+    pub session_start_event: Option<SessionStartEvent>,
 }
 
 /// `CreateAgentSessionResult`.
@@ -466,6 +468,7 @@ pub fn create_agent_session(
             .base_tools
             .unwrap_or_else(|| BaseTools::Factory(Arc::new(default_base_tools))),
         extensions: options.extensions,
+        session_start_event: options.session_start_event,
     });
     CreatedAgentSession {
         session,

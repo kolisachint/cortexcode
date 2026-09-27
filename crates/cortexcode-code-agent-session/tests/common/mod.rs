@@ -115,6 +115,7 @@ impl Harness {
             disallowed_tool_names: options.disallowed_tool_names,
             base_tools: BaseTools::Override(options.tools),
             extensions: options.extensions,
+            session_start_event: None,
         });
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = events.clone();

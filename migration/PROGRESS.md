@@ -14,7 +14,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 - Phase 9: 9.2a/9.3a/9.3b/9.4a/9.4b done; 9.1 blocked on the rmcp decision (see its ledger
   block); 9.2b is l1_done (L2 compact-command waits on the interactive app).
 - 10.3a done: print mode (and the stopgap interactive loop) run on `AgentSession`
-  (`crates/cortexcode-code-agent-session`). Next in that line: 10.3b, 10.3c, 10.6, 10.8b.
+  (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done; next in that line: 10.6, 10.8b.
 - Phase 10: 10.1 split into 10.1a/b/c all done: code-paths + code-settings, and the CLI
   reads settings.json (the invented `Config` / `config.json` crate is gone).
 - Milestone M1 (first Level-2 green with identical model requests) is **reached** through
@@ -23,6 +23,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.3c done (tree navigation, fork, runtime replacement)
+- `code-agent-session::tree` (agent-session-tree-navigation.ts): `navigate_tree` (leaf moves,
+  editor text for user/custom messages, optional branch summary at the new position, labels,
+  `session_before_tree`/`session_tree` hooks), `abort_branch_summary`; branch summarization
+  counts as `is_compacting` and the abort races the summary request.
+- `code-agent-session::runtime` (agent-session-runtime.ts + session-cwd.ts):
+  `AgentSessionRuntime` over a `RuntimeFactory` closure with `new_session`, `switch_session`,
+  `fork` (before/at, persisted and in-memory), `change_directory` (pinned session dir travels),
+  `import_from_jsonl`, `dispose`, rebind / before-invalidate callbacks;
+  `assert_session_cwd_exists`.
+- `ExtensionHooks` gained `has_handlers` + `emit_session_event(SessionEvent)`; sessions carry
+  a `session_start_event` emitted by `bind_extensions()`; `AgentSession::reload()`.
+- Tests: `tests/runtime.rs` (suite runtime + runtime-events + branching, faux models reach
+  the registry via models.json; agent dir isolated by env), `tests/tree_navigation.rs`.
+  Extension-only cases (message_end replacement, stale ctx, withSession) noted on 12.3.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 9.2b l1_done (/compact, compaction e2e tests)
 - `tests/compaction_e2e.rs` ports `test/agent-session-compaction.test.ts` (live-model e2e) onto

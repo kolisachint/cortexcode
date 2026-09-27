@@ -2222,7 +2222,7 @@
    "id": "10.3c",
    "title": "AgentSession tree navigation, fork and runtime rebuild (agent-session-tree-navigation.ts, agent-session-runtime.ts)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -2231,11 +2231,14 @@
    ],
    "sources": [
     "packages/coding-agent/src/core/agent-session-tree-navigation.ts",
-    "packages/coding-agent/src/core/agent-session-runtime.ts"
+    "packages/coding-agent/src/core/agent-session-runtime.ts",
+    "packages/coding-agent/src/core/session-cwd.ts"
    ],
    "ts_tests": [
     "packages/coding-agent/test/suite/agent-session-runtime.test.ts",
-    "packages/coding-agent/test/agent-session*tree*.test.ts"
+    "packages/coding-agent/test/agent-session*tree*.test.ts",
+    "packages/coding-agent/test/agent-session-runtime-events.test.ts",
+    "packages/coding-agent/test/agent-session-branching.test.ts"
    ],
    "l1_cmds": [],
    "l2": "n/a: library-internal; exercised by /tree (phase 11) and --fork (10.7b)",
@@ -2246,6 +2249,24 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: port test/agent-session-runtime-events.test.ts and test/agent-session-branching.test.ts here (both skipped in 10.3a). AgentSession has no reload()/runtime rebuild yet: build_runtime/refresh_tool_registry exist (session.rs) and BaseTools::Factory re-reads settings, so reload = settings.reload + build_runtime(active names)."
+    },
+    {
+     "at": "2026-09-27T02:34:48Z",
+     "commit": "90723c2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T02:43:57Z",
+     "commit": "90723c2",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    },
+    {
+     "at": "2026-09-27T02:44:03Z",
+     "commit": "90723c2",
+     "kind": "note",
+     "text": "AgentSessionRuntime (runtime.rs: new/switch/fork/cd/import/dispose + session-cwd.ts), navigate_tree/abort_branch_summary (tree.rs), reload(). Tests: runtime.rs (15: suite runtime + runtime-events + branching on faux, models via models.json), tree_navigation.rs (11). Extension-only cases noted on 12.3."
     }
    ]
   },
@@ -2761,6 +2782,12 @@
      "commit": "74e6c23",
      "kind": "note",
      "text": "10.3b: compaction skips the session_before_compact / session_compact hooks (summaries always come from the model); retry-events 'emits extension events before public subscribers' and 'prompt waits for retry when message_end handling is delayed', and compaction 'extension-provided summary' / 'extension cancel' are left for here."
+    },
+    {
+     "at": "2026-09-27T02:44:03Z",
+     "commit": "90723c2",
+     "kind": "note",
+     "text": "10.3c: ExtensionHooks gained has_handlers/emit_session_event (SessionEvent: start, before_switch/fork/tree, shutdown, tree) and AgentSession::bind_extensions/reload. Port here: suite/agent-session-runtime 'persists message_end assistant replacements' and runtime-events 'stale extension ctx' check; withSession/ReplacedSessionContext on AgentSessionRuntime; session_start(reload) after reload with bindings."
     }
    ]
   },
