@@ -2416,23 +2416,49 @@
    ]
   },
   {
+   "id": "10.5d",
+   "title": "Resources IV: package-resource-discovery.ts + the local/auto part of DefaultPackageManager.resolve (settings resource entries, auto-discovered dirs incl. .agents/.claude, patterns and overrides, precedence); npm/git packages stay 12.2",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5a"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/package-resource-discovery.ts",
+    "packages/coding-agent/src/core/package-manager.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/package-manager.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal; rendered through 10.5 (print-context-files)",
+   "notes": "Port only the resolve() cases of package-manager.test.ts that need no npm/git package sources (describe blocks: resolve, auto-discovered skill metadata, .agents/skills auto-discovery, ignore files, pattern filtering in top-level arrays, force-include/force-exclude top-level, multi-file extension discovery). The rest belongs to 12.2.",
+   "log": []
+  },
+  {
    "id": "10.5",
    "title": "Resources III: DefaultResourceLoader (resource-loader.ts) as the AgentSession ResourceLoader, wired into code-cli (skills, templates, context files in the system prompt)",
    "phase": 10,
    "status": "todo",
    "depends": [
     "10.5a",
-    "10.5c"
+    "10.5c",
+    "10.5d"
    ],
    "crates": [
     "cortexcode-code-resources"
    ],
    "sources": [
-    "packages/coding-agent/src/core/resource-loader.ts"
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/core/builtin-skills.ts"
    ],
    "ts_tests": [
     "packages/coding-agent/test/resource-loader.test.ts",
-    "packages/coding-agent/test/sdk-skills.test.ts"
+    "packages/coding-agent/test/sdk-skills.test.ts",
+    "packages/coding-agent/test/builtin-skills.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
@@ -2451,6 +2477,12 @@
      "commit": "e550a22",
      "kind": "note",
      "text": "Split: 10.5a (frontmatter, skills, prompt templates, slash commands, agent-frontmatter) and 10.5c (context files, agent registry) were carved out; 10.5 keeps resource-loader.ts, the session/CLI wiring and the print-context-files L2 gate. 10.5b (modes) keeps depending on 10.5. The existing cortexcode-code-resources crate was invented (not a port) and is replaced by these tasks."
+    },
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "HEAD",
+     "kind": "note",
+     "text": "Split again: 10.5d takes package-resource-discovery.ts and the local/auto half of package-manager resolve() (the loader's source of default skill/prompt/theme/extension dirs). 10.5 also takes builtin-skills.ts (the artifact-design skill 10.4c's notes assign here). print-context-files must run in default mode (light mode disables context files), so its request comparison waits on the default-bundle prompt gates like print-tool-read (user decision 2026-09-25)."
     }
    ]
   },
