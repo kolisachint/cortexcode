@@ -20,6 +20,7 @@ pub mod output_verifier;
 pub mod pool;
 pub mod result;
 pub mod token_budget;
+pub mod tools;
 pub mod warm;
 
 pub use pool::{

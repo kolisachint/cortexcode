@@ -44,6 +44,11 @@ FIELD_DEFAULTS = {
     ("SessionInfo", "color"): "None",
     ("*", "cache_retention"): "None",
     ("AgentTool", "plain_json_schema"): "false",
+    ("AgentTool", "background_when"): "None",
+    ("ToolDefinition", "background_when"): "None",
+    ("ToolContext", "cwd"): "None",
+    ("ToolContext", "available_models"): "Vec::new()",
+    ("ToolContext", "session_file"): "None",
     ("Tool", "defer_loading"): "None",
 }
 REMOVED = {"stop_sequence", "cache_control", "cache_control_format", "supports_long_cache_retention"}

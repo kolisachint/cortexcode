@@ -22,8 +22,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
-  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox). Next: **10.9d** (Task/TaskOutput
-  tools, agents roster, L2 subagent-task).
+  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools).
+  Next: **10.9f** (Task tool in sessions + L2 subagent-task).
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -35,6 +35,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9d done (Task/TaskOutput tools); 10.9d split off 10.9f
+- 10.9d was split: the tools here; session wiring (flags/settings, task-main appendix, agents roster,
+  skill forwarding, exit-time pool dispose) and L2 `subagent-task` moved to the new 10.9f.
+- code-subagents `tools`: `create_task_tool_definition` (cold/warm/background/resume/fork paths,
+  provider-exhaustion skip, delegate scoping, unknown-agent error, task store + roster bookkeeping,
+  child task-tree merge, abort -> `pool.cancel`) and `create_task_output_tool_definition` (roster,
+  collect-once, running/failed status, `wait` / barrier); `build_task_main_prompt` with hoocode's
+  task-*.md templates embedded; `resolve_fork_session_file`; `format_duration_secs`.
+- `AgentTool` / `ToolDefinition` gain `background_when` (hoocode's `background: (toolCall) =>
+  boolean`), used by the agent loop's partition; `ToolContext` gains cwd, available models and
+  session file (filled by AgentSession). Struct literals updated with fix_struct_fields.py.
+- Tools block on their async work via `block_in_place` + `Handle::block_on` (they run in
+  spawn_blocking threads).
+- hoocode quirk kept: the "partial result, resume with ..." hint keys off the pool result's status,
+  which the pool only ever sets to complete/failed.
+- Next: 10.9f. main.ts buildSessionOptions (enableSubagent default true, --enable-subagents /
+  --no-subagents, --delegate-allow env, --warm-subagents env, --max-subagent-depth seeding),
+  `buildTaskMainPrompt` as an append-system-prompt, `<available_agents>` in
+  AgentSession::rebuild_system_prompt when Task is active, then L2 `subagent-task`.
 
 ### 2026-09-27: 10.9c done (warm subagent pool + inbox)
 - code-subagents `warm`: `WarmSubagentWorker` (a `--mode rpc` child through `RpcClient`: prompt and

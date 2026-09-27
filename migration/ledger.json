@@ -3084,33 +3084,30 @@
   },
   {
    "id": "10.9d",
-   "title": "Task/TaskOutput tools on the pool; agents roster in the system prompt",
+   "title": "Task/TaskOutput tool definitions on the pools and inbox (cold/warm/background/resume/fork paths, provider-exhaustion skip, delegate scoping); per-call background predicate in the agent loop; tool context gets cwd, available models, session file",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.9c",
     "10.9e"
    ],
    "crates": [
-    "cortexcode-code-subagents"
+    "cortexcode-code-subagents",
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-code-tool-api"
    ],
    "sources": [
     "packages/coding-agent/src/core/tools/subagent.ts"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/subagent.test.ts",
-    "packages/coding-agent/test/subagent-skills.test.ts",
-    "packages/coding-agent/test/subagent-footer.test.ts",
-    "packages/coding-agent/test/subagent-progress-roster.test.ts",
     "packages/coding-agent/test/task-output.test.ts",
-    "packages/coding-agent/test/mode-subagent-appendix.test.ts",
-    "packages/coding-agent/test/suite/subagent-execution.test.ts"
+    "packages/coding-agent/test/subagent-progress-roster.test.ts",
+    "packages/coding-agent/test/subagent.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [
-    "subagent-task"
-   ],
-   "notes": "subagent-dispatch-tui-output.test.ts and canvas-shim-dispatch.test.ts render in the TUI: phase 11.",
+   "l2": [],
+   "notes": "Split: session wiring and the L2 moved to 10.9f. subagent-footer.test.ts and subagent-dispatch-tui-output / canvas-shim-dispatch render in the TUI (phase 11).",
    "log": [
     {
      "at": "2026-09-27T07:10:00Z",
@@ -3119,10 +3116,77 @@
      "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
     },
     {
+     "at": "2026-09-27T07:42:31Z",
+     "commit": "ec77115",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T11:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split 10.9d: tools here, session wiring + L2 subagent-task in 10.9f."
+    },
+    {
+     "at": "2026-09-27T07:50:48Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:51:00Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:51:09Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9f",
+   "title": "Task tool in sessions: enableSubagent / --enable-subagents / --no-subagents / --delegate-allow / --warm-subagents / --max-subagent-depth, the task-main appendix, the agents roster in the system prompt, subagent skill forwarding, shared pools disposed at exit",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.9d"
+   ],
+   "crates": [
+    "cortexcode-code-cli",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/main.ts",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/tools/subagent.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/subagent-execution.test.ts",
+    "packages/coding-agent/test/subagent-skills.test.ts",
+    "packages/coding-agent/test/mode-subagent-appendix.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "subagent-task"
+   ],
+   "notes": "",
+   "log": [
+    {
      "at": "2026-09-26T23:42:24Z",
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
+    },
+    {
+     "at": "2026-09-27T11:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9d."
     }
    ]
   },
@@ -3322,7 +3386,7 @@
    "status": "todo",
    "depends": [
     "11.2",
-    "10.9d"
+    "10.9f"
    ],
    "crates": [
     "cortexcode-code-tui-widgets"

@@ -394,6 +394,12 @@ impl SubagentPool {
             .push(Arc::new(listener));
     }
 
+    /// Test hook: deliver a synthetic event to the listeners.
+    #[doc(hidden)]
+    pub fn emit_for_testing(&self, name: &'static str, data: Value) {
+        self.inner.emit(name, data);
+    }
+
     /// The lifeguard (tests inject stall verdicts through it).
     pub fn lifeguard(&self) -> &Arc<SubagentLifeguard> {
         &self.inner.lifeguard

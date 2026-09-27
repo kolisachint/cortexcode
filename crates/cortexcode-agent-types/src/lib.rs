@@ -423,6 +423,9 @@ impl AgentToolResult {
 // Agent tool definition
 // ---------------------------------------------------------------------------
 
+/// `background` as a function of the tool call.
+pub type BackgroundPredicate = std::sync::Arc<dyn Fn(&AgentToolCall) -> bool + Send + Sync>;
+
 /// Tool definition used by the agent runtime. Its callbacks are `Arc`s, so
 /// clones share them. Use the tool-building helpers to create one.
 #[allow(clippy::type_complexity)]
@@ -434,6 +437,10 @@ pub struct AgentTool {
     pub prepare_arguments: Option<PrepareArgumentsFn>,
     pub execute: ToolExecuteFn,
     pub background: bool,
+    /// Per-call background decision (`background: (toolCall) => boolean`),
+    /// for tools whose background-ness depends on their arguments. Takes
+    /// precedence over `background`.
+    pub background_when: Option<BackgroundPredicate>,
     pub execution_mode: Option<ToolExecutionMode>,
     /// The parameters are a plain JSON schema (MCP tools) rather than one
     /// hoocode builds with TypeBox: validation then applies
@@ -519,8 +526,17 @@ impl AgentTool {
             prepare_arguments: None,
             execute: std::sync::Arc::from(execute),
             background: false,
+            background_when: None,
             execution_mode: None,
             plain_json_schema: false,
+        }
+    }
+
+    /// `isBackgroundTool`: the per-call predicate when set, else `background`.
+    pub fn is_background(&self, tool_call: &AgentToolCall) -> bool {
+        match &self.background_when {
+            Some(predicate) => predicate(tool_call),
+            None => self.background,
         }
     }
 }
@@ -535,6 +551,7 @@ impl Clone for AgentTool {
             prepare_arguments: self.prepare_arguments.clone(),
             execute: std::sync::Arc::clone(&self.execute),
             background: self.background,
+            background_when: self.background_when.clone(),
             execution_mode: self.execution_mode.clone(),
             plain_json_schema: self.plain_json_schema,
         }

@@ -992,11 +992,31 @@ impl AgentSession {
         let weak = Arc::downgrade(&self.inner);
         let branch: Arc<dyn SessionBranch> =
             Arc::new(BranchView(self.inner.session_manager.clone()));
-        Arc::new(move || ToolContext {
-            model: weak
-                .upgrade()
-                .and_then(|inner| inner.agent.with_state(|s| real_model(&s.model).cloned())),
-            session_manager: Some(branch.clone()),
+        Arc::new(move || {
+            let inner = weak.upgrade();
+            ToolContext {
+                model: inner
+                    .as_ref()
+                    .and_then(|inner| inner.agent.with_state(|s| real_model(&s.model).cloned())),
+                session_manager: Some(branch.clone()),
+                cwd: inner.as_ref().map(|inner| inner.cwd.clone()),
+                available_models: inner
+                    .as_ref()
+                    .map(|inner| {
+                        inner
+                            .model_registry
+                            .get_available(inner.auth.as_ref())
+                            .into_iter()
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                session_file: inner.as_ref().and_then(|inner| {
+                    lock(&inner.session_manager)
+                        .session_file()
+                        .map(Path::to_path_buf)
+                }),
+            }
         })
     }
 

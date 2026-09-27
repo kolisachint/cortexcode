@@ -66,7 +66,7 @@ pub fn create_search_tool_definition(
     options: SearchToolOptions,
 ) -> ToolDefinition {
     let cwd: PathBuf = cwd.into();
-    ToolDefinition {
+    ToolDefinition { background_when: None,
         name: "SearchCodebase".into(),
         label: "SearchCodebase".into(),
         description: "Find where code lives: ranked file:line-range results, fusing keyword and semantic retrieval over a local index with exact-text search of files the index has not read yet. The query is plain text, not a regex — regex metacharacters are matched literally. Falls back to exact-text retrieval automatically when the index is unavailable, and still finds code written moments ago that no index has seen.".into(),

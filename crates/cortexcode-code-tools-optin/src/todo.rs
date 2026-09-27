@@ -247,7 +247,7 @@ impl StoreRef {
 
 /// `createTodoWriteToolDefinition`.
 pub fn create_todo_write_tool_definition(store: StoreRef) -> ToolDefinition {
-    ToolDefinition {
+    ToolDefinition { background_when: None,
         name: TODO_WRITE_TOOL_NAME.into(),
         label: TODO_WRITE_TOOL_NAME.into(),
         description: [

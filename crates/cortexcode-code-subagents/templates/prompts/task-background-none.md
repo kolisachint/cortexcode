@@ -1,0 +1,1 @@
+- You can force any task to run in the background with `background: true` (non-blocking): keep working, then pull its result with `TaskOutput` (e.g. `TaskOutput("explore#1")`) or block on it with `TaskOutput(wait: true)`.
