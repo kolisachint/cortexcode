@@ -55,6 +55,8 @@ SCENARIOS = HERE / "scenarios"
 OUT = ROOT / "target" / "tui-parity"
 NORMALIZE = HERE / "normalize.json"
 APPS = ("hoocode", "cortex")
+# Each app's project config dir (`{config}` in `work_files` paths).
+CONFIG_DIRS = {"hoocode": ".hoocode", "cortex": ".cortexcode"}
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +455,20 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
             (out / "stdout.jsonl").write_text(raw)
             result["stdout"] = normalize_jsonl(raw, normalizer, sc["stdout_jsonl"])
             (out / "stdout.normalized.jsonl").write_text(result["stdout"])
+        # `work_files`: files the run leaves in the workspace, compared after
+        # masking (e.g. a subagent's result.json). {"<path>": {"mask_keys": [...]}},
+        # `{config}` in a path = the app's config dir.
+        if sc.get("work_files"):
+            result["files"] = {}
+            for rel, opts in sc["work_files"].items():
+                path = work / rel.format(config=CONFIG_DIRS[app])
+                raw = path.read_text() if path.exists() else None
+                if raw is None:
+                    text = "<missing>\n"
+                else:
+                    text = normalize_jsonl(json.dumps(json.loads(raw)), normalizer, opts or {})
+                result["files"][rel] = text
+                (out / ("file-" + rel.replace("/", "_").replace("{config}", "config"))).write_text(text)
         if keep:
             (out / "tmpdir.txt").write_text(str(tmp))
         else:
@@ -623,6 +639,18 @@ def compare(sc: dict, results: dict[str, dict], out: Path) -> str:
                 return out
             diff = difflib.unified_diff(explode(h), explode(c), "hoocode", "cortex", lineterm="")
             lines += ["", "```diff", *list(diff)[:400], "```", ""]
+    if hoo and cor and hoo["ok"] and sc.get("work_files"):
+        for rel in sc["work_files"]:
+            h, c = hoo.get("files", {}).get(rel, ""), cor.get("files", {}).get(rel, "")
+            lines.append(f"- `{rel}`: {'✓' if h == c else '✗'}")
+            if h != c:
+                status = "fail"
+                diff = difflib.unified_diff(
+                    json.dumps(json.loads(h), indent=1).splitlines() if h.startswith("{") else [h],
+                    json.dumps(json.loads(c), indent=1).splitlines() if c.startswith("{") else [c],
+                    "hoocode", "cortex", lineterm="",
+                )
+                lines += ["", "```diff", *list(diff)[:200], "```", ""]
     lines.insert(1, f"\n**Result: {status}**\n")
     (out / "report.md").write_text("\n".join(lines) + "\n")
     write_html(sc, results, out, status)
@@ -727,6 +755,8 @@ def cmd_selfcheck(names: list[str]) -> int:
         diffs = [n for n, s in runs[0]["snapshots"].items() if runs[1]["snapshots"].get(n, {}).get("style") != s["style"]]
         if runs[0].get("stdout") != runs[1].get("stdout"):
             diffs.append("stdout")
+        if runs[0].get("files") != runs[1].get("files"):
+            diffs.append("work_files")
         if diffs:
             bad += 1
             print(f"unstable {name}: snapshots {diffs} differ between two hoocode runs (see {OUT / name}/selfcheck-*)")

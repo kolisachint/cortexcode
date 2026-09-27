@@ -68,11 +68,25 @@ async fn run(
     let outcome = match &signal {
         Some(signal) => tokio::select! {
             biased;
-            _ = signal.cancelled() => Err(RequestError::plain("Request was aborted")),
-            r = drive(&model, &context, &options, &mut state, &sender) => r,
+            _ = signal.cancelled() => Err(None),
+            r = drive(&model, &context, &options, &mut state, &sender) => r.map_err(Some),
         },
-        None => drive(&model, &context, &options, &mut state, &sender).await,
+        None => drive(&model, &context, &options, &mut state, &sender)
+            .await
+            .map_err(Some),
     };
+    // Cancelled before the response arrived: the SDK's APIUserAbortError
+    // ("Request was aborted."). Mid-stream the SDK's iterator just ends and
+    // the provider throws its own "Request was aborted".
+    let outcome = outcome.map_err(|error| {
+        error.unwrap_or_else(|| {
+            RequestError::plain(if state.response_started {
+                "Request was aborted"
+            } else {
+                "Request was aborted."
+            })
+        })
+    });
     match outcome {
         Ok(()) => {
             let message = state.output.clone();
@@ -169,6 +183,7 @@ async fn drive(
     let url = format!("{}/chat/completions", model.base_url.trim_end_matches('/'));
 
     let response = create_with_param_fallback(model, &url, &headers, params, options).await?;
+    state.response_started = true;
     OnResponse::notify(
         options.on_response.as_ref(),
         cortexcode_ai_util::provider_response(&response),
@@ -292,6 +307,8 @@ struct StreamState {
     /// Stream index of each tool-call block, by content index.
     stream_index: HashMap<usize, i64>,
     scratch: HashMap<usize, ToolCallScratch>,
+    /// The HTTP response arrived (an abort after this is mid-stream).
+    response_started: bool,
 }
 
 impl StreamState {
@@ -309,6 +326,7 @@ impl StreamState {
             tool_calls_by_id: HashMap::new(),
             stream_index: HashMap::new(),
             scratch: HashMap::new(),
+            response_started: false,
         }
     }
 

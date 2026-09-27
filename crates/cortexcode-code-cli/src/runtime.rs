@@ -603,10 +603,37 @@ pub fn run_print_mode(
         return Ok(1);
     }
 
+    // A spawned subagent (json mode + `--task-id`): heartbeats, only the
+    // events the parent pool consumes, the turn cap, and result.json.
+    let task_id = args
+        .task_id
+        .clone()
+        .filter(|id| mode == PrintMode::Json && !id.is_empty());
+
     // `--mode json`: the session header, then every session event as it
     // happens. Listeners run on runtime threads; lines go through a channel and
     // are written here, between polls of the running prompt.
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let heartbeat = task_id.as_ref().map(|_| {
+        // An immediate ping, so a child that crashes during startup surfaces
+        // its error instead of stalling silently until the first heartbeat.
+        let _ = tx.send(json_line(&serde_json::json!({"ping": true})));
+        let tx = tx.clone();
+        async_runtime().spawn(async move {
+            let mut interval = tokio::time::interval(SUBAGENT_HEARTBEAT);
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                if tx
+                    .send(json_line(&serde_json::json!({"ping": true})))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+    });
+    let is_subagent = task_id.is_some();
     let _sub = (mode == PrintMode::Json).then(|| {
         let header =
             cortexcode_code_session::FileEntry::Session(session.session_manager().header().clone());
@@ -615,10 +642,26 @@ pub fn run_print_mode(
         ));
         let tx = tx.clone();
         session.subscribe(move |event| {
-            let _ = tx.send(json_line(&event.to_json()));
+            let value = event.to_json();
+            // The parent only consumes progress events and message_end usage;
+            // the per-delta firehose is dropped at the source.
+            if is_subagent {
+                let kind = value.get("type").and_then(serde_json::Value::as_str);
+                if !kind.is_some_and(|k| {
+                    cortexcode_code_subagents::events::SUBAGENT_STDOUT_EVENT_TYPES.contains(&k)
+                }) {
+                    return;
+                }
+            }
+            let _ = tx.send(json_line(&value));
         })
     });
     drop(tx);
+    let reached_max_turns = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let _turn_limit = args
+        .max_turns
+        .filter(|cap| is_subagent && *cap > 0)
+        .map(|cap| turn_limit(&session, cap, reached_max_turns.clone()));
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
@@ -643,6 +686,42 @@ pub fn run_print_mode(
             return Ok(1);
         }
     }
+
+    // A spawned subagent writes the audit file the parent pool verifies.
+    let mut exit_code = 0;
+    if let Some(task_id) = &task_id {
+        let stats = session.get_session_stats();
+        let mut result = cortexcode_code_subagents::result::build_subagent_result(
+            &session.messages(),
+            Some(cortexcode_code_subagents::result::SubagentUsage {
+                input: stats.tokens.input as f64,
+                output: stats.tokens.output as f64,
+                cache_read: stats.tokens.cache_read as f64,
+                cache_write: stats.tokens.cache_write as f64,
+                cost: stats.cost,
+            }),
+            cortexcode_code_subagents::result::BuildSubagentResultOptions {
+                reached_max_turns: reached_max_turns.load(std::sync::atomic::Ordering::SeqCst),
+            },
+        );
+        // This subagent's own task subtree, for the parent to render below
+        // the dispatching task.
+        let tree = cortexcode_code_subagents::result::build_task_forest(
+            &cortexcode_code_task_store::task_store().list(),
+        );
+        if !tree.is_empty() {
+            result.task_tree = Some(tree);
+        }
+        let cwd = std::path::PathBuf::from(session.session_manager().cwd());
+        cortexcode_code_subagents::result::write_subagent_result(&cwd, task_id, &result);
+        if result.status == cortexcode_code_subagents::result::ResultStatus::Failed {
+            exit_code = 1;
+        }
+    }
+    if let Some(heartbeat) = heartbeat {
+        heartbeat.abort();
+    }
+    drop(_turn_limit);
     session.dispose();
     drop(_sub);
     write_lines(&mut rx, output)?;
@@ -658,7 +737,7 @@ pub fn run_print_mode(
             Ok(result.exit_code)
         }
         // json mode never inspects the final message.
-        PrintMode::Json => Ok(0),
+        PrintMode::Json => Ok(exit_code),
     }
 }
 
@@ -740,6 +819,82 @@ fn runtime_diagnostics(diagnostics: Diagnostics) -> Vec<AgentSessionRuntimeDiagn
             message,
         })
         .collect()
+}
+
+/// Heartbeat cadence for spawned subagents (the parent's lifeguard stalls
+/// after 60s of silence).
+const SUBAGENT_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// A spawned subagent's turn cap: near it (90%) the agent is asked to wrap
+/// up; at it the run is aborted.
+///
+/// hoocode's session listeners see agent events asynchronously (queued behind
+/// the extension handlers), so its `turn_end` handler runs after the loop has
+/// already collected the next turn's pending messages and started that turn.
+/// cortex listeners run synchronously; the steer/abort decided at `turn_end`
+/// is therefore applied at the next `turn_start`, which is where hoocode's
+/// lands: the wrap-up steer reaches the model one turn later, and the abort
+/// stops the turn after the cap. If no further turn starts, hoocode's late
+/// steer/abort have nothing left to act on either.
+fn turn_limit(
+    session: &AgentSession,
+    cap: u64,
+    reached: Arc<std::sync::atomic::AtomicBool>,
+) -> cortexcode_code_agent_session::SessionSubscription {
+    use cortexcode_agent_types::AgentEvent;
+    use cortexcode_code_agent_session::AgentSessionEvent;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    enum Deferred {
+        Steer(String),
+        Abort,
+    }
+    let wrap_up_at = (cap as f64 * 0.9).floor() as u64;
+    let turns = AtomicU64::new(0);
+    let warned = AtomicBool::new(false);
+    let deferred: Mutex<Vec<Deferred>> = Mutex::new(Vec::new());
+    let target = session.clone();
+    session.subscribe(move |event| {
+        let AgentSessionEvent::Agent(event) = event else {
+            return;
+        };
+        match event {
+            AgentEvent::TurnStart => {
+                let actions = std::mem::take(&mut *deferred.lock().unwrap_or_else(|e| e.into_inner()));
+                for action in actions {
+                    match action {
+                        Deferred::Steer(text) => {
+                            let _ = target.steer(&text, &[]);
+                        }
+                        Deferred::Abort => {
+                            let session = target.clone();
+                            async_runtime().spawn(async move { session.abort().await });
+                        }
+                    }
+                }
+            }
+            AgentEvent::TurnEnd { .. } => {
+                let turns = turns.fetch_add(1, Ordering::SeqCst) + 1;
+                let mut deferred = deferred.lock().unwrap_or_else(|e| e.into_inner());
+                if turns >= cap {
+                    if !reached.swap(true, Ordering::SeqCst) {
+                        deferred.push(Deferred::Abort);
+                    }
+                    return;
+                }
+                if wrap_up_at >= 1
+                    && wrap_up_at < cap
+                    && turns >= wrap_up_at
+                    && !warned.swap(true, Ordering::SeqCst)
+                {
+                    deferred.push(Deferred::Steer(format!(
+                        "You are at turn {turns} of your {cap}-turn limit. Stop investigating or making changes now and write your final summary of findings and results in your next message."
+                    )));
+                }
+            }
+            _ => {}
+        }
+    })
 }
 
 /// Write the queued `--mode json` lines.

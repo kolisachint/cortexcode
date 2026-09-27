@@ -22,7 +22,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
-  lifeguard). Next: **10.9e** (child protocol in `--mode json --task-id`), then 10.9c/10.9d.
+  lifeguard), 10.9e done (child protocol). Next: **10.9c** (warm pool + inbox), then 10.9d.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -34,6 +34,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9e done (subagent child protocol in print mode)
+- `--mode json --task-id <id>`: an immediate `{"ping":true}` then one every 30s, only
+  SUBAGENT_STDOUT_EVENT_TYPES events after the header, the `--max-turns` cap (wrap-up steer at
+  90%, abort at the cap), and result.json (usage from session stats, task tree from the task store)
+  written to the session cwd's dispatch dir; a failed result exits 1. `--max-turns` is no longer an
+  "unsupported flag".
+- Listener timing: hoocode's session listeners run asynchronously, one loop step behind; the
+  turn-limit hook applies its steer/abort at the next `turn_start` to match (ledger note on 10.9e).
+- openai-completions: an abort before the response arrives now reads "Request was aborted." (SDK
+  text); mid-stream stays "Request was aborted".
+- Harness: `work_files` compares files a run leaves in the workspace (`{config}` = the app's
+  config dir), masked like `stdout_jsonl`; selfcheck covers them. New L2 `json-subagent-child`.
+- Next: 10.9c (warm-subagent-pool.ts on RpcClient, subagent-inbox.ts).
 
 ### 2026-09-27: 10.9b done (subagent pool + lifeguard)
 - code-subagents: `pool::SubagentPool` (tokio; priority FIFO, `spawn`/`wait_for`/`dispatch`/

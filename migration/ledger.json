@@ -2980,20 +2980,24 @@
    "id": "10.9e",
    "title": "Subagent child protocol in --mode json --task-id: ping heartbeats, SUBAGENT_STDOUT_EVENT_TYPES filter, --max-turns cap, result.json (+ task tree) at the end",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.9a"
    ],
    "crates": [
     "cortexcode-code-print",
-    "cortexcode-code-cli"
+    "cortexcode-code-cli",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-code-subagents"
    ],
    "sources": [
     "packages/coding-agent/src/modes/print-mode.ts"
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "json-subagent-child"
+   ],
    "notes": "The parent side (10.9b) is tested with shell mocks; this is the real child. print-mode.ts: isSubagent = json mode + taskId; immediate + periodic {\"ping\":true}; only SUBAGENT_STDOUT_EVENT_TYPES written; maxTurns abort -> partial result; writeSubagentResult with buildTaskForest.",
    "log": [
     {
@@ -3001,6 +3005,30 @@
      "commit": "",
      "kind": "note",
      "text": "Added while porting 10.9b: the child side of the cold-pool protocol lives in print-mode.ts, outside 10.9b's sources."
+    },
+    {
+     "at": "2026-09-27T07:21:19Z",
+     "commit": "3ca659f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "hoocode delivers session events to listeners asynchronously (AgentSession._agentEventQueue, behind extension handlers); cortex listeners run synchronously. The --max-turns hook applies its steer/abort at the next turn_start to land where hoocode's does. Other listener-driven behaviors may need the same care until/unless AgentSession event delivery is made asynchronous."
+    },
+    {
+     "at": "2026-09-27T10:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "openai-completions: an abort before the response arrives now reads \"Request was aborted.\" (the OpenAI SDK's APIUserAbortError); mid-stream stays \"Request was aborted\"."
+    },
+    {
+     "at": "2026-09-27T07:28:16Z",
+     "commit": "3ca659f",
+     "kind": "verify",
+     "text": "L1 pass; L2 json-subagent-child=pass"
     }
    ]
   },
