@@ -37,6 +37,24 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.1c2 done; 11.1c done (interactive mode on the TUI, L2 `startup` passes)
+- `cortexcode-code-tui-app::interactive_mode` replaces code-cli's crossterm REPL: the banner,
+  the flex fill, the resource listing, notification band, prompt editor with the app's key
+  dispatch (`CustomEditor`), session chip, thinking-coloured border, footer, chrome dial,
+  theme watcher, startup-progress/branch rerenders. The loop drives `Tui::process_event`,
+  drains session events from a channel, and polls the band's and editor's deadlines.
+- code-cli: `run_interactive_mode` builds the listing from the concrete loader (kept as
+  `last_resources()`) + the agent registry, and reports the semantic index (binary lookup
+  only; indexing is 12.4). Headless end-to-end test with a scripted terminal.
+- L2 `startup`: pass, text and style, first run. normalize.json gained `\bcortex_` ->
+  `<WORDMARK>` (branding is the only banner difference).
+- Placeholders until 11.2: a turn shows the user's text and the agent's final text, no
+  working loader. The permission prompt still draws with crossterm (firewall pending now
+  names 10.6).
+- `harness.py run all`: every failing scenario belongs to a task that is `l1_done`/`todo`
+  (10.2a-g, 10.4c, 10.5, 10.5b, 10.6, 9.2b, 11.2) — no done task regressed.
+- Next: 11.2 (chat widgets + tui-highlight).
+
 ### 2026-09-27: 11.1c split; 11.1c1 done (interactive chrome components)
 - 11.1c split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 `startup`); 11.1c
   is a container closed when both are done (bookkeeping).

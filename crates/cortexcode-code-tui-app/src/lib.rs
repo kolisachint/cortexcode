@@ -8,6 +8,7 @@ pub mod expandable_text;
 pub mod footer;
 pub mod footer_data;
 pub mod input_frame;
+pub mod interactive_mode;
 pub mod notification_panel;
 pub mod progress_bar;
 pub mod resource_display;

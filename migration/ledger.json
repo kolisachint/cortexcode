@@ -3750,7 +3750,7 @@
    "id": "11.1c",
    "title": "code-tui-app: interactive shell on the ported TUI; header, resource summary, editor frame, footer idle screen; replaces run_interactive_mode",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.1c1",
     "11.1c2"
@@ -3791,6 +3791,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 startup); this card is closed as a container once both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:20:04Z",
+     "commit": "7dabecd",
+     "kind": "verify",
+     "text": "L1 pass; L2 startup=pass"
     }
    ]
   },
@@ -3861,7 +3867,7 @@
    "id": "11.1c2",
    "title": "code-tui-app InteractiveMode shell: TUI tree (header, flex fill, chat, notifications, editor, footer), key handlers, submit loop; replaces run_interactive_mode",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.1c1"
    ],
@@ -3884,6 +3890,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.1c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:10:20Z",
+     "commit": "7dabecd",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:19:12Z",
+     "commit": "7dabecd",
+     "kind": "note",
+     "text": "InteractiveMode in code-tui-app (interactive_mode.rs) replaces code-cli's crossterm REPL: banner (expandable via app.tools.expand), flex fill, resource listing, notification band, CustomEditor dispatch (interrupt/clear-twice-exits/exit/expand/chrome dial/thinking dial), session chip, thinking-coloured border, footer via FooterSource, chrome density, startup-progress and branch rerenders, theme watcher. Semantic index: binary lookup only (setting/PATH/bin), missing -> the footer's 'unavailable' line; found -> skipped (indexing is 12.4). Placeholders until 11.2: a turn shows the user's text and the agent's final text; no working loader. The crossterm permission prompt remains (firewall pending moved to 10.6). normalize.json: added \\\\bcortex_ -> <WORDMARK> (the brand name is the only difference in the banner). Headless end-to-end test in code-cli runtime tests."
+    },
+    {
+     "at": "2026-09-27T16:19:50Z",
+     "commit": "7dabecd",
+     "kind": "verify",
+     "text": "L1 pass; L2 startup=pass"
     }
    ]
   },

@@ -84,7 +84,7 @@
   },
   "pending": {
     "crossterm": {
-      "cortexcode-code-cli": "11.1 (interactive mode moves onto tui-render)"
+      "cortexcode-code-cli": "10.6 (the permission prompt moves onto the TUI; the rest of interactive mode left crossterm in 11.1c2)"
     }
   }
 }

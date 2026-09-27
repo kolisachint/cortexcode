@@ -835,7 +835,10 @@ dependencies = [
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
  "cortexcode-code-tools-optin",
+ "cortexcode-code-tui-app",
  "cortexcode-tui-fuzzy",
+ "cortexcode-tui-terminal",
+ "cortexcode-tui-util",
  "crossterm",
  "serde_json",
  "tempfile",
@@ -1124,6 +1127,7 @@ dependencies = [
 name = "cortexcode-code-tui-app"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-agent-types",
  "cortexcode-code-agent-session",
  "cortexcode-code-paths",
  "cortexcode-code-resources",
@@ -1134,9 +1138,11 @@ dependencies = [
  "cortexcode-tui-components",
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
+ "cortexcode-tui-terminal",
  "cortexcode-tui-util",
  "serde_json",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
