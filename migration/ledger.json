@@ -3598,7 +3598,7 @@
    "id": "11.0c",
    "title": "Re-port the Editor faithfully at the pin: components/editor.ts (layout, scrollOffset over layout lines at 30% of terminal rows, frame border box/rule/none + top-border label, redo, autocomplete visibility, word-wrap atomic-grapheme fix) and editor.test.ts",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.0a"
    ],
@@ -3621,6 +3621,24 @@
      "commit": "",
      "kind": "note",
      "text": "The Rust Editor diverged from hoocode before the pin (a viewport over logical lines instead of scrollOffset over layout lines, caller-owned preferredVisualCol, a select-list theme factory; touched by 8f5693e). Re-port from the pin rather than patching the 713e5dd..pin delta."
+    },
+    {
+     "at": "2026-09-27T11:32:18Z",
+     "commit": "a408d80",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:21:52Z",
+     "commit": "a408d80",
+     "kind": "note",
+     "text": "editor.test.ts ported to crates/cortexcode-tui-components/tests/editor.rs (199 tests). N/A: 'aborts active autocomplete when typing continues' — the Rust AutocompleteProvider is synchronous, so there is no in-flight request to abort; 'announces the list only once it actually exists' adapted to the sync provider (list + announcement arrive together, exactly once). Also fixed tui-keys defaults: jumpForward/jumpBackward had stray plain 'f'/'F' bindings not in the pin (swallowed typed f/g)."
+    },
+    {
+     "at": "2026-09-27T15:22:04Z",
+     "commit": "a408d80",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

@@ -184,12 +184,12 @@ pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
         ),
         (
             "tui.editor.jumpForward",
-            &["ctrl+]", "f"],
+            &["ctrl+]"],
             "Jump forward to character",
         ),
         (
             "tui.editor.jumpBackward",
-            &["ctrl+alt+]", "F"],
+            &["ctrl+alt+]"],
             "Jump backward to character",
         ),
         // Unbound by default: the app gives pageUp/pageDown to the transcript.

@@ -21,14 +21,19 @@ mod text;
 mod truncated_text;
 
 pub use autocomplete::{
-    ApplyCompletionResult, AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions,
-    CombinedAutocompleteProvider, CommandEntry, SlashCommand,
+    ApplyCompletionResult, ArgumentCompletionsFn, AutocompleteItem, AutocompleteProvider,
+    AutocompleteSuggestions, CombinedAutocompleteProvider, CommandEntry, SlashCommand,
 };
 pub use box_component::{BoxComponent, PaperFn, PaperSheet};
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
 pub use cortexcode_tui_render::FlexSpacer;
-pub use editor::{word_wrap_line, Editor, EditorOptions, EditorTheme, TextChunk};
+pub use editor::{
+    find_paste_markers, identity_select_theme_color, is_paste_marker, len16, segment_with_markers,
+    slice16, word_wrap_line, word_wrap_segments, Editor, EditorBorderStyle, EditorHost,
+    EditorOptions, EditorTheme, EditorTopBorderLabel, JumpDirection, Segment, TextCallback,
+    TextChunk,
+};
 pub use frame::{
     render_frame_edge, Frame, FrameBorderChars, FrameBorderCharsOverride, FrameBorderStyle,
     FrameEdge, FrameEdgeOptions, FrameLabel, FrameOptions, LABEL_RIGHT_INSET, MIN_LABEL_LEAD_IN,

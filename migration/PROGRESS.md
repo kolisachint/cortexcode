@@ -37,6 +37,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.0c done (Editor re-port at the pin)
+- `components/editor.ts` re-ported from the pin instead of patching the old divergent Editor:
+  `Editor::new(EditorHost{rows, request_render}, EditorTheme, EditorOptions)`; scrollOffset over
+  layout lines capped at 30% of terminal rows; frame border box/rule/none via `Frame` with a
+  top-border label; redo (alt+u); autocomplete visibility callback; 20ms debounce for `@`/`#`
+  contexts (`autocomplete_deadline` / `poll_autocomplete`). Cursor columns are UTF-16, as in JS.
+- `editor/word_wrap.rs`: UTF-16 helpers (`len16`, `slice16`), marker-aware segmentation, and
+  `word_wrap_segments` with the oversized-atomic-segment and wide-grapheme (no infinite
+  recursion) fixes.
+- `tests/editor.rs`: editor.test.ts, 199 tests. N/A: the async "aborts active autocomplete"
+  test (the Rust provider is synchronous); the visibility-announcement test is adapted to it.
+- tui-keys: removed stray plain `f`/`F` jump bindings that the pin doesn't have (typing "f"
+  entered jump mode and swallowed the next key).
+- Next: 11.1a (theme).
+
 ### 2026-09-27: 11.0b done (renderer catch-up to the pin)
 - tui-render: `FlexSpacer` (moved here from components, re-exported there) + `Tui::set_flex_spacer`
   (buffer never shorter than the screen; prompt on the floor); window-moved-back repaint; hardware
