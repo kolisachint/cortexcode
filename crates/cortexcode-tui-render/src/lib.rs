@@ -9,9 +9,12 @@ mod component;
 mod overlay;
 mod tui;
 
-pub use component::{Component, ComponentHandle, Container};
+pub use component::{Component, ComponentHandle, Container, FlexSpacer, Slot};
 pub use overlay::{
     parse_size_value, resolve_overlay_layout, OverlayAnchor, OverlayLayout, OverlayMargin,
     OverlayOptions, SizeValue,
 };
-pub use tui::{InputListener, InputListenerResult, OverlayHandle, Tui, TuiEvent, CURSOR_MARKER};
+pub use tui::{
+    default_scroll_status, HyperlinkHandler, InputListener, InputListenerResult, OverlayHandle,
+    ScrollSearchStatus, ScrollStatus, ScrollStatusFormatter, Tui, TuiEvent, CURSOR_MARKER,
+};

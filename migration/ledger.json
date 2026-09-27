@@ -3545,14 +3545,16 @@
    "id": "11.0b",
    "title": "TUI library catch-up to the pin, part 2: tui.ts renderer (+1.1K: owned scroll position, chrome dial, floor packing, pinned window), terminal.ts, mouse.ts, terminal-image.ts (Sixel)",
    "phase": 11,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "11.0a"
    ],
    "crates": [
     "cortexcode-tui-render",
     "cortexcode-tui-terminal",
-    "cortexcode-tui-images"
+    "cortexcode-tui-images",
+    "cortexcode-tui-components",
+    "cortexcode-tui-util"
    ],
    "sources": [
     "packages/tui/src/tui.ts",
@@ -3577,6 +3579,18 @@
      "commit": "a5b5617",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-27T11:30:29Z",
+     "commit": "3fed45e",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:31:05Z",
+     "commit": "3fed45e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

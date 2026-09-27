@@ -37,6 +37,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.0b done (renderer catch-up to the pin)
+- tui-render: `FlexSpacer` (moved here from components, re-exported there) + `Tui::set_flex_spacer`
+  (buffer never shorter than the screen; prompt on the floor); window-moved-back repaint; hardware
+  cursor move folded into every frame's synchronized block (`\r` + hide when unfocused); the pinned
+  viewport on the alternate screen (`scroll_by_lines/pages`, `scroll_to_top/live/row`, search with
+  match highlight, `ScrollStatus` + `default_scroll_status`, `can_pin_scroll`, kitty image copies
+  retagged per pinned frame); mouse reports consumed before listeners (wheel scrolls 3 lines, click
+  opens `on_hyperlink`); `Slot`; `child_row_offsets`; Termux height exemption.
+- tui-terminal: `mouse` module (SGR + X10), `mouse_reporting()` / `set_alternate_screen()` on the
+  trait; ProcessTerminal enables `?1000h?1006h` unless `CORTEX_MOUSE=0`/dumb/not a tty.
+- tui-images: Sixel (`encode_sixel`, host rasterizer hook, WT_SESSION detection,
+  `CORTEX_IMAGE_PROTOCOL` override); `Image` saves/restores the cursor around a sixel.
+- Tests: a vt100-backed `VirtualTerminal` (`crates/cortexcode-tui-render/tests/support`) stands in
+  for the pin's xterm-headless one; ported screen-fill, scroll-viewport, cursor-parking,
+  hyperlink-click, scroll-images, sixel, mouse.
+- Next: 11.0c (Editor re-port), then 11.1a/b/c.
+
 ### 2026-09-27: 11.1 split; TUI catch-up tasks 11.0a/b/c added; 11.0a done
 - 11.1 split into 11.1a (theme), 11.1b (app keybindings), 11.1c (tui-app idle screen + L2 `startup`).
 - Found: the tui-* crates were ported 2026-07-20 from hoocode ~713e5dd; `packages/tui` grew +2.6K lines

@@ -21,20 +21,24 @@
 //! forwards raw input/resize notifications through an `mpsc` channel to a
 //! single owning thread, which drives them into [`Tui::process_event`].
 
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver};
 
 use cortexcode_tui_images::{
-    delete_kitty_image, get_capabilities, set_cell_dimensions, CellDimensions,
+    allocate_image_id, delete_kitty_image, get_capabilities, set_cell_dimensions, CellDimensions,
 };
 use cortexcode_tui_keys::{is_key_release, matches_key};
-use cortexcode_tui_terminal::Terminal;
+use cortexcode_tui_terminal::{
+    mouse_sequence_length, parse_mouse_event, MouseEvent, MouseEventKind, Terminal,
+};
 use cortexcode_tui_util::{
-    extract_segments, normalize_terminal_output, slice_by_column, slice_with_width, visible_width,
+    bare_url_at, extract_segments, hyperlink_at, normalize_terminal_output, slice_by_column,
+    slice_with_width, strip_vt_control_characters, truncate_to_width, visible_width,
 };
 
-use crate::component::{Component, ComponentHandle, Container};
+use crate::component::{Component, ComponentHandle, Container, FlexSpacer};
 use crate::overlay::{resolve_overlay_layout, OverlayOptions};
 
 /// Cursor position marker: a zero-width APC escape sequence terminals
@@ -68,6 +72,121 @@ fn extract_kitty_image_ids(line: &str) -> Vec<u32> {
         }
     }
     Vec::new()
+}
+
+/// Transmit the same kitty image under a different id (`retagKittyImageId`):
+/// only the first chunk carries the parameter list.
+fn retag_kitty_image_id(line: &str, id: u32) -> Option<String> {
+    let sequence_start = line.find(KITTY_SEQUENCE_PREFIX)?;
+    let params_start = sequence_start + KITTY_SEQUENCE_PREFIX.len();
+    let params_end = params_start + line[params_start..].find(';')?;
+    let params = &line[params_start..params_end];
+    // `/(^|,)i=\d+/`
+    let mut search_from = 0;
+    while let Some(rel) = params[search_from..].find("i=") {
+        let at = search_from + rel;
+        let digits = params[at + 2..]
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .count();
+        if (at == 0 || params.as_bytes()[at - 1] == b',') && digits > 0 {
+            let retagged = format!("{}i={id}{}", &params[..at], &params[at + 2 + digits..]);
+            return Some(format!(
+                "{}{retagged}{}",
+                &line[..params_start],
+                &line[params_end..]
+            ));
+        }
+        search_from = at + 2;
+    }
+    None
+}
+
+/// How far above its own row an image line's picture reaches: the leading
+/// `CSI <n> A` of a multi-row image (`imageRowOffset`).
+fn image_row_offset(line: &str) -> i64 {
+    let Some(rest) = line.strip_prefix("\x1b[") else {
+        return 0;
+    };
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    if digits > 0 && rest[digits..].starts_with('A') {
+        rest[..digits].parse().unwrap_or(0)
+    } else {
+        0
+    }
+}
+
+/// DECTCEM cursor visibility, folded into a frame's synchronized buffer.
+const HIDE_CURSOR: &str = "\x1b[?25l";
+const SHOW_CURSOR: &str = "\x1b[?25h";
+
+/// How far one wheel notch moves the pinned view.
+const WHEEL_LINES: i64 = 3;
+
+const IMAGE_PLACEHOLDER: &str = "\x1b[2m[image]\x1b[0m";
+
+/// What the scroll indicator is told about the pinned view (`ScrollStatus`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScrollStatus {
+    /// 1-based transcript row at the top of the view.
+    pub top: i64,
+    /// 1-based transcript row at the bottom of the view.
+    pub bottom: i64,
+    /// Rows in the whole transcript.
+    pub total: i64,
+    /// Rows the view shows at once.
+    pub view_height: i64,
+    pub at_top: bool,
+    /// True only when the very last row is in view.
+    pub at_bottom: bool,
+    /// Columns the indicator may fill.
+    pub width: i64,
+    /// Present while a search is running.
+    pub search: Option<ScrollSearchStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScrollSearchStatus {
+    pub query: String,
+    /// Rows containing a match.
+    pub count: usize,
+    /// 1-based position among the matches, or 0 when there are none.
+    pub index: usize,
+    /// True while the query is still being typed.
+    pub typing: bool,
+}
+
+pub type ScrollStatusFormatter = Box<dyn Fn(&ScrollStatus) -> String>;
+
+/// Opens a clicked URL (`onHyperlink`).
+pub type HyperlinkHandler = Box<dyn FnMut(&str)>;
+
+/// The indicator drawn when the app has not supplied its own
+/// (`defaultScrollStatus`): reverse video, position first, keys if they fit.
+pub fn default_scroll_status(status: &ScrollStatus) -> String {
+    let position = format!("{}\u{2013}{}/{}", status.top, status.bottom, status.total);
+    let where_ = if status.at_top { " top" } else { "" };
+    let keys = "\u{2191}\u{2193} line \u{b7} PgUp/PgDn page \u{b7} esc live";
+    let left = format!(" {position}{where_} ");
+    let width = status.width.max(0) as usize;
+    let body = if visible_width(&left) + visible_width(keys) < width {
+        format!("{left}{keys} ")
+    } else {
+        left
+    };
+    format!(
+        "\x1b[7m{}\x1b[0m",
+        truncate_to_width(&body, width, "", true)
+    )
+}
+
+struct ScrollSearch {
+    query: String,
+    matches: Vec<i64>,
+    index: i64,
+    /// Buffer length the matches were measured at.
+    measured_at: i64,
+    typing: bool,
 }
 
 /// Result an [`InputListener`] can return to consume or transform input.
@@ -139,6 +258,34 @@ pub struct Tui {
     overlay_stack: Vec<OverlayEntry>,
 
     last_cursor_pos: Option<CursorPos>,
+
+    /// The filler that keeps the app the size of the screen (`flexSpacer`):
+    /// the buffer is never shorter than the terminal, so the header stays at
+    /// the top and the prompt on the bottom row. `None` keeps the old
+    /// append-only behaviour.
+    flex_spacer: Option<Rc<RefCell<FlexSpacer>>>,
+    /// The last flattened frame, before overlays (`flatLines`).
+    flat_lines: Vec<String>,
+    /// Where the left button went down, for telling a click from a drag.
+    pressed_cell: Option<(i64, i64)>,
+    /// What the pinned window painted last, so a click on it can be placed.
+    scroll_view_lines: Option<Vec<String>>,
+    /// Open the URL behind a clicked hyperlink. Unset, clicks do nothing.
+    pub on_hyperlink: Option<HyperlinkHandler>,
+    /// The pinned viewport: the transcript row at the top of the screen, or
+    /// `None` to follow the tail. While pinned, the TUI paints a window of
+    /// the buffer on the alternate screen.
+    scroll_offset: Option<i64>,
+    /// Transcript length measured by the last pinned paint.
+    scroll_total_lines: i64,
+    scroll_status_formatter: ScrollStatusFormatter,
+    scroll_search: Option<ScrollSearch>,
+    /// Whether the view may pin right now (unset means always).
+    pub can_pin_scroll: Option<Box<dyn Fn() -> bool>>,
+    /// Live kitty image id -> the id the pinned window transmits its copy
+    /// under, and the copies currently placed on the alternate screen.
+    scroll_image_ids: HashMap<u32, u32>,
+    scroll_placed_images: HashSet<u32>,
 }
 
 impl Tui {
@@ -167,11 +314,347 @@ impl Tui {
             overlay_id_counter: 0,
             overlay_stack: Vec::new(),
             last_cursor_pos: None,
+            flex_spacer: None,
+            flat_lines: Vec::new(),
+            pressed_cell: None,
+            scroll_view_lines: None,
+            on_hyperlink: None,
+            scroll_offset: None,
+            scroll_total_lines: 0,
+            scroll_status_formatter: Box::new(default_scroll_status),
+            scroll_search: None,
+            can_pin_scroll: None,
+            scroll_image_ids: HashMap::new(),
+            scroll_placed_images: HashSet::new(),
         }
     }
 
     pub fn full_redraws(&self) -> u64 {
         self.full_redraw_count
+    }
+
+    // ── The pinned viewport ─────────────────────────────────────────────
+
+    /// True while the view is pinned rather than following the tail.
+    pub fn scroll_pinned(&self) -> bool {
+        self.scroll_offset.is_some()
+    }
+
+    /// Where the pinned window sits `(top, total, view_height)`, or `None`
+    /// while live.
+    pub fn get_scroll_position(&self) -> Option<(i64, i64, i64)> {
+        self.scroll_offset
+            .map(|top| (top, self.scroll_total_lines, self.scroll_view_height()))
+    }
+
+    /// Let the app paint the indicator in its own theme.
+    pub fn set_scroll_status_formatter(&mut self, formatter: ScrollStatusFormatter) {
+        self.scroll_status_formatter = formatter;
+    }
+
+    /// Nominate the child that absorbs the leftover rows. It must already be
+    /// a child of the root, at the *top* of the tree.
+    pub fn set_flex_spacer(&mut self, spacer: Option<Rc<RefCell<FlexSpacer>>>) {
+        self.flex_spacer = spacer;
+    }
+
+    fn flex_height(&self) -> i64 {
+        self.flex_spacer
+            .as_ref()
+            .map_or(0, |f| f.borrow().current_height() as i64)
+    }
+
+    /// Give the flex child whatever the frame did not use (`fitFlexSpacer`);
+    /// true when the height moved and the frame must be flattened again.
+    fn fit_flex_spacer(&self, lines: &[String], height: i64) -> bool {
+        let Some(spacer) = &self.flex_spacer else {
+            return false;
+        };
+        let content = lines.len() as i64 - spacer.borrow().current_height() as i64;
+        spacer.borrow_mut().set_height((height - content).max(0))
+    }
+
+    /// The screen rows a pinned window shows; the last row is the indicator.
+    fn scroll_view_height(&self) -> i64 {
+        (self.terminal.rows() as i64 - 1).max(1)
+    }
+
+    /// Rows available to scroll through; the filler is not transcript.
+    fn transcript_length(&self) -> i64 {
+        if self.scroll_offset.is_some() {
+            return self.scroll_total_lines;
+        }
+        self.previous_lines.len() as i64 - self.flex_height()
+    }
+
+    /// Move the view by `delta` rows (negative is towards the start). Returns
+    /// whether anything moved.
+    pub fn scroll_by_lines(&mut self, delta: i64) -> bool {
+        if delta == 0 {
+            return false;
+        }
+        if self.scroll_offset.is_none() && delta > 0 {
+            return false;
+        }
+        let view_height = self.scroll_view_height();
+        let max_offset = (self.transcript_length() - view_height).max(0);
+        if max_offset == 0 {
+            return false;
+        }
+        let next = self.scroll_offset.unwrap_or(max_offset) + delta;
+        // Reaching the end is how the pin lets go.
+        if next >= max_offset {
+            return self.scroll_to_live();
+        }
+        self.set_scroll_offset(next);
+        true
+    }
+
+    /// Move by pages, keeping two rows of overlap.
+    pub fn scroll_by_pages(&mut self, delta: i64) -> bool {
+        let page = (self.scroll_view_height() - 2).max(1);
+        self.scroll_by_lines(delta * page)
+    }
+
+    /// Pin the view to the very start of the transcript.
+    pub fn scroll_to_top(&mut self) -> bool {
+        let max_offset = (self.transcript_length() - self.scroll_view_height()).max(0);
+        if max_offset == 0 || self.scroll_offset == Some(0) {
+            return false;
+        }
+        self.set_scroll_offset(0);
+        true
+    }
+
+    /// Release the pin and follow the tail again. Leaving the alternate
+    /// screen restores the normal screen and its scrollback, so the next
+    /// frame is an ordinary differential one.
+    pub fn scroll_to_live(&mut self) -> bool {
+        if self.scroll_offset.is_none() {
+            return false;
+        }
+        self.scroll_offset = None;
+        self.scroll_search = None;
+        self.release_scroll_images();
+        self.terminal.set_alternate_screen(false);
+        self.last_cursor_pos = None;
+        self.scroll_view_lines = None;
+        self.request_render(false);
+        true
+    }
+
+    /// Pin the view so `row` is on screen, with `context` rows above it
+    /// (default `min(3, view_height - 1)`); a row already comfortably in view
+    /// is left where it is.
+    pub fn scroll_to_row(&mut self, row: i64, context: Option<i64>) -> bool {
+        let view_height = self.scroll_view_height();
+        let max_offset = (self.transcript_length() - view_height).max(0);
+        if max_offset == 0 {
+            return false;
+        }
+        let context = context.unwrap_or_else(|| 3.min((view_height - 1).max(0)));
+        let target = (row - context).clamp(0, max_offset);
+        if let Some(top) = self.scroll_offset {
+            if row >= top + context && row < top + view_height {
+                return false;
+            }
+        }
+        self.set_scroll_offset(target);
+        self.scroll_offset == Some(target)
+    }
+
+    fn set_scroll_offset(&mut self, offset: i64) {
+        let entering = self.scroll_offset.is_none();
+        // Only entry is gated, so a pinned view never strands the reader.
+        if entering && self.can_pin_scroll.as_ref().is_some_and(|f| !f()) {
+            return;
+        }
+        self.scroll_offset = Some(offset.max(0));
+        if entering {
+            self.terminal.set_alternate_screen(true);
+            self.terminal.hide_cursor();
+        }
+        self.request_render(false);
+    }
+
+    // ── Searching the pinned view ───────────────────────────────────────
+
+    /// Find rows containing `query` (case-insensitive, over visible text)
+    /// and pin the view to the nearest one at or above the eye. Returns how
+    /// many rows matched.
+    pub fn set_scroll_search(&mut self, query: &str, typing: bool) -> usize {
+        if query.is_empty() {
+            self.scroll_search = Some(ScrollSearch {
+                query: String::new(),
+                matches: Vec::new(),
+                index: -1,
+                measured_at: -1,
+                typing,
+            });
+            self.request_render(false);
+            return 0;
+        }
+        let from = self
+            .scroll_offset
+            .unwrap_or_else(|| (self.transcript_length() - 1).max(0));
+        let matches = self.find_scroll_matches(query);
+        let mut index = matches
+            .iter()
+            .rposition(|&m| m <= from)
+            .map_or(-1, |i| i as i64);
+        if index == -1 && !matches.is_empty() {
+            index = matches.len() as i64 - 1;
+        }
+        let count = matches.len();
+        let target = (index >= 0).then(|| matches[index as usize]);
+        self.scroll_search = Some(ScrollSearch {
+            query: query.to_string(),
+            matches,
+            index,
+            measured_at: self.search_buffer().len() as i64,
+            typing,
+        });
+        if let Some(row) = target {
+            self.scroll_to_row(row, None);
+        }
+        self.request_render(false);
+        count
+    }
+
+    /// Step to the next match (`-1` is further back); wraps.
+    pub fn scroll_search_step(&mut self, direction: i64) -> bool {
+        let Some(search) = &mut self.scroll_search else {
+            return false;
+        };
+        if search.matches.is_empty() {
+            return false;
+        }
+        let len = search.matches.len() as i64;
+        search.index = (search.index + direction + len).rem_euclid(len);
+        search.typing = false;
+        let row = search.matches[search.index as usize];
+        self.scroll_to_row(row, None);
+        self.request_render(false);
+        true
+    }
+
+    /// Stop typing the query but keep the matches.
+    pub fn commit_scroll_search(&mut self) {
+        if let Some(search) = &mut self.scroll_search {
+            search.typing = false;
+            self.request_render(false);
+        }
+    }
+
+    /// Drop the search, leaving the view where it is.
+    pub fn clear_scroll_search(&mut self) {
+        if self.scroll_search.take().is_some() {
+            self.request_render(false);
+        }
+    }
+
+    pub fn scroll_search_active(&self) -> bool {
+        self.scroll_search.is_some()
+    }
+
+    /// The query being searched for, or "" when there is no search.
+    pub fn scroll_search_query(&self) -> &str {
+        self.scroll_search.as_ref().map_or("", |s| s.query.as_str())
+    }
+
+    fn scroll_search_status(&self) -> Option<ScrollSearchStatus> {
+        self.scroll_search.as_ref().map(|s| ScrollSearchStatus {
+            query: s.query.clone(),
+            count: s.matches.len(),
+            index: if s.index >= 0 {
+                s.index as usize + 1
+            } else {
+                0
+            },
+            typing: s.typing,
+        })
+    }
+
+    fn search_buffer(&self) -> &[String] {
+        if self.flat_lines.is_empty() {
+            &self.previous_lines
+        } else {
+            &self.flat_lines
+        }
+    }
+
+    fn find_scroll_matches(&self, query: &str) -> Vec<i64> {
+        let needle = query.to_lowercase();
+        self.search_buffer()
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| {
+                !line.is_empty()
+                    && strip_vt_control_characters(line)
+                        .to_lowercase()
+                        .contains(&needle)
+            })
+            .map(|(row, _)| row as i64)
+            .collect()
+    }
+
+    /// Re-run the search if the buffer grew under it.
+    fn refresh_scroll_search(&mut self, total: i64) {
+        let needs = self
+            .scroll_search
+            .as_ref()
+            .is_some_and(|s| !s.query.is_empty() && s.measured_at != total);
+        if !needs {
+            return;
+        }
+        let query = self.scroll_search.as_ref().unwrap().query.clone();
+        let matches = self.find_scroll_matches(&query);
+        let search = self.scroll_search.as_mut().unwrap();
+        search.matches = matches;
+        search.measured_at = total;
+        if search.index >= search.matches.len() as i64 {
+            search.index = search.matches.len() as i64 - 1;
+        }
+    }
+
+    /// Mark the query where it appears in a row about to be painted, slicing
+    /// by display column so the row's own styling survives.
+    fn highlight_scroll_matches(line: &str, query: &str) -> String {
+        let plain = strip_vt_control_characters(line);
+        let needle = query.to_lowercase();
+        let haystack = plain.to_lowercase();
+        // Lowercasing can change byte lengths; only highlight when it did not.
+        if haystack.len() != plain.len() {
+            return line.to_string();
+        }
+        let Some(mut at) = haystack.find(&needle) else {
+            return line.to_string();
+        };
+        let mut out = String::new();
+        let mut cursor = 0;
+        loop {
+            let start_col = visible_width(&plain[..at]);
+            let end_col = start_col + visible_width(&plain[at..at + needle.len()]);
+            let from_col = visible_width(&plain[..cursor]);
+            out.push_str(&slice_by_column(
+                line,
+                from_col,
+                start_col - from_col,
+                false,
+            ));
+            out.push_str(&format!(
+                "\x1b[7m{}\x1b[27m",
+                slice_by_column(line, start_col, end_col - start_col, false)
+            ));
+            cursor = at + needle.len();
+            match haystack[cursor..].find(&needle) {
+                Some(rel) => at = cursor + rel,
+                None => break,
+            }
+        }
+        let tail_col = visible_width(&plain[..cursor]);
+        out.push_str(&slice_by_column(line, tail_col, usize::MAX / 2, false));
+        out
     }
 
     pub fn get_show_hardware_cursor(&self) -> bool {
@@ -221,6 +704,16 @@ impl Tui {
             }
         }
         self.focused_component = component;
+    }
+
+    /// The component keystrokes are currently going to.
+    pub fn focused(&self) -> Option<ComponentHandle> {
+        self.focused_component.clone()
+    }
+
+    /// Where each root child's output starts, in rows, from the last render.
+    pub fn child_row_offsets(&self, width: u16) -> Option<Vec<usize>> {
+        self.root.child_row_offsets(width)
     }
 
     fn focused_is(&self, component: &ComponentHandle) -> bool {
@@ -457,6 +950,13 @@ impl Tui {
     }
 
     pub fn stop(&mut self) {
+        // Off the alternate screen before the exit bookkeeping below, which
+        // moves the cursor relative to content on the normal screen.
+        if self.scroll_offset.is_some() {
+            self.scroll_offset = None;
+            self.release_scroll_images();
+            self.terminal.set_alternate_screen(false);
+        }
         self.stopped = true;
         if !self.previous_lines.is_empty() {
             let target_row = self.previous_lines.len() as i64;
@@ -496,6 +996,14 @@ impl Tui {
 
     fn handle_input(&mut self, data: &str) {
         let mut data = data.to_string();
+        // Ahead of the listeners: a mouse report that reaches a text field is
+        // typed into it.
+        if self.terminal.mouse_reporting() {
+            match self.consume_mouse_reports(&data) {
+                None => return,
+                Some(rest) => data = rest,
+            }
+        }
         if !self.input_listeners.is_empty() {
             let mut current = data.clone();
             let mut consumed = false;
@@ -550,6 +1058,92 @@ impl Tui {
             focused.borrow_mut().handle_input(&data);
             self.request_render(false);
         }
+    }
+
+    /// Act on every mouse report in `data` and return what is left of it;
+    /// `None` when the chunk was nothing but reports.
+    fn consume_mouse_reports(&mut self, data: &str) -> Option<String> {
+        if !data.contains("\x1b[<") && !data.contains("\x1b[M") {
+            return Some(data.to_string());
+        }
+        let mut rest = data;
+        let mut out = String::new();
+        let mut saw_report = false;
+        while !rest.is_empty() {
+            let length = mouse_sequence_length(rest);
+            if length == 0 {
+                let ch = rest.chars().next().unwrap();
+                out.push(ch);
+                rest = &rest[ch.len_utf8()..];
+                continue;
+            }
+            if let Some(event) = parse_mouse_event(&rest[..length]) {
+                self.handle_mouse_event(event);
+            }
+            saw_report = true;
+            rest = &rest[length..];
+        }
+        if !saw_report {
+            return Some(data.to_string());
+        }
+        (!out.is_empty()).then_some(out)
+    }
+
+    /// The wheel scrolls; a click (press and release on the same cell) opens
+    /// the link under it. Anything else is swallowed.
+    fn handle_mouse_event(&mut self, event: MouseEvent) {
+        match event.kind {
+            MouseEventKind::WheelUp => {
+                self.scroll_by_lines(-WHEEL_LINES);
+            }
+            MouseEventKind::WheelDown => {
+                self.scroll_by_lines(WHEEL_LINES);
+            }
+            MouseEventKind::Press => {
+                self.pressed_cell = (event.button == 0).then_some((event.row, event.column));
+            }
+            MouseEventKind::Release => {
+                let pressed = self.pressed_cell.take();
+                if self.on_hyperlink.is_none() {
+                    return;
+                }
+                if pressed != Some((event.row, event.column)) {
+                    return;
+                }
+                if let Some(url) = self.hyperlink_at_screen_cell(event.row, event.column) {
+                    if let Some(cb) = &mut self.on_hyperlink {
+                        cb(&url);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The link on the screen cell a mouse report names, through the window
+    /// the last frame painted. A live buffer shorter than the screen is
+    /// declined rather than guessed at.
+    fn hyperlink_at_screen_cell(&self, row: i64, column: i64) -> Option<String> {
+        let pinned = self.scroll_offset.is_some();
+        let lines: &[String] = if pinned {
+            self.scroll_view_lines.as_deref()?
+        } else {
+            &self.previous_lines
+        };
+        if lines.is_empty() {
+            return None;
+        }
+        if !pinned && (lines.len() as i64) < self.terminal.rows() as i64 {
+            return None;
+        }
+        let top = if pinned {
+            self.scroll_offset.unwrap_or(0)
+        } else {
+            self.previous_viewport_top
+        };
+        let index = top + row - 1;
+        let line = lines.get(usize::try_from(index).ok()?)?;
+        hyperlink_at(line, column - 1).or_else(|| bare_url_at(line, column - 1))
     }
 
     fn consume_cell_size_response(&mut self, data: &str) -> bool {
@@ -805,6 +1399,10 @@ impl Tui {
         if self.stopped {
             return;
         }
+        if self.scroll_offset.is_some() {
+            self.render_scroll_view();
+            return;
+        }
         let width = self.terminal.columns() as i64;
         let height = self.terminal.rows() as i64;
         let width_changed = self.previous_width != 0 && self.previous_width != width;
@@ -823,6 +1421,12 @@ impl Tui {
         let mut hardware_cursor_row = self.hardware_cursor_row;
 
         let mut new_lines = self.render(width.max(0) as u16);
+        // The frame has to exist before its leftover rows can be counted, so
+        // the fill is settled by flattening again.
+        if self.fit_flex_spacer(&new_lines, height) {
+            new_lines = self.render(width.max(0) as u16);
+        }
+        self.flat_lines = new_lines.clone();
 
         if !self.overlay_stack.is_empty() {
             new_lines = self.composite_overlays(new_lines, width, height);
@@ -843,8 +1447,10 @@ impl Tui {
             return;
         }
 
-        // --- Height change: full re-render to keep the viewport aligned. ---
-        if height_changed {
+        // --- Height change: full re-render to keep the viewport aligned, except
+        // on Termux, whose height changes with the software keyboard (a full
+        // redraw there replays the whole history on every toggle). ---
+        if height_changed && std::env::var_os("TERMUX_VERSION").is_none_or(|v| v.is_empty()) {
             self.full_render(&new_lines, width, height, true);
             return;
         }
@@ -894,6 +1500,48 @@ impl Tui {
         }
         let append_start = appended_lines && first_changed == prev_line_count && first_changed > 0;
 
+        // --- The window has to move *back* over the buffer. ---
+        // A buffer taller than the screen shrank, so rows the reader scrolled
+        // past come back at the top; the append-only path cannot express that,
+        // so the visible window is painted in place. Only trees with a flex
+        // spacer take this path.
+        let window_top = (new_lines.len() as i64 - height).max(0);
+        if self.flex_spacer.is_some()
+            && (new_lines.len() as i64) < prev_line_count
+            && window_top < prev_viewport_top
+        {
+            if (new_lines.len() as i64) < height || self.saw_image_line {
+                self.full_render(&new_lines, width, height, true);
+                return;
+            }
+            let mut buffer = String::from("\x1b[?2026h");
+            // Autowrap off: the bottom row must not wrap into a scroll.
+            buffer.push_str("\x1b[?7l");
+            for row in 0..height {
+                buffer.push_str(&format!("\x1b[{};1H\x1b[2K", row + 1));
+                let line = new_lines
+                    .get((window_top + row) as usize)
+                    .cloned()
+                    .unwrap_or_default();
+                buffer.push_str(&self.emit_line(&line));
+            }
+            buffer.push_str("\x1b[?7h");
+            self.cursor_row = new_lines.len() as i64 - 1;
+            self.hardware_cursor_row = new_lines.len() as i64 - 1;
+            buffer.push_str(&self.build_hardware_cursor_move(&cursor_pos, new_lines.len() as i64));
+            buffer.push_str("\x1b[?2026l");
+            self.terminal.write(&buffer);
+            self.previous_kitty_image_ids = self.collect_kitty_image_ids(&new_lines);
+            self.previous_lines = new_lines;
+            self.previous_width = width;
+            self.previous_height = height;
+            self.previous_viewport_top = window_top;
+            self.max_lines_rendered = self
+                .max_lines_rendered
+                .max(self.previous_lines.len() as i64);
+            return;
+        }
+
         // --- No changes: still may need to move the hardware cursor. ---
         if first_changed == -1 {
             self.position_hardware_cursor(&cursor_pos, new_lines.len() as i64);
@@ -940,12 +1588,16 @@ impl Tui {
                 if extra_lines > 0 {
                     buffer.push_str(&format!("\x1b[{extra_lines}A"));
                 }
-                buffer.push_str("\x1b[?2026l");
-                self.terminal.write(&buffer);
                 self.cursor_row = target_row;
                 self.hardware_cursor_row = target_row;
+                buffer.push_str(
+                    &self.build_hardware_cursor_move(&cursor_pos, new_lines.len() as i64),
+                );
+                buffer.push_str("\x1b[?2026l");
+                self.terminal.write(&buffer);
+            } else {
+                self.position_hardware_cursor(&cursor_pos, new_lines.len() as i64);
             }
-            self.position_hardware_cursor(&cursor_pos, new_lines.len() as i64);
             self.previous_kitty_image_ids = self.collect_kitty_image_ids(&new_lines);
             self.previous_lines = new_lines;
             self.previous_width = width;
@@ -1042,15 +1694,17 @@ impl Tui {
             buffer.push_str(&format!("\x1b[{extra_lines}A"));
         }
 
+        self.cursor_row = (new_lines.len() as i64 - 1).max(0);
+        self.hardware_cursor_row = final_cursor_row;
+        // Inside the synchronized block, so the frame is never presented with
+        // the cursor still parked at the end of the last redrawn line.
+        buffer.push_str(&self.build_hardware_cursor_move(&cursor_pos, new_lines.len() as i64));
+
         buffer.push_str("\x1b[?2026l");
         self.terminal.write(&buffer);
 
-        self.cursor_row = (new_lines.len() as i64 - 1).max(0);
-        self.hardware_cursor_row = final_cursor_row;
         self.max_lines_rendered = self.max_lines_rendered.max(new_lines.len() as i64);
         self.previous_viewport_top = prev_viewport_top.max(final_cursor_row - height + 1);
-
-        self.position_hardware_cursor(&cursor_pos, new_lines.len() as i64);
 
         self.previous_kitty_image_ids = self.collect_kitty_image_ids(&new_lines);
         self.previous_lines = new_lines;
@@ -1072,11 +1726,13 @@ impl Tui {
             }
             buffer.push_str(&self.emit_line(line));
         }
+        self.cursor_row = (new_lines.len() as i64 - 1).max(0);
+        self.hardware_cursor_row = self.cursor_row;
+        let cp = self.last_cursor_pos;
+        buffer.push_str(&self.build_hardware_cursor_move(&cp, new_lines.len() as i64));
         buffer.push_str("\x1b[?2026l");
         self.terminal.write(&buffer);
 
-        self.cursor_row = (new_lines.len() as i64 - 1).max(0);
-        self.hardware_cursor_row = self.cursor_row;
         if clear {
             self.max_lines_rendered = new_lines.len() as i64;
         } else {
@@ -1085,28 +1741,32 @@ impl Tui {
         let buffer_length = height.max(new_lines.len() as i64);
         self.previous_viewport_top = (buffer_length - height).max(0);
 
-        let cp = self.last_cursor_pos;
-        self.position_hardware_cursor(&cp, new_lines.len() as i64);
-
         self.previous_lines = new_lines.to_vec();
         self.previous_kitty_image_ids = self.collect_kitty_image_ids(new_lines);
         self.previous_width = width;
         self.previous_height = height;
     }
 
-    fn position_hardware_cursor(&mut self, cursor_pos: &Option<CursorPos>, total_lines: i64) {
-        let Some(cursor_pos) = cursor_pos else {
-            self.terminal.hide_cursor();
-            return;
+    /// The escape sequence that parks the hardware cursor for this frame
+    /// (`buildHardwareCursorMove`); callers fold it into the frame buffer
+    /// inside the synchronized block. Updates `hardware_cursor_row`.
+    fn build_hardware_cursor_move(
+        &mut self,
+        cursor_pos: &Option<CursorPos>,
+        total_lines: i64,
+    ) -> String {
+        let visibility = if self.show_hardware_cursor {
+            SHOW_CURSOR
+        } else {
+            HIDE_CURSOR
         };
-        if total_lines <= 0 {
-            self.terminal.hide_cursor();
-            return;
-        }
-
+        let Some(cursor_pos) = cursor_pos.filter(|_| total_lines > 0) else {
+            // Nothing focused: return to column 0 so a frame ending in the
+            // pending-wrap state keeps the cursor on the row we think it is on.
+            return format!("\r{HIDE_CURSOR}");
+        };
         let target_row = cursor_pos.row.clamp(0, total_lines - 1);
         let target_col = cursor_pos.col.max(0);
-
         let row_delta = target_row - self.hardware_cursor_row;
         let mut buffer = String::new();
         if row_delta > 0 {
@@ -1115,17 +1775,134 @@ impl Tui {
             buffer.push_str(&format!("\x1b[{}A", -row_delta));
         }
         buffer.push_str(&format!("\x1b[{}G", target_col + 1));
+        self.hardware_cursor_row = target_row;
+        buffer.push_str(visibility);
+        buffer
+    }
 
+    /// Position the hardware cursor as a standalone write, for frames that
+    /// emit no content of their own.
+    fn position_hardware_cursor(&mut self, cursor_pos: &Option<CursorPos>, total_lines: i64) {
+        let buffer = self.build_hardware_cursor_move(cursor_pos, total_lines);
+        self.terminal.write(&buffer);
+    }
+
+    /// Paint the pinned window onto the alternate screen, whole (not
+    /// differential): at most a screenful inside one synchronized block. The
+    /// differential state is left as the last live frame left it.
+    fn render_scroll_view(&mut self) {
+        let width = self.terminal.columns() as i64;
+        let height = self.terminal.rows() as i64;
+
+        // No fill while pinned: blank rows would be transcript to scroll past.
+        if let Some(spacer) = &self.flex_spacer {
+            spacer.borrow_mut().set_height(0);
+        }
+        let mut lines = self.render(width.max(0) as u16);
+        self.flat_lines = lines.clone();
+        if !self.overlay_stack.is_empty() {
+            lines = self.composite_overlays(lines, width, height);
+        }
+
+        let view_height = self.scroll_view_height();
+        self.scroll_total_lines = lines.len() as i64;
+        let max_offset = (lines.len() as i64 - view_height).max(0);
+        // Re-clamped every frame: the transcript can shrink under the view.
+        let top = self.scroll_offset.unwrap_or(0).clamp(0, max_offset);
+        self.scroll_offset = Some(top);
+
+        let mut buffer = String::from("\x1b[?2026h");
+        buffer.push_str(HIDE_CURSOR);
+        // Autowrap off: a full-width row would wrap and shift the window.
+        buffer.push_str("\x1b[?7l");
+        // Kitty placements are not text; last frame's come off first.
+        buffer.push_str(&self.clear_scroll_images());
+
+        self.refresh_scroll_search(lines.len() as i64);
+        let query = self
+            .scroll_search
+            .as_ref()
+            .map(|s| s.query.clone())
+            .unwrap_or_default();
+        for row in 0..view_height {
+            buffer.push_str(&format!("\x1b[{};1H\x1b[2K", row + 1));
+            if let Some(line) = lines.get((top + row) as usize) {
+                let emitted = self.emit_scroll_line(line, row, &query);
+                buffer.push_str(&emitted);
+            }
+        }
+
+        buffer.push_str(&format!("\x1b[{height};1H\x1b[2K"));
+        let status = ScrollStatus {
+            top: top + 1,
+            bottom: (top + view_height).min(lines.len() as i64),
+            total: lines.len() as i64,
+            view_height,
+            at_top: top == 0,
+            at_bottom: top >= max_offset,
+            width,
+            search: self.scroll_search_status(),
+        };
+        buffer.push_str(&(self.scroll_status_formatter)(&status));
+        buffer.push_str("\x1b[?7h");
+        buffer.push_str("\x1b[?2026l");
+        self.terminal.write(&buffer);
+        // Kept so a click on the pinned window can be placed.
+        self.scroll_view_lines = Some(lines);
+    }
+
+    /// Take the pinned window's own copies of the images off the screen.
+    fn clear_scroll_images(&mut self) -> String {
+        if self.scroll_placed_images.is_empty() {
+            return String::new();
+        }
+        let ids: Vec<u32> = self.scroll_placed_images.drain().collect();
+        self.delete_kitty_images(ids)
+    }
+
+    /// On the way off the alternate screen: free the copies and their ids.
+    fn release_scroll_images(&mut self) {
+        let buffer = self.clear_scroll_images();
         if !buffer.is_empty() {
             self.terminal.write(&buffer);
         }
+        self.scroll_image_ids.clear();
+    }
 
-        self.hardware_cursor_row = target_row;
-        if self.show_hardware_cursor {
-            self.terminal.show_cursor();
-        } else {
-            self.terminal.hide_cursor();
+    /// One transcript row for the pinned window (`emitScrollLine`).
+    fn emit_scroll_line(&mut self, line: &str, row: i64, query: &str) -> String {
+        if cortexcode_tui_images::is_image_line(line) {
+            return self.emit_scroll_image(line, row);
         }
+        let mut text = line.replacen(CURSOR_MARKER, "", 1);
+        if !query.is_empty() {
+            text = Self::highlight_scroll_matches(&text, query);
+        }
+        format!("{}{SEGMENT_RESET}", normalize_terminal_output(&text))
+    }
+
+    /// An image line in the pinned window: drawn if all of it fits, named if
+    /// not; kitty images are drawn as a separately deletable copy.
+    fn emit_scroll_image(&mut self, line: &str, row: i64) -> String {
+        if image_row_offset(line) > row {
+            return IMAGE_PLACEHOLDER.to_string();
+        }
+        if !line.contains(KITTY_SEQUENCE_PREFIX) {
+            return line.to_string();
+        }
+        let Some(&live_id) = extract_kitty_image_ids(line).first() else {
+            return IMAGE_PLACEHOLDER.to_string();
+        };
+        let pinned_id = *self
+            .scroll_image_ids
+            .entry(live_id)
+            .or_insert_with(allocate_image_id);
+        let Some(retagged) = retag_kitty_image_id(line, pinned_id) else {
+            return IMAGE_PLACEHOLDER.to_string();
+        };
+        self.scroll_placed_images.insert(pinned_id);
+        self.saw_image_line = true;
+        retagged
     }
 }
 
@@ -1289,7 +2066,8 @@ mod tests {
         handles.writes.clear();
 
         tui.request_render(false);
-        assert_eq!(handles.writes.joined(), "");
+        // Only the cursor parking the pin writes on every frame.
+        assert_eq!(handles.writes.joined(), "\r\x1b[?25l");
     }
 
     #[test]

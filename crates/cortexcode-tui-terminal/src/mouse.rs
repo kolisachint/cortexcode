@@ -92,8 +92,7 @@ pub fn mouse_sequence_length(data: &str) -> usize {
     if let Some((.., len)) = match_sgr(data) {
         return len;
     }
-    if data.starts_with(X10_PREFIX) {
-        let rest = &data[X10_PREFIX.len()..];
+    if let Some(rest) = data.strip_prefix(X10_PREFIX) {
         let payload: usize = rest.chars().take(3).map(char::len_utf8).sum();
         if rest.chars().take(3).count() == 3 {
             return X10_PREFIX.len() + payload;

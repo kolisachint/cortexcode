@@ -45,6 +45,26 @@ pub fn normalize_terminal_output(s: &str) -> String {
         .collect()
 }
 
+/// Remove escape sequences (SGR, OSC 8, APC markers), keeping the visible text
+/// (Node's `stripVTControlCharacters`).
+pub fn strip_vt_control_characters(s: &str) -> String {
+    if !s.contains('\x1b') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < s.len() {
+        if let Some((_, len)) = extract_ansi_code(s, i) {
+            i += len;
+            continue;
+        }
+        let ch = s[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
 /// Apply a background-color function to `line`, padding it to `width` first.
 pub fn apply_background_to_line(
     line: &str,

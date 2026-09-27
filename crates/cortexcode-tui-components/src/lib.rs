@@ -27,6 +27,7 @@ pub use autocomplete::{
 pub use box_component::{BoxComponent, PaperFn, PaperSheet};
 pub use cancellable_loader::{AbortSignal, CancellableLoader};
 pub use color::{identity_color, ColorFn};
+pub use cortexcode_tui_render::FlexSpacer;
 pub use editor::{word_wrap_line, Editor, EditorOptions, EditorTheme, TextChunk};
 pub use frame::{
     render_frame_edge, Frame, FrameBorderChars, FrameBorderCharsOverride, FrameBorderStyle,
@@ -44,6 +45,6 @@ pub use settings_list::{
     SettingItem, SettingsList, SettingsListOptions, SettingsListTheme, SubmenuFactory,
     SubmenuOutcome,
 };
-pub use spacer::{FlexSpacer, Spacer};
+pub use spacer::Spacer;
 pub use text::Text;
 pub use truncated_text::TruncatedText;
