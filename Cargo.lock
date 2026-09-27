@@ -874,7 +874,9 @@ name = "cortexcode-code-paths"
 version = "0.0.1"
 dependencies = [
  "dirs",
+ "serde_json",
  "tempfile",
+ "url",
 ]
 
 [[package]]

@@ -3310,7 +3310,7 @@
    "id": "10.10b",
    "title": "utils/git: parseGitUrl (hosted-git-info semantics for github/gitlab/bitbucket/gist/sourcehut)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -3332,6 +3332,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:47:34Z",
+     "commit": "a5cc1c0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:50:10Z",
+     "commit": "a5cc1c0",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:50:20Z",
+     "commit": "a5cc1c0",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

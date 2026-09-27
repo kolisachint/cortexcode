@@ -36,6 +36,16 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 10.10b done (utils/git parseGitUrl)
+- `cortexcode_code_paths::git`: `parse_git_url` / `GitSource` plus a port of hosted-git-info 9.0.3
+  `fromUrl` (`hosted_git_info_from_url`: shorthand detection, correctProtocol/correctUrl, the five
+  host extractors, decodeURIComponent failure = no match). The `url` crate is the same WHATWG parser
+  as Node's `URL`. Quirks kept: `/tree` with no ref gives ref "undefined", a user-less gist gives
+  path "null/<id>".
+- Tests: git-ssh-url.test.ts + a 70-input golden corpus from the pinned build
+  (`tests/fixtures/git-url-gold.json`).
+- Next: 10.10c (tls-ca).
+
 ### 2026-09-27: 10.10 split; 10.10a done (exec, event-bus, format-*, output-guard)
 - 10.10 split into 10.10a/b/c (parent closed as a container, noted in the ledger). Already ported
   before the split: token-budget, format-duration, mime, resolve-config-value, utils/paths, git-branch.

@@ -6,6 +6,7 @@
 //! fallback. Env overrides take `CORTEXCODE_`, `CORTEX_` or hoocode's
 //! `HOOCODE_` prefix, in that order.
 
+pub mod git;
 pub mod git_branch;
 
 use std::path::{Component, Path, PathBuf};
