@@ -37,6 +37,33 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2c split; 11.2c1 done (tool blocks; L2 `tool-read` passes)
+- 11.2c is split (bookkeeping). 11.2c1 is the tool-block framework plus the read, write
+  and SearchCodebase renderers. 11.2c2 is the remaining built-in renderers (webfetch,
+  websearch, subagent, canvas, plugins). 11.2c closes when both are done.
+- `cortexcode-code-tui-widgets` gains:
+  - `tool_execution`: renderer slots with built-in/registered inheritance, the
+    status-dot prefix, peek-budget fallbacks, the radar row, images and freeze.
+  - `tool_signal`, `tool_chain`, `tool_chain_summary`, `tool_output_view`,
+    `read_output`, `visual_truncate` and `render_utils`.
+  - `tools::{read, write, search}`.
+- Renderers are `ToolRenderDefinition` closures (`Result<ComponentHandle, _>`), and
+  renderer state is a JSON map shared by the call and result slots. Renderers build a
+  fresh `Text` instead of reusing `lastComponent`: the output is the same.
+- The bash, edit, webfetch and websearch definitions are registered with empty slots
+  (edit is `self`-shelled). They draw the fallbacks until 11.2d and 11.2c2.
+- Interactive mode:
+  - Tool events build blocks inside chains.
+  - A chain closes when the agent speaks, and at settle (done or interrupted).
+  - It marks the latest block and chain, and freezes all but the last 50 blocks.
+  - The view dial (`app.view.cycle*`, `app.tools.expand` jump) is live.
+  - `showDialStep` is now used for the view, chrome and thinking dials.
+  - `showStatus` updates the previous status line in place.
+- Tests ported: tool-execution-component (all cases except the edit-renderer one, which
+  11.2d owns), tool-chain, tool-chain-summary and tool-output-view. The bash
+  "initial empty partial update" case went into tool-bash's own tests.
+- Next: 11.2c2 or 11.2d (bash/diff/highlight; L2 tool-bash).
+
 ### 2026-09-27: 11.2b done (turn transcript; L2 `chat-basic` passes)
 - New crate `cortexcode-code-tui-widgets` with `UserMessageComponent`,
   `AssistantMessageComponent` (thinking display full/label/omit, Markdown reuse cache,

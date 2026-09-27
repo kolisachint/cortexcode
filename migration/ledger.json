@@ -4030,7 +4030,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2b"
+    "11.2c1",
+    "11.2c2"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
@@ -4046,9 +4047,7 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [
-    "tool-read"
-   ],
+   "l2": "n/a: container for 11.2c1/11.2c2",
    "notes": "",
    "log": [
     {
@@ -4056,6 +4055,107 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:37:49Z",
+     "commit": "1b4047a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2c1 (framework + read/write/search renderers, L2 tool-read) and 11.2c2 (remaining renderers) (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.2c1",
+   "title": "Tool blocks: tool-execution (renderer slots, view dial, radar signal row, freeze), tool-chain + summary, read-output, visual-truncate; read/write/SearchCodebase renderers; wired into the interactive mode",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2b"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tool-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain-summary.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-signal.ts",
+    "packages/coding-agent/src/modes/interactive/components/read-output.ts",
+    "packages/coding-agent/src/modes/interactive/components/visual-truncate.ts",
+    "packages/coding-agent/src/core/tools/render-utils.ts",
+    "packages/coding-agent/src/core/tools/read.ts",
+    "packages/coding-agent/src/core/tools/write.ts",
+    "packages/coding-agent/src/core/tools/search.ts",
+    "packages/coding-agent/src/core/tool-output-view.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tool-execution-component.test.ts",
+    "packages/coding-agent/test/tool-chain.test.ts",
+    "packages/coding-agent/test/tool-chain-summary.test.ts",
+    "packages/coding-agent/test/tool-output-view.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "tool-read"
+   ],
+   "notes": "The edit-renderer case of tool-execution-component.test.ts is owned by 11.2d (diff).",
+   "log": [
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:52:14Z",
+     "commit": "1b4047a",
+     "kind": "verify",
+     "text": "L1 pass; L2 tool-read=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2c2",
+   "title": "Remaining built-in tool renderers: webfetch, websearch, subagent (Task/TaskOutput), canvas, plugin tools",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.2c1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/webfetch.ts",
+    "packages/coding-agent/src/core/tools/websearch.ts",
+    "packages/coding-agent/src/core/tools/webtools-shared.ts",
+    "packages/coding-agent/src/core/tools/subagent.ts",
+    "packages/coding-agent/src/core/tools/canvas.ts",
+    "packages/coding-agent/src/core/tools/plugins.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: renderers; covered by unit tests against the pin's formatting",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2c (bookkeeping)."
     }
    ]
   },

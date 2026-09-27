@@ -28,6 +28,7 @@ cortexcode-tui-keys = { workspace = true }
 cortexcode-tui-render = { workspace = true }
 cortexcode-tui-terminal = { workspace = true }
 cortexcode-tui-util = { workspace = true }
+serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]

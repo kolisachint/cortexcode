@@ -266,6 +266,28 @@ fn coalesces_streaming_updates_for_chatty_output() {
     assert!(updates[0].content.is_empty());
 }
 
+/// From `tool-execution-component.test.ts`: "bash execute emits an initial
+/// empty partial update before output arrives".
+#[test]
+fn bash_execute_emits_an_initial_empty_partial_update_before_output_arrives() {
+    let dir = TestDir::new();
+    let tool = bash(&dir.0, scripted(Vec::new(), Ok(Some(0))));
+    let updates = Arc::new(Mutex::new(Vec::new()));
+    let sink = updates.clone();
+    (tool.execute)(
+        "tool-bash-1".into(),
+        json!({"command": "sleep 10"}),
+        None,
+        Some(Box::new(move |update| sink.lock().unwrap().push(update))),
+        None,
+    )
+    .unwrap();
+    let updates = updates.lock().unwrap();
+    assert_eq!(updates.len(), 1);
+    assert!(updates[0].content.is_empty());
+    assert_eq!(updates[0].details, Value::Null);
+}
+
 #[test]
 fn decodes_utf8_characters_split_across_chunks() {
     let dir = TestDir::new();

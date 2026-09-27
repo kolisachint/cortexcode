@@ -7,6 +7,7 @@
 //! then a turn is shown as the user's text and the agent's final text.
 
 use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
@@ -25,6 +26,15 @@ use cortexcode_code_tui_theme::{
     get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
     set_theme, theme, ThinkingBorderLevel,
 };
+use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
+use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
+use cortexcode_code_tui_widgets::tool_execution::{
+    ToolExecutionComponent, ToolExecutionOptions, ToolRenderDefinition,
+};
+use cortexcode_code_tui_widgets::tool_output_view::{
+    cycle_tool_output_view, DEFAULT_TOOL_OUTPUT_VIEW, MAX_TOOL_OUTPUT_VIEW,
+};
+use cortexcode_code_tui_widgets::tool_signal::ToolResult;
 use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
@@ -128,6 +138,8 @@ impl FooterSource for SessionFooter {
 
 const DEFAULT_WORKING_MESSAGE: &str = "Working...";
 const DEFAULT_HIDDEN_THINKING_LABEL: &str = "Thinking...";
+/// Finished tool blocks kept live; older ones are frozen.
+const LIVE_TOOL_WINDOW: usize = 50;
 /// Minimum gap between re-renders of the streaming message.
 const STREAM_RENDER_THROTTLE: Duration = Duration::from_millis(100);
 
@@ -144,13 +156,17 @@ enum Action {
     ChromeBackward,
     ThinkingForward,
     ThinkingBackward,
+    ViewForward,
+    ViewBackward,
     /// The editor submitted this text (it has already cleared itself).
     Submit(String),
     AutocompleteVisibility(bool),
 }
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 6] = [
+const EDITOR_ACTIONS: [(&str, Action); 8] = [
+    ("app.view.cycleForward", Action::ViewForward),
+    ("app.view.cycleBackward", Action::ViewBackward),
     ("app.clear", Action::Clear),
     ("app.suspend", Action::Suspend),
     ("app.tools.expand", Action::ToolsExpand),
@@ -368,7 +384,24 @@ struct Mode {
     turn_cost_anchor: Option<(AssistantUsageTotals, Instant)>,
     turn_stop_reason: Option<StopReason>,
     tool_output_view: ToolOutputView,
+    /// Where `app.tools.expand` jumped from, so the same key goes back there.
+    view_before_jump: Option<ToolOutputView>,
     hide_thinking_block: bool,
+    /// Tool blocks by call id, until their execution ends.
+    pending_tools: HashMap<String, Rc<RefCell<ToolExecutionComponent>>>,
+    /// The chain collecting tool calls, if the agent is mid-run.
+    open_chain: Option<Rc<RefCell<ToolChainComponent>>>,
+    /// Every chain and assistant message in the transcript, in order.
+    chains: Vec<Rc<RefCell<ToolChainComponent>>>,
+    assistant_components: Vec<Rc<RefCell<AssistantMessageComponent>>>,
+    latest_block: Option<Rc<RefCell<ToolExecutionComponent>>>,
+    latest_chain: Option<Rc<RefCell<ToolChainComponent>>>,
+    chain_closed_for_current_message: bool,
+    dial_reverse_taught: HashSet<&'static str>,
+    /// The last status line, updated in place when nothing followed it.
+    last_status: Option<(ComponentHandle, Rc<RefCell<Text>>)>,
+    show_images: bool,
+    image_width_cells: u32,
     code_block_indent: String,
     editor: Rc<RefCell<CustomEditor>>,
     actions: Rc<RefCell<Vec<Action>>>,
@@ -400,6 +433,8 @@ impl Mode {
             chrome_density,
             hide_thinking_block,
             code_block_indent,
+            show_images,
+            image_width_cells,
         ) = (
             settings.show_hardware_cursor(),
             settings.clear_on_shrink(),
@@ -412,6 +447,8 @@ impl Mode {
             settings.chrome_density(),
             settings.hide_thinking_block(),
             settings.code_block_indent(),
+            settings.show_images(),
+            settings.image_width_cells() as u32,
         );
         drop(settings);
         let terminal = options
@@ -512,7 +549,7 @@ impl Mode {
             Some(Box::new(move || (budget.get().1 / 3) as usize)),
         ));
 
-        let expanded = options.verbose;
+        let expanded = options.verbose || tool_output_view == MAX_TOOL_OUTPUT_VIEW;
         let (version, cwd) = (
             options.version.clone(),
             format_display_path(&session.cwd().to_string_lossy()),
@@ -588,7 +625,19 @@ impl Mode {
             turn_cost_anchor: None,
             turn_stop_reason: None,
             tool_output_view,
+            view_before_jump: None,
             hide_thinking_block,
+            pending_tools: HashMap::new(),
+            open_chain: None,
+            chains: Vec::new(),
+            assistant_components: Vec::new(),
+            latest_block: None,
+            latest_chain: None,
+            chain_closed_for_current_message: false,
+            dial_reverse_taught: HashSet::new(),
+            last_status: None,
+            show_images,
+            image_width_cells,
             code_block_indent,
             editor,
             actions,
@@ -763,13 +812,14 @@ impl Mode {
                 self.add_to_chat(as_component(&handle(component)));
             }
             AgentMessage::Assistant(assistant) => {
-                let component = AssistantMessageComponent::with_theme(
+                let component = handle(AssistantMessageComponent::with_theme(
                     Some(assistant),
                     self.thinking_display(),
                     self.markdown_theme(),
                     DEFAULT_HIDDEN_THINKING_LABEL,
-                );
-                self.add_to_chat(as_component(&handle(component)));
+                ));
+                self.assistant_components.push(component.clone());
+                self.add_to_chat(as_component(&component));
             }
             _ => {}
         }
@@ -794,6 +844,207 @@ impl Mode {
             component.borrow_mut().update_content(message, true);
             self.dirty.set(true);
         }
+    }
+
+    fn new_tool_block(
+        &self,
+        name: &str,
+        id: &str,
+        args: serde_json::Value,
+    ) -> Rc<RefCell<ToolExecutionComponent>> {
+        // A registered tool always has a definition, renderers or not; only an
+        // unknown name gets the bare text rendering.
+        let definition = self
+            .session
+            .get_tool_definition(name)
+            .map(|_| ToolRenderDefinition::default());
+        handle(ToolExecutionComponent::new(
+            name,
+            id,
+            args,
+            ToolExecutionOptions {
+                show_images: self.show_images,
+                image_width_cells: self.image_width_cells,
+                view: self.tool_output_view,
+            },
+            definition,
+            &self.session.cwd().to_string_lossy(),
+        ))
+    }
+
+    /// `attachToolBlock`: into the open chain (a new one when none is open),
+    /// marking the newest call and run.
+    fn attach_tool_block(&mut self, block: Rc<RefCell<ToolExecutionComponent>>) {
+        let chain = match &self.open_chain {
+            Some(chain) if chain.borrow().is_open() => chain.clone(),
+            _ => {
+                let chain = handle(ToolChainComponent::new(self.tool_output_view));
+                self.add_to_chat(as_component(&chain));
+                self.chains.push(chain.clone());
+                self.open_chain = Some(chain.clone());
+                chain
+            }
+        };
+        chain.borrow_mut().add(block.clone());
+        if let Some(previous) = self.latest_block.replace(block.clone()) {
+            previous.borrow_mut().set_latest(false);
+        }
+        block.borrow_mut().set_latest(true);
+        let same = self
+            .latest_chain
+            .as_ref()
+            .is_some_and(|c| Rc::ptr_eq(c, &chain));
+        if !same {
+            if let Some(previous) = self.latest_chain.replace(chain.clone()) {
+                previous.borrow_mut().set_latest(false);
+            }
+            chain.borrow_mut().set_latest(true);
+        }
+        self.dirty.set(true);
+    }
+
+    /// `closeOpenChain`: settle the chain collecting calls.
+    fn close_open_chain(&mut self, outcome: ChainState) {
+        let Some(chain) = self.open_chain.take() else {
+            return;
+        };
+        if chain.borrow().is_empty() {
+            let h = as_component(&chain);
+            self.chat.borrow_mut().remove_child(&h);
+            self.chains.retain(|c| !Rc::ptr_eq(c, &chain));
+        } else {
+            chain.borrow_mut().close(outcome);
+        }
+        self.dirty.set(true);
+    }
+
+    /// `opensNewChain`: speaking ends the run, and so does a drawn trace.
+    fn opens_new_chain(&self, message: &AssistantMessage) -> bool {
+        let draws_thinking = self.thinking_display() != ThinkingDisplay::Omit;
+        message.content.iter().any(|c| match c {
+            Content::Text(t) => !t.text.trim().is_empty(),
+            Content::Thinking(t) => draws_thinking && !t.thinking.trim().is_empty(),
+            _ => false,
+        })
+    }
+
+    /// `trimTranscriptMemory`: freeze all but the newest live tool blocks.
+    fn trim_transcript_memory(&mut self) {
+        let freezable: Vec<_> = self
+            .chains
+            .iter()
+            .flat_map(|c| c.borrow().tool_blocks().to_vec())
+            .filter(|b| b.borrow().is_freezable())
+            .collect();
+        let excess = freezable.len().saturating_sub(LIVE_TOOL_WINDOW);
+        for block in &freezable[..excess] {
+            block.borrow_mut().freeze();
+        }
+    }
+
+    /// `showStatus`: a dim line in the chat; back-to-back statuses update the
+    /// previous line instead of stacking.
+    fn show_status(&mut self, message: &str) {
+        let styled = if message.contains("\x1b[") {
+            message.to_string()
+        } else {
+            theme().fg("dim", message)
+        };
+        if let Some((spacer, text)) = &self.last_status {
+            let chat = self.chat.borrow();
+            let n = chat.children.len();
+            let text_handle = as_component(text);
+            if n >= 2
+                && Rc::ptr_eq(&chat.children[n - 1], &text_handle)
+                && Rc::ptr_eq(&chat.children[n - 2], spacer)
+            {
+                text.borrow_mut().set_text(styled);
+                drop(chat);
+                self.dirty.set(true);
+                return;
+            }
+        }
+        let spacer = as_component(&handle(Spacer::new(1)));
+        let text = handle(Text::new(styled, 1, 0));
+        self.add_to_chat(spacer.clone());
+        self.add_to_chat(as_component(&text));
+        self.last_status = Some((spacer, text));
+    }
+
+    /// `showDialStep`: the stop a dial landed on, and (the first time) how to
+    /// step back.
+    fn show_dial_step(&mut self, backward: &'static str, message: &str) {
+        let taught = !self.dial_reverse_taught.insert(backward);
+        let topic = backward
+            .strip_suffix(".cycleForward")
+            .or_else(|| backward.strip_suffix(".cycleBackward"))
+            .unwrap_or(backward);
+        let note = (!taught).then(|| format!("{} steps back", key_text(backward)));
+        self.notifications.borrow_mut().notify(
+            NotificationKind::Info,
+            message,
+            &[],
+            note.as_deref(),
+            None,
+            Some(topic),
+        );
+        self.dirty.set(true);
+    }
+
+    /// `applyToolOutputView`: move every block and chain to `view`.
+    fn apply_tool_output_view(&mut self, view: ToolOutputView, persist: bool) {
+        let previous_thinking = self.thinking_display();
+        let was_expanded = self.tool_output_view == MAX_TOOL_OUTPUT_VIEW;
+        self.tool_output_view = view;
+        if persist {
+            self.session.settings().set_tool_output_view(view);
+            self.view_before_jump = None;
+        }
+        self.footer.borrow_mut().set_tool_output_view(view);
+        let thinking = self.thinking_display();
+        for chain in &self.chains {
+            chain.borrow_mut().set_view(view);
+        }
+        if thinking != previous_thinking {
+            for component in &self.assistant_components {
+                component.borrow_mut().set_thinking_display(thinking);
+            }
+        }
+        let expanded = view == MAX_TOOL_OUTPUT_VIEW;
+        if expanded != was_expanded {
+            // "full" holds nothing back: the header opens with it.
+            self.expanded = expanded;
+            self.header.borrow_mut().set_expanded(expanded);
+        }
+        self.dirty.set(true);
+    }
+
+    /// `jumpToFullView`: to `full`, or back to where the jump started.
+    fn jump_to_full_view(&mut self) {
+        if self.tool_output_view == MAX_TOOL_OUTPUT_VIEW {
+            let back = self
+                .view_before_jump
+                .take()
+                .unwrap_or(DEFAULT_TOOL_OUTPUT_VIEW);
+            self.apply_tool_output_view(back, false);
+            return;
+        }
+        self.view_before_jump = Some(self.tool_output_view);
+        self.apply_tool_output_view(MAX_TOOL_OUTPUT_VIEW, false);
+    }
+
+    /// `cycleToolOutputView`: one stop on the dial, saved.
+    fn cycle_tool_output_view(&mut self, forward: bool) {
+        let next = cycle_tool_output_view(self.tool_output_view, forward);
+        self.apply_tool_output_view(next, true);
+        self.show_dial_step(
+            if forward {
+                "app.view.cycleBackward"
+            } else {
+                "app.view.cycleForward"
+            },
+            &format!("Tool output: {next}"),
+        );
     }
 
     /// `showTurnCost`: this request's own tokens, time and cost.
@@ -875,6 +1126,8 @@ impl Mode {
                     ));
                     self.add_to_chat(as_component(&component));
                     component.borrow_mut().update_content(assistant, false);
+                    self.assistant_components.push(component.clone());
+                    self.chain_closed_for_current_message = false;
                     self.streaming = Some(component);
                     self.streaming_message = Some(assistant.clone());
                 }
@@ -882,8 +1135,31 @@ impl Mode {
             },
             AgentEvent::MessageUpdate { message, .. } => {
                 if let (Some(_), AgentMessage::Assistant(assistant)) = (&self.streaming, message) {
-                    self.streaming_message = Some(assistant);
                     self.schedule_streaming_render();
+                    // Whatever this message first puts on screen ends the run
+                    // its previous calls formed.
+                    if !self.chain_closed_for_current_message && self.opens_new_chain(&assistant) {
+                        self.chain_closed_for_current_message = true;
+                        self.close_open_chain(ChainState::Done);
+                    }
+                    for content in &assistant.content {
+                        let Content::ToolCall(call) = content else {
+                            continue;
+                        };
+                        match self.pending_tools.get(&call.id) {
+                            Some(block) => block.borrow_mut().update_args(call.arguments.clone()),
+                            None => {
+                                let block = self.new_tool_block(
+                                    &call.name,
+                                    &call.id,
+                                    call.arguments.clone(),
+                                );
+                                self.attach_tool_block(block.clone());
+                                self.pending_tools.insert(call.id.clone(), block);
+                            }
+                        }
+                    }
+                    self.streaming_message = Some(assistant);
                 }
             }
             AgentEvent::MessageEnd { message } => {
@@ -904,11 +1180,88 @@ impl Mode {
                         });
                     }
                     component.borrow_mut().update_content(&assistant, false);
+                    if matches!(
+                        assistant.stop_reason,
+                        StopReason::Aborted | StopReason::Error
+                    ) {
+                        let error = assistant
+                            .error_message
+                            .clone()
+                            .filter(|m| !m.is_empty())
+                            .unwrap_or_else(|| "Error".into());
+                        for block in self.pending_tools.values() {
+                            block.borrow_mut().update_result(
+                                ToolResult {
+                                    content: vec![Content::text(error.clone())],
+                                    details: serde_json::Value::Null,
+                                    is_error: true,
+                                },
+                                false,
+                            );
+                        }
+                        self.pending_tools.clear();
+                    } else {
+                        // Args are complete: edit blocks compute their diffs.
+                        for block in self.pending_tools.values() {
+                            block.borrow_mut().set_args_complete();
+                        }
+                    }
                     self.streaming_message = None;
                     self.stream_render_pending = false;
                 }
             }
+            AgentEvent::ToolExecutionStart {
+                tool_call_id,
+                tool_name,
+                args,
+            } => {
+                let block = match self.pending_tools.get(&tool_call_id) {
+                    Some(block) => block.clone(),
+                    None => {
+                        let block = self.new_tool_block(&tool_name, &tool_call_id, args);
+                        self.attach_tool_block(block.clone());
+                        self.pending_tools.insert(tool_call_id, block.clone());
+                        block
+                    }
+                };
+                block.borrow_mut().mark_execution_started();
+            }
+            AgentEvent::ToolExecutionUpdate {
+                tool_call_id,
+                partial_result,
+                ..
+            } => {
+                if let Some(block) = self.pending_tools.get(&tool_call_id) {
+                    block.borrow_mut().update_result(
+                        ToolResult {
+                            content: partial_result.content,
+                            details: partial_result.details,
+                            is_error: false,
+                        },
+                        true,
+                    );
+                }
+            }
+            AgentEvent::ToolExecutionEnd {
+                tool_call_id,
+                result,
+                is_error,
+                ..
+            } => {
+                if let Some(block) = self.pending_tools.remove(&tool_call_id) {
+                    block.borrow_mut().update_result(
+                        ToolResult {
+                            content: result.content,
+                            details: result.details,
+                            is_error,
+                        },
+                        false,
+                    );
+                    self.trim_transcript_memory();
+                }
+            }
             AgentEvent::AgentEnd { .. } => {
+                self.pending_tools.clear();
                 self.stop_working_loader();
                 if let Some(component) = self.streaming.take() {
                     let handle = as_component(&component);
@@ -944,25 +1297,16 @@ impl Mode {
             }
             Action::Exit => self.exit_requested = true,
             Action::Suspend => {}
-            Action::ToolsExpand => {
-                self.expanded = !self.expanded;
-                self.header.borrow_mut().set_expanded(self.expanded);
-                self.dirty.set(true);
+            Action::ToolsExpand => self.jump_to_full_view(),
+            Action::ViewForward | Action::ViewBackward => {
+                self.cycle_tool_output_view(action == Action::ViewForward)
             }
             Action::ChromeForward | Action::ChromeBackward => {
                 let density = self.chrome.cycle_density(action == Action::ChromeForward);
                 let mut settings = self.session.settings();
                 settings.set_chrome_density(density);
                 drop(settings);
-                self.notifications.borrow_mut().notify(
-                    NotificationKind::Info,
-                    &format!("Chrome: {density}"),
-                    &[],
-                    None,
-                    None,
-                    Some("app.chrome"),
-                );
-                self.dirty.set(true);
+                self.show_dial_step("app.chrome.cycleBackward", &format!("Chrome: {density}"));
             }
             Action::ThinkingForward | Action::ThinkingBackward => {
                 let direction = if action == Action::ThinkingForward {
@@ -970,17 +1314,16 @@ impl Mode {
                 } else {
                     cortexcode_code_agent_session::CycleDirection::Backward
                 };
-                if let Some(level) = self.session.cycle_thinking_level(direction) {
-                    self.notifications.borrow_mut().notify(
-                        NotificationKind::Info,
-                        &format!("Thinking level: {}", level.as_str()),
-                        &[],
-                        None,
-                        None,
-                        Some("app.thinking"),
-                    );
+                match self.session.cycle_thinking_level(direction) {
+                    None => self.show_status("Current model does not support thinking"),
+                    Some(level) => {
+                        self.update_editor_border_color();
+                        self.show_dial_step(
+                            "app.thinking.cycleBackward",
+                            &format!("Thinking level: {}", level.as_str()),
+                        );
+                    }
                 }
-                self.update_editor_border_color();
             }
             Action::AutocompleteVisibility(visible) => {
                 if self.chrome.set_autocomplete_open(visible) {
@@ -1098,7 +1441,14 @@ impl Mode {
                     }
                     AppEvent::PromptDone(result) => {
                         // The request has ended (retries and continuations
-                        // included): settle it (`settleRequestOnIdle`).
+                        // included): settle it (`settleRequestOnIdle`). The
+                        // last chain has nothing after it to close it.
+                        let outcome = if self.turn_stop_reason == Some(StopReason::Stop) {
+                            ChainState::Done
+                        } else {
+                            ChainState::Interrupted
+                        };
+                        self.close_open_chain(outcome);
                         self.show_turn_cost();
                         if let Err(error) = result {
                             self.show_error(&error);

@@ -1192,11 +1192,20 @@ name = "cortexcode-code-tui-widgets"
 version = "0.0.1"
 dependencies = [
  "cortexcode-ai-types",
+ "cortexcode-code-paths",
+ "cortexcode-code-settings",
+ "cortexcode-code-tool-api",
+ "cortexcode-code-tool-bash",
+ "cortexcode-code-tui-keybindings",
  "cortexcode-code-tui-theme",
  "cortexcode-tui-components",
+ "cortexcode-tui-images",
  "cortexcode-tui-render",
  "cortexcode-tui-util",
+ "once_cell",
+ "regex",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
