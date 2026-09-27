@@ -3962,7 +3962,7 @@
    "id": "11.2b",
    "title": "Turn transcript: user-message, assistant-message (streaming, thinking display), working loader, turn cost line, wired into the interactive mode",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.2a"
    ],
@@ -3975,7 +3975,11 @@
     "packages/coding-agent/src/modes/interactive/components/assistant-message.ts",
     "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/assistant-message.test.ts",
+    "packages/coding-agent/test/user-message.test.ts",
+    "packages/coding-agent/test/streaming-segmentation.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "chat-basic"
@@ -3987,6 +3991,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:24:11Z",
+     "commit": "43a6142",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:34:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "ts_tests assigned: assistant-message, user-message, streaming-segmentation (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:35:18Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:35:35Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:37:32Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 pass; L2 chat-basic=pass"
     }
    ]
   },

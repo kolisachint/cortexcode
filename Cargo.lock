@@ -1143,6 +1143,7 @@ name = "cortexcode-code-tui-app"
 version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
+ "cortexcode-ai-types",
  "cortexcode-code-agent-session",
  "cortexcode-code-paths",
  "cortexcode-code-resources",
@@ -1150,6 +1151,7 @@ dependencies = [
  "cortexcode-code-task-store",
  "cortexcode-code-tui-keybindings",
  "cortexcode-code-tui-theme",
+ "cortexcode-code-tui-widgets",
  "cortexcode-tui-components",
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
@@ -1183,6 +1185,18 @@ dependencies = [
  "cortexcode-tui-util",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-tui-widgets"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-types",
+ "cortexcode-code-tui-theme",
+ "cortexcode-tui-components",
+ "cortexcode-tui-render",
+ "cortexcode-tui-util",
+ "serde_json",
 ]
 
 [[package]]

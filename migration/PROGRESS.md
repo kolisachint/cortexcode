@@ -37,6 +37,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-27: 11.2b done (turn transcript; L2 `chat-basic` passes)
+- New crate `cortexcode-code-tui-widgets` with `UserMessageComponent`,
+  `AssistantMessageComponent` (thinking display full/label/omit, Markdown reuse cache,
+  segmented streaming above 2048 UTF-16 units, abort/error line, OSC 133 zones) and
+  `segment_streaming_markdown`. Ports assistant-message, user-message and
+  streaming-segmentation tests; the ledger now lists them on 11.2b.
+- Interactive mode: user messages come from `message_start` as in the pin.
+  - The assistant message streams with a 100 ms throttle.
+  - The working loader runs in the status container (ticked by the loop).
+  - The turn cost line (`showTurnCost`) prints when the prompt future resolves. That
+    is the Rust stand-in for `settleRequestOnIdle`, and it runs after retries too.
+  - The cost anchor is sampled inside the session subscriber at `agent_start`,
+    because the UI thread sees events only after the session has already recorded
+    usage.
+- Fixed: submitting from the editor dropped the prompt, because the editor clears
+  itself before `on_submit` and the mode re-read the empty editor. The text now
+  travels in `Action::Submit(text)`.
+- Tool blocks (`tool_execution_*`), chains and summaries are 11.2c/11.2d.
+- Next: 11.2c (tool blocks; L2 tool-read).
+
 ### 2026-09-27: 11.2a done (markdown on a marked lexer port)
 - `cortexcode-tui-components/src/markdown/` now parses with a literal port of the pinned
   marked 15 lexer (`lexer.rs`) instead of pulldown-cmark. The rules are marked's own

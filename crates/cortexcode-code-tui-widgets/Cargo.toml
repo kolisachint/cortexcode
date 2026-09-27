@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-code-tui-widgets"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The coding agent's chat transcript widgets on the cortex TUI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-tui-theme = { workspace = true }
+cortexcode-tui-components = { workspace = true }
+cortexcode-tui-render = { workspace = true }
+
+[dev-dependencies]
+cortexcode-tui-util = { workspace = true }
+serde_json = "1"

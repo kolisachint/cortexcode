@@ -21,6 +21,8 @@ cortexcode-code-settings = { workspace = true }
 cortexcode-code-task-store = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
+cortexcode-code-tui-widgets = { workspace = true }
+cortexcode-ai-types = { workspace = true }
 cortexcode-tui-components = { workspace = true }
 cortexcode-tui-keys = { workspace = true }
 cortexcode-tui-render = { workspace = true }

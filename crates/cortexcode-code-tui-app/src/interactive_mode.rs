@@ -11,18 +11,25 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
+use cortexcode_agent_types::{AgentEvent, AgentMessage};
+use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
+use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
+use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::{AgentSession, AgentSessionEvent, PromptOptions};
 use cortexcode_code_paths::{APP_NAME, APP_TITLE};
-use cortexcode_code_settings::{ChromeDensity, EditorBorder};
+use cortexcode_code_settings::{ChromeDensity, EditorBorder, ToolOutputView};
 use cortexcode_code_tui_keybindings::{
     app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
 };
 use cortexcode_code_tui_theme::{
-    get_editor_theme, init_theme, on_theme_change, set_registered_themes, set_theme, theme,
-    ThinkingBorderLevel,
+    get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
+    set_theme, theme, ThinkingBorderLevel,
+};
+use cortexcode_code_tui_widgets::{
+    AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
 use cortexcode_tui_components::{
-    Editor, EditorHost, EditorOptions, FrameBorderStyle, Spacer, Text,
+    Editor, EditorHost, EditorOptions, FrameBorderStyle, Loader, MarkdownTheme, Spacer, Text,
 };
 use cortexcode_tui_keys::get_keybindings;
 use cortexcode_tui_render::{
@@ -119,9 +126,14 @@ impl FooterSource for SessionFooter {
     }
 }
 
+const DEFAULT_WORKING_MESSAGE: &str = "Working...";
+const DEFAULT_HIDDEN_THINKING_LABEL: &str = "Thinking...";
+/// Minimum gap between re-renders of the streaming message.
+const STREAM_RENDER_THROTTLE: Duration = Duration::from_millis(100);
+
 /// App actions the prompt editor raises; handled by the mode after the
 /// keystroke (the editor is borrowed while it dispatches).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Action {
     Interrupt,
     Clear,
@@ -132,7 +144,8 @@ enum Action {
     ChromeBackward,
     ThinkingForward,
     ThinkingBackward,
-    Submit,
+    /// The editor submitted this text (it has already cleared itself).
+    Submit(String),
     AutocompleteVisibility(bool),
 }
 
@@ -183,7 +196,7 @@ impl Component for CustomEditor {
         let extra = [("app.thinking.cycleBackward", Action::ThinkingBackward)];
         for (id, action) in EDITOR_ACTIONS.iter().chain(extra.iter()) {
             if kb.matches(data, id) {
-                self.actions.borrow_mut().push(*action);
+                self.actions.borrow_mut().push(action.clone());
                 return;
             }
         }
@@ -205,7 +218,12 @@ impl Component for CustomEditor {
 
 /// Events from outside the UI thread.
 enum AppEvent {
-    Session(Box<AgentSessionEvent>),
+    /// A session event; `agent_start` carries the usage totals sampled when
+    /// it fired (the turn-cost anchor), since the UI thread sees it later.
+    Session(
+        Box<AgentSessionEvent>,
+        Option<(AssistantUsageTotals, Instant)>,
+    ),
     PromptDone(Result<(), String>),
     Rerender,
     ThemeChanged,
@@ -339,6 +357,19 @@ struct Mode {
     dirty: Rc<Cell<bool>>,
     header: Rc<RefCell<ExpandableText>>,
     chat: Rc<RefCell<Container>>,
+    status: Rc<RefCell<Container>>,
+    loader: Option<Rc<RefCell<Loader>>>,
+    streaming: Option<Rc<RefCell<AssistantMessageComponent>>>,
+    streaming_message: Option<AssistantMessage>,
+    /// Throttle for re-rendering the in-flight message: when the last run was,
+    /// and whether an update is waiting for the window to pass.
+    stream_render_at: Option<Instant>,
+    stream_render_pending: bool,
+    turn_cost_anchor: Option<(AssistantUsageTotals, Instant)>,
+    turn_stop_reason: Option<StopReason>,
+    tool_output_view: ToolOutputView,
+    hide_thinking_block: bool,
+    code_block_indent: String,
     editor: Rc<RefCell<CustomEditor>>,
     actions: Rc<RefCell<Vec<Action>>>,
     notifications: Rc<RefCell<NotificationPanel>>,
@@ -367,6 +398,8 @@ impl Mode {
             compaction_enabled,
             tool_output_view,
             chrome_density,
+            hide_thinking_block,
+            code_block_indent,
         ) = (
             settings.show_hardware_cursor(),
             settings.clear_on_shrink(),
@@ -377,6 +410,8 @@ impl Mode {
             settings.compaction_enabled(),
             settings.tool_output_view(),
             settings.chrome_density(),
+            settings.hide_thinking_block(),
+            settings.code_block_indent(),
         );
         drop(settings);
         let terminal = options
@@ -416,8 +451,8 @@ impl Mode {
         );
         editor.prompt_prefix = "❯".into();
         let sink = actions.clone();
-        editor.on_submit = Some(Box::new(move |_: &str| {
-            sink.borrow_mut().push(Action::Submit)
+        editor.on_submit = Some(Box::new(move |text: &str| {
+            sink.borrow_mut().push(Action::Submit(text.to_string()))
         }));
         let sink = actions.clone();
         editor.on_autocomplete_visibility_change = Some(Box::new(move |visible| {
@@ -524,7 +559,8 @@ impl Mode {
         tui.set_flex_spacer(Some(screen_fill.clone()));
         tui.add_child(as_component(&chat));
         tui.add_child(as_component(&handle(Container::new()))); // pending messages
-        tui.add_child(as_component(&handle(Container::new()))); // status
+        let status = handle(Container::new());
+        tui.add_child(as_component(&status));
         tui.add_child(as_component(&widget_above));
         tui.add_child(tasks_slot.clone());
         tui.add_child(as_component(&notifications));
@@ -543,6 +579,17 @@ impl Mode {
             dirty,
             header,
             chat,
+            status,
+            loader: None,
+            streaming: None,
+            streaming_message: None,
+            stream_render_at: None,
+            stream_render_pending: false,
+            turn_cost_anchor: None,
+            turn_stop_reason: None,
+            tool_output_view,
+            hide_thinking_block,
+            code_block_indent,
             editor,
             actions,
             notifications,
@@ -616,8 +663,14 @@ impl Mode {
 
     fn subscribe(&mut self) -> cortexcode_code_agent_session::SessionSubscription {
         let tx = self.tx.clone();
+        let session = self.session.clone();
         self.session.subscribe(move |event| {
-            let _ = tx.send(AppEvent::Session(Box::new(event.clone())));
+            let anchor =
+                matches!(event, AgentSessionEvent::Agent(AgentEvent::AgentStart)).then(|| {
+                    let totals = sum_assistant_usage(session.session_manager().entries());
+                    (totals, Instant::now())
+                });
+            let _ = tx.send(AppEvent::Session(Box::new(event.clone()), anchor));
         })
     }
 
@@ -640,35 +693,154 @@ impl Mode {
         });
     }
 
-    fn submit(&mut self) {
-        let text = {
-            let mut editor = self.editor.borrow_mut();
-            let text = editor.editor.get_expanded_text().trim().to_string();
-            if text.is_empty() {
-                return;
-            }
-            editor.editor.add_to_history(&text);
-            editor.editor.set_text("");
-            text
-        };
-        self.add_to_chat(as_component(&handle(Spacer::new(1))));
-        let t = theme();
-        let block = Text::new(t.fg("userMessageText", &text), 1, 0)
-            .with_bg_fn(Box::new(|s: &str| theme().bg("userMessageBg", s)));
-        self.add_to_chat(as_component(&handle(block)));
+    fn submit(&mut self, text: String) {
+        let text = text.trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        self.editor.borrow_mut().editor.add_to_history(&text);
         self.prompt(text);
+    }
+
+    /// `getMarkdownThemeWithSettings`.
+    fn markdown_theme(&self) -> Rc<dyn Fn() -> MarkdownTheme> {
+        let indent = self.code_block_indent.clone();
+        Rc::new(move || MarkdownTheme {
+            code_block_indent: Some(indent.clone()),
+            ..get_markdown_theme()
+        })
+    }
+
+    /// `thinkingDisplayForView`: radar drops traces outright.
+    fn thinking_display(&self) -> ThinkingDisplay {
+        if self.tool_output_view == ToolOutputView::Radar {
+            ThinkingDisplay::Omit
+        } else if self.hide_thinking_block {
+            ThinkingDisplay::Label
+        } else {
+            ThinkingDisplay::Full
+        }
+    }
+
+    fn create_working_loader(&self) -> Rc<RefCell<Loader>> {
+        let mut loader = Loader::new(
+            Box::new(|s: &str| theme().fg("accent", s)),
+            Box::new(|s: &str| theme().fg("muted", s)),
+            DEFAULT_WORKING_MESSAGE,
+            None,
+        );
+        loader.start();
+        handle(loader)
+    }
+
+    fn stop_working_loader(&mut self) {
+        if let Some(loader) = self.loader.take() {
+            loader.borrow_mut().stop();
+        }
+        self.status.borrow_mut().clear();
+    }
+
+    /// `addMessageToChat` for the roles this transcript draws so far.
+    fn add_message_to_chat(&mut self, message: &AgentMessage) {
+        match message {
+            AgentMessage::User(user) => {
+                let text: String = user
+                    .content
+                    .blocks()
+                    .iter()
+                    .filter_map(|c| match c {
+                        Content::Text(t) => Some(t.text.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                if text.is_empty() {
+                    return;
+                }
+                if !self.chat.borrow().children.is_empty() {
+                    self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                }
+                let component = UserMessageComponent::with_theme(&text, (self.markdown_theme())());
+                self.add_to_chat(as_component(&handle(component)));
+            }
+            AgentMessage::Assistant(assistant) => {
+                let component = AssistantMessageComponent::with_theme(
+                    Some(assistant),
+                    self.thinking_display(),
+                    self.markdown_theme(),
+                    DEFAULT_HIDDEN_THINKING_LABEL,
+                );
+                self.add_to_chat(as_component(&handle(component)));
+            }
+            _ => {}
+        }
+    }
+
+    /// Re-render the in-flight message now, or once the throttle window passes.
+    fn schedule_streaming_render(&mut self) {
+        let due = self
+            .stream_render_at
+            .is_none_or(|at| at.elapsed() >= STREAM_RENDER_THROTTLE);
+        if due {
+            self.run_streaming_render();
+        } else {
+            self.stream_render_pending = true;
+        }
+    }
+
+    fn run_streaming_render(&mut self) {
+        self.stream_render_pending = false;
+        self.stream_render_at = Some(Instant::now());
+        if let (Some(component), Some(message)) = (&self.streaming, &self.streaming_message) {
+            component.borrow_mut().update_content(message, true);
+            self.dirty.set(true);
+        }
+    }
+
+    /// `showTurnCost`: this request's own tokens, time and cost.
+    fn show_turn_cost(&mut self) {
+        let Some((anchor, at)) = self.turn_cost_anchor.take() else {
+            return;
+        };
+        let now = sum_assistant_usage(self.session.session_manager().entries());
+        let input = now.input as i64 - anchor.input as i64;
+        let output = now.output as i64 - anchor.output as i64;
+        let cost = now.cost - anchor.cost;
+        // Nothing was accounted: stay silent rather than print zeroes.
+        if input <= 0 && output <= 0 {
+            return;
+        }
+        let t = theme();
+        let mut segs = vec![
+            format!(
+                "{}{}{}{}",
+                t.fg("dim", "↑"),
+                t.fg("muted", &format_tokens(input.max(0) as u64)),
+                t.fg("dim", " ↓"),
+                t.fg("muted", &format_tokens(output.max(0) as u64)),
+            ),
+            t.fg("muted", &format_duration_secs(at.elapsed().as_secs_f64())),
+        ];
+        if cost > 0.0 {
+            segs.push(t.fg(
+                "muted",
+                &format!(
+                    "${}",
+                    cortexcode_code_agent_session::format::js_to_fixed(cost, 3)
+                ),
+            ));
+        }
+        let separator = t.fg("dim", " · ");
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(
+            segs.join(&separator),
+            1,
+            0,
+        ))));
     }
 
     fn handle_session_event(&mut self, event: AgentSessionEvent) {
         match event {
-            AgentSessionEvent::Agent(cortexcode_agent_types::AgentEvent::AgentEnd { .. }) => {
-                if let Some(text) = self.session.get_last_assistant_text() {
-                    if !text.trim().is_empty() {
-                        self.add_to_chat(as_component(&handle(Spacer::new(1))));
-                        self.add_to_chat(as_component(&handle(Text::new(text, 1, 0))));
-                    }
-                }
-            }
+            AgentSessionEvent::Agent(event) => self.handle_agent_event(event),
             AgentSessionEvent::ThinkingLevelChanged { .. } => self.update_editor_border_color(),
             AgentSessionEvent::SessionInfoChanged { .. } => {
                 self.update_session_chip();
@@ -679,9 +851,78 @@ impl Mode {
         self.dirty.set(true);
     }
 
+    fn handle_agent_event(&mut self, event: AgentEvent) {
+        match event {
+            AgentEvent::AgentStart => {
+                self.stop_working_loader();
+                let loader = self.create_working_loader();
+                self.status.borrow_mut().add_child(as_component(&loader));
+                self.loader = Some(loader);
+            }
+            AgentEvent::MessageStart { message } => match &message {
+                AgentMessage::User(_) => {
+                    startup_progress::clear();
+                    self.turn_stop_reason = None;
+                    self.add_message_to_chat(&message);
+                }
+                AgentMessage::Custom(_) => self.add_message_to_chat(&message),
+                AgentMessage::Assistant(assistant) => {
+                    let component = handle(AssistantMessageComponent::with_theme(
+                        None,
+                        self.thinking_display(),
+                        self.markdown_theme(),
+                        DEFAULT_HIDDEN_THINKING_LABEL,
+                    ));
+                    self.add_to_chat(as_component(&component));
+                    component.borrow_mut().update_content(assistant, false);
+                    self.streaming = Some(component);
+                    self.streaming_message = Some(assistant.clone());
+                }
+                _ => {}
+            },
+            AgentEvent::MessageUpdate { message, .. } => {
+                if let (Some(_), AgentMessage::Assistant(assistant)) = (&self.streaming, message) {
+                    self.streaming_message = Some(assistant);
+                    self.schedule_streaming_render();
+                }
+            }
+            AgentEvent::MessageEnd { message } => {
+                let AgentMessage::Assistant(mut assistant) = message else {
+                    return;
+                };
+                self.turn_stop_reason = Some(assistant.stop_reason);
+                if let Some(component) = self.streaming.take() {
+                    if assistant.stop_reason == StopReason::Aborted {
+                        let attempt = self.session.retry_attempt();
+                        assistant.error_message = Some(if attempt > 0 {
+                            format!(
+                                "Aborted after {attempt} retry attempt{}",
+                                if attempt > 1 { "s" } else { "" }
+                            )
+                        } else {
+                            "Operation aborted".to_string()
+                        });
+                    }
+                    component.borrow_mut().update_content(&assistant, false);
+                    self.streaming_message = None;
+                    self.stream_render_pending = false;
+                }
+            }
+            AgentEvent::AgentEnd { .. } => {
+                self.stop_working_loader();
+                if let Some(component) = self.streaming.take() {
+                    let handle = as_component(&component);
+                    self.chat.borrow_mut().remove_child(&handle);
+                    self.streaming_message = None;
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Submit => self.submit(),
+            Action::Submit(text) => self.submit(text),
             Action::Interrupt => {
                 if self.session.is_streaming() {
                     let session = self.session.clone();
@@ -759,6 +1000,14 @@ impl Mode {
         ];
         for deadline in deadlines.into_iter().flatten() {
             wait = wait.min(deadline.saturating_duration_since(now));
+        }
+        if let Some(loader) = &self.loader {
+            wait = wait.min(loader.borrow().interval());
+        }
+        if self.stream_render_pending {
+            if let Some(at) = self.stream_render_at {
+                wait = wait.min((at + STREAM_RENDER_THROTTLE).saturating_duration_since(now));
+            }
         }
         wait.max(Duration::from_millis(1))
     }
@@ -841,8 +1090,16 @@ impl Mode {
             }
             while let Ok(event) = self.rx.try_recv() {
                 match event {
-                    AppEvent::Session(event) => self.handle_session_event(*event),
+                    AppEvent::Session(event, anchor) => {
+                        if self.turn_cost_anchor.is_none() {
+                            self.turn_cost_anchor = anchor;
+                        }
+                        self.handle_session_event(*event)
+                    }
                     AppEvent::PromptDone(result) => {
+                        // The request has ended (retries and continuations
+                        // included): settle it (`settleRequestOnIdle`).
+                        self.show_turn_cost();
                         if let Err(error) = result {
                             self.show_error(&error);
                         }
@@ -860,6 +1117,16 @@ impl Mode {
             }
             if self.notifications.borrow_mut().poll() {
                 self.dirty.set(true);
+            }
+            if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
+                self.dirty.set(true);
+            }
+            if self.stream_render_pending
+                && self
+                    .stream_render_at
+                    .is_none_or(|at| at.elapsed() >= STREAM_RENDER_THROTTLE)
+            {
+                self.run_streaming_render();
             }
             if self.editor.borrow_mut().editor.poll_autocomplete() {
                 self.dirty.set(true);

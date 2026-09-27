@@ -10,6 +10,7 @@ mod render;
 mod rules;
 mod rules_gen;
 
+pub use js_regex::js_trim;
 pub use render::{DefaultTextStyle, HeadingFn, HighlightCodeFn, MarkdownTheme};
 
 use std::collections::VecDeque;
