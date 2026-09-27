@@ -413,6 +413,12 @@
      "commit": "8be2e1f",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail, print-multi=fail"
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "note",
+     "text": "10.5: skills (builtin artifact-design) and context files are in the default system prompt now; remaining default-bundle gaps: agents roster (10.9), docs section, mode appendix (10.5b), SearchHooCode (12.4)."
     }
    ]
   },
@@ -2455,7 +2461,7 @@
    "id": "10.5",
    "title": "Resources III: DefaultResourceLoader (resource-loader.ts) as the AgentSession ResourceLoader, wired into code-cli (skills, templates, context files in the system prompt)",
    "phase": 10,
-   "status": "todo",
+   "status": "l1_done",
    "depends": [
     "10.5a",
     "10.5c",
@@ -2496,6 +2502,18 @@
      "commit": "HEAD",
      "kind": "note",
      "text": "Split again: 10.5d takes package-resource-discovery.ts and the local/auto half of package-manager resolve() (the loader's source of default skill/prompt/theme/extension dirs). 10.5 also takes builtin-skills.ts (the artifact-design skill 10.4c's notes assign here). print-context-files must run in default mode (light mode disables context files), so its request comparison waits on the default-bundle prompt gates like print-tool-read (user decision 2026-09-25)."
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-context-files=fail"
+    },
+    {
+     "at": "2026-09-27T04:35:53Z",
+     "commit": "1b11db2",
+     "kind": "note",
+     "text": "print-context-files: the # Project Context section and the skills block (builtin artifact-design at the same cache hash 965fb5cbad49) now match hoocode byte for byte; the request diff left is the default-bundle remainder: <available_agents> (10.9 Task tool; format_agents_for_prompt exists in code-resources), the '# About <app> itself' docs section, and the hoo-core build-mode appendix (10.5b). Not ported here: extensions (12.3), themes (11.1), package sources (12.2); skill-expansion read errors are not reported (the extension runner's error event, 12.3)."
     }
    ]
   },

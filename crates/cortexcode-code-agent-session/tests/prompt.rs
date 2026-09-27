@@ -406,3 +406,60 @@ async fn throws_when_prompting_without_configured_auth() {
         "{error}"
     );
 }
+
+/// A real loader (hoocode's `DefaultResourceLoader`) whose skills are fixed.
+fn skill_loader(temp: &std::path::Path, skill_path: &str) -> Arc<dyn ResourceLoader> {
+    use cortexcode_code_resources::source_info::{create_synthetic_source_info, SourceScope};
+    let base = temp.to_string_lossy().into_owned();
+    let skill = cortexcode_code_resources::Skill {
+        name: "test".into(),
+        description: "Test skill".into(),
+        file_path: skill_path.into(),
+        base_dir: base.clone(),
+        source_info: create_synthetic_source_info(
+            skill_path,
+            "local",
+            Some(SourceScope::Project),
+            None,
+            Some(&base),
+        ),
+        disable_model_invocation: false,
+        allowed_tools: None,
+    };
+    Arc::new(cortexcode_code_agent_session::DefaultResources::loaded(
+        cortexcode_code_resources::DefaultResourceLoaderOptions {
+            cwd: base.clone(),
+            agent_dir: format!("{base}/agent"),
+            home: Some(format!("{base}/home")),
+            user_agents_dir: Some(format!("{base}/home/.agents")),
+            no_context_files: true,
+            skills_override: Some(Box::new(move |_| {
+                cortexcode_code_resources::LoadSkillsResult {
+                    skills: vec![skill.clone()],
+                    diagnostics: vec![],
+                }
+            })),
+            ..Default::default()
+        },
+    ))
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn expands_skill_commands_before_sending_the_prompt() {
+    let temp = tempfile::tempdir().unwrap();
+    let skill_path = temp.path().join("test-skill.md");
+    std::fs::write(&skill_path, "# Test Skill\n\nUse the skill body.").unwrap();
+    let h = Harness::new(HarnessOptions {
+        resource_loader: Some(skill_loader(temp.path(), &skill_path.to_string_lossy())),
+        ..Default::default()
+    });
+    let captured = capture_user_text(&h);
+    h.session
+        .prompt("/skill:test explain this", PromptOptions::default())
+        .await
+        .unwrap();
+    let text = captured.lock().unwrap().clone();
+    assert!(text.contains("<skill name=\"test\" location=\""));
+    assert!(text.contains("Use the skill body."));
+    assert!(text.contains("explain this"));
+}

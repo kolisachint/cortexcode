@@ -1,0 +1,15 @@
+{
+  "description": "Print mode (default bundle) in a workspace with an AGENTS.md: the context file is injected into the system prompt the model sees (# Project Context section), and the answer is printed. Compares the model requests, so it also waits on the default-bundle system prompt gates (10.4c), like print-tool-read.",
+  "compare_requests": true,
+  "request_fields": ["messages"],
+  "phase": "10.5",
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "files": {"AGENTS.md": "# Project rules\n\n- Answer in one short sentence.\n- Call the project Parity.\n"},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "-p", "what is this project called?"],
+  "llm": [{"text": "This project is called Parity."}],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["called Parity", "<exited status=0>"]}
+  ]
+}

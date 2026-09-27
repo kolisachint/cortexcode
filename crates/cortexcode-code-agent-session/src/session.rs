@@ -730,6 +730,11 @@ impl AgentSession {
         self.inner.agent.with_state(|s| s.is_streaming)
     }
 
+    /// `resourceLoader`: skills, prompt templates and context files in use.
+    pub fn resource_loader(&self) -> &Arc<dyn ResourceLoader> {
+        &self.inner.resource_loader
+    }
+
     /// The effective system prompt.
     pub fn system_prompt(&self) -> String {
         self.inner.agent.with_state(|s| s.system_prompt.clone())

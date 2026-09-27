@@ -12,10 +12,11 @@ use cortexcode_code_auth::AuthStorage;
 
 use cortexcode_code_agent_session::{
     create_agent_session, AgentSession, AgentSessionEvent, AgentSessionServices, BaseTools,
-    CreateAgentSessionOptions, PromptOptions, ScopedModel, StaticResourceLoader,
+    CreateAgentSessionOptions, DefaultResources, PromptOptions, ScopedModel,
 };
 use cortexcode_code_models::{resolve_cli_model, resolve_model_scope, AuthLookup, ModelRegistry};
 use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_resources::DefaultResourceLoaderOptions;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tool_api::ToolDefinition;
@@ -182,35 +183,66 @@ fn model_options(
     options
 }
 
-/// `resolvePromptInput`: a value naming an existing file means its contents.
-fn resolve_prompt_input(input: Option<&str>, description: &str) -> Option<String> {
-    let input = input.filter(|s| !s.is_empty())?;
-    if std::path::Path::new(input).exists() {
-        return match std::fs::read_to_string(input) {
-            Ok(content) => Some(content),
-            Err(e) => {
-                eprintln!(
-                    "\x1b[33mWarning: Could not read {description} file {input}: {e}\x1b[39m"
-                );
-                Some(input.to_string())
+/// `--skill` / `--prompt-template` / `--slash-command` values (`resolveCliPaths`):
+/// local paths against the cwd, package sources as given.
+fn resolve_cli_paths(cwd: &std::path::Path, paths: &Option<Vec<String>>) -> Vec<String> {
+    let cwd = cwd.to_string_lossy();
+    paths
+        .iter()
+        .flatten()
+        .map(|value| {
+            if cortexcode_code_paths::is_local_path(value) {
+                cortexcode_code_resources::node_path::resolve(&cwd, value)
+            } else {
+                value.clone()
             }
-        };
-    }
-    Some(input.to_string())
+        })
+        .collect()
 }
 
-/// The resource loader until 10.5: `--system-prompt` (a file or text), else
-/// the light preset's terse prompt. Skills and context files are not loaded yet.
-fn resource_loader(args: &Args, light: bool) -> StaticResourceLoader {
-    // main.ts: `systemPrompt: parsed.systemPrompt ?? (lightMode ? LIGHT_SYSTEM_PROMPT : undefined)`
-    let source = args
-        .system_prompt
-        .as_deref()
-        .or(light.then_some(cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT));
-    StaticResourceLoader {
-        system_prompt: resolve_prompt_input(source, "system prompt"),
-        append_system_prompt: Vec::new(),
+/// The `DefaultResourceLoader` main.ts builds: CLI resource paths, the built-in
+/// skills (last, so a user's skill of the same name wins), and the light preset
+/// (no skills or context files, the terse system prompt).
+fn resource_loader(
+    args: &Args,
+    light: bool,
+    cwd: &std::path::Path,
+    agent_dir: &std::path::Path,
+    settings: &Arc<Mutex<SettingsManager>>,
+) -> DefaultResources {
+    let no_skills = args.no_skills == Some(true) || light;
+    let agent_dir_str = agent_dir.to_string_lossy().into_owned();
+    let mut skill_paths = resolve_cli_paths(cwd, &args.skills);
+    if !no_skills {
+        let gate = cortexcode_code_resources::builtin_skills::BuiltinSkillGate {
+            enable_plugin_tools: settings
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .enable_plugin_tools(),
+        };
+        skill_paths.extend(
+            cortexcode_code_resources::builtin_skills::builtin_skill_paths(gate, &agent_dir_str),
+        );
     }
+    // main.ts: `systemPrompt: parsed.systemPrompt ?? (lightMode ? LIGHT_SYSTEM_PROMPT : undefined)`
+    let system_prompt = args
+        .system_prompt
+        .clone()
+        .or_else(|| light.then(|| cortexcode_code_prompts::LIGHT_SYSTEM_PROMPT.to_string()));
+    DefaultResources::loaded(DefaultResourceLoaderOptions {
+        cwd: cwd.to_string_lossy().into_owned(),
+        agent_dir: agent_dir_str,
+        settings: Some(settings.clone()),
+        additional_skill_paths: skill_paths,
+        additional_prompt_template_paths: resolve_cli_paths(cwd, &args.prompt_templates),
+        additional_slash_command_paths: resolve_cli_paths(cwd, &args.slash_commands),
+        no_skills,
+        no_prompt_templates: args.no_prompt_templates == Some(true),
+        no_slash_commands: args.no_slash_commands == Some(true),
+        no_context_files: args.no_context_files == Some(true) || light,
+        system_prompt,
+        ..Default::default()
+    })
 }
 
 /// Extension-registered tools in hoocode, SDK tools here: ask_options always
@@ -318,6 +350,7 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
     let session = assemble_session(
         args,
         cwd,
+        cortexcode_code_paths::agent_dir(),
         settings,
         registry,
         auth,
@@ -334,6 +367,7 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
 fn assemble_session(
     args: &Args,
     cwd: std::path::PathBuf,
+    agent_dir: std::path::PathBuf,
     settings: SettingsManager,
     registry: ModelRegistry,
     auth: Arc<dyn AuthLookup + Send + Sync>,
@@ -359,13 +393,15 @@ fn assemble_session(
     } else {
         (None, custom_tools(args, &settings), None)
     };
+    let settings = Arc::new(Mutex::new(settings));
+    let resources = resource_loader(args, light, &cwd, &agent_dir, &settings);
     let services = AgentSessionServices {
         cwd,
-        agent_dir: cortexcode_code_paths::agent_dir(),
+        agent_dir,
         auth,
-        settings: Arc::new(Mutex::new(settings)),
+        settings,
         model_registry: Arc::new(registry),
-        resource_loader: Arc::new(resource_loader(args, light)),
+        resource_loader: Arc::new(resources),
         diagnostics: Vec::new(),
     };
     create_agent_session(
@@ -612,9 +648,11 @@ mod tests {
     /// A session over in-memory settings, models and session, in `/w`.
     fn prompt_for(argv: &[&str]) -> (String, Vec<String>) {
         let args = crate::args::parse_args(&argv.iter().map(|a| a.to_string()).collect::<Vec<_>>());
+        let agent_dir = tempfile::tempdir().unwrap();
         let session = assemble_session(
             &args,
             std::path::PathBuf::from("/w"),
+            agent_dir.path().to_path_buf(),
             SettingsManager::in_memory(Default::default()),
             cortexcode_code_models::ModelRegistry::in_memory(),
             Arc::new(cortexcode_code_models::NoAuth),

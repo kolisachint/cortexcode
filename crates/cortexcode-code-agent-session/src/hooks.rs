@@ -1,6 +1,6 @@
 //! What AgentSession needs from the resource loader and the extension runner.
-//! Both are ported later (resources: ledger 10.5; extensions: 12.3); until
-//! then they are traits whose defaults load nothing.
+//! The resource loader is [`crate::resources::DefaultResources`]; the extension
+//! runner arrives with ledger 12.3 (until then the defaults do nothing).
 
 use std::future::Future;
 use std::pin::Pin;

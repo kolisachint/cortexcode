@@ -744,6 +744,7 @@ dependencies = [
  "cortexcode-code-models",
  "cortexcode-code-paths",
  "cortexcode-code-prompts",
+ "cortexcode-code-resources",
  "cortexcode-code-session",
  "cortexcode-code-settings",
  "cortexcode-code-tool-api",
@@ -797,6 +798,7 @@ dependencies = [
  "cortexcode-code-paths",
  "cortexcode-code-print",
  "cortexcode-code-prompts",
+ "cortexcode-code-resources",
  "cortexcode-code-rpc",
  "cortexcode-code-session",
  "cortexcode-code-settings",
@@ -885,11 +887,13 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-code-paths",
+ "cortexcode-code-settings",
  "dirs",
  "glob",
  "ignore",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
 ]
 

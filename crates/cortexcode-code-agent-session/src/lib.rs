@@ -8,6 +8,7 @@
 pub use cortexcode_code_auth::auth_guidance;
 pub mod compaction;
 pub mod hooks;
+pub mod resources;
 pub mod retry;
 pub mod runtime;
 pub mod services;
@@ -22,6 +23,7 @@ pub use hooks::{
     SessionShutdownReason, SessionStartEvent, SessionStartReason, SessionSwitchReason,
     StaticResourceLoader, TemplateKind, TreePreparation,
 };
+pub use resources::DefaultResources;
 pub use runtime::{
     create_agent_session_runtime, AgentSessionRuntime, ChangeDirectoryResult, CreatedRuntime,
     ForkResult, NewSessionRequest, ReplaceResult, RuntimeError, RuntimeFactory, RuntimeRequest,

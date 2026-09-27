@@ -5,6 +5,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
+- Disk: if builds fail with ENOSPC / "Bus error" in ld, `rm -rf target/debug` (keep
+  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0`.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -23,6 +25,30 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.5 l1_done (DefaultResourceLoader, builtin skills, wiring)
+- `code-resources::resource_loader` (resource-loader.ts): `DefaultResourceLoader` over the local
+  resolve (10.5d): skills (+ namespaces, source info), prompt templates + slash commands (default
+  dirs incl. `.claude/commands`, `.agents/commands` ancestors, dedupe collisions), context files,
+  system prompt / append inputs, overrides, `extend_resources`. Extensions (12.3), themes (11.1)
+  and package sources (12.2) are not ported.
+- `code-resources::builtin_skills` (builtin-skills.ts): hoocode's `templates/skills` embedded
+  verbatim, so the cache dir hash (965fb5cbad49) and the `<location>` match hoocode.
+- `code-resources::skill_blocks` (agent-session-skills.ts): `parse_skill_block`,
+  `expand_skill_command`.
+- `code-agent-session::DefaultResources` implements `ResourceLoader` (skills, context files,
+  `/skill:` + template expansion); `AgentSession::resource_loader()`.
+- code-cli: the loader replaces `StaticResourceLoader`; `--skill`, `--no-skills`,
+  `--prompt-template`, `--slash-command`, `--no-prompt-templates`, `--no-slash-commands`,
+  `--no-context-files` are supported; light mode drops skills and context files.
+- Tests: resource-loader.test.ts (minus extensions/themes), builtin-skills.test.ts,
+  sdk-skills.test.ts, and the skill-expansion case of agent-session-prompt.test.ts.
+- L2 `print-context-files` (new, stable): the context and skills sections match hoocode; the
+  request still differs by the default-bundle remainder (agents roster 10.9, docs section,
+  build-mode appendix 10.5b), like print-tool-read.
+- Disk: the session disk allowance filled up (target/debug grew to 20G). `rm -rf target/debug`
+  (never `cargo clean`: it deletes target/hoocode-pin) and prefer `CARGO_INCREMENTAL=0`.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.5d done (package resource discovery, local resolve)
 - `code-resources::package_discovery` (package-resource-discovery.ts): recursive collection with

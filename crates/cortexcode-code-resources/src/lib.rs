@@ -9,6 +9,7 @@
 
 pub mod agent_frontmatter;
 pub mod agent_registry;
+pub mod builtin_skills;
 pub mod context_files;
 pub mod diagnostics;
 pub mod frontmatter;
@@ -17,6 +18,8 @@ pub mod node_path;
 pub mod package_discovery;
 pub mod package_resolve;
 pub mod prompt_templates;
+pub mod resource_loader;
+pub mod skill_blocks;
 pub mod skills;
 pub mod slash_commands;
 pub mod source_info;
@@ -38,6 +41,10 @@ pub use prompt_templates::{
     expand_prompt_template, load_prompt_templates, parse_command_args, substitute_args,
     try_expand_prompt_template, LoadPromptTemplatesOptions, PromptTemplate,
     PromptTemplateExpansion, PromptTemplateType,
+};
+pub use resource_loader::{
+    AgentsFilesResult, DefaultResourceLoader, DefaultResourceLoaderOptions, LoadPromptsResult,
+    PathEntry, ResourceExtensionPaths,
 };
 pub use skills::{
     format_skills_for_prompt, load_skills, load_skills_from_dir, LoadSkillsOptions,
