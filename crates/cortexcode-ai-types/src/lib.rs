@@ -166,11 +166,26 @@ pub struct Usage {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Cost {
+    #[serde(serialize_with = "js_f64")]
     pub input: f64,
+    #[serde(serialize_with = "js_f64")]
     pub output: f64,
+    #[serde(serialize_with = "js_f64")]
     pub cache_read: f64,
+    #[serde(serialize_with = "js_f64")]
     pub cache_write: f64,
+    #[serde(serialize_with = "js_f64")]
     pub total: f64,
+}
+
+/// Serialize an `f64` the way `JSON.stringify` prints a JS number: integral
+/// values without a fraction (`0`, not serde's `0.0`).
+pub fn js_f64<S: serde::Serializer>(n: &f64, serializer: S) -> Result<S::Ok, S::Error> {
+    if n.fract() == 0.0 && n.abs() < 9.007_199_254_740_992e15 {
+        serializer.serialize_i64(*n as i64)
+    } else {
+        serializer.serialize_f64(*n)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -262,25 +277,28 @@ pub struct AssistantMessage {
     /// Requested model id.
     #[serde(default)]
     pub model: String,
-    /// Concrete model reported by the provider when it differs from `model`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub response_model: Option<String>,
-    /// Provider response/message id when the API exposes one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub response_id: Option<String>,
-    /// Redacted provider/runtime diagnostics (TS `AssistantMessageDiagnostic[]`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagnostics: Option<Vec<serde_json::Value>>,
+    // Field order is the wire order: the providers' object literal
+    // (`usage, stopReason, timestamp`), then the fields they assign while
+    // streaming (`responseId`, `responseModel`, `errorMessage`, `diagnostics`).
     #[serde(default)]
     pub usage: Usage,
     #[serde(default)]
     pub stop_reason: StopReason,
-    /// Human-readable error, set when `stop_reason` is `Error` or `Aborted`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
     /// Unix time in milliseconds.
     #[serde(default)]
     pub timestamp: i64,
+    /// Provider response/message id when the API exposes one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
+    /// Concrete model reported by the provider when it differs from `model`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_model: Option<String>,
+    /// Human-readable error, set when `stop_reason` is `Error` or `Aborted`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// Redacted provider/runtime diagnostics (TS `AssistantMessageDiagnostic[]`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<Vec<serde_json::Value>>,
 }
 
 impl AssistantMessage {
@@ -364,6 +382,20 @@ pub enum ThinkingLevel {
     Medium,
     High,
     XHigh,
+}
+
+impl ThinkingLevel {
+    /// The TS `ThinkingLevel` string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ThinkingLevel::Off => "off",
+            ThinkingLevel::Minimal => "minimal",
+            ThinkingLevel::Low => "low",
+            ThinkingLevel::Medium => "medium",
+            ThinkingLevel::High => "high",
+            ThinkingLevel::XHigh => "xhigh",
+        }
+    }
 }
 
 /// Per-level thinking token budgets.
@@ -791,6 +823,111 @@ pub enum AssistantMessageEvent {
     Done { message: AssistantMessage },
     /// An error occurred during streaming.
     Error { error: AssistantMessage },
+}
+
+impl AssistantMessageEvent {
+    /// The event as hoocode serializes it (`JSON.stringify` of the TS
+    /// `AssistantMessageEvent`): `{"type":"text_delta","contentIndex":0,"delta":…,"partial":…}`.
+    /// `content` (on `*_end`), `toolCall` (on `toolcall_end`) and `reason` (on
+    /// `done`/`error`) are read from the message, which holds them at that point.
+    pub fn to_json(&self) -> serde_json::Value {
+        use serde_json::{json, Value};
+        let msg = assistant_message_json;
+        let block = |partial: &AssistantMessage, index: usize| partial.content.get(index).cloned();
+        let with =
+            |kind: &str, index: usize, extra: Option<(&str, Value)>, partial: &AssistantMessage| {
+                let mut map = serde_json::Map::new();
+                map.insert("type".into(), kind.into());
+                map.insert("contentIndex".into(), index.into());
+                if let Some((key, value)) = extra {
+                    map.insert(key.into(), value);
+                }
+                map.insert("partial".into(), msg(partial));
+                Value::Object(map)
+            };
+        match self {
+            Self::Start { partial } => json!({"type": "start", "partial": msg(partial)}),
+            Self::TextStart { partial, index } => with("text_start", *index, None, partial),
+            Self::TextDelta {
+                partial,
+                index,
+                delta,
+            } => with(
+                "text_delta",
+                *index,
+                Some(("delta", delta.as_str().into())),
+                partial,
+            ),
+            Self::TextEnd { partial, index } => {
+                let text = match block(partial, *index) {
+                    Some(Content::Text(t)) => t.text,
+                    _ => String::new(),
+                };
+                with("text_end", *index, Some(("content", text.into())), partial)
+            }
+            Self::ThinkingStart { partial, index } => with("thinking_start", *index, None, partial),
+            Self::ThinkingDelta {
+                partial,
+                index,
+                delta,
+            } => with(
+                "thinking_delta",
+                *index,
+                Some(("delta", delta.as_str().into())),
+                partial,
+            ),
+            Self::ThinkingEnd { partial, index } => {
+                let text = match block(partial, *index) {
+                    Some(Content::Thinking(t)) => t.thinking,
+                    _ => String::new(),
+                };
+                with(
+                    "thinking_end",
+                    *index,
+                    Some(("content", text.into())),
+                    partial,
+                )
+            }
+            Self::ToolCallStart { partial, index } => with("toolcall_start", *index, None, partial),
+            Self::ToolCallDelta {
+                partial,
+                index,
+                delta,
+            } => with(
+                "toolcall_delta",
+                *index,
+                Some(("delta", delta.as_str().into())),
+                partial,
+            ),
+            Self::ToolCallEnd { partial, index } => {
+                let call = block(partial, *index)
+                    .and_then(|c| serde_json::to_value(c).ok())
+                    .unwrap_or(Value::Null);
+                with("toolcall_end", *index, Some(("toolCall", call)), partial)
+            }
+            Self::Done { message } => json!({
+                "type": "done",
+                "reason": serde_json::to_value(message.stop_reason).unwrap_or(Value::Null),
+                "message": msg(message),
+            }),
+            Self::Error { error } => json!({
+                "type": "error",
+                "reason": serde_json::to_value(error.stop_reason).unwrap_or(Value::Null),
+                "error": msg(error),
+            }),
+        }
+    }
+}
+
+/// An [`AssistantMessage`] as it appears on the wire, `"role":"assistant"` first
+/// (the struct itself is untagged; [`Message`] adds the role).
+pub fn assistant_message_json(message: &AssistantMessage) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    map.insert("role".into(), "assistant".into());
+    if let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(message) {
+        map.extend(fields);
+    }
+    serde_json::Value::Object(map)
 }
 
 // ---------------------------------------------------------------------------

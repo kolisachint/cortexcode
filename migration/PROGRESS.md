@@ -19,8 +19,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done.
 - 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
-  and 10.9 agents roster); 10.7b done. Next: **10.8b** (`--mode json` event shape: contentIndex,
-  `content` on *_end, toolCall, reason, plus session-level events) — not started.
+  and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape).
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -32,6 +31,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.8b done (--mode json event stream)
+- Wire serializers: `AssistantMessageEvent::to_json` (ai-types; contentIndex, `content` on
+  *_end, `toolCall` on toolcall_end, `reason` on done/error, all read from the partial),
+  `AgentEvent::to_json` / `AgentToolResult::to_json` (agent-types), `AgentSessionEvent::to_json`
+  (code-agent-session; queue/session-info/thinking/compaction/retry). RPC (10.8c) can reuse them.
+- ai-types: `Cost` fields serialize like JS numbers (`0`, not `0.0`) and `AssistantMessage`
+  fields are in the providers' wire order (`…usage, stopReason, timestamp, responseId, …`).
+  Both also change what cortex writes to session files (now closer to hoocode's bytes).
+- code-print: the invented `JsonEvent`/`PrintFormatter` format is gone; `json_line`.
+  code-cli streams the session header + every event live (tokio select over the prompt).
+- Harness: `"stdout_jsonl"` scenarios send stdout to a file and compare it line by line
+  (key order kept; `mask_keys` / per-event `mask_fields`). json-basic masks message_update's
+  live partial (hoocode mutates it while the event is queued: timing-dependent).
+- L2 `json-basic`, `json-error` (new, stable) pass.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.7b done (CLI session flags)
 - code-cli `session_flags.rs`: `--fork`, `--session` (path / id prefix / other project with a y/N

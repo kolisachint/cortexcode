@@ -156,6 +156,96 @@ pub enum AgentEvent {
     },
 }
 
+impl AgentEvent {
+    /// The event as hoocode's `--mode json` / RPC stream prints it
+    /// (`JSON.stringify` of the TS `AgentEvent`, keys in agent-loop.ts order).
+    pub fn to_json(&self) -> serde_json::Value {
+        use serde_json::{json, Value};
+        match self {
+            AgentEvent::AgentStart => json!({"type": "agent_start"}),
+            AgentEvent::TurnStart => json!({"type": "turn_start"}),
+            AgentEvent::MessageStart { message } => {
+                json!({"type": "message_start", "message": json_value(message)})
+            }
+            AgentEvent::MessageUpdate {
+                assistant_message_event,
+                message,
+            } => json!({
+                "type": "message_update",
+                "assistantMessageEvent": assistant_message_event.to_json(),
+                "message": json_value(message),
+            }),
+            AgentEvent::MessageEnd { message } => {
+                json!({"type": "message_end", "message": json_value(message)})
+            }
+            AgentEvent::ToolExecutionStart {
+                tool_call_id,
+                tool_name,
+                args,
+            } => json!({
+                "type": "tool_execution_start",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+                "args": args,
+            }),
+            AgentEvent::ToolExecutionUpdate {
+                tool_call_id,
+                tool_name,
+                args,
+                partial_result,
+            } => json!({
+                "type": "tool_execution_update",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+                "args": args,
+                "partialResult": partial_result.to_json(),
+            }),
+            AgentEvent::ToolExecutionEnd {
+                tool_call_id,
+                tool_name,
+                result,
+                is_error,
+            } => json!({
+                "type": "tool_execution_end",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+                "result": result.to_json(),
+                "isError": is_error,
+            }),
+            AgentEvent::TurnEnd {
+                message,
+                tool_results,
+            } => json!({
+                "type": "turn_end",
+                "message": cortexcode_ai_types::assistant_message_json(message),
+                "toolResults": tool_results
+                    .iter()
+                    .map(tool_result_json)
+                    .collect::<Vec<Value>>(),
+            }),
+            AgentEvent::AgentEnd { messages } => json!({
+                "type": "agent_end",
+                "messages": messages.iter().map(json_value).collect::<Vec<Value>>(),
+            }),
+        }
+    }
+}
+
+/// `serde_json::to_value` for types that always serialize (messages, content).
+fn json_value<T: Serialize>(value: &T) -> serde_json::Value {
+    serde_json::to_value(value).unwrap_or_default()
+}
+
+/// A tool result message as it appears on the wire, `"role":"toolResult"` first.
+fn tool_result_json(message: &ToolResultMessage) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    map.insert("role".into(), "toolResult".into());
+    if let serde_json::Value::Object(fields) = json_value(message) {
+        map.extend(fields);
+    }
+    serde_json::Value::Object(map)
+}
+
 // ---------------------------------------------------------------------------
 // Agent message (hoocode `AgentMessage` union, tagged by `role`)
 // ---------------------------------------------------------------------------
@@ -307,6 +397,26 @@ pub struct AgentToolResult {
     pub content: Vec<Content>,
     pub details: serde_json::Value,
     pub terminate: bool,
+}
+
+impl AgentToolResult {
+    /// The TS `AgentToolResult` as `JSON.stringify` prints it: `{content, details}`,
+    /// with `details` dropped when unset (`null` here stands for `undefined`) and
+    /// `terminate` only when set.
+    pub fn to_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "content".into(),
+            serde_json::to_value(&self.content).unwrap_or_default(),
+        );
+        if !self.details.is_null() {
+            map.insert("details".into(), self.details.clone());
+        }
+        if self.terminate {
+            map.insert("terminate".into(), true.into());
+        }
+        serde_json::Value::Object(map)
+    }
 }
 
 // ---------------------------------------------------------------------------

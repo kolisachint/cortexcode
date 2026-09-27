@@ -11,11 +11,11 @@ use cortexcode_ai_types::{Model, ThinkingLevel};
 use cortexcode_code_auth::AuthStorage;
 
 use cortexcode_code_agent_session::{
-    create_agent_session, AgentSession, AgentSessionEvent, AgentSessionServices, BaseTools,
-    CreateAgentSessionOptions, DefaultResources, PromptOptions, ScopedModel,
+    create_agent_session, AgentSession, AgentSessionServices, BaseTools, CreateAgentSessionOptions,
+    DefaultResources, PromptOptions, ScopedModel,
 };
 use cortexcode_code_models::{resolve_cli_model, resolve_model_scope, AuthLookup, ModelRegistry};
-use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_print::{format_text_output, json_line, text_result, PrintMode};
 use cortexcode_code_resources::DefaultResourceLoaderOptions;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::SettingsManager;
@@ -562,27 +562,49 @@ pub fn run_print_mode(
         return Ok(1);
     }
 
-    let formatter = Arc::new(Mutex::new(PrintFormatter::new(mode)));
-    let formatter_for_sub = formatter.clone();
-    // Session-level events join the JSON stream with 10.8b.
-    let _sub = session.subscribe(move |event| {
-        if let AgentSessionEvent::Agent(event) = event {
-            if let Ok(mut fmt) = formatter_for_sub.lock() {
-                fmt.record(event.clone());
-            }
-        }
+    // `--mode json`: the session header, then every session event as it
+    // happens. Listeners run on runtime threads; lines go through a channel and
+    // are written here, between polls of the running prompt.
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let _sub = (mode == PrintMode::Json).then(|| {
+        let header =
+            cortexcode_code_session::FileEntry::Session(session.session_manager().header().clone());
+        let _ = tx.send(json_line(
+            &serde_json::to_value(&header).unwrap_or_default(),
+        ));
+        let tx = tx.clone();
+        session.subscribe(move |event| {
+            let _ = tx.send(json_line(&event.to_json()));
+        })
     });
+    drop(tx);
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
         let run = session.prompt(prompt, PromptOptions::default());
-        if let Err(e) = async_runtime().block_on(run) {
+        let result = async_runtime().block_on(async {
+            tokio::pin!(run);
+            loop {
+                tokio::select! {
+                    result = &mut run => break Ok(result),
+                    Some(line) = rx.recv() => {
+                        if let Err(e) = output.write_all(line.as_bytes()).and_then(|_| output.flush()) {
+                            break Err(e);
+                        }
+                    }
+                }
+            }
+        })?;
+        write_lines(&mut rx, output)?;
+        if let Err(e) = result {
             writeln!(err, "{e}")?;
             session.dispose();
             return Ok(1);
         }
     }
     session.dispose();
+    drop(_sub);
+    write_lines(&mut rx, output)?;
 
     match mode {
         PrintMode::Text => {
@@ -594,19 +616,20 @@ pub fn run_print_mode(
             }
             Ok(result.exit_code)
         }
-        // Event-stream parity is 10.8b; json mode never inspects the final message.
-        PrintMode::Json => {
-            drop(_sub);
-            let formatter = Arc::try_unwrap(formatter)
-                .ok()
-                .and_then(|m| m.into_inner().ok())
-                .unwrap_or_default();
-            formatter
-                .finalize(output)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            Ok(0)
-        }
+        // json mode never inspects the final message.
+        PrintMode::Json => Ok(0),
     }
+}
+
+/// Write the queued `--mode json` lines.
+fn write_lines(
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    output: &mut dyn Write,
+) -> std::io::Result<()> {
+    while let Ok(line) = rx.try_recv() {
+        output.write_all(line.as_bytes())?;
+    }
+    output.flush()
 }
 
 /// Run the agent in an interactive TUI loop.

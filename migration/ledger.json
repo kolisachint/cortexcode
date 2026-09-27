@@ -2662,12 +2662,16 @@
    "id": "10.8b",
    "title": "--mode json event stream parity",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
    "crates": [
-    "cortexcode-code-print"
+    "cortexcode-code-print",
+    "cortexcode-ai-types",
+    "cortexcode-agent-types",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-cli"
    ],
    "sources": [
     "packages/coding-agent/src/modes/print-mode.ts",
@@ -2676,7 +2680,8 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "json-basic"
+    "json-basic",
+    "json-error"
    ],
    "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
    "log": [
@@ -2685,6 +2690,18 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: print JSON mode now subscribes to AgentSession but only records AgentSessionEvent::Agent events; session-level events (queue_update, session_info_changed, thinking_level_changed, later compaction/retry) need serializing in hoocode's shape."
+    },
+    {
+     "at": "2026-09-27T05:29:00Z",
+     "commit": "f593a99",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:42:18Z",
+     "commit": "f593a99",
+     "kind": "verify",
+     "text": "L1 pass; L2 json-basic=pass, json-error=pass"
     }
    ]
   },

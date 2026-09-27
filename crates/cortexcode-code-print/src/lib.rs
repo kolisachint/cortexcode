@@ -4,14 +4,16 @@
 //! TypeScript `packages/coding-agent` package. It provides two render targets:
 //!
 //! * **Text mode** — prints the final assistant response as plain text.
-//! * **JSON mode** — streams every agent event as a JSON line (`\n`-delimited).
+//! * **JSON mode** — the session header, then every session event as one JSON
+//!   line, in hoocode's wire shape (`docs/json.md`).
 //!
 //! These helpers are used by the non-interactive `cortex -p` / `cortex --mode json`
 //! CLI entry points.
 
-use cortexcode_agent_types::{AgentEvent, AgentMessage, AgentToolResult};
+#[cfg(doc)]
+use cortexcode_agent_types::AgentEvent;
+use cortexcode_agent_types::AgentMessage;
 use cortexcode_ai_types::{Content, Message, StopReason, TextContent};
-use serde::Serialize;
 use std::io::Write;
 
 /// Output target for print mode.
@@ -168,288 +170,11 @@ pub fn text_result(transcript: &[AgentMessage]) -> TextResult {
     result
 }
 
-/// JSON-serializable view of a tool result.
-#[derive(Debug, Serialize)]
-struct JsonToolResult {
-    content: Vec<JsonContent>,
-    details: serde_json::Value,
-    terminate: bool,
-}
-
-impl From<&AgentToolResult> for JsonToolResult {
-    fn from(result: &AgentToolResult) -> Self {
-        Self {
-            content: result.content.iter().map(JsonContent::from).collect(),
-            details: result.details.clone(),
-            terminate: result.terminate,
-        }
-    }
-}
-
-/// JSON-serializable view of a content block.
-#[derive(Debug, Serialize)]
-#[serde(tag = "type", content = "value")]
-enum JsonContent {
-    Text(String),
-    Image {
-        data: String,
-        media_type: String,
-    },
-    Thinking {
-        thinking: String,
-        signature: Option<String>,
-    },
-    ToolCall {
-        id: String,
-        name: String,
-        arguments: serde_json::Value,
-    },
-}
-
-impl From<&Content> for JsonContent {
-    fn from(content: &Content) -> Self {
-        match content {
-            Content::Text(t) => JsonContent::Text(t.text.clone()),
-            Content::Image(img) => JsonContent::Image {
-                data: img.data.clone(),
-                media_type: img.media_type.clone(),
-            },
-            Content::Thinking(t) => JsonContent::Thinking {
-                thinking: t.thinking.clone(),
-                signature: t.signature.clone(),
-            },
-            Content::ToolCall(tc) => JsonContent::ToolCall {
-                id: tc.id.clone(),
-                name: tc.name.clone(),
-                arguments: tc.arguments.clone(),
-            },
-        }
-    }
-}
-
-/// JSON-serializable view of an agent event.
-#[derive(Debug, Serialize)]
-#[serde(tag = "type")]
-pub struct JsonEvent {
-    #[serde(flatten)]
-    payload: JsonEventPayload,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(tag = "event", content = "data")]
-enum JsonEventPayload {
-    AgentStart,
-    TurnStart,
-    MessageStart {
-        message: AgentMessage,
-    },
-    MessageUpdate {
-        assistant_message_event: JsonAssistantMessageEvent,
-        message: AgentMessage,
-    },
-    MessageEnd {
-        message: AgentMessage,
-    },
-    ToolExecutionStart {
-        tool_call_id: String,
-        tool_name: String,
-        args: serde_json::Value,
-    },
-    ToolExecutionUpdate {
-        tool_call_id: String,
-        tool_name: String,
-        args: serde_json::Value,
-        partial_result: JsonToolResult,
-    },
-    ToolExecutionEnd {
-        tool_call_id: String,
-        tool_name: String,
-        result: JsonToolResult,
-        is_error: bool,
-    },
-    TurnEnd {
-        message: cortexcode_ai_types::AssistantMessage,
-        tool_results: Vec<cortexcode_ai_types::ToolResultMessage>,
-    },
-    AgentEnd {
-        messages: Vec<AgentMessage>,
-    },
-}
-
-#[derive(Debug, Serialize)]
-#[serde(tag = "kind")]
-enum JsonAssistantMessageEvent {
-    Start,
-    Done,
-    Error,
-    TextStart { index: usize },
-    TextDelta { index: usize, delta: String },
-    TextEnd { index: usize },
-    ThinkingStart { index: usize },
-    ThinkingDelta { index: usize, delta: String },
-    ThinkingEnd { index: usize },
-    ToolCallStart { index: usize },
-    ToolCallDelta { index: usize, delta: String },
-    ToolCallEnd { index: usize },
-}
-
-impl From<&cortexcode_ai_types::AssistantMessageEvent> for JsonAssistantMessageEvent {
-    fn from(event: &cortexcode_ai_types::AssistantMessageEvent) -> Self {
-        use cortexcode_ai_types::AssistantMessageEvent as E;
-        match event {
-            E::Start { .. } => JsonAssistantMessageEvent::Start,
-            E::Done { .. } => JsonAssistantMessageEvent::Done,
-            E::Error { .. } => JsonAssistantMessageEvent::Error,
-            E::TextStart { index, .. } => JsonAssistantMessageEvent::TextStart { index: *index },
-            E::TextDelta { index, delta, .. } => JsonAssistantMessageEvent::TextDelta {
-                index: *index,
-                delta: delta.clone(),
-            },
-            E::TextEnd { index, .. } => JsonAssistantMessageEvent::TextEnd { index: *index },
-            E::ThinkingStart { index, .. } => {
-                JsonAssistantMessageEvent::ThinkingStart { index: *index }
-            }
-            E::ThinkingDelta { index, delta, .. } => JsonAssistantMessageEvent::ThinkingDelta {
-                index: *index,
-                delta: delta.clone(),
-            },
-            E::ThinkingEnd { index, .. } => {
-                JsonAssistantMessageEvent::ThinkingEnd { index: *index }
-            }
-            E::ToolCallStart { index, .. } => {
-                JsonAssistantMessageEvent::ToolCallStart { index: *index }
-            }
-            E::ToolCallDelta { index, delta, .. } => JsonAssistantMessageEvent::ToolCallDelta {
-                index: *index,
-                delta: delta.clone(),
-            },
-            E::ToolCallEnd { index, .. } => {
-                JsonAssistantMessageEvent::ToolCallEnd { index: *index }
-            }
-        }
-    }
-}
-
-impl From<&AgentEvent> for JsonEvent {
-    fn from(event: &AgentEvent) -> Self {
-        use cortexcode_agent_types::AgentEvent as E;
-        let payload = match event {
-            E::AgentStart => JsonEventPayload::AgentStart,
-            E::TurnStart => JsonEventPayload::TurnStart,
-            E::MessageStart { message } => JsonEventPayload::MessageStart {
-                message: message.clone(),
-            },
-            E::MessageUpdate {
-                assistant_message_event,
-                message,
-            } => JsonEventPayload::MessageUpdate {
-                assistant_message_event: JsonAssistantMessageEvent::from(
-                    &**assistant_message_event,
-                ),
-                message: message.clone(),
-            },
-            E::MessageEnd { message } => JsonEventPayload::MessageEnd {
-                message: message.clone(),
-            },
-            E::ToolExecutionStart {
-                tool_call_id,
-                tool_name,
-                args,
-            } => JsonEventPayload::ToolExecutionStart {
-                tool_call_id: tool_call_id.clone(),
-                tool_name: tool_name.clone(),
-                args: args.clone(),
-            },
-            E::ToolExecutionUpdate {
-                tool_call_id,
-                tool_name,
-                args,
-                partial_result,
-            } => JsonEventPayload::ToolExecutionUpdate {
-                tool_call_id: tool_call_id.clone(),
-                tool_name: tool_name.clone(),
-                args: args.clone(),
-                partial_result: JsonToolResult::from(partial_result),
-            },
-            E::ToolExecutionEnd {
-                tool_call_id,
-                tool_name,
-                result,
-                is_error,
-            } => JsonEventPayload::ToolExecutionEnd {
-                tool_call_id: tool_call_id.clone(),
-                tool_name: tool_name.clone(),
-                result: JsonToolResult::from(result),
-                is_error: *is_error,
-            },
-            E::TurnEnd {
-                message,
-                tool_results,
-            } => JsonEventPayload::TurnEnd {
-                message: message.clone(),
-                tool_results: tool_results.clone(),
-            },
-            E::AgentEnd { messages } => JsonEventPayload::AgentEnd {
-                messages: messages.clone(),
-            },
-        };
-        JsonEvent { payload }
-    }
-}
-
-/// Serialize a single agent event to a JSON line.
-pub fn format_json_event(event: &AgentEvent) -> Result<String, PrintError> {
-    let json = JsonEvent::from(event);
-    Ok(serde_json::to_string(&json)?)
-}
-
-/// Write a JSON line for each agent event to `output`.
-pub fn write_json_output(events: &[AgentEvent], output: &mut dyn Write) -> Result<(), PrintError> {
-    for event in events {
-        writeln!(output, "{}", format_json_event(event)?)?;
-    }
-    Ok(())
-}
-
-/// Convenience formatter that collects events and renders the final output.
-#[derive(Debug, Default)]
-pub struct PrintFormatter {
-    mode: PrintMode,
-    events: Vec<AgentEvent>,
-}
-
-impl PrintFormatter {
-    /// Create a formatter for the given mode.
-    pub fn new(mode: PrintMode) -> Self {
-        Self {
-            mode,
-            events: Vec::new(),
-        }
-    }
-
-    /// Record an event while the agent is running.
-    pub fn record(&mut self, event: AgentEvent) {
-        self.events.push(event);
-    }
-
-    /// Consume the formatter and write the final output.
-    pub fn finalize(self, output: &mut dyn Write) -> Result<(), PrintError> {
-        match self.mode {
-            PrintMode::Text => {
-                let messages: Vec<AgentMessage> = self
-                    .events
-                    .iter()
-                    .filter_map(|e| match e {
-                        AgentEvent::AgentEnd { messages } => Some(messages.clone()),
-                        _ => None,
-                    })
-                    .next()
-                    .unwrap_or_default();
-                write_text_output(&messages, output)
-            }
-            PrintMode::Json => write_json_output(&self.events, output),
-        }
-    }
+/// One line of the `--mode json` stream: `JSON.stringify(value) + "\n"`.
+/// Events come from `AgentSessionEvent::to_json` / [`AgentEvent::to_json`],
+/// the first line is the session header.
+pub fn json_line(value: &serde_json::Value) -> String {
+    format!("{value}\n")
 }
 
 #[cfg(test)]
@@ -509,7 +234,6 @@ mod tests {
         let r = text_result(&[AgentMessage::user_text("hi")]);
         assert_eq!((r.stdout.as_str(), r.stderr, r.exit_code), ("", None, 0));
     }
-    use cortexcode_agent_types::AgentEvent;
     use cortexcode_ai_types::{AssistantMessage, StopReason, TextContent, UserMessage};
 
     fn make_text_assistant(text: &str, stop: Option<StopReason>) -> AgentMessage {
@@ -563,40 +287,6 @@ mod tests {
             make_text_assistant_with_error("oops", Some(StopReason::Error), Some("model error"));
         let messages = vec![make_user("hi"), msg];
         assert_eq!(format_text_output(&messages), "Error: model error");
-    }
-
-    #[test]
-    fn test_json_event_roundtrip() {
-        let event = AgentEvent::AgentStart;
-        let line = format_json_event(&event).unwrap();
-        assert!(line.contains("AgentStart"));
-        let parsed: serde_json::Value = serde_json::from_str(&line).unwrap();
-        assert_eq!(parsed["event"], "AgentStart");
-    }
-
-    #[test]
-    fn test_print_formatter_text() {
-        let mut formatter = PrintFormatter::new(PrintMode::Text);
-        formatter.record(AgentEvent::AgentStart);
-        formatter.record(AgentEvent::AgentEnd {
-            messages: vec![make_user("hi"), make_text_assistant("done", None)],
-        });
-        let mut buf = Vec::new();
-        formatter.finalize(&mut buf).unwrap();
-        assert_eq!(String::from_utf8(buf).unwrap().trim(), "done");
-    }
-
-    #[test]
-    fn test_print_formatter_json() {
-        let mut formatter = PrintFormatter::new(PrintMode::Json);
-        formatter.record(AgentEvent::AgentStart);
-        formatter.record(AgentEvent::TurnStart);
-        let mut buf = Vec::new();
-        formatter.finalize(&mut buf).unwrap();
-        let lines: Vec<&str> = std::str::from_utf8(&buf).unwrap().lines().collect();
-        assert_eq!(lines.len(), 2);
-        assert!(lines[0].contains("AgentStart"));
-        assert!(lines[1].contains("TurnStart"));
     }
 
     #[test]

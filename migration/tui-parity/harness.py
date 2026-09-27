@@ -101,7 +101,7 @@ class Tmux:
             raise RuntimeError(f"tmux {' '.join(args)} failed: {res.stderr.strip()}")
         return res.stdout
 
-    def start(self, argv: list[str], cwd: Path, env: dict[str, str]) -> None:
+    def start(self, argv: list[str], cwd: Path, env: dict[str, str], stdout: Path | None = None) -> None:
         env_args = ["env", "-i"] + [f"{k}={v}" for k, v in sorted(env.items())]
         # Keep the pane around after exit so a crash is still captured. The options
         # come from the server's config file so they are in effect before the app
@@ -116,6 +116,10 @@ class Tmux:
         # EOF and the child's exit in ~1 of 8 runs and never draws the
         # "Pane is dead" line. With sh as the direct child it always does.
         wrapped = ["sh", "-c", '"$@"; exit $?', "sh", *argv]
+        if stdout is not None:
+            # `stdout_jsonl` scenarios: stdout goes to a file (compared line by line),
+            # stderr and the exit status stay on the screen.
+            wrapped = ["sh", "-c", 'out="$1"; shift; "$@" > "$out"; exit $?', "sh", str(stdout), *argv]
         self._run("-f", str(conf), "new-session", "-d", "-s", self.name, "-x", str(self.cols), "-y", str(self.rows), "-c", str(cwd), *env_args, *wrapped)
 
     def send_text(self, text: str) -> None:
@@ -411,6 +415,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     argv = app_cmd(app) + list(sc.get("args", ["--offline", "--provider", "mock", "--model", "mock-model"]))
     normalizer = Normalizer.load(sc.get("normalize"), {"HOME": str(home), "WORK": str(work), "TMP": str(tmp)})
     result: dict = {"ok": True, "error": None, "snapshots": {}}
+    stdout_file = tmp / "stdout.jsonl" if sc.get("stdout_jsonl") is not None else None
     try:
         # `pre_runs`: argument lists run to completion first (same workspace,
         # home and mock LLM), e.g. to leave a session behind for --continue.
@@ -421,7 +426,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
             )
             if done.returncode != 0:
                 raise StepError(f"pre_run {pre} exited {done.returncode}: {done.stderr[-2000:]}")
-        tmux.start(argv, work, env)
+        tmux.start(argv, work, env, stdout_file)
         for i, step in enumerate(sc["steps"]):
             try:
                 run_step(tmux, step, out, normalizer, result)
@@ -443,6 +448,11 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
             shutil.copy(log, out / "requests.jsonl")
             result["requests"] = normalize_requests(log, normalizer, sc.get("request_fields"))
             (out / "requests.normalized.json").write_text(result["requests"])
+        if stdout_file is not None:
+            raw = stdout_file.read_text() if stdout_file.exists() else ""
+            (out / "stdout.jsonl").write_text(raw)
+            result["stdout"] = normalize_jsonl(raw, normalizer, sc["stdout_jsonl"])
+            (out / "stdout.normalized.jsonl").write_text(result["stdout"])
         if keep:
             (out / "tmpdir.txt").write_text(str(tmp))
         else:
@@ -460,6 +470,47 @@ def normalize_requests(log: Path, normalizer: "Normalizer", fields: list[str] | 
         body = json.loads(line)["body"]
         reqs.append({k: body.get(k) for k in (fields or DEFAULT_REQUEST_FIELDS) if k in body})
     return normalizer.apply_text(json.dumps(reqs, indent=1, sort_keys=True, ensure_ascii=False))
+
+
+# Wall-clock times differ run to run in every JSON event stream; masked by key
+# wherever they appear.
+DEFAULT_JSONL_MASK_KEYS = ["timestamp"]
+
+
+def normalize_jsonl(raw: str, normalizer: "Normalizer", opts: dict) -> str:
+    """One JSON value per line, re-serialized with key order kept (JSON.stringify
+    order is part of the wire format). Nondeterministic values are masked:
+    scalars by key anywhere (`mask_keys`, default timestamp), and whole fields of
+    one event type (`mask_fields`: {"<type>": ["a.b", ...]}, dotted paths). Then
+    the text normalizer is applied."""
+    mask = set(opts.get("mask_keys", DEFAULT_JSONL_MASK_KEYS))
+    fields = opts.get("mask_fields", {})
+
+    def walk(v):
+        if isinstance(v, dict):
+            return {k: ("<masked>" if k in mask and not isinstance(x, (dict, list)) else walk(x)) for k, x in v.items()}
+        if isinstance(v, list):
+            return [walk(x) for x in v]
+        return v
+
+    def mask_path(v, path: list[str]) -> None:
+        for key in path[:-1]:
+            v = v.get(key) if isinstance(v, dict) else None
+        if isinstance(v, dict) and path[-1] in v:
+            v[path[-1]] = "<masked>"
+
+    lines = []
+    for line in raw.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            lines.append(f"<not json> {line}")
+            continue
+        if isinstance(value, dict):
+            for path in fields.get(value.get("type"), []):
+                mask_path(value, path.split("."))
+        lines.append(json.dumps(walk(value), ensure_ascii=False, separators=(",", ":")))
+    return normalizer.apply_text("\n".join(lines) + ("\n" if lines else ""))
 
 
 def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: dict) -> None:
@@ -546,6 +597,22 @@ def compare(sc: dict, results: dict[str, dict], out: Path) -> str:
             status = "fail"
             diff = difflib.unified_diff(h.splitlines(), c.splitlines(), "hoocode", "cortex", lineterm="")
             lines += ["", "```diff", *list(diff)[:300], "```", ""]
+    if hoo and cor and hoo["ok"] and sc.get("stdout_jsonl") is not None:
+        h, c = hoo.get("stdout", ""), cor.get("stdout", "")
+        lines.append(f"- `stdout` (JSON lines): {'✓' if h == c else '✗'}")
+        if h != c:
+            status = "fail"
+            # One key per line so a diff points at the field, not a 2 KB line.
+            def explode(t: str) -> list[str]:
+                out = []
+                for i, l in enumerate(t.splitlines()):
+                    try:
+                        out += [f"[{i}] {x}" for x in json.dumps(json.loads(l), indent=1, ensure_ascii=False).splitlines()]
+                    except json.JSONDecodeError:
+                        out.append(f"[{i}] {l}")
+                return out
+            diff = difflib.unified_diff(explode(h), explode(c), "hoocode", "cortex", lineterm="")
+            lines += ["", "```diff", *list(diff)[:400], "```", ""]
     lines.insert(1, f"\n**Result: {status}**\n")
     (out / "report.md").write_text("\n".join(lines) + "\n")
     write_html(sc, results, out, status)
@@ -648,6 +715,8 @@ def cmd_selfcheck(names: list[str]) -> int:
             bad += 1
             continue
         diffs = [n for n, s in runs[0]["snapshots"].items() if runs[1]["snapshots"].get(n, {}).get("style") != s["style"]]
+        if runs[0].get("stdout") != runs[1].get("stdout"):
+            diffs.append("stdout")
         if diffs:
             bad += 1
             print(f"unstable {name}: snapshots {diffs} differ between two hoocode runs (see {OUT / name}/selfcheck-*)")

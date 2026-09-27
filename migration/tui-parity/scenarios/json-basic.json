@@ -1,0 +1,68 @@
+{
+  "description": "--mode json with one read tool call: the session header, then every AgentSessionEvent as one JSON line in hoocode's shape (message_update with assistantMessageEvent contentIndex/content/toolCall/reason, tool_execution_*, turn_end toolResults, agent_end messages). stdout is compared line by line after masking timestamps and ids.",
+  "phase": "10.8b",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\nbeta\ngamma\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "--mode",
+    "json",
+    "read notes.txt"
+  ],
+  "llm": [
+    {
+      "text": "Let me read it.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt",
+            "limit": 2
+          }
+        }
+      ]
+    },
+    {
+      "text": "The file starts with alpha and beta."
+    }
+  ],
+  "stdout_jsonl": {
+    "_comment": "The session id is random. message_update's `message` and `assistantMessageEvent.partial` are the live partial message object, which hoocode mutates while the event waits in the async subscriber queue: what they hold at stringify time depends on JS event-loop timing (e.g. text_start already carrying later deltas). The final message is compared in full on message_end/turn_end/agent_end.",
+    "mask_fields": {
+      "session": [
+        "id"
+      ],
+      "message_update": [
+        "message",
+        "assistantMessageEvent.partial"
+      ]
+    }
+  },
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

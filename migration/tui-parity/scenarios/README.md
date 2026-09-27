@@ -18,6 +18,8 @@ Each `*.json` file is one scenario, run against the real hoocode (pinned build i
   "compare": "style",                             // "style" (default: text + colors/attrs) or "text"
   "compare_requests": false,                      // also require identical model requests
   "request_fields": ["messages", "tools"],        // subset compared when compare_requests
+  "stdout_jsonl": {"mask_keys": ["timestamp"],    // stdout to a file, compared as JSON lines (key order kept);
+                   "mask_fields": {"session": ["id"]}},  // scalars masked by key, whole fields per event type
   "normalize": [ {"pattern": "regex", "replace": "x", "style": "optional forced style"} ],
   "steps": [
     {"wait_for": "regex", "timeout": 15},

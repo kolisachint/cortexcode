@@ -115,6 +115,96 @@ pub enum AgentSessionEvent {
     },
 }
 
+impl AgentSessionEvent {
+    /// The event as hoocode's `--mode json` / RPC stream prints it
+    /// (`JSON.stringify` of the TS `AgentSessionEvent`; `undefined` fields are
+    /// left out).
+    pub fn to_json(&self) -> serde_json::Value {
+        use serde_json::{json, Map, Value};
+        fn reason(r: &CompactionReason) -> &'static str {
+            match r {
+                CompactionReason::Manual => "manual",
+                CompactionReason::Threshold => "threshold",
+                CompactionReason::Overflow => "overflow",
+            }
+        }
+        let object = |pairs: Vec<(&str, Option<Value>)>| {
+            let map: Map<String, Value> = pairs
+                .into_iter()
+                .filter_map(|(k, v)| v.map(|v| (k.to_string(), v)))
+                .collect();
+            Value::Object(map)
+        };
+        match self {
+            AgentSessionEvent::Agent(event) => event.to_json(),
+            AgentSessionEvent::QueueUpdate {
+                steering,
+                follow_up,
+            } => json!({"type": "queue_update", "steering": steering, "followUp": follow_up}),
+            AgentSessionEvent::SessionInfoChanged { name } => object(vec![
+                ("type", Some("session_info_changed".into())),
+                ("name", name.as_deref().map(Value::from)),
+            ]),
+            AgentSessionEvent::ThinkingLevelChanged { level } => {
+                json!({"type": "thinking_level_changed", "level": level.as_str()})
+            }
+            AgentSessionEvent::CompactionStart { reason: r } => {
+                json!({"type": "compaction_start", "reason": reason(r)})
+            }
+            AgentSessionEvent::CompactionEnd {
+                reason: r,
+                result,
+                aborted,
+                will_retry,
+                error_message,
+            } => object(vec![
+                ("type", Some("compaction_end".into())),
+                ("reason", Some(reason(r).into())),
+                (
+                    "result",
+                    result.as_ref().map(|c| {
+                        object(vec![
+                            ("summary", Some(c.summary.as_str().into())),
+                            (
+                                "firstKeptEntryId",
+                                Some(c.first_kept_entry_id.as_str().into()),
+                            ),
+                            ("tokensBefore", Some(c.tokens_before.into())),
+                            ("tokensAfter", c.tokens_after.map(Value::from)),
+                            ("details", c.details.clone()),
+                        ])
+                    }),
+                ),
+                ("aborted", Some((*aborted).into())),
+                ("willRetry", Some((*will_retry).into())),
+                ("errorMessage", error_message.as_deref().map(Value::from)),
+            ]),
+            AgentSessionEvent::AutoRetryStart {
+                attempt,
+                max_attempts,
+                delay_ms,
+                error_message,
+            } => json!({
+                "type": "auto_retry_start",
+                "attempt": attempt,
+                "maxAttempts": max_attempts,
+                "delayMs": delay_ms,
+                "errorMessage": error_message,
+            }),
+            AgentSessionEvent::AutoRetryEnd {
+                success,
+                attempt,
+                final_error,
+            } => object(vec![
+                ("type", Some("auto_retry_end".into())),
+                ("success", Some((*success).into())),
+                ("attempt", Some((*attempt).into())),
+                ("finalError", final_error.as_deref().map(Value::from)),
+            ]),
+        }
+    }
+}
+
 type SessionListener = Arc<dyn Fn(&AgentSessionEvent) + Send + Sync>;
 
 /// A model to cycle through (`--models`), with an optional pinned thinking level.
