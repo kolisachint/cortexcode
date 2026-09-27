@@ -1,0 +1,2 @@
+- Background agents run non-blocking (or force per call with `background: true`): you get a short "explore#1 finished" notification and pull the full result with `TaskOutput` (e.g. `TaskOutput("explore#1")`); `TaskOutput(list: true)` shows what's running.
+- After dispatching, don't idle — keep doing independent work (read/edit unrelated files, draft, dispatch more); barrier with `TaskOutput(wait: true)` (a named task, or all outstanding when no id) only when you genuinely can't proceed.

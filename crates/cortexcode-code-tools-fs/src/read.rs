@@ -431,6 +431,7 @@ pub fn create_read_tool_definition(
         options.max_output_lines, kb
     );
     ToolDefinition {
+        background_when: None,
         name: "read".into(),
         label: "read".into(),
         description,

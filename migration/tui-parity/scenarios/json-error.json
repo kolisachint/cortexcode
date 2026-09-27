@@ -1,0 +1,53 @@
+{
+  "description": "--mode json when the provider rejects the request: the stream still ends with message_end/turn_end/agent_end carrying stopReason error and the errorMessage; json mode exits 0 (it never inspects the final message).",
+  "phase": "10.8b",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "--mode",
+    "json",
+    "say hello"
+  ],
+  "llm": [
+    {
+      "error": "invalid request: mock rejects this",
+      "status": 400
+    }
+  ],
+  "stdout_jsonl": {
+    "_comment": "The session id is random. message_update's `message` and `assistantMessageEvent.partial` are the live partial message object, which hoocode mutates while the event waits in the async subscriber queue: what they hold at stringify time depends on JS event-loop timing (e.g. text_start already carrying later deltas). The final message is compared in full on message_end/turn_end/agent_end.",
+    "mask_fields": {
+      "session": [
+        "id"
+      ],
+      "message_update": [
+        "message",
+        "assistantMessageEvent.partial"
+      ]
+    }
+  },
+  "steps": [
+    {
+      "wait_exit": true,
+      "timeout": 30
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

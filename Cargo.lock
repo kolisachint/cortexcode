@@ -804,6 +804,8 @@ dependencies = [
  "cortexcode-code-rpc",
  "cortexcode-code-session",
  "cortexcode-code-settings",
+ "cortexcode-code-subagents",
+ "cortexcode-code-task-store",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
  "cortexcode-code-tools",
@@ -924,10 +926,20 @@ dependencies = [
 name = "cortexcode-code-rpc"
 version = "0.0.1"
 dependencies = [
- "cortexcode-agent-tools",
- "cortexcode-code-tools",
+ "cortexcode-agent-core",
+ "cortexcode-agent-harness",
+ "cortexcode-agent-types",
+ "cortexcode-ai-provider-faux",
+ "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
+ "cortexcode-code-models",
+ "cortexcode-code-session",
+ "cortexcode-code-settings",
+ "libc",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -959,13 +971,24 @@ dependencies = [
 name = "cortexcode-code-subagents"
 version = "0.0.1"
 dependencies = [
- "cortexcode-agent-tools",
+ "chrono",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
+ "cortexcode-code-models",
+ "cortexcode-code-paths",
+ "cortexcode-code-prompts",
+ "cortexcode-code-resources",
  "cortexcode-code-rpc",
- "cortexcode-code-tools",
- "serde",
+ "cortexcode-code-session",
+ "cortexcode-code-settings",
+ "cortexcode-code-task-store",
+ "cortexcode-code-tool-api",
+ "libc",
+ "regex",
  "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

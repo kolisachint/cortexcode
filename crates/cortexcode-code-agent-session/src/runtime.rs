@@ -171,8 +171,8 @@ pub struct NewSessionRequest {
 
 /// Seeds a new session's manager (`newSession({ setup })`).
 pub type SessionSetup = Box<dyn FnOnce(&mut SessionManager) + Send>;
-type RebindSession = Box<dyn FnMut(&AgentSession) + Send>;
-type BeforeSessionInvalidate = Box<dyn FnMut() + Send>;
+type RebindSession = Box<dyn FnMut(&AgentSession) + Send + Sync>;
+type BeforeSessionInvalidate = Box<dyn FnMut() + Send + Sync>;
 
 /// `AgentSessionRuntime`. Replacement methods tear the current session down
 /// first, then create and apply the next one; a creation error propagates.

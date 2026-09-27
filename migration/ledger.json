@@ -2662,12 +2662,16 @@
    "id": "10.8b",
    "title": "--mode json event stream parity",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
    "crates": [
-    "cortexcode-code-print"
+    "cortexcode-code-print",
+    "cortexcode-ai-types",
+    "cortexcode-agent-types",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-cli"
    ],
    "sources": [
     "packages/coding-agent/src/modes/print-mode.ts",
@@ -2676,7 +2680,8 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "json-basic"
+    "json-basic",
+    "json-error"
    ],
    "notes": "7.2 left AssistantMessageEvent in its old shape. TS events carry contentIndex, content (on *_end), toolCall (toolcall_end) and reason (done/error), and json/RPC output needs them.",
    "log": [
@@ -2685,52 +2690,487 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: print JSON mode now subscribes to AgentSession but only records AgentSessionEvent::Agent events; session-level events (queue_update, session_info_changed, thinking_level_changed, later compaction/retry) need serializing in hoocode's shape."
+    },
+    {
+     "at": "2026-09-27T05:29:00Z",
+     "commit": "f593a99",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:42:18Z",
+     "commit": "f593a99",
+     "kind": "verify",
+     "text": "L1 pass; L2 json-basic=pass, json-error=pass"
     }
    ]
   },
   {
    "id": "10.8c",
-   "title": "RPC protocol parity (rpc-types/rpc-mode/jsonl) + Rust rpc client; replaces generic JSON-RPC server",
+   "title": "RPC mode core: jsonl framing, rpc-types, rpc-mode command loop over AgentSession (replaces the generic JSON-RPC server)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
    "crates": [
-    "cortexcode-code-rpc"
+    "cortexcode-code-rpc",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-cli",
+    "cortexcode-code-resources",
+    "cortexcode-code-subagents",
+    "cortexcode-ai-types"
    ],
    "sources": [
-    "packages/coding-agent/src/modes/rpc/",
+    "packages/coding-agent/src/modes/rpc/jsonl.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-types.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
     "packages/coding-agent/docs/rpc.md"
    ],
    "ts_tests": [
-    "packages/coding-agent/test/rpc*.test.ts"
+    "packages/coding-agent/test/rpc-jsonl.test.ts",
+    "packages/coding-agent/test/rpc-prompt-response-semantics.test.ts"
    ],
    "l1_cmds": [],
    "l2": [
     "rpc-basic"
    ],
-   "notes": "",
-   "log": []
+   "notes": "Split 2026-09-27: session-replacing commands (new_session/switch_session/fork/clone) need the CLI on AgentSessionRuntime -> 10.8d; the Rust RpcClient (rpc-client.ts, rpc.test.ts, rpc-client-clone.test.ts) -> 10.8e. export_html waits on phase 12; extension_ui_request dialogs on the extension runner (12.3).",
+   "log": [
+    {
+     "at": "2026-09-27T05:43:13Z",
+     "commit": "fe447b9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:52:40Z",
+     "commit": "fe447b9",
+     "kind": "verify",
+     "text": "L1 pass; L2 rpc-basic=pass"
+    }
+   ]
   },
   {
-   "id": "10.9",
-   "title": "Subagents: pool, Task/TaskOutput tools, depth guard, lifeguard, inbox on the RPC protocol",
+   "id": "10.8d",
+   "title": "RPC session commands on AgentSessionRuntime: new_session, switch_session, fork, clone (CLI rpc mode runs a runtime host)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8c"
+   ],
+   "crates": [
+    "cortexcode-code-rpc",
+    "cortexcode-code-cli",
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+    "packages/coding-agent/src/core/agent-session-runtime.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/rpc.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "rpc-session"
+   ],
+   "notes": "CLI --mode rpc runs an AgentSessionRuntime (RuntimeHost); the CLI's createRuntime factory is shared with print/interactive setup. Session-switch by path is L1-only (random file names).",
+   "log": [
+    {
+     "at": "2026-09-27T06:51:43Z",
+     "commit": "9e04f27",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T06:58:24Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T06:58:30Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T06:58:49Z",
+     "commit": "9e04f27",
+     "kind": "verify",
+     "text": "L1 pass; L2 rpc-session=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.8e",
+   "title": "Rust RpcClient (rpc-client.ts): spawn cortex --mode rpc, typed commands, events, promptAndWait",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.8c"
+   ],
+   "crates": [
+    "cortexcode-code-rpc"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/rpc/rpc-client.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/rpc-client-clone.test.ts",
+    "packages/coding-agent/test/rpc.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "rpc.test.ts needs a live Anthropic key: port it against the faux/mock provider, keep a live variant #[ignore]d.",
+   "log": [
+    {
+     "at": "2026-09-27T05:56:52Z",
+     "commit": "47ff716",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:57:38Z",
+     "commit": "47ff716",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T05:58:00Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T05:58:06Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T05:58:18Z",
+     "commit": "47ff716",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9a",
+   "title": "Subagent foundations: depth guard, dispatch evaluator, events, result parsing, agent log, output verifier, token budget, model categories, provider health",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.8e"
+   ],
+   "crates": [
+    "cortexcode-code-subagents",
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/subagent-depth.ts",
+    "packages/coding-agent/src/core/dispatch-evaluator.ts",
+    "packages/coding-agent/src/core/subagent-events.ts",
+    "packages/coding-agent/src/core/subagent-result.ts",
+    "packages/coding-agent/src/core/agent-log.ts",
+    "packages/coding-agent/src/core/output-verifier.ts",
+    "packages/coding-agent/src/core/token-budget.ts",
+    "packages/coding-agent/src/core/model-categories.ts",
+    "packages/coding-agent/src/core/provider-health.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/subagent-depth.test.ts",
+    "packages/coding-agent/test/dispatch-evaluator.test.ts",
+    "packages/coding-agent/test/subagent-events.test.ts",
+    "packages/coding-agent/test/subagent-result.test.ts",
+    "packages/coding-agent/test/subagent-line-classify.test.ts",
+    "packages/coding-agent/test/model-categories.test.ts",
+    "packages/coding-agent/test/output-verifier.test.ts",
+    "packages/coding-agent/test/provider-health.test.ts",
+    "packages/coding-agent/test/token-budget.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "Pure logic the pool and tools build on. provider_health lives in code-agent-session (AgentSession marks/clears exhaustion, as agent-session.ts does). Env vars read any of CORTEXCODE_/CORTEX_/HOOCODE_ prefixes.",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-26T23:53:59Z",
+     "commit": "74e6c23",
+     "kind": "note",
+     "text": "10.3b: AgentSession skips provider-health bookkeeping (markProviderExhausted on exhausted quota errors after retries, clearProviderExhaustion on a good response); add it with the subagent pool."
+    },
+    {
+     "at": "2026-09-27T07:02:32Z",
+     "commit": "c4c1ec7",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:09:25Z",
+     "commit": "c4c1ec7",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:09:36Z",
+     "commit": "c4c1ec7",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9b",
+   "title": "Subagent pool + lifeguard: children run `--mode json --task-id`, result.json settles them; replace code-subagents' invented JSON-RPC pool (jsonrpc.rs)",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.9a"
    ],
    "crates": [
     "cortexcode-code-subagents"
    ],
    "sources": [
     "packages/coding-agent/src/core/subagent-pool.ts",
-    "packages/coding-agent/src/core/tools/subagent.ts",
-    "packages/coding-agent/src/core/lifeguard.ts",
-    "packages/coding-agent/src/core/dispatch-evaluator.ts"
+    "packages/coding-agent/src/core/subagent-pool-instance.ts",
+    "packages/coding-agent/src/core/lifeguard.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/subagent-pool.test.ts",
+    "packages/coding-agent/test/subagent-pool-protocol.test.ts",
+    "packages/coding-agent/test/subagent-pool-registry.test.ts",
+    "packages/coding-agent/test/subagent-pool-inherited-model.test.ts",
+    "packages/coding-agent/test/subagent-claude-agent.test.ts",
+    "packages/coding-agent/test/lifeguard.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "hoocode's cold pool spawns print-mode json children (SUBAGENT_STDOUT_EVENT_TYPES filter, {\"ping\":true} heartbeats, result.json), not RPC. Only the warm pool (10.9c) uses RpcClient. 10.9b keeps the SIGINT/SIGTERM hook out of the library (SubagentLifeguard::graceful_shutdown for the host); the process-exit dispose of the shared pool is wired with the Task tool (10.9d).",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-27T07:10:31Z",
+     "commit": "054af8e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:20:27Z",
+     "commit": "054af8e",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9e",
+   "title": "Subagent child protocol in --mode json --task-id: ping heartbeats, SUBAGENT_STDOUT_EVENT_TYPES filter, --max-turns cap, result.json (+ task tree) at the end",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.9a"
+   ],
+   "crates": [
+    "cortexcode-code-print",
+    "cortexcode-code-cli",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/print-mode.ts"
    ],
    "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "json-subagent-child"
+   ],
+   "notes": "The parent side (10.9b) is tested with shell mocks; this is the real child. print-mode.ts: isSubagent = json mode + taskId; immediate + periodic {\"ping\":true}; only SUBAGENT_STDOUT_EVENT_TYPES written; maxTurns abort -> partial result; writeSubagentResult with buildTaskForest.",
+   "log": [
+    {
+     "at": "2026-09-27T09:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added while porting 10.9b: the child side of the cold-pool protocol lives in print-mode.ts, outside 10.9b's sources."
+    },
+    {
+     "at": "2026-09-27T07:21:19Z",
+     "commit": "3ca659f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "hoocode delivers session events to listeners asynchronously (AgentSession._agentEventQueue, behind extension handlers); cortex listeners run synchronously. The --max-turns hook applies its steer/abort at the next turn_start to land where hoocode's does. Other listener-driven behaviors may need the same care until/unless AgentSession event delivery is made asynchronous."
+    },
+    {
+     "at": "2026-09-27T10:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "openai-completions: an abort before the response arrives now reads \"Request was aborted.\" (the OpenAI SDK's APIUserAbortError); mid-stream stays \"Request was aborted\"."
+    },
+    {
+     "at": "2026-09-27T07:28:16Z",
+     "commit": "3ca659f",
+     "kind": "verify",
+     "text": "L1 pass; L2 json-subagent-child=pass"
+    }
+   ]
+  },
+  {
+   "id": "10.9c",
+   "title": "Warm subagent pool and subagent inbox",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.9b"
+   ],
+   "crates": [
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/warm-subagent-pool.ts",
+    "packages/coding-agent/src/core/warm-subagent-pool-instance.ts",
+    "packages/coding-agent/src/core/subagent-inbox.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/warm-subagent-pool.test.ts",
+    "packages/coding-agent/test/subagent-inbox.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "warm-subagent-pool.ts drives `--mode rpc` children through RpcClient (10.8e).",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-27T07:37:31Z",
+     "commit": "8cc8900",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T07:41:33Z",
+     "commit": "8cc8900",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:41:43Z",
+     "commit": "8cc8900",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9d",
+   "title": "Task/TaskOutput tool definitions on the pools and inbox (cold/warm/background/resume/fork paths, provider-exhaustion skip, delegate scoping); per-call background predicate in the agent loop; tool context gets cwd, available models, session file",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.9c",
+    "10.9e"
+   ],
+   "crates": [
+    "cortexcode-code-subagents",
+    "cortexcode-agent-types",
+    "cortexcode-agent-loop",
+    "cortexcode-code-tool-api"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/subagent.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/task-output.test.ts",
+    "packages/coding-agent/test/subagent-progress-roster.test.ts",
+    "packages/coding-agent/test/subagent.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "Split: session wiring and the L2 moved to 10.9f. subagent-footer.test.ts and subagent-dispatch-tui-output / canvas-shim-dispatch render in the TUI (phase 11).",
+   "log": [
+    {
+     "at": "2026-09-27T07:10:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.9 (~5.3k TS lines with supporting modules, ~20 test files) into 10.9a..10.9d."
+    },
+    {
+     "at": "2026-09-27T07:42:31Z",
+     "commit": "ec77115",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T11:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split 10.9d: tools here, session wiring + L2 subagent-task in 10.9f."
+    },
+    {
+     "at": "2026-09-27T07:50:48Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:51:00Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T07:51:09Z",
+     "commit": "ec77115",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "10.9f",
+   "title": "Task tool in sessions: enableSubagent / --enable-subagents / --no-subagents / --delegate-allow / --warm-subagents / --max-subagent-depth, the task-main appendix, the agents roster in the system prompt, subagent skill forwarding, shared pools disposed at exit",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.9d"
+   ],
+   "crates": [
+    "cortexcode-code-cli",
+    "cortexcode-code-agent-session",
+    "cortexcode-code-subagents",
+    "cortexcode-code-modes"
+   ],
+   "sources": [
+    "packages/coding-agent/src/main.ts",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/tools/subagent.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/subagent-execution.test.ts",
+    "packages/coding-agent/test/subagent-skills.test.ts",
+    "packages/coding-agent/test/mode-subagent-appendix.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "subagent-task"
@@ -2744,10 +3184,40 @@
      "text": "10.3a: AgentSession._rebuildSystemPrompt passes agents: [] — list the agent registry when the Task tool is active (TS loadAgentRegistry({cwd}).list())."
     },
     {
-     "at": "2026-09-26T23:53:59Z",
-     "commit": "74e6c23",
+     "at": "2026-09-27T11:00:00Z",
+     "commit": "",
      "kind": "note",
-     "text": "10.3b: AgentSession skips provider-health bookkeeping (markProviderExhausted on exhausted quota errors after retries, clearProviderExhaustion on a good response); add it with the subagent pool."
+     "text": "Split from 10.9d."
+    },
+    {
+     "at": "2026-09-27T09:55:57Z",
+     "commit": "fd88793",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T12:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Pinned hoocode never exits after a print-mode run that dispatched a subagent: SubagentLifeguard's setInterval is not unref'd. cortex exits 0; the subagent-task scenario drops only a clean exit marker (commented in the scenario). The child's model request matches hoocode byte for byte; the parent's differs only by default-bundle tools owned by other tasks (Cron*, SearchHooCode)."
+    },
+    {
+     "at": "2026-09-27T10:05:25Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:07:21Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:07:57Z",
+     "commit": "fd88793",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-task=pass"
     }
    ]
   },
@@ -2947,7 +3417,7 @@
    "status": "todo",
    "depends": [
     "11.2",
-    "10.9"
+    "10.9f"
    ],
    "crates": [
     "cortexcode-code-tui-widgets"

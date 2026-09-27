@@ -15,7 +15,15 @@ use serde::Serialize;
 pub struct ContextUsage {
     pub tokens: Option<u64>,
     pub context_window: u64,
+    #[serde(serialize_with = "js_f64_opt")]
     pub percent: Option<f64>,
+}
+
+fn js_f64_opt<S: serde::Serializer>(n: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error> {
+    match n {
+        Some(n) => cortexcode_ai_types::js_f64(n, serializer),
+        None => serializer.serialize_none(),
+    }
 }
 
 /// Token totals in [`SessionStats`].
@@ -42,6 +50,7 @@ pub struct SessionStats {
     pub tool_results: usize,
     pub total_messages: usize,
     pub tokens: TokenStats,
+    #[serde(serialize_with = "cortexcode_ai_types::js_f64")]
     pub cost: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_usage: Option<ContextUsage>,
@@ -187,7 +196,8 @@ pub fn compute_context_usage(
 }
 
 /// A user message the fork selector offers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ForkableMessage {
     pub entry_id: String,
     pub text: String,

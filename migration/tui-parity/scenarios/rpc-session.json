@@ -1,0 +1,206 @@
+{
+  "description": "--mode rpc session commands on the runtime: clone on a fresh session, a prompt, get_fork_messages, clone (same messages, new session file), fork with an unknown entry id (error), new_session (empty session), a prompt on the new session, then EOF. Session switching by path is covered by L1 (session file names are random).",
+  "phase": "10.8d",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "--mode",
+    "rpc"
+  ],
+  "llm": [
+    {
+      "text": "Hi there."
+    },
+    {
+      "text": "Hello again."
+    }
+  ],
+  "stdout_jsonl": {
+    "_comment": "Session id/file and entry ids are random; message_update partials are timing-dependent (see json-basic).",
+    "mask_keys": [
+      "timestamp",
+      "sessionId",
+      "sessionFile",
+      "entryId"
+    ],
+    "mask_fields": {
+      "message_update": [
+        "message",
+        "assistantMessageEvent.partial"
+      ]
+    }
+  },
+  "normalize": [
+    {
+      "pattern": "http://127\\.0\\.0\\.1:\\d+",
+      "replace": "http://127.0.0.1:<mock-port>",
+      "_comment": "the mock LLM listens on a random port (model baseUrl in get_state)"
+    },
+    {
+      "pattern": "Entry [0-9a-f]+ not found",
+      "replace": "Entry <entry-id> not found",
+      "_comment": "entry ids are random"
+    }
+  ],
+  "steps": [
+    {
+      "type": "{\"id\":\"c0\",\"type\":\"clone\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"c0\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"p1\",\"type\":\"prompt\",\"message\":\"say hi\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"type\":\"agent_end\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"f1\",\"type\":\"get_fork_messages\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"f1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"c1\",\"type\":\"clone\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"c1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"s1\",\"type\":\"get_state\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"s1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"m1\",\"type\":\"get_messages\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"m1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"k1\",\"type\":\"fork\",\"entryId\":\"missing\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"k1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"n1\",\"type\":\"new_session\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"n1\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"s2\",\"type\":\"get_state\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"s2\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"p2\",\"type\":\"prompt\",\"message\":\"again\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"type\":\"agent_end\",\"messages\":\\[\\{\"role\":\"user\",\"content\":\\[\\{\"type\":\"text\",\"text\":\"again\"",
+      "timeout": 20
+    },
+    {
+      "type": "{\"id\":\"t2\",\"type\":\"get_last_assistant_text\"}"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stdout": "\"id\":\"t2\"",
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "C-d"
+      ]
+    },
+    {
+      "wait_exit": true,
+      "timeout": 20
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "<exited status=0>"
+      ]
+    }
+  ]
+}

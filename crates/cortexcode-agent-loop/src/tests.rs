@@ -1062,6 +1062,33 @@ async fn background_tools_do_not_block_and_deliver_a_follow_up_message() {
     assert!(follow_up > still_working);
 }
 
+/// `background: (toolCall) => boolean`: the per-call predicate decides, and
+/// wins over the static flag.
+#[tokio::test]
+async fn a_background_predicate_decides_per_call() {
+    let mut t = tool("maybe", |args| Ok(echo_result("ran:", &args)));
+    t.background = true;
+    t.background_when = Some(Arc::new(|call| call.arguments["value"] == "bg"));
+    let mut config = identity_config();
+    mock_stream(&mut config, |n, _| match n {
+        0 => tool_calls(&[
+            ("c-1", "maybe", serde_json::json!({"value": "bg"})),
+            ("c-2", "maybe", serde_json::json!({"value": "fg"})),
+        ]),
+        _ => text("done"),
+    });
+    let (_, messages) = collect(agent_loop(vec![user("go")], context_with(vec![t]), config)).await;
+    let results: Vec<String> = messages
+        .iter()
+        .filter_map(|m| match m {
+            AgentMessage::ToolResult(r) => Some(text_of(&r.content)),
+            _ => None,
+        })
+        .collect();
+    assert!(results[0].contains("background"), "{results:?}");
+    assert_eq!(results[1], "ran:fg");
+}
+
 #[tokio::test]
 async fn foreground_and_background_results_keep_source_order() {
     let bg = background_tool("bg", |args| Ok(echo_result("bg:", &args)));

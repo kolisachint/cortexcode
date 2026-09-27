@@ -27,7 +27,7 @@ impl std::fmt::Display for SessionError {
         match self {
             SessionError::Io(e) => write!(f, "io error: {e}"),
             SessionError::Json(e) => write!(f, "json error: {e}"),
-            SessionError::NotFound(id) => write!(f, "entry not found: {id}"),
+            SessionError::NotFound(id) => write!(f, "Entry {id} not found"),
             SessionError::InvalidSession(msg) => write!(f, "invalid session: {msg}"),
         }
     }

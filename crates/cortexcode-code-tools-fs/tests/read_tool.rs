@@ -368,6 +368,9 @@ fn non_vision_models_get_a_note_with_the_image() {
     )
     .unwrap();
     let factory: ToolContextFactory = Arc::new(|| ToolContext {
+        available_models: Vec::new(),
+        cwd: None,
+        session_file: None,
         model: Some(text_only_model()),
         session_manager: None,
     });
@@ -437,6 +440,9 @@ fn dedup_points_at_a_covering_read_while_the_file_is_unchanged() {
     let branch = Arc::new(Branch::default());
     let for_ctx = branch.clone();
     let factory: ToolContextFactory = Arc::new(move || ToolContext {
+        available_models: Vec::new(),
+        cwd: None,
+        session_file: None,
         model: None,
         session_manager: Some(for_ctx.clone()),
     });
@@ -483,6 +489,9 @@ fn dedup_is_off_by_default() {
     let branch = Arc::new(Branch::default());
     let for_ctx = branch.clone();
     let factory: ToolContextFactory = Arc::new(move || ToolContext {
+        available_models: Vec::new(),
+        cwd: None,
+        session_file: None,
         model: None,
         session_manager: Some(for_ctx.clone()),
     });

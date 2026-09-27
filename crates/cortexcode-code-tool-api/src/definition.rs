@@ -8,7 +8,8 @@
 //! (`renderCall`/`renderResult`) arrives with the TUI (phase 11).
 
 use cortexcode_agent_types::{
-    AgentTool, AgentToolResult, AgentToolUpdateCallback, PrepareArgumentsFn, ToolExecutionMode,
+    AgentTool, AgentToolResult, AgentToolUpdateCallback, BackgroundPredicate, PrepareArgumentsFn,
+    ToolExecutionMode,
 };
 use cortexcode_ai_types::{AbortSignal, Model};
 use std::sync::Arc;
@@ -29,6 +30,12 @@ pub struct ToolContext {
     pub model: Option<Model>,
     /// `ctx.sessionManager`: `None` when the tool runs outside a session.
     pub session_manager: Option<Arc<dyn SessionBranch>>,
+    /// `ctx.cwd`.
+    pub cwd: Option<std::path::PathBuf>,
+    /// `ctx.modelRegistry.getAvailable()`.
+    pub available_models: Vec<Model>,
+    /// `ctx.sessionManager.getSessionFile()`.
+    pub session_file: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for ToolContext {
@@ -71,6 +78,8 @@ pub struct ToolDefinition {
     pub prepare_arguments: Option<PrepareArgumentsFn>,
     pub execution_mode: Option<ToolExecutionMode>,
     pub background: bool,
+    /// Per-call background decision; takes precedence over `background`.
+    pub background_when: Option<BackgroundPredicate>,
     pub execute: DefinitionExecuteFn,
 }
 
@@ -103,6 +112,7 @@ pub fn wrap_tool_definition(
         prepare_arguments: definition.prepare_arguments,
         execution_mode: definition.execution_mode,
         background: definition.background,
+        background_when: definition.background_when,
         execute: Arc::new(move |id, params, signal, on_update| {
             let ctx = ctx_factory.as_ref().map(|f| f());
             execute(id, params, signal, on_update, ctx.as_ref())
@@ -135,6 +145,7 @@ pub fn tool_definition_from_agent_tool(tool: AgentTool) -> ToolDefinition {
         prepare_arguments: tool.prepare_arguments,
         execution_mode: tool.execution_mode,
         background: tool.background,
+        background_when: tool.background_when,
         execute: Arc::new(move |id, params, signal, on_update, _ctx| {
             execute(id, params, signal, on_update)
         }),
@@ -148,6 +159,7 @@ mod tests {
 
     fn echo_definition() -> ToolDefinition {
         ToolDefinition {
+            background_when: None,
             name: "echo".into(),
             label: "Echo".into(),
             description: "Echo the model id".into(),
@@ -199,6 +211,9 @@ mod tests {
     #[test]
     fn wrap_passes_the_context_from_the_factory() {
         let factory: ToolContextFactory = Arc::new(|| ToolContext {
+            available_models: Vec::new(),
+            cwd: None,
+            session_file: None,
             model: Some(model("m1")),
             session_manager: None,
         });

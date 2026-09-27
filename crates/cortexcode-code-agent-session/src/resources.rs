@@ -12,7 +12,7 @@ use cortexcode_code_resources::{
     PromptTemplateType,
 };
 
-use crate::hooks::{ExpandedInput, ResourceLoader, TemplateKind};
+use crate::hooks::{ExpandedInput, ResourceLoader, SlashCommandInfo, TemplateKind};
 
 /// A [`DefaultResourceLoader`] shared by the session.
 pub struct DefaultResources {
@@ -96,5 +96,30 @@ impl ResourceLoader for DefaultResources {
 
     fn reload(&self) {
         self.loader().reload();
+    }
+
+    fn slash_commands(&self) -> Vec<SlashCommandInfo> {
+        let loader = self.loader();
+        let prompts = loader
+            .prompts()
+            .prompts
+            .into_iter()
+            .map(|t| SlashCommandInfo {
+                name: t.name,
+                description: Some(t.description),
+                source: "prompt",
+                source_info: t.source_info.to_json(),
+            });
+        let skills = loader
+            .skills()
+            .skills
+            .into_iter()
+            .map(|s| SlashCommandInfo {
+                name: format!("skill:{}", s.name),
+                description: Some(s.description),
+                source: "skill",
+                source_info: s.source_info.to_json(),
+            });
+        prompts.chain(skills).collect()
     }
 }

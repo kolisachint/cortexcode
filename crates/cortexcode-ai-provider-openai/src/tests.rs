@@ -717,6 +717,35 @@ fn immediate_abort() {
     assert_eq!(s.result_blocking().stop_reason, StopReason::Aborted);
 }
 
+/// An abort while the request is still waiting for a response carries the
+/// OpenAI SDK's `APIUserAbortError` text (with the period); mid-stream aborts
+/// end the SDK iterator and get the provider's own text (see above).
+#[test]
+fn abort_before_the_response_uses_the_sdk_message() {
+    // Accepts the connection and never answers.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base_url = format!("http://{}/v1", listener.local_addr().unwrap());
+    let hold = std::thread::spawn(move || listener.accept().map(|(conn, _)| conn));
+    let signal = AbortSignal::new();
+    let options = SimpleStreamOptions {
+        api_key: Some("sk-test".into()),
+        signal: Some(signal.clone()),
+        ..Default::default()
+    };
+    let s = stream(
+        repro_model(&base_url),
+        Context::new(String::new(), vec![user("hi")], vec![]),
+        options,
+    )
+    .unwrap();
+    let _conn = hold.join().unwrap().unwrap();
+    std::thread::sleep(Duration::from_millis(50));
+    signal.abort();
+    let msg = s.result_blocking();
+    assert_eq!(msg.stop_reason, StopReason::Aborted);
+    assert_eq!(msg.error_message.as_deref(), Some("Request was aborted."));
+}
+
 #[test]
 fn map_stop_reason_matches_hoocode() {
     assert_eq!(map_stop_reason("stop").0, StopReason::Stop);

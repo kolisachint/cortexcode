@@ -115,6 +115,101 @@ pub enum AgentSessionEvent {
     },
 }
 
+/// The TS `CompactionResult` object (`{summary, firstKeptEntryId, tokensBefore,
+/// tokensAfter?, details?}`), as RPC `compact` and `compaction_end` carry it.
+pub fn compaction_result_json(result: &CompactionResult) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    map.insert("summary".into(), result.summary.clone().into());
+    map.insert(
+        "firstKeptEntryId".into(),
+        result.first_kept_entry_id.clone().into(),
+    );
+    map.insert("tokensBefore".into(), result.tokens_before.into());
+    if let Some(after) = result.tokens_after {
+        map.insert("tokensAfter".into(), after.into());
+    }
+    if let Some(details) = &result.details {
+        map.insert("details".into(), details.clone());
+    }
+    serde_json::Value::Object(map)
+}
+
+impl AgentSessionEvent {
+    /// The event as hoocode's `--mode json` / RPC stream prints it
+    /// (`JSON.stringify` of the TS `AgentSessionEvent`; `undefined` fields are
+    /// left out).
+    pub fn to_json(&self) -> serde_json::Value {
+        use serde_json::{json, Map, Value};
+        fn reason(r: &CompactionReason) -> &'static str {
+            match r {
+                CompactionReason::Manual => "manual",
+                CompactionReason::Threshold => "threshold",
+                CompactionReason::Overflow => "overflow",
+            }
+        }
+        let object = |pairs: Vec<(&str, Option<Value>)>| {
+            let map: Map<String, Value> = pairs
+                .into_iter()
+                .filter_map(|(k, v)| v.map(|v| (k.to_string(), v)))
+                .collect();
+            Value::Object(map)
+        };
+        match self {
+            AgentSessionEvent::Agent(event) => event.to_json(),
+            AgentSessionEvent::QueueUpdate {
+                steering,
+                follow_up,
+            } => json!({"type": "queue_update", "steering": steering, "followUp": follow_up}),
+            AgentSessionEvent::SessionInfoChanged { name } => object(vec![
+                ("type", Some("session_info_changed".into())),
+                ("name", name.as_deref().map(Value::from)),
+            ]),
+            AgentSessionEvent::ThinkingLevelChanged { level } => {
+                json!({"type": "thinking_level_changed", "level": level.as_str()})
+            }
+            AgentSessionEvent::CompactionStart { reason: r } => {
+                json!({"type": "compaction_start", "reason": reason(r)})
+            }
+            AgentSessionEvent::CompactionEnd {
+                reason: r,
+                result,
+                aborted,
+                will_retry,
+                error_message,
+            } => object(vec![
+                ("type", Some("compaction_end".into())),
+                ("reason", Some(reason(r).into())),
+                ("result", result.as_ref().map(compaction_result_json)),
+                ("aborted", Some((*aborted).into())),
+                ("willRetry", Some((*will_retry).into())),
+                ("errorMessage", error_message.as_deref().map(Value::from)),
+            ]),
+            AgentSessionEvent::AutoRetryStart {
+                attempt,
+                max_attempts,
+                delay_ms,
+                error_message,
+            } => json!({
+                "type": "auto_retry_start",
+                "attempt": attempt,
+                "maxAttempts": max_attempts,
+                "delayMs": delay_ms,
+                "errorMessage": error_message,
+            }),
+            AgentSessionEvent::AutoRetryEnd {
+                success,
+                attempt,
+                final_error,
+            } => object(vec![
+                ("type", Some("auto_retry_end".into())),
+                ("success", Some((*success).into())),
+                ("attempt", Some((*attempt).into())),
+                ("finalError", final_error.as_deref().map(Value::from)),
+            ]),
+        }
+    }
+}
+
 type SessionListener = Arc<dyn Fn(&AgentSessionEvent) + Send + Sync>;
 
 /// A model to cycle through (`--models`), with an optional pinned thinking level.
@@ -170,6 +265,39 @@ pub struct PromptOptions {
     /// Required while streaming.
     pub streaming_behavior: Option<StreamingBehavior>,
     pub source: InputSource,
+    /// `preflightResult`: told once whether the prompt was accepted (sent,
+    /// queued or handled as a command) or rejected before reaching the model.
+    /// RPC mode answers the `prompt` command from it.
+    pub preflight_result: Option<PreflightResult>,
+}
+
+/// Callback for [`PromptOptions::preflight_result`].
+#[derive(Clone)]
+pub struct PreflightResult(pub Arc<dyn Fn(bool) + Send + Sync>);
+
+impl std::fmt::Debug for PreflightResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PreflightResult")
+    }
+}
+
+/// Reports a prompt's preflight outcome at most once.
+struct Preflight {
+    callback: Option<PreflightResult>,
+    reported: std::sync::atomic::AtomicBool,
+}
+
+impl Preflight {
+    fn report(&self, success: bool) {
+        if !self
+            .reported
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            if let Some(callback) = &self.callback {
+                (callback.0)(success);
+            }
+        }
+    }
 }
 
 impl Default for PromptOptions {
@@ -179,6 +307,7 @@ impl Default for PromptOptions {
             images: Vec::new(),
             streaming_behavior: None,
             source: InputSource::Interactive,
+            preflight_result: None,
         }
     }
 }
@@ -601,7 +730,11 @@ impl AgentSession {
                 lock(&self.inner.state).last_assistant_message = Some(assistant.clone());
                 if assistant.stop_reason != cortexcode_ai_types::StopReason::Error {
                     self.reset_overflow_recovery();
-                    // Provider-exhaustion bookkeeping arrives with subagents (10.9).
+                    // A successful response clears any prior provider-exhaustion
+                    // flag so subagent dispatch is unblocked once it recovers.
+                    if let Some(model) = self.model() {
+                        crate::provider_health::clear_provider_exhaustion(&model.provider);
+                    }
                     self.on_successful_assistant_response();
                 }
             }
@@ -619,10 +752,22 @@ impl AgentSession {
     /// The `agent_end` tail: retry a transient error, else check compaction.
     async fn after_agent_end(&self, message: AssistantMessage) {
         let model = self.model();
-        if crate::retry::is_retryable_error(&message, model.as_ref())
-            && self.handle_retryable_error(&message).await
-        {
-            return;
+        if crate::retry::is_retryable_error(&message, model.as_ref()) {
+            if self.handle_retryable_error(&message).await {
+                return;
+            }
+            // Retries exhausted/disabled and a quota or rate-limit error
+            // persists: flag the provider so subagent dispatch skips pointless
+            // spawns (subagents inherit it). Self-expires; cleared on success.
+            if let Some(model) = &model {
+                if crate::provider_health::is_provider_quota_error(message.error_message.as_deref())
+                {
+                    crate::provider_health::mark_provider_exhausted(
+                        &model.provider,
+                        message.error_message.as_deref().unwrap_or("provider error"),
+                    );
+                }
+            }
         }
         self.resolve_retry();
         self.check_compaction(&message, true).await;
@@ -709,6 +854,16 @@ impl AgentSession {
 
     pub fn model_registry(&self) -> &Arc<ModelRegistry> {
         &self.inner.model_registry
+    }
+
+    /// `modelRegistry.getAvailable()`: models with configured auth.
+    pub fn get_available_models(&self) -> Vec<Model> {
+        self.inner
+            .model_registry
+            .get_available(self.inner.auth.as_ref())
+            .into_iter()
+            .cloned()
+            .collect()
     }
 
     pub fn cwd(&self) -> &Path {
@@ -837,11 +992,31 @@ impl AgentSession {
         let weak = Arc::downgrade(&self.inner);
         let branch: Arc<dyn SessionBranch> =
             Arc::new(BranchView(self.inner.session_manager.clone()));
-        Arc::new(move || ToolContext {
-            model: weak
-                .upgrade()
-                .and_then(|inner| inner.agent.with_state(|s| real_model(&s.model).cloned())),
-            session_manager: Some(branch.clone()),
+        Arc::new(move || {
+            let inner = weak.upgrade();
+            ToolContext {
+                model: inner
+                    .as_ref()
+                    .and_then(|inner| inner.agent.with_state(|s| real_model(&s.model).cloned())),
+                session_manager: Some(branch.clone()),
+                cwd: inner.as_ref().map(|inner| inner.cwd.clone()),
+                available_models: inner
+                    .as_ref()
+                    .map(|inner| {
+                        inner
+                            .model_registry
+                            .get_available(inner.auth.as_ref())
+                            .into_iter()
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                session_file: inner.as_ref().and_then(|inner| {
+                    lock(&inner.session_manager)
+                        .session_file()
+                        .map(Path::to_path_buf)
+                }),
+            }
         })
     }
 
@@ -1023,6 +1198,25 @@ impl AgentSession {
             }
             (valid, snippets, guidelines)
         };
+        // The agents are listed only while the Task tool is active.
+        let agents = if valid.iter().any(|n| n == "Task") {
+            cortexcode_code_resources::load_agent_registry(
+                &cortexcode_code_resources::LoadAgentRegistryOptions::new(
+                    self.inner.cwd.to_string_lossy(),
+                ),
+            )
+            .list()
+            .iter()
+            .map(|a| cortexcode_code_prompts::PromptAgent {
+                name: a.name.clone(),
+                description: a.description.clone(),
+                tools: a.tools.clone().unwrap_or_default(),
+                model: a.model.clone(),
+            })
+            .collect()
+        } else {
+            Vec::new()
+        };
         let loader = &self.inner.resource_loader;
         let append = loader.append_system_prompt();
         cortexcode_code_prompts::build_system_prompt(&BuildSystemPromptOptions {
@@ -1034,8 +1228,7 @@ impl AgentSession {
             cwd: self.inner.cwd.to_string_lossy().into_owned(),
             context_files: loader.context_files(),
             skills: loader.skills(),
-            // The agents list needs the Task tool and the agent registry (10.9).
-            agents: Vec::new(),
+            agents,
             ..Default::default()
         })
     }
@@ -1061,7 +1254,25 @@ impl AgentSession {
     /// `prompt()`: run extension commands, expand skills and templates, queue
     /// while streaming (per `streaming_behavior`), else validate the model and
     /// its auth and run a turn.
-    pub async fn prompt(&self, text: &str, options: PromptOptions) -> Result<()> {
+    pub async fn prompt(&self, text: &str, mut options: PromptOptions) -> Result<()> {
+        let preflight = Preflight {
+            callback: options.preflight_result.take(),
+            reported: Default::default(),
+        };
+        let result = self.prompt_inner(text, options, &preflight).await;
+        // Anything that failed before the turn started is a preflight failure.
+        if result.is_err() {
+            preflight.report(false);
+        }
+        result
+    }
+
+    async fn prompt_inner(
+        &self,
+        text: &str,
+        options: PromptOptions,
+        preflight: &Preflight,
+    ) -> Result<()> {
         if options.expand_prompt_templates && text.starts_with('/') {
             let (name, args) = Self::split_command(text);
             if self.inner.extensions.has_command(name) {
@@ -1072,6 +1283,7 @@ impl AgentSession {
                         error,
                     });
                 }
+                preflight.report(true);
                 return Ok(());
             }
         }
@@ -1093,6 +1305,7 @@ impl AgentSession {
                 Some(StreamingBehavior::FollowUp) => self.queue_follow_up(&expanded.text, &images),
                 Some(StreamingBehavior::Steer) => self.queue_steer(&expanded.text, &images),
             }
+            preflight.report(true);
             return Ok(());
         }
 
@@ -1163,6 +1376,7 @@ impl AgentSession {
         }
         self.inner.agent.set_system_prompt(system_prompt);
 
+        preflight.report(true);
         self.inner
             .agent
             .prompt(messages)
@@ -1301,6 +1515,7 @@ impl AgentSession {
                 images,
                 streaming_behavior: deliver_as,
                 source: InputSource::Extension,
+                preflight_result: None,
             },
         )
         .await

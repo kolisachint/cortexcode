@@ -19,8 +19,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   (`crates/cortexcode-code-agent-session`). 10.3b/10.3c done.
 - 2026-09-27 session: 10.5, 10.5b (code-modes), 10.6 (code-permissions) are l1_done (their L2
   scenarios `print-context-files` / `mode-plan` / `permission-prompt` wait on the phase-11 TUI
-  and 10.9 agents roster); 10.7b done. Next: **10.8b** (`--mode json` event shape: contentIndex,
-  `content` on *_end, toolCall, reason, plus session-level events) — not started.
+  and 10.9 agents roster); 10.7b done; 10.8b done (`--mode json` in hoocode's wire shape);
+  10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
+  `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
+  lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools),
+  10.9f done (Task tool in sessions). Phase-10 subagents are complete; check `ledger.py next`.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -32,6 +35,158 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 10.9f done (Task tool in sessions)
+- CLI (`subagent_tools` in runtime.rs, main.ts's buildSessionOptions block): seeds
+  `CORTEXCODE_SUBAGENT_MAX_DEPTH` / `CORTEXCODE_NESTED_SUBAGENT_CONCURRENCY` when unset, sets or clears
+  `--delegate-allow`, registers Task + TaskOutput when not light, below the depth cap and
+  `--enable-subagents` / `enableSubagent` (default on), and sets `WARM_SUBAGENTS` for a root with
+  `--warm-subagents` / `warmSubagents`. TodoWrite is no longer registered inside a spawned child.
+  The Task appendix (`build_task_main_prompt`) goes into the loader's append-system-prompt; skill
+  paths are forwarded to both pools; the shared pool is disposed when a run ends. The five subagent
+  flags are no longer "unsupported".
+- AgentSession lists `<available_agents>` (the registry) when the Task tool is active.
+- L2 `subagent-task`: a real foreground dispatch in print mode (child = the same binary). The child's
+  model request matches hoocode byte for byte; Task/TaskOutput schemas, the roster and the appendix
+  do too. Pinned hoocode never exits after such a run (lifeguard setInterval not unref'd); the
+  scenario drops only a clean exit marker, commented and ledgered.
+- Tests: suite/subagent-execution (remaining cases), subagent-skills, mode-subagent-appendix.
+
+### 2026-09-27: 10.9d done (Task/TaskOutput tools); 10.9d split off 10.9f
+- 10.9d was split: the tools here; session wiring (flags/settings, task-main appendix, agents roster,
+  skill forwarding, exit-time pool dispose) and L2 `subagent-task` moved to the new 10.9f.
+- code-subagents `tools`: `create_task_tool_definition` (cold/warm/background/resume/fork paths,
+  provider-exhaustion skip, delegate scoping, unknown-agent error, task store + roster bookkeeping,
+  child task-tree merge, abort -> `pool.cancel`) and `create_task_output_tool_definition` (roster,
+  collect-once, running/failed status, `wait` / barrier); `build_task_main_prompt` with hoocode's
+  task-*.md templates embedded; `resolve_fork_session_file`; `format_duration_secs`.
+- `AgentTool` / `ToolDefinition` gain `background_when` (hoocode's `background: (toolCall) =>
+  boolean`), used by the agent loop's partition; `ToolContext` gains cwd, available models and
+  session file (filled by AgentSession). Struct literals updated with fix_struct_fields.py.
+- Tools block on their async work via `block_in_place` + `Handle::block_on` (they run in
+  spawn_blocking threads).
+- hoocode quirk kept: the "partial result, resume with ..." hint keys off the pool result's status,
+  which the pool only ever sets to complete/failed.
+- Next: 10.9f. main.ts buildSessionOptions (enableSubagent default true, --enable-subagents /
+  --no-subagents, --delegate-allow env, --warm-subagents env, --max-subagent-depth seeding),
+  `buildTaskMainPrompt` as an append-system-prompt, `<available_agents>` in
+  AgentSession::rebuild_system_prompt when Task is active, then L2 `subagent-task`.
+
+### 2026-09-27: 10.9c done (warm subagent pool + inbox)
+- code-subagents `warm`: `WarmSubagentWorker` (a `--mode rpc` child through `RpcClient`: prompt and
+  wait, last assistant text, session-stats usage, `new_session` reset) and `WarmSubagentPool`
+  (keyed per agent/model/provider, up to 2 idle per key, 30s idle reclaim, infra failures are
+  `WarmWorkerError` for cold fallback), plus the shared instance and the `WARM_SUBAGENTS` env gate.
+  hoocode's warm-child env "delete DEFER_MCP_SCHEMAS" is a no-op (its RpcClient spreads
+  process.env back), so the Rust worker only adds env vars, like hoocode.
+- code-subagents `inbox`: the notify-and-pull records for background Task/TaskOutput (labels,
+  lifecycle, collect-once body, 50 settled kept, `wait_for`/`wait_for_all` on a Notify), observed
+  per pool via the new `SubagentPool::id`.
+- Tests: the fake RPC child is a shell port of `fixtures/fake-rpc-child.mjs` (crash knob via an arg
+  instead of process env).
+- Next: 10.9d: tools/subagent.ts (Task/TaskOutput on the pool, warm fallback, inbox), the agents
+  roster in the system prompt, shared-pool dispose at exit, and L2 `subagent-task`.
+
+### 2026-09-27: 10.9e done (subagent child protocol in print mode)
+- `--mode json --task-id <id>`: an immediate `{"ping":true}` then one every 30s, only
+  SUBAGENT_STDOUT_EVENT_TYPES events after the header, the `--max-turns` cap (wrap-up steer at
+  90%, abort at the cap), and result.json (usage from session stats, task tree from the task store)
+  written to the session cwd's dispatch dir; a failed result exits 1. `--max-turns` is no longer an
+  "unsupported flag".
+- Listener timing: hoocode's session listeners run asynchronously, one loop step behind; the
+  turn-limit hook applies its steer/abort at the next `turn_start` to match (ledger note on 10.9e).
+- openai-completions: an abort before the response arrives now reads "Request was aborted." (SDK
+  text); mid-stream stays "Request was aborted".
+- Harness: `work_files` compares files a run leaves in the workspace (`{config}` = the app's
+  config dir), masked like `stdout_jsonl`; selfcheck covers them. New L2 `json-subagent-child`.
+- Next: 10.9c (warm-subagent-pool.ts on RpcClient, subagent-inbox.ts).
+
+### 2026-09-27: 10.9b done (subagent pool + lifeguard)
+- code-subagents: `pool::SubagentPool` (tokio; priority FIFO, `spawn`/`wait_for`/`dispatch`/
+  `dispatch_detached`/`collect`/`resume`/`cancel`/`dispose`, verified-result.json settlement,
+  inherited-model retry, output.json/dispatch-log.json, `PoolEvent { name, data }` in hoocode's
+  event names/payloads), `lifeguard::SubagentLifeguard` (load-scaled heartbeat + hard timeouts,
+  process-group kills, 24h sweep), `instance` (shared pool + task-panel activity wiring).
+  Children get `CORTEXCODE_SUBAGENT_DEPTH` (read back through any prefix).
+- The invented JSON-RPC pool (`jsonrpc.rs`, `task_tool`) is gone; nothing outside the crate used it.
+- Tests use shell-script mock children (hoocode's are Node). One TS test is vacuous (the priority
+  test records its own await order); the Rust test checks real completion order
+  (blocker, t2, t1, t3: doc and edit tie in `priorityOf`).
+- Deviations, ledgered: the lifeguard does not hook SIGINT/SIGTERM itself
+  (`graceful_shutdown` for the host); the shared pool's exit-time dispose lands with 10.9d.
+- New task 10.9e: the child side (print-mode under `--task-id`: pings, event filter, max turns,
+  result.json). 10.9d now depends on it.
+- Next: 10.9e (print-mode.ts `isSubagent` branch), then 10.9c (warm pool + inbox), 10.9d.
+
+### 2026-09-27: 10.9 split; 10.9a done (subagent foundations)
+- 10.9 was ~5.3k TS lines with ~20 test files: split into 10.9a (foundations), 10.9b (cold pool +
+  lifeguard), 10.9c (warm pool + inbox), 10.9d (Task/TaskOutput tools, agents roster, L2
+  subagent-task). Correction to the old card: hoocode's cold pool spawns `--mode json --task-id`
+  children (progress events + `{"ping":true}` heartbeats on stdout, `result.json` settles them);
+  only the warm pool drives `--mode rpc` children through `RpcClient`.
+- code-subagents gains `depth` (env contract; any CORTEXCODE_/CORTEX_/HOOCODE_ prefix, `SubagentEnv`
+  so tests pass explicit envs), `dispatch` (DispatchEvaluator), `events` (+ `classify_subagent_line`),
+  `result` (result.json build/write, task forest), `output_verifier`, `token_budget`,
+  `model_categories`, `agent_log`. The invented JSON-RPC pool in lib.rs is untouched until 10.9b.
+- code-agent-session gains `provider_health`; AgentSession clears exhaustion on a good response and
+  marks it when a quota error outlives retries (the 10.3b ledger note).
+- Next: 10.9b. Read subagent-pool.ts (1174 lines) + lifeguard.ts; tests subagent-pool*.test.ts,
+  lifeguard.test.ts. The pool needs the agent registry/frontmatter (code-resources has
+  agent_registry.rs) and `--mode json`'s SUBAGENT_STDOUT_EVENT_TYPES filter under `--task-id`.
+
+### 2026-09-27: 10.8d done (RPC session commands on AgentSessionRuntime)
+- `cortexcode_code_rpc::RuntimeHost`: an `RpcHost` over `AgentSessionRuntime`; new_session,
+  switch_session, fork and clone replace the session and RPC mode rebinds to it.
+- CLI: `build_session` split into `initial_session_manager` + `create_runtime` (main.ts's
+  `createRuntime` factory; `AuthStorage` shared across runtimes, settings/models per cwd,
+  `session_start_event` passed through). `--mode rpc` builds the runtime with that factory.
+- `SessionError::NotFound` now reads hoocode's `Entry <id> not found` (clone on a fresh session
+  fails with it in both apps: the leaf isn't on disk yet).
+- Runtime callback boxes are `Send + Sync` so runtime futures can run behind a tokio mutex.
+- New L2 `rpc-session` (clone/fork errors, clone, new_session, prompt after). L1
+  `code-rpc/tests/runtime_host.rs` also covers switch_session and fork-before-message.
+- Next: 10.9.
+
+### 2026-09-27: 10.8e done (Rust RpcClient)
+- `cortexcode_code_rpc::client::RpcClient` (rpc-client.ts): spawns `<exe> --mode rpc`, `req_<n>`
+  ids, every typed command, `on_event`/`on_exit`, `wait_for_idle`, `collect_events`,
+  `prompt_and_wait`, fail-fast on child exit, SIGTERM then kill on `stop`. `RpcClient::attach`
+  drives any stream pair (tests run it against in-process `run_rpc_mode` on the faux provider).
+- Tests: rpc-client-clone.test.ts, rpc.test.ts ported off the live Anthropic key (9).
+- Next: 10.8d, then 10.9 (subagents move onto this client and drop code-subagents' jsonrpc.rs).
+
+### 2026-09-27: 10.8c done (--mode rpc core); split off 10.8d / 10.8e
+- `cortexcode-code-rpc` rewritten on hoocode's protocol: `jsonl` (LF-only framing, `\r`
+  stripped, maxBuffer) and `mode` (`RpcMode::handle_line`, `run_rpc_mode`, `RpcHost`). Every
+  command in rpc-types.ts is handled; long ones (prompt, compact, bash, abort, session
+  switches) run in the background like hoocode's un-awaited handlers, the rest in order.
+- The invented JSON-RPC 2.0 server is gone; its types live on privately in code-subagents
+  (`jsonrpc.rs`) until 10.9 moves subagents onto the real protocol.
+- code-agent-session: `PromptOptions::preflight_result` (hoocode's `preflightResult`),
+  `get_available_models`, `ResourceLoader::slash_commands` (get_commands),
+  `compaction_result_json`; stats `cost`/`percent` and `ModelCost` print as JS numbers.
+- Gaps (ledgered): new_session/switch_session/fork/clone answer an error until the CLI runs
+  an `AgentSessionRuntime` (10.8d); the Rust RpcClient is 10.8e; export_html (phase 12) and
+  extension UI dialogs (12.3) are not there; parse-error text is serde's, not V8's.
+- Harness: `wait_stdout` step. L2 `rpc-basic` (new, stable) passes.
+- Tests: rpc-jsonl.test.ts, rpc-prompt-response-semantics.test.ts (+ id/unknown/parse cases).
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-27: 10.8b done (--mode json event stream)
+- Wire serializers: `AssistantMessageEvent::to_json` (ai-types; contentIndex, `content` on
+  *_end, `toolCall` on toolcall_end, `reason` on done/error, all read from the partial),
+  `AgentEvent::to_json` / `AgentToolResult::to_json` (agent-types), `AgentSessionEvent::to_json`
+  (code-agent-session; queue/session-info/thinking/compaction/retry). RPC (10.8c) can reuse them.
+- ai-types: `Cost` fields serialize like JS numbers (`0`, not `0.0`) and `AssistantMessage`
+  fields are in the providers' wire order (`…usage, stopReason, timestamp, responseId, …`).
+  Both also change what cortex writes to session files (now closer to hoocode's bytes).
+- code-print: the invented `JsonEvent`/`PrintFormatter` format is gone; `json_line`.
+  code-cli streams the session header + every event live (tokio select over the prompt).
+- Harness: `"stdout_jsonl"` scenarios send stdout to a file and compare it line by line
+  (key order kept; `mask_keys` / per-event `mask_fields`). json-basic masks message_update's
+  live partial (hoocode mutates it while the event is queued: timing-dependent).
+- L2 `json-basic`, `json-error` (new, stable) pass.
+- Next: `python3 migration/ledger.py next`.
 
 ### 2026-09-27: 10.7b done (CLI session flags)
 - code-cli `session_flags.rs`: `--fork`, `--session` (path / id prefix / other project with a y/N

@@ -11,11 +11,12 @@ use cortexcode_ai_types::{Model, ThinkingLevel};
 use cortexcode_code_auth::AuthStorage;
 
 use cortexcode_code_agent_session::{
-    create_agent_session, AgentSession, AgentSessionEvent, AgentSessionServices, BaseTools,
-    CreateAgentSessionOptions, DefaultResources, PromptOptions, ScopedModel,
+    create_agent_session, AgentSession, AgentSessionRuntime, AgentSessionRuntimeDiagnostic,
+    AgentSessionServices, BaseTools, CreateAgentSessionOptions, CreatedRuntime, DefaultResources,
+    PromptOptions, ScopedModel, SessionStartEvent,
 };
 use cortexcode_code_models::{resolve_cli_model, resolve_model_scope, AuthLookup, ModelRegistry};
-use cortexcode_code_print::{format_text_output, text_result, PrintFormatter, PrintMode};
+use cortexcode_code_print::{format_text_output, json_line, text_result, PrintMode};
 use cortexcode_code_resources::DefaultResourceLoaderOptions;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::SettingsManager;
@@ -80,14 +81,25 @@ pub(crate) fn install_oauth_providers() {
 /// `AuthStorage.create()` and `ModelRegistry.create(authStorage)`: built-ins plus
 /// models.json, with the OAuth providers' `modifyModels` applied.
 pub(crate) fn load_auth_and_registry() -> (Arc<AuthStorage>, ModelRegistry) {
+    let auth = load_auth();
+    let registry = load_registry(&auth);
+    (auth, registry)
+}
+
+/// `AuthStorage.create()`.
+fn load_auth() -> Arc<AuthStorage> {
     install_oauth_providers();
-    let auth = Arc::new(AuthStorage::create(None));
+    Arc::new(AuthStorage::create(None))
+}
+
+/// `ModelRegistry.create(authStorage)`.
+fn load_registry(auth: &Arc<AuthStorage>) -> ModelRegistry {
     let mut registry = match cortexcode_code_models::default_models_json_path() {
         Some(path) => ModelRegistry::create(path),
         None => ModelRegistry::in_memory(),
     };
     registry.set_model_modifier(auth.model_modifier());
-    (auth, registry)
+    registry
 }
 
 /// `AgentSessionRuntimeDiagnostic` (errors and warnings; main.ts reports them
@@ -247,15 +259,21 @@ fn resource_loader(
 /// Extension-registered tools in hoocode, SDK tools here: ask_options always
 /// (no UI in print mode: it says so), TodoWrite with `--enable-todowrite` or
 /// the `enableTodoWrite` setting.
-fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> {
+fn custom_tools(
+    args: &Args,
+    settings: &SettingsManager,
+    cwd: &std::path::Path,
+) -> Vec<ToolDefinition> {
     let mut tools = vec![
         cortexcode_code_tools_optin::create_ask_options_tool_definition(Arc::new(
             cortexcode_code_tools_optin::NoUi,
         )),
     ];
-    if args
-        .todo_write
-        .unwrap_or_else(|| settings.enable_todo_write())
+    tools.extend(subagent_tools(args, settings, false, cwd));
+    if args.task_id.is_none()
+        && args
+            .todo_write
+            .unwrap_or_else(|| settings.enable_todo_write())
     {
         tools.push(
             cortexcode_code_tools_optin::create_todo_write_tool_definition(
@@ -264,6 +282,75 @@ fn custom_tools(args: &Args, settings: &SettingsManager) -> Vec<ToolDefinition> 
         );
     }
     tools
+}
+
+/// main.ts's subagent block of `buildSessionOptions`: seed the tree-wide depth
+/// cap and nested concurrency into the environment (a root only; descendants
+/// inherit them), set or clear `--delegate-allow`, and decide whether this
+/// process gets the Task/TaskOutput tools (and warm workers, root only).
+fn subagent_tools(
+    args: &Args,
+    settings: &SettingsManager,
+    light: bool,
+    cwd: &std::path::Path,
+) -> Vec<ToolDefinition> {
+    use cortexcode_code_subagents::depth::{self, ProcessEnv, SubagentEnv};
+    let is_subagent_child = args.task_id.is_some();
+    if ProcessEnv.var(depth::SUBAGENT_MAX_DEPTH_ENV).is_none() {
+        let cap = depth::resolve_max_subagent_depth(
+            Some(
+                args.max_subagent_depth
+                    .unwrap_or_else(|| settings.max_subagent_depth()) as f64,
+            ),
+            &std::collections::HashMap::<String, String>::new(),
+        );
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::SUBAGENT_MAX_DEPTH_ENV),
+            cap.to_string(),
+        );
+    }
+    if ProcessEnv.var(depth::NESTED_CONCURRENCY_ENV).is_none() {
+        let n = depth::resolve_nested_concurrency(
+            Some(settings.nested_subagent_concurrency() as f64),
+            &std::collections::HashMap::<String, String>::new(),
+        );
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::NESTED_CONCURRENCY_ENV),
+            n.to_string(),
+        );
+    }
+    // --delegate-allow is authoritative: a restricted parent's scope never
+    // leaks into a child that was not given its own.
+    for prefix in cortexcode_code_paths::ENV_PREFIXES {
+        std::env::remove_var(format!("{prefix}{}", depth::DELEGATE_ALLOW_ENV));
+    }
+    if let Some(allow) = args.delegate_allow.as_ref().filter(|a| !a.is_empty()) {
+        std::env::set_var(
+            format!("CORTEXCODE_{}", depth::DELEGATE_ALLOW_ENV),
+            allow.join(","),
+        );
+    }
+    let enabled = args.subagent.unwrap_or_else(|| settings.enable_subagent());
+    if light || !depth::can_spawn_subagent(None, &ProcessEnv) || !enabled {
+        return Vec::new();
+    }
+    if !is_subagent_child
+        && args
+            .warm_subagents
+            .unwrap_or_else(|| settings.warm_subagents())
+    {
+        std::env::set_var(
+            format!(
+                "CORTEXCODE_{}",
+                cortexcode_code_subagents::warm::WARM_SUBAGENTS_ENV
+            ),
+            "1",
+        );
+    }
+    vec![
+        cortexcode_code_subagents::tools::create_task_tool_definition(cwd),
+        cortexcode_code_subagents::tools::create_task_output_tool_definition(),
+    ]
 }
 
 /// Build the permission gate for the current CLI mode. Read-only tools are
@@ -278,62 +365,88 @@ fn build_permission_gate(interactive: bool, cwd: &std::path::Path) -> Arc<dyn Pe
     ))
 }
 
-/// Build the session for a CLI run (the `createRuntime` factory of main.ts):
-/// auth.json + models.json, the `--models` scope, the model from the flags (or
-/// `findInitialModel` inside `create_agent_session`), `--api-key` as a runtime
-/// key for the chosen provider, the default or light tools, and a persisted
-/// session unless `--no-session`. Diagnostics are for the caller to report.
+/// Build the session for a CLI run: the initial session manager, then the
+/// `createRuntime` factory on it. Diagnostics are for the caller to report.
 fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) {
-    let settings = crate::load_settings();
-    let (auth, registry) = load_auth_and_registry();
-    let mut diagnostics = Diagnostics::new();
+    let auth = load_auth();
+    let session_manager = initial_session_manager(args, interactive);
+    let cwd = std::path::PathBuf::from(session_manager.cwd());
+    let (session, _, diagnostics) = create_runtime(
+        args,
+        &auth,
+        cwd,
+        cortexcode_code_paths::agent_dir(),
+        session_manager,
+        None,
+        interactive,
+    );
+    (session, diagnostics)
+}
 
+/// The session manager a run starts on (`--session`, `--continue`, ...). A
+/// session whose cwd is gone falls back to the startup cwd after asking
+/// (interactive) or exits (otherwise).
+fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
+    let settings = crate::load_settings();
     let startup_cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let env = crate::Env::detect();
     let session_dir = crate::session_flags::session_dir(args, &settings);
-    let mut session_manager = crate::session_flags::create_session_manager(
+    let session_manager = crate::session_flags::create_session_manager(
         args,
         &startup_cwd.to_string_lossy(),
         session_dir.clone(),
         env,
     );
-    if let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
+    let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
         &session_manager,
         &startup_cwd,
-    ) {
-        // hoocode asks with a selector in interactive mode (TUI, 11.3); the
-        // placeholder asks on stdin.
-        let message =
-            cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
-                .to_string();
-        if !interactive {
-            eprintln!("{}", crate::red(env.color, &message));
-            std::process::exit(1);
-        }
-        println!(
-            "{}",
-            cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
-        );
-        print!("Continue? [y/N] ");
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-        let mut answer = String::new();
-        let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
-        if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
-            std::process::exit(0);
-        }
-        session_manager = SessionManager::open(
-            issue.session_file.clone().unwrap_or_default(),
-            session_dir,
-            Some(issue.fallback_cwd.clone()),
-        );
-    }
-    // The runtime runs in the session's cwd (it may be another project's).
-    let cwd = std::path::PathBuf::from(session_manager.cwd());
-    let settings = if cwd == startup_cwd {
-        settings
-    } else {
-        SettingsManager::create_default(&cwd)
+    ) else {
+        return session_manager;
     };
+    // hoocode asks with a selector in interactive mode (TUI, 11.3); the
+    // placeholder asks on stdin.
+    let message =
+        cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
+            .to_string();
+    if !interactive {
+        eprintln!("{}", crate::red(env.color, &message));
+        std::process::exit(1);
+    }
+    println!(
+        "{}",
+        cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
+    );
+    print!("Continue? [y/N] ");
+    let _ = std::io::Write::flush(&mut std::io::stdout());
+    let mut answer = String::new();
+    let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
+    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+        std::process::exit(0);
+    }
+    SessionManager::open(
+        issue.session_file.clone().unwrap_or_default(),
+        session_dir,
+        Some(issue.fallback_cwd.clone()),
+    )
+}
+
+/// The `createRuntime` factory of main.ts: settings for the cwd, models.json,
+/// the `--models` scope, the model from the flags (or `findInitialModel`
+/// inside `create_agent_session`), `--api-key` as a runtime key for the chosen
+/// provider, and the default or light tools. `auth` is shared across runtimes.
+#[allow(clippy::type_complexity)]
+fn create_runtime(
+    args: &Args,
+    auth: &Arc<AuthStorage>,
+    cwd: std::path::PathBuf,
+    agent_dir: std::path::PathBuf,
+    session_manager: SessionManager,
+    session_start_event: Option<SessionStartEvent>,
+    interactive: bool,
+) -> (AgentSession, AgentSessionServices, Diagnostics) {
+    let settings = SettingsManager::create_default(&cwd);
+    let registry = load_registry(auth);
+    let mut diagnostics = Diagnostics::new();
 
     let patterns = args.models.clone().or_else(|| settings.enabled_models());
     let scoped_models = match patterns.filter(|p| !p.is_empty()) {
@@ -376,18 +489,19 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
         }
     }
 
-    let session = assemble_session(
+    let (session, services) = assemble_session(
         args,
         cwd,
-        cortexcode_code_paths::agent_dir(),
+        agent_dir,
         settings,
         registry,
-        auth,
+        auth.clone(),
         session_manager,
         options,
+        session_start_event,
         interactive,
     );
-    (session, diagnostics)
+    (session, services, diagnostics)
 }
 
 /// The session over resolved parts. Light preset (`--light`, else the
@@ -402,12 +516,15 @@ fn assemble_session(
     auth: Arc<dyn AuthLookup + Send + Sync>,
     session_manager: SessionManager,
     model_options: ModelOptions,
+    session_start_event: Option<SessionStartEvent>,
     interactive: bool,
-) -> AgentSession {
+) -> (AgentSession, AgentSessionServices) {
     let light = args.light.unwrap_or_else(|| settings.light());
     // main.ts: the light preset is an allowlist of the four short-schema tools
     // (their order is the active order), which also keeps extension tools off.
     let (base_tools, custom, tools) = if light {
+        // Still seeds the subagent env; light mode gets no Task tool.
+        subagent_tools(args, &settings, true, &cwd);
         (
             Some(BaseTools::Override(
                 cortexcode_code_tools::light::light_tool_definitions(cwd.clone()),
@@ -420,7 +537,7 @@ fn assemble_session(
             ),
         )
     } else {
-        (None, custom_tools(args, &settings), None)
+        (None, custom_tools(args, &settings, &cwd), None)
     };
     // main.ts: explicit tool flags win over the light preset's allowlist.
     let explicit =
@@ -433,8 +550,19 @@ fn assemble_session(
     } else {
         None
     };
+    // main.ts: the main-session subagent instructions when subagents are on.
+    let subagents_on = !light && args.subagent.unwrap_or_else(|| settings.enable_subagent());
     let settings = Arc::new(Mutex::new(settings));
     let resources = resource_loader(args, light, &cwd, &agent_dir, &settings);
+    if subagents_on {
+        resources.loader().add_append_system_prompt(
+            cortexcode_code_subagents::tools::build_task_main_prompt(&cwd),
+        );
+    }
+    // AgentSession's constructor: forward the skill paths to subagents.
+    let skill_paths = resources.loader().skill_paths();
+    cortexcode_code_subagents::instance::update_subagent_skill_paths(skill_paths.clone());
+    cortexcode_code_subagents::warm::update_warm_subagent_skill_paths(skill_paths);
     // hoo-core's mode system: the active mode's prompt block and tool filter.
     let cwd_str = cwd.to_string_lossy().into_owned();
     let modes = Arc::new(cortexcode_code_modes::ModesExtension::new(
@@ -488,6 +616,7 @@ fn assemble_session(
             permission_gate: Some(build_permission_gate(interactive, &services.cwd)),
             disallowed_tools,
             extensions: Some(modes),
+            session_start_event,
             ..Default::default()
         },
     )
@@ -495,7 +624,7 @@ fn assemble_session(
     if let Some(tools) = mode_tools {
         session.set_active_tools_by_name(&tools);
     }
-    session
+    (session, services)
 }
 
 /// The tokio runtime the CLI drives async work on (agent runs, OAuth). Provider
@@ -562,27 +691,128 @@ pub fn run_print_mode(
         return Ok(1);
     }
 
-    let formatter = Arc::new(Mutex::new(PrintFormatter::new(mode)));
-    let formatter_for_sub = formatter.clone();
-    // Session-level events join the JSON stream with 10.8b.
-    let _sub = session.subscribe(move |event| {
-        if let AgentSessionEvent::Agent(event) = event {
-            if let Ok(mut fmt) = formatter_for_sub.lock() {
-                fmt.record(event.clone());
+    // A spawned subagent (json mode + `--task-id`): heartbeats, only the
+    // events the parent pool consumes, the turn cap, and result.json.
+    let task_id = args
+        .task_id
+        .clone()
+        .filter(|id| mode == PrintMode::Json && !id.is_empty());
+
+    // `--mode json`: the session header, then every session event as it
+    // happens. Listeners run on runtime threads; lines go through a channel and
+    // are written here, between polls of the running prompt.
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let heartbeat = task_id.as_ref().map(|_| {
+        // An immediate ping, so a child that crashes during startup surfaces
+        // its error instead of stalling silently until the first heartbeat.
+        let _ = tx.send(json_line(&serde_json::json!({"ping": true})));
+        let tx = tx.clone();
+        async_runtime().spawn(async move {
+            let mut interval = tokio::time::interval(SUBAGENT_HEARTBEAT);
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                if tx
+                    .send(json_line(&serde_json::json!({"ping": true})))
+                    .is_err()
+                {
+                    break;
+                }
             }
-        }
+        })
     });
+    let is_subagent = task_id.is_some();
+    let _sub = (mode == PrintMode::Json).then(|| {
+        let header =
+            cortexcode_code_session::FileEntry::Session(session.session_manager().header().clone());
+        let _ = tx.send(json_line(
+            &serde_json::to_value(&header).unwrap_or_default(),
+        ));
+        let tx = tx.clone();
+        session.subscribe(move |event| {
+            let value = event.to_json();
+            // The parent only consumes progress events and message_end usage;
+            // the per-delta firehose is dropped at the source.
+            if is_subagent {
+                let kind = value.get("type").and_then(serde_json::Value::as_str);
+                if !kind.is_some_and(|k| {
+                    cortexcode_code_subagents::events::SUBAGENT_STDOUT_EVENT_TYPES.contains(&k)
+                }) {
+                    return;
+                }
+            }
+            let _ = tx.send(json_line(&value));
+        })
+    });
+    drop(tx);
+    let reached_max_turns = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let _turn_limit = args
+        .max_turns
+        .filter(|cap| is_subagent && *cap > 0)
+        .map(|cap| turn_limit(&session, cap, reached_max_turns.clone()));
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     for prompt in initial_message.iter().chain(messages.iter()) {
         let run = session.prompt(prompt, PromptOptions::default());
-        if let Err(e) = async_runtime().block_on(run) {
+        let result = async_runtime().block_on(async {
+            tokio::pin!(run);
+            loop {
+                tokio::select! {
+                    result = &mut run => break Ok(result),
+                    Some(line) = rx.recv() => {
+                        if let Err(e) = output.write_all(line.as_bytes()).and_then(|_| output.flush()) {
+                            break Err(e);
+                        }
+                    }
+                }
+            }
+        })?;
+        write_lines(&mut rx, output)?;
+        if let Err(e) = result {
             writeln!(err, "{e}")?;
             session.dispose();
             return Ok(1);
         }
     }
+
+    // A spawned subagent writes the audit file the parent pool verifies.
+    let mut exit_code = 0;
+    if let Some(task_id) = &task_id {
+        let stats = session.get_session_stats();
+        let mut result = cortexcode_code_subagents::result::build_subagent_result(
+            &session.messages(),
+            Some(cortexcode_code_subagents::result::SubagentUsage {
+                input: stats.tokens.input as f64,
+                output: stats.tokens.output as f64,
+                cache_read: stats.tokens.cache_read as f64,
+                cache_write: stats.tokens.cache_write as f64,
+                cost: stats.cost,
+            }),
+            cortexcode_code_subagents::result::BuildSubagentResultOptions {
+                reached_max_turns: reached_max_turns.load(std::sync::atomic::Ordering::SeqCst),
+            },
+        );
+        // This subagent's own task subtree, for the parent to render below
+        // the dispatching task.
+        let tree = cortexcode_code_subagents::result::build_task_forest(
+            &cortexcode_code_task_store::task_store().list(),
+        );
+        if !tree.is_empty() {
+            result.task_tree = Some(tree);
+        }
+        let cwd = std::path::PathBuf::from(session.session_manager().cwd());
+        cortexcode_code_subagents::result::write_subagent_result(&cwd, task_id, &result);
+        if result.status == cortexcode_code_subagents::result::ResultStatus::Failed {
+            exit_code = 1;
+        }
+    }
+    if let Some(heartbeat) = heartbeat {
+        heartbeat.abort();
+    }
+    drop(_turn_limit);
     session.dispose();
+    drop(_sub);
+    write_lines(&mut rx, output)?;
 
     match mode {
         PrintMode::Text => {
@@ -594,19 +824,176 @@ pub fn run_print_mode(
             }
             Ok(result.exit_code)
         }
-        // Event-stream parity is 10.8b; json mode never inspects the final message.
-        PrintMode::Json => {
-            drop(_sub);
-            let formatter = Arc::try_unwrap(formatter)
-                .ok()
-                .and_then(|m| m.into_inner().ok())
-                .unwrap_or_default();
-            formatter
-                .finalize(output)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            Ok(0)
-        }
+        // json mode never inspects the final message.
+        PrintMode::Json => Ok(exit_code),
     }
+}
+
+/// `--mode rpc`: JSON commands on stdin, responses and session events on
+/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
+/// new_session/switch_session/fork/clone replace it through the factory.
+pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
+    let auth = load_auth();
+    let session_manager = initial_session_manager(args, false);
+    let cwd = std::path::PathBuf::from(session_manager.cwd());
+    let (session, services, diagnostics) = create_runtime(
+        args,
+        &auth,
+        cwd,
+        cortexcode_code_paths::agent_dir(),
+        session_manager,
+        None,
+        false,
+    );
+    report_diagnostics(err, color, &diagnostics)?;
+    if diagnostics
+        .iter()
+        .any(|(kind, _)| *kind == DiagnosticKind::Error)
+    {
+        return Ok(1);
+    }
+    let factory_args = args.clone();
+    let factory: cortexcode_code_agent_session::RuntimeFactory = Arc::new(move |request| {
+        let (session, services, diagnostics) = create_runtime(
+            &factory_args,
+            &auth,
+            request.cwd,
+            request.agent_dir,
+            request.session_manager,
+            request.session_start_event,
+            false,
+        );
+        let created = CreatedRuntime {
+            session,
+            services,
+            diagnostics: runtime_diagnostics(diagnostics),
+            model_fallback_message: None,
+        };
+        Box::pin(async move { Ok(created) })
+    });
+    let runtime = AgentSessionRuntime::new(
+        CreatedRuntime {
+            session,
+            services,
+            diagnostics: runtime_diagnostics(diagnostics),
+            model_fallback_message: None,
+        },
+        factory,
+    );
+    let stdout = Arc::new(Mutex::new(std::io::stdout()));
+    let output: cortexcode_code_rpc::RpcOutput = Arc::new(move |value| {
+        let line = cortexcode_code_rpc::serialize_json_line(value);
+        let mut stdout = stdout.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = stdout.write_all(line.as_bytes());
+        let _ = stdout.flush();
+    });
+    let host = Arc::new(cortexcode_code_rpc::RuntimeHost::new(runtime));
+    Ok(async_runtime().block_on(cortexcode_code_rpc::run_rpc_mode(
+        host,
+        tokio::io::stdin(),
+        output,
+    )))
+}
+
+/// The CLI's diagnostics as `AgentSessionRuntimeDiagnostic`s.
+fn runtime_diagnostics(diagnostics: Diagnostics) -> Vec<AgentSessionRuntimeDiagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|(kind, message)| AgentSessionRuntimeDiagnostic {
+            kind: match kind {
+                DiagnosticKind::Error => cortexcode_code_agent_session::DiagnosticKind::Error,
+                DiagnosticKind::Warning => cortexcode_code_agent_session::DiagnosticKind::Warning,
+            },
+            message,
+        })
+        .collect()
+}
+
+/// Heartbeat cadence for spawned subagents (the parent's lifeguard stalls
+/// after 60s of silence).
+const SUBAGENT_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// A spawned subagent's turn cap: near it (90%) the agent is asked to wrap
+/// up; at it the run is aborted.
+///
+/// hoocode's session listeners see agent events asynchronously (queued behind
+/// the extension handlers), so its `turn_end` handler runs after the loop has
+/// already collected the next turn's pending messages and started that turn.
+/// cortex listeners run synchronously; the steer/abort decided at `turn_end`
+/// is therefore applied at the next `turn_start`, which is where hoocode's
+/// lands: the wrap-up steer reaches the model one turn later, and the abort
+/// stops the turn after the cap. If no further turn starts, hoocode's late
+/// steer/abort have nothing left to act on either.
+fn turn_limit(
+    session: &AgentSession,
+    cap: u64,
+    reached: Arc<std::sync::atomic::AtomicBool>,
+) -> cortexcode_code_agent_session::SessionSubscription {
+    use cortexcode_agent_types::AgentEvent;
+    use cortexcode_code_agent_session::AgentSessionEvent;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    enum Deferred {
+        Steer(String),
+        Abort,
+    }
+    let wrap_up_at = (cap as f64 * 0.9).floor() as u64;
+    let turns = AtomicU64::new(0);
+    let warned = AtomicBool::new(false);
+    let deferred: Mutex<Vec<Deferred>> = Mutex::new(Vec::new());
+    let target = session.clone();
+    session.subscribe(move |event| {
+        let AgentSessionEvent::Agent(event) = event else {
+            return;
+        };
+        match event {
+            AgentEvent::TurnStart => {
+                let actions = std::mem::take(&mut *deferred.lock().unwrap_or_else(|e| e.into_inner()));
+                for action in actions {
+                    match action {
+                        Deferred::Steer(text) => {
+                            let _ = target.steer(&text, &[]);
+                        }
+                        Deferred::Abort => {
+                            let session = target.clone();
+                            async_runtime().spawn(async move { session.abort().await });
+                        }
+                    }
+                }
+            }
+            AgentEvent::TurnEnd { .. } => {
+                let turns = turns.fetch_add(1, Ordering::SeqCst) + 1;
+                let mut deferred = deferred.lock().unwrap_or_else(|e| e.into_inner());
+                if turns >= cap {
+                    if !reached.swap(true, Ordering::SeqCst) {
+                        deferred.push(Deferred::Abort);
+                    }
+                    return;
+                }
+                if wrap_up_at >= 1
+                    && wrap_up_at < cap
+                    && turns >= wrap_up_at
+                    && !warned.swap(true, Ordering::SeqCst)
+                {
+                    deferred.push(Deferred::Steer(format!(
+                        "You are at turn {turns} of your {cap}-turn limit. Stop investigating or making changes now and write your final summary of findings and results in your next message."
+                    )));
+                }
+            }
+            _ => {}
+        }
+    })
+}
+
+/// Write the queued `--mode json` lines.
+fn write_lines(
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    output: &mut dyn Write,
+) -> std::io::Result<()> {
+    while let Ok(line) = rx.try_recv() {
+        output.write_all(line.as_bytes())?;
+    }
+    output.flush()
 }
 
 /// Run the agent in an interactive TUI loop.
@@ -726,7 +1113,7 @@ mod tests {
     fn prompt_for(argv: &[&str]) -> (String, Vec<String>) {
         let args = crate::args::parse_args(&argv.iter().map(|a| a.to_string()).collect::<Vec<_>>());
         let agent_dir = tempfile::tempdir().unwrap();
-        let session = assemble_session(
+        let (session, _) = assemble_session(
             &args,
             std::path::PathBuf::from("/w"),
             agent_dir.path().to_path_buf(),
@@ -735,6 +1122,7 @@ mod tests {
             Arc::new(cortexcode_code_models::NoAuth),
             SessionManager::in_memory("/w"),
             ModelOptions::default(),
+            None,
             false,
         );
         (session.system_prompt(), session.get_active_tool_names())
@@ -762,7 +1150,7 @@ mod tests {
         let (prompt, tools) = prompt_for(&[]);
         assert!(prompt.starts_with("You are an expert coding assistant operating inside cortex"));
         assert!(prompt.contains(
-            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
+            "Available tools:\n- read: Read file contents\n- bash: Run builds, tests, linters, git, and package managers\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n- SearchCodebase: Ranked code search (keyword + semantic, rank-fused)\n- ask_options: Put a decision to the user as selectable options\n- Task: delegate a self-contained task to a specialized subagent (choose via subagent_type)\n- TaskOutput: check status / list / collect the results of background subagents\n- TodoWrite: Plan and track multi-step work as a live todo list (use proactively; replaces the whole list each call)\n\nGuidelines:"
         ));
         assert_eq!(
             tools,
@@ -773,6 +1161,8 @@ mod tests {
                 "write",
                 "SearchCodebase",
                 "ask_options",
+                "Task",
+                "TaskOutput",
                 "TodoWrite"
             ]
         );

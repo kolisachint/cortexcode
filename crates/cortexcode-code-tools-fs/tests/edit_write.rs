@@ -736,6 +736,9 @@ impl Harness {
             },
         );
         let ctx = ToolContext {
+            available_models: Vec::new(),
+            cwd: None,
+            session_file: None,
             model: None,
             session_manager: Some(Arc::new(Branch(self.msgs.clone()))),
         };

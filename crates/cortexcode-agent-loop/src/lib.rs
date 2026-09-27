@@ -515,10 +515,13 @@ async fn execute_tool_calls(
     background: &BackgroundTaskManager,
 ) -> ExecutedToolCallBatch {
     let tool_calls = tool_calls_of(assistant_message);
-    let (background_calls, foreground_calls): (Vec<_>, Vec<_>) = tool_calls
-        .iter()
-        .cloned()
-        .partition(|tc| context.tools.find(&tc.name).is_some_and(|t| t.background));
+    let (background_calls, foreground_calls): (Vec<_>, Vec<_>) =
+        tool_calls.iter().cloned().partition(|tc| {
+            context
+                .tools
+                .find(&tc.name)
+                .is_some_and(|t| t.is_background(tc))
+        });
 
     let background_messages = dispatch_background_tool_calls(
         context,

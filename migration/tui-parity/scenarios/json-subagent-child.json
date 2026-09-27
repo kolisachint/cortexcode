@@ -1,0 +1,76 @@
+{
+  "description": "A spawned subagent child: --mode json --task-id t1 --max-turns 2. stdout starts with a {\"ping\":true} heartbeat, then the session header, then only the events the parent pool consumes (turn_end, tool_execution_start/end, message_end). Turn 1 (a read tool call) crosses the 90% wrap-up mark, so the steer message reaches the model in turn 2's request; turn 2 hits the cap, so result.json reports a partial result with the session's token usage.",
+  "phase": "10.9e",
+  "terminal": {
+    "cols": 100,
+    "rows": 12
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "notes.txt": "alpha\nbeta\ngamma\n"
+  },
+  "args": [
+    "--offline",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--light",
+    "--mode",
+    "json",
+    "--task-id",
+    "t1",
+    "--max-turns",
+    "2",
+    "read notes.txt"
+  ],
+  "llm": [
+    {
+      "text": "Let me read it.",
+      "tool_calls": [
+        {
+          "id": "call_read_1",
+          "name": "read",
+          "arguments": {
+            "path": "notes.txt",
+            "limit": 2
+          }
+        }
+      ]
+    },
+    {
+      "text": "Summary: the file starts with alpha and beta."
+    }
+  ],
+  "compare_requests": true,
+  "stdout_jsonl": {
+    "mask_keys": [
+      "timestamp",
+      "id",
+      "cwd"
+    ],
+    "_comment": "session header id/cwd and timestamps are per run"
+  },
+  "work_files": {
+    "{config}/dispatch/t1/result.json": {}
+  },
+  "steps": [
+    {
+      "wait_stdout": "\"type\":\"turn_end\"[^\\n]*\\n(.*\\n)*.*\"type\":\"turn_end\"",
+      "timeout": 20
+    },
+    {
+      "wait_exit": true,
+      "timeout": 20
+    },
+    {
+      "snapshot": "screen",
+      "history": true,
+      "contains": [
+        "<exited status=0>"
+      ]
+    }
+  ]
+}
