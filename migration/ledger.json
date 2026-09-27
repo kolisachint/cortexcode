@@ -2330,8 +2330,8 @@
    ]
   },
   {
-   "id": "10.5",
-   "title": "Resources: resource-loader, skills, prompt templates, context files, slash-command discovery, agent frontmatter/registry (serde_yaml_ng)",
+   "id": "10.5a",
+   "title": "Resources I: frontmatter, source-info/diagnostics, agent-frontmatter (normalizeTools), skills discovery + formatSkillsForPrompt, prompt templates, slash-command list",
    "phase": 10,
    "status": "todo",
    "depends": [
@@ -2341,15 +2341,71 @@
     "cortexcode-code-resources"
    ],
    "sources": [
-    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/utils/frontmatter.ts",
+    "packages/coding-agent/src/core/source-info.ts",
+    "packages/coding-agent/src/core/diagnostics.ts",
+    "packages/coding-agent/src/core/agent-frontmatter.ts",
     "packages/coding-agent/src/core/skills.ts",
     "packages/coding-agent/src/core/prompt-templates.ts",
+    "packages/coding-agent/src/core/slash-commands.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/agent-frontmatter.test.ts",
+    "packages/coding-agent/test/skills.test.ts",
+    "packages/coding-agent/test/prompt-templates.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "n/a: library-internal; rendered through 10.5 (print-context-files) and the interactive slash menu (11.x)"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.5c",
+   "title": "Resources II: context files (AGENTS.md/CLAUDE.md discovery, user scope) and agent registry",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5a"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
     "packages/coding-agent/src/core/context-files.ts",
-    "packages/coding-agent/src/core/slash-commands.ts",
-    "packages/coding-agent/src/core/agent-frontmatter.ts",
     "packages/coding-agent/src/core/agent-registry.ts"
    ],
-   "ts_tests": [],
+   "ts_tests": [
+    "packages/coding-agent/test/context-files-user-scope.test.ts",
+    "packages/coding-agent/test/agent-registry.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "n/a: library-internal; rendered through 10.5 (print-context-files)"
+   ],
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "10.5",
+   "title": "Resources III: DefaultResourceLoader (resource-loader.ts) as the AgentSession ResourceLoader, wired into code-cli (skills, templates, context files in the system prompt)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5a",
+    "10.5c"
+   ],
+   "crates": [
+    "cortexcode-code-resources"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/resource-loader.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/resource-loader.test.ts",
+    "packages/coding-agent/test/sdk-skills.test.ts"
+   ],
    "l1_cmds": [],
    "l2": [
     "print-context-files"
@@ -2361,6 +2417,12 @@
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: implement cortexcode_code_agent_session::ResourceLoader (hooks.rs) for the real loader: system_prompt/append_system_prompt/skills/context_files feed _rebuildSystemPrompt, and expand_input must do _expandSkillCommand then tryExpandPromptTemplate returning ExpandedInput{text, template kind, args} (AgentSession.prompt handles user/system/context kinds). Port the skill-expansion case of test/suite/agent-session-prompt.test.ts against it. code-cli runtime.rs resource_loader() is the StaticResourceLoader stand-in to replace."
+    },
+    {
+     "at": "2026-09-27T12:00:00Z",
+     "commit": "e550a22",
+     "kind": "note",
+     "text": "Split: 10.5a (frontmatter, skills, prompt templates, slash commands, agent-frontmatter) and 10.5c (context files, agent registry) were carved out; 10.5 keeps resource-loader.ts, the session/CLI wiring and the print-context-files L2 gate. 10.5b (modes) keeps depending on 10.5. The existing cortexcode-code-resources crate was invented (not a port) and is replaced by these tasks."
     }
    ]
   },
