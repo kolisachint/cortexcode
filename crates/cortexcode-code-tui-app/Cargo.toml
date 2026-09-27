@@ -1,0 +1,26 @@
+[package]
+name = "cortexcode-code-tui-app"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The coding agent's interactive mode on the cortex TUI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-code-agent-session = { workspace = true }
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-tui-keybindings = { workspace = true }
+cortexcode-code-tui-theme = { workspace = true }
+cortexcode-tui-components = { workspace = true }
+cortexcode-tui-keys = { workspace = true }
+cortexcode-tui-render = { workspace = true }
+cortexcode-tui-util = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

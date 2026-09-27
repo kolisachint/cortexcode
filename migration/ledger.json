@@ -3752,11 +3752,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "10.3a",
-    "11.0b",
-    "11.0c",
-    "11.1a",
-    "11.1b"
+    "11.1c1",
+    "11.1c2"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -3782,6 +3779,93 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T15:47:10Z",
+     "commit": "6152858",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 startup); this card is closed as a container once both are done (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.1c1",
+   "title": "code-tui-app chrome components: wordmark header (ExpandableText), resource summary (resource-display.ts), footer + footer data provider + startup-progress line, chrome-layout, session chip, input frame, notification panel",
+   "phase": 11,
+   "status": "in_progress",
+   "depends": [
+    "11.0b",
+    "11.0c",
+    "11.1a",
+    "11.1b",
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/wordmark.ts",
+    "packages/coding-agent/src/modes/interactive/resource-display.ts",
+    "packages/coding-agent/src/modes/interactive/components/footer.ts",
+    "packages/coding-agent/src/core/footer-data-provider.ts",
+    "packages/coding-agent/src/core/startup-progress.ts",
+    "packages/coding-agent/src/modes/interactive/chrome-layout.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-chip.ts",
+    "packages/coding-agent/src/modes/interactive/components/input-frame.ts",
+    "packages/coding-agent/src/modes/interactive/components/notification-panel.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c2 startup",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T15:49:59Z",
+     "commit": "6152858",
+     "kind": "start",
+     "text": "started"
+    }
+   ]
+  },
+  {
+   "id": "11.1c2",
+   "title": "code-tui-app InteractiveMode shell: TUI tree (header, flex fill, chat, notifications, editor, footer), key handlers, submit loop; replaces run_interactive_mode",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.1c1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "startup"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1c (bookkeeping)."
     }
    ]
   },
@@ -3791,7 +3875,7 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.1c"
+    "11.1c2"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
