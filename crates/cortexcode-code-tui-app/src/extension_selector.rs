@@ -7,80 +7,18 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use cortexcode_code_tui_keybindings::{key_hint, raw_key_hint};
-use cortexcode_code_tui_theme::{paint_selected_row, select_gutter, theme, SELECT_CURSOR};
+use cortexcode_code_tui_theme::{select_gutter, theme, SELECT_CURSOR};
 use cortexcode_tui_keys::get_keybindings;
 use cortexcode_tui_render::{Component, ComponentHandle};
-use cortexcode_tui_util::truncate_to_width;
 
 use crate::input_frame::{InputFrame, InputFrameOptions};
 
-/// `SelectableRow`: already-styled content, without the left margin.
-#[derive(Debug, Clone, Default)]
-pub struct SelectableRow {
-    pub text: String,
-    pub selected: bool,
-}
-
-/// `SelectedRowList`: picker rows rendered at terminal width, so the
-/// selected one fills edge to edge.
-pub struct SelectedRowList {
-    rows: Vec<SelectableRow>,
-    margin_x: usize,
-}
-
-impl SelectedRowList {
-    pub fn new(rows: Vec<SelectableRow>, margin_x: usize) -> Self {
-        Self { rows, margin_x }
-    }
-
-    pub fn set_rows(&mut self, rows: Vec<SelectableRow>) {
-        self.rows = rows;
-    }
-}
-
-impl Component for SelectedRowList {
-    fn render(&mut self, width: u16) -> Vec<String> {
-        let margin = " ".repeat(self.margin_x);
-        self.rows
-            .iter()
-            .map(|row| {
-                let line = truncate_to_width(
-                    &format!("{margin}{}", row.text),
-                    width as usize,
-                    "...",
-                    false,
-                );
-                if row.selected {
-                    paint_selected_row(&line, width as usize)
-                } else {
-                    line
-                }
-            })
-            .collect()
-    }
-}
+pub use cortexcode_code_tui_widgets::selected_row_list::{SelectableRow, SelectedRowList};
 
 /// A text styler.
 pub type ColorFn = Box<dyn Fn(&str) -> String>;
 
-/// `DynamicBorder`: a rule across the viewport.
-pub struct DynamicBorder {
-    color: ColorFn,
-}
-
-impl DynamicBorder {
-    pub fn new(color: Option<ColorFn>) -> Self {
-        Self {
-            color: color.unwrap_or_else(|| Box::new(|s: &str| theme().fg("border", s))),
-        }
-    }
-}
-
-impl Component for DynamicBorder {
-    fn render(&mut self, width: u16) -> Vec<String> {
-        vec![(self.color)(&"─".repeat((width as usize).max(1)))]
-    }
-}
+pub use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
 
 /// `CountdownTimer`, driven by the owner's loop: [`CountdownTimer::poll`]
 /// advances it once a second has passed.

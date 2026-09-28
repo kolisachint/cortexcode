@@ -1,0 +1,34 @@
+{
+  "description": "The model calls ask_options with two questions: the options pane takes the prompt's place (\"input needed\"), the first answer is a quick-pick, the second a typed custom answer; the tool block shows both answers. (No request comparison: the default-bundle system prompt still differs, see 10.4c.)",
+  "phase": "11.3c",
+  "terminal": {"cols": 100, "rows": 34},
+  "settings": {"enableSemanticIndex": false},
+  "llm": [
+    {"text": "One decision first.", "tool_calls": [{"id": "call_ask_1", "name": "ask_options", "arguments": {"questions": [
+      {"question": "where should retry logic live?", "detail": "the http client is shared by every provider adapter", "allow_custom": true,
+       "options": [{"label": "ai client", "description": "unified provider client", "recommended": true}, {"label": "agent core", "description": "wrap each tool call"}]},
+      {"question": "backoff strategy?", "allow_custom": true,
+       "options": [{"label": "exponential + jitter"}, {"label": "fixed 1s"}]}
+    ]}}]},
+    {"text": "Going with your answers."}
+  ],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "plan the retry work"},
+    {"keys": ["Enter"]},
+    {"wait_for": "input needed", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "pane", "contains": ["1/2 where should retry logic live?", "(recommended)", "custom answer"]},
+    {"keys": ["1"]},
+    {"wait_for": "2/2 backoff strategy", "timeout": 15},
+    {"keys": ["Down", "Down"]},
+    {"type": "linear backoff please"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "custom", "contains": ["linear backoff please"]},
+    {"keys": ["Enter"]},
+    {"wait_for": "Going with your answers", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "answered", "contains": ["Going with your answers."]}
+  ]
+}

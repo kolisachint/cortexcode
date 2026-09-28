@@ -257,18 +257,20 @@ fn resource_loader(
 }
 
 /// Extension-registered tools in hoocode, SDK tools here: ask_options always
-/// (no UI in print mode: it says so), TodoWrite with `--enable-todowrite` or
-/// the `enableTodoWrite` setting.
+/// (the options pane in interactive mode; elsewhere it says there is no UI),
+/// TodoWrite with `--enable-todowrite` or the `enableTodoWrite` setting.
 fn custom_tools(
     args: &Args,
     settings: &SettingsManager,
     cwd: &std::path::Path,
+    interactive: bool,
 ) -> Vec<ToolDefinition> {
-    let mut tools = vec![
-        cortexcode_code_tools_optin::create_ask_options_tool_definition(Arc::new(
-            cortexcode_code_tools_optin::NoUi,
-        )),
-    ];
+    let ask_host: Arc<dyn cortexcode_code_tools_optin::AskOptionsHost> = if interactive {
+        Arc::new(cortexcode_code_tui_app::dialog_bridge::TuiAskOptionsHost)
+    } else {
+        Arc::new(cortexcode_code_tools_optin::NoUi)
+    };
+    let mut tools = vec![cortexcode_code_tools_optin::create_ask_options_tool_definition(ask_host)];
     tools.extend(subagent_tools(args, settings, false, cwd));
     if args.task_id.is_none()
         && args
@@ -396,6 +398,7 @@ fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
         &startup_cwd.to_string_lossy(),
         session_dir.clone(),
         env,
+        settings.theme().as_deref(),
     );
     let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
         &session_manager,
@@ -403,30 +406,27 @@ fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
     ) else {
         return session_manager;
     };
-    // hoocode asks with a selector in interactive mode (TUI, 11.3); the
-    // placeholder asks on stdin.
-    let message =
-        cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
-            .to_string();
     if !interactive {
+        let message =
+            cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
+                .to_string();
         eprintln!("{}", crate::red(env.color, &message));
         std::process::exit(1);
     }
-    println!(
-        "{}",
-        cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
-    );
-    print!("Continue? [y/N] ");
-    let _ = std::io::Write::flush(&mut std::io::stdout());
-    let mut answer = String::new();
-    let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
-    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+    let Some(selected_cwd) =
+        cortexcode_code_tui_app::session_picker::prompt_for_missing_session_cwd(
+            &issue,
+            settings.theme().as_deref(),
+            settings.show_hardware_cursor(),
+            settings.clear_on_shrink(),
+        )
+    else {
         std::process::exit(0);
-    }
+    };
     SessionManager::open(
         issue.session_file.clone().unwrap_or_default(),
         session_dir,
-        Some(issue.fallback_cwd.clone()),
+        Some(selected_cwd),
     )
 }
 
@@ -550,7 +550,7 @@ fn assemble_session(
             ),
         )
     } else {
-        (None, custom_tools(args, &settings, &cwd), None)
+        (None, custom_tools(args, &settings, &cwd, interactive), None)
     };
     // main.ts: explicit tool flags win over the light preset's allowlist.
     let explicit =
@@ -844,12 +844,14 @@ pub fn run_print_mode(
     }
 }
 
-/// `--mode rpc`: JSON commands on stdin, responses and session events on
-/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
-/// new_session/switch_session/fork/clone replace it through the factory.
-pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
-    let auth = load_auth();
-    let session_manager = initial_session_manager(args, false);
+/// main.ts's `createAgentSessionRuntime`: the startup session, and the
+/// factory that rebuilds the cwd-bound services when it is replaced.
+fn build_session_runtime(
+    args: &Args,
+    auth: Arc<AuthStorage>,
+    interactive: bool,
+) -> (AgentSessionRuntime, Diagnostics) {
+    let session_manager = initial_session_manager(args, interactive);
     let cwd = std::path::PathBuf::from(session_manager.cwd());
     let (session, services, diagnostics) = create_runtime(
         args,
@@ -858,15 +860,8 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         cortexcode_code_paths::agent_dir(),
         session_manager,
         None,
-        false,
+        interactive,
     );
-    report_diagnostics(err, color, &diagnostics)?;
-    if diagnostics
-        .iter()
-        .any(|(kind, _)| *kind == DiagnosticKind::Error)
-    {
-        return Ok(1);
-    }
     let factory_args = args.clone();
     let factory: cortexcode_code_agent_session::RuntimeFactory = Arc::new(move |request| {
         let (session, services, diagnostics) = create_runtime(
@@ -876,7 +871,7 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
             request.agent_dir,
             request.session_manager,
             request.session_start_event,
-            false,
+            interactive,
         );
         let created = CreatedRuntime {
             session,
@@ -890,11 +885,26 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         CreatedRuntime {
             session,
             services,
-            diagnostics: runtime_diagnostics(diagnostics),
+            diagnostics: runtime_diagnostics(diagnostics.clone()),
             model_fallback_message: None,
         },
         factory,
     );
+    (runtime, diagnostics)
+}
+
+/// `--mode rpc`: JSON commands on stdin, responses and session events on
+/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
+/// new_session/switch_session/fork/clone replace it through the factory.
+pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
+    let (runtime, diagnostics) = build_session_runtime(args, load_auth(), false);
+    report_diagnostics(err, color, &diagnostics)?;
+    if diagnostics
+        .iter()
+        .any(|(kind, _)| *kind == DiagnosticKind::Error)
+    {
+        return Ok(1);
+    }
     let stdout = Arc::new(Mutex::new(std::io::stdout()));
     let output: cortexcode_code_rpc::RpcOutput = Arc::new(move |value| {
         let line = cortexcode_code_rpc::serialize_json_line(value);
@@ -1112,7 +1122,10 @@ pub fn run_interactive_mode(
     _output: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
-    let (session, diagnostics) = build_session(args, true);
+    // One credential store for the session and `/login`/`/logout`.
+    let auth = load_auth();
+    let (session_runtime, diagnostics) = build_session_runtime(args, auth.clone(), true);
+    let session = session_runtime.session().clone();
     report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -1124,16 +1137,19 @@ pub fn run_interactive_mode(
 
     let mut messages = args.messages.clone();
     let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
-    let auth = load_auth();
-    let listing_session = session.clone();
     cortexcode_code_tui_app::interactive_mode::run_interactive(
         cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
             session,
+            session_runtime: Some(session_runtime),
             runtime: async_runtime().handle().clone(),
-            listing: Box::new(move || resource_listing(&listing_session)),
-            is_oauth: Box::new(move |provider| {
-                cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
-            }),
+            listing: Box::new(resource_listing),
+            is_oauth: {
+                let auth = auth.clone();
+                Box::new(move |provider| {
+                    cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
+                })
+            },
+            auth_storage: auth,
             version: cortexcode_code_paths::VERSION.to_string(),
             verbose: args.verbose == Some(true),
             initial_message,
@@ -1239,13 +1255,14 @@ mod tests {
             output: output.clone(),
             title: title.clone(),
         };
-        let listing_session = session.clone();
         let result = cortexcode_code_tui_app::interactive_mode::run_interactive(
             cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
                 session,
+                session_runtime: None,
                 runtime: async_runtime().handle().clone(),
-                listing: Box::new(move || resource_listing(&listing_session)),
+                listing: Box::new(resource_listing),
                 is_oauth: Box::new(|_| false),
+                auth_storage: Arc::new(AuthStorage::in_memory([])),
                 version: "0.0.1".into(),
                 verbose: false,
                 initial_message: None,

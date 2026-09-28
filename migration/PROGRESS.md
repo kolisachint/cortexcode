@@ -9,6 +9,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
+- Stopped 2026-09-28 (end of day). Phase 11 is 34/43 done. `ledger.py next` says START 11.3f: the
+  login parent task, whose subtasks 11.3f1/11.3f2 are done, so it should need only `start` +
+  `verify`. Then the open phase-11 tasks: 11.4b (@file autocomplete, L2 file-autocomplete),
+  11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
+  compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -38,6 +43,218 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-28 · 11.3f2 /login and /logout
+- `crates/cortexcode-code-tui-app/src/login_controller.rs`: provider option lists, post-login
+  default-model pick, `OAuthBridge` (OAuth callbacks → `AppEvent::Login` updates answered through
+  oneshots; a dropped answer = "Login cancelled"), `open_url`/`is_openable_url` (open-url.ts).
+- The mode drives a `LoginStep` machine: auth-type pane → provider pane (Esc goes back) → API-key
+  dialog or an OAuth login spawned on the runtime (prompt / pasted redirect URL / onSelect pane).
+- `provider_display_name` / `provider_auth_status` (registry lookups) live in
+  `cortexcode-code-auth::provider_display_names`; `ModelRegistry::provider_api_key_config` added.
+- The CLI now shares one `AuthStorage` between the session runtime and the app
+  (`InteractiveOptions::auth_storage`), so a saved key is visible to model availability.
+- Adaptations: no `modelRegistry.refresh()` after login (Arc registry; availability reads the store
+  live); extension-registered provider names wait on `registerProvider`.
+- L2 `login-api-key` written from hoocode, stable, passes. Next: `python3 migration/ledger.py next`.
+
+### 2026-09-28 · 11.3d settings selector (parent)
+- No code: 11.3d1/11.3d2/11.3d3 are done and 11.3d has no scenario of its own; `ledger.py verify 11.3d` passed L1.
+- Next: `python3 migration/ledger.py next`.
+
+### 2026-09-28: 11.3d2 done (/settings in the app)
+- `/settings` and alt+s (`app.settings.open`) open the pane built from the live session
+  (`show_settings_selector`); every `SettingsChange` is applied (`apply_settings_change`):
+  settings writes plus the live effects (active tools, footer, editor border/padding/
+  autocomplete, hardware cursor, clear-on-shrink, theme + preview, thinking level, transport
+  via new `Agent::set_transport`, platforms, images on tool blocks, hidden thinking rebuild).
+- Changes are queued by the pane's callback and applied in the poll loop, so the pane's own
+  re-price ran too early: new `SettingsSelectorComponent::refresh_token_surface()`, called
+  after a batch is applied.
+- `code-tools::external_tools::describe_external_tools` (+ `get_tool_path`/`get_tool_status`,
+  the never-downloads half of tools-manager.ts; PATH lookup instead of spawning `--version`).
+  Ported the skipped "resolves live status" test. `--offline` now sets `CORTEX_OFFLINE=1`
+  process-wide (main.ts), read by `cortexcode_code_paths::is_offline_mode()`.
+- Not live yet: extension flags (12.3: the pane lists none), voice silence (voice not ported).
+- L2 `settings-pane` (open, category, turn bash off → surface re-priced, back, close): stable, pass.
+  Full L2: the known 11, plus `print-error` once under load (snapshot taken before the exit;
+  passes on rerun, scenario untouched).
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3b done (model pickers, /model, cycling)
+- `code-tui-selectors`: `model_selector` (`ModelSelectorComponent`, all/scoped tabs, events
+  instead of callbacks; the owner hands in the loaded models) and `scoped_models_selector`
+  (`ScopedModelsSelectorComponent` + the enabled-set helpers `toggle`/`enable_all`/`clear_all`/
+  `move_id`). Tests: `tests/model_selector.rs` (port of regression 3217 + picker behaviour).
+- App (model-controller.ts): `/model [ref]` (exact match switches, else the picker searching
+  for it), `/scoped-models` (session-only scope; alt+s persists `enabledModels`), alt+m /
+  shift+alt+m cycling with the dial note, `app.model.select`, the footer's available-provider
+  count (startup, rebind, scope change), and the once-per-session Anthropic extra-usage notice
+  (`show_notice`, a warningBg block; `AgentSession::uses_anthropic_subscription_auth`).
+- Adaptation: the registry is `Arc` without interior mutability, so the pickers don't
+  `refresh()` models.json first; the pick's default-model save happens in `set_model`.
+- L2 `model-selector` written from hoocode, selfcheck stable, pass. Full L2: only the known 11 fail.
+- Next: `ledger.py next` → 11.3d2 (/settings in the app).
+
+### 2026-09-28: 11.4 split; 11.4a done (slash command dispatch)
+- 11.4 split into:
+  - 11.4a: dispatch, slash autocomplete, and the commands whose UI exists.
+  - 11.4b: `@file`.
+  - 11.4c: `!` bash.
+  - 11.4d: clipboard, `/copy`, paste.
+  - 11.4e: the remaining commands.
+  - 11.4f: the compaction UI (it had no owner). `compact-command` moved there.
+- 11.3b, 11.3d2 and 11.3f2 now depend on 11.4a.
+- Submit routes built-in `/commands` the way `createBuiltInSlashCommands` does. The autocomplete
+  provider lists the built-ins, then prompt templates, then skill commands (with u/p/t source tags).
+  It is reinstalled on a session swap. There is no fd yet (11.4b), and templates carry no
+  argument hints.
+- Wired commands: `/quit`, `/resume`, `/tree`, `/name`, `/session`, `/new`, `/compact` (it
+  dispatches, but nothing draws it until 11.4f). Every other built-in shows "/x is not available
+  yet" until its task lands.
+- L2 `slash-commands` passes and selfcheck is stable. It uses `/sess` narrowing plus `/session`.
+  The unfiltered menu is 39 entries vs 25: hoocode's core extensions add commands (12.3).
+- Seen once: `footer_data_provider` debounce test failed under full `cargo test --workspace`
+  load, then passed 4 of 4 alone. It is a file-watch timing test and was not touched here.
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3f split; 11.3f1 done (login components)
+- 11.3f split into 11.3f1 (components) and 11.3f2 (`/login` and `/logout` LoginController flows,
+  L2 `login-api-key`, after 11.4).
+- `code-tui-selectors::oauth_selector`: `OAuthSelectorComponent` (searchable provider list with
+  each provider's auth state; `take_events`) and `is_api_key_login_provider`.
+  `login_dialog::LoginDialogComponent`: prompts arm the input and the answer comes out as an event.
+  It never opens the browser itself; the owner calls the URL opener (11.3f2). Escape aborts its
+  `AbortSignal`.
+- `code-auth::provider_display_names`. `SelectedRowList` moved to code-tui-widgets.
+- Tests: oauth-selector.test.ts (6) plus a login-dialog input case.
+- 11.3f2 needs `ModelRegistry` `getProviderDisplayName` and `getProviderAuthStatus` (registered
+  providers, models.json apiKey), plus `utils/open-url.ts`.
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3e2 done (session tree in the app); 11.3e closed
+- A double escape on an empty, idle prompt opens the tree (`doubleEscapeAction` = tree). A label
+  edit appends a label entry. Select asks "Summarize branch?" through the extension selector:
+  - No summary: `navigate_tree` runs in place.
+  - Summarize, or custom: it runs on the runtime behind a "Summarizing branch..." loader that
+    escape aborts. Custom instructions come from the new `extension_editor.rs` dialog
+    (no `$EDITOR` hand-off).
+  - Escape on the question returns to the tree on the same entry.
+- After navigating, the transcript is rebuilt from the session, and the message text goes back in
+  the prompt.
+- L2 `session-tree` passes and selfcheck is stable, with requests compared.
+- Left: `doubleEscapeAction` = fork and `/tree` both wait on 11.4.
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3e split; 11.3e1 done (session tree component)
+- `code-tui-selectors::tree_selector`: `TreeSelectorComponent::new(tree, leaf, rows, initial,
+  filter)`. Entries are read as their JSON wire form so the flatten, filter, search, fold and
+  display rules match tree-selector.ts line for line. Keys come out as `TreeEvent`s (`Select`,
+  `Cancel`, `LabelChange`) through `poll(now)`, which also fires the empty tree's 100ms
+  auto-cancel. The label editor replaces the tree inside the frame.
+- `DynamicBorder` moved to code-tui-widgets (re-exported from `extension_selector`).
+- Tests: tree-selector.test.ts (17) plus the tree case of picker-widths.
+- 11.3e2 (wiring) is next or later. It covers double-escape now, `/tree` after 11.4,
+  "Summarize branch?", navigate_tree, the custom-prompt editor (extension-editor.ts, unported)
+  and the L2 `session-tree` scenario.
+
+### 2026-09-28: 11.3d3 done (`cortex config`)
+- `code-tui-selectors::config_selector`: `build_groups` and `ConfigSelectorComponent`
+  (header, groups by origin/scope/source, type subheads, `[x]` rows, filter, pageUp/pageDown).
+  A toggle writes `+pattern`/`-pattern` to the scope's resource array, or to the package entry's
+  filter. Group sort uses a V8-style binary insertion sort because the original comparator is not
+  a total order.
+- `code-tui-app::session_picker::select_config` runs it on its own TUI. code-cli dispatches
+  `config` (off the not-supported list). It lists local resources only; packages wait on 12.2.
+- Fix in `cortexcode-tui-terminal`: a lone Escape was never delivered because nothing called
+  `StdinBuffer::poll_timeout`. `ProcessTerminal` now flushes a pending partial sequence after the
+  buffer timeout. No earlier scenario pressed Escape.
+- L2 `config-selector` passes and selfcheck is stable (it also compares the project settings.json
+  the toggle writes). Rust tests: `tests/config_selector.rs` (hoocode has none).
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3d split; 11.3d1 done (the /settings pane component)
+- 11.3d split into 11.3d1 (pane component + tests), 11.3d2 (/settings in the app, L2
+  `settings-pane`, depends on 11.4 because nothing dispatches slash commands yet) and 11.3d3
+  (`config-selector.ts`, the `config` subcommand's resource TUI).
+- `code-tui-selectors::settings_selector`: `SettingsSelectorComponent::new(SettingsConfig,
+  FnMut(SettingsChange))`. The TS callbacks are one `SettingsChange` enum. Leaves live in a shared
+  table so a category rebuilds its rows from current values. `ListSubmenu`/`submenu_list` let a
+  caller reach the list a submenu factory built.
+- New: `code-tools::external_tools` (catalog, `status_label`, `build_row_gates`; no
+  `describeExternalTools` until tools-manager is ported) and `code-settings::platform_targets`
+  (+ `MarketplacePlatform`).
+- `SettingsList` gained `items()`, `filtered_items()`, `emit_change()`, `emit_cancel()` and a
+  public `apply_filter`. A submenu opened from a filtered list now writes back to the right row.
+  `Component` gained `as_any()`.
+- Tests: settings-token-surface, learn-settings-pane, platform-settings-pane,
+  plugin-settings-keyboard, external-tools-pane (minus its live-status case), and the
+  platform-targets part of platform.test.ts.
+- Pane text says `cortex` / `.cortexcode` where hoocode says `hoocode` / `.hoocode`; the static
+  external-tools prose is verbatim. The 11.3d2 scenario will need a branding rule for that.
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3c done (small selectors, ask_options pane)
+- `code-tui-selectors`: `small_selectors` (thinking, theme, show-images, session colour, each a
+  `FramedSelectList`: a `SelectList` in the prompt's `InputFrame`), `user_message_selector`
+  (fork picker; with no messages it auto-cancels after 100ms via `poll`), and `ask_options`
+  (the options pane: steps, breadcrumb, quick-pick, custom row with arrow hand-off).
+- Tests: ask-options.test.ts (10) and picker-widths.test.ts, except the tree case (11.3e).
+  The extension picker's width case is in code-tui-app `tests/extension_selector.rs`.
+  ask-options-loop.test.ts stays with 10.2f/12.5 (the /loop extension).
+- `session_chip` moved to code-tui-widgets (re-exported from code-tui-app).
+  `AskQuestion` gained `short`; the tool leaves it unset, as the pin does.
+- The ask_options tool uses `dialog_bridge::TuiAskOptionsHost` in interactive mode
+  (`DialogRequest::AskOptions` / `HideAskOptions` on abort). The pane takes the editor's slot.
+  The new L2 scenario `ask-options` passes and selfcheck is stable (it compares screens only,
+  since the default-bundle system prompt still differs, see 10.4c).
+- Not wired yet: the thinking, theme, images, colour and fork pickers are opened by slash
+  commands and /settings (11.4/11.3d). The chime on a blocked ask is not ported.
+- Next: `ledger.py next`.
+
+### 2026-09-28: 11.3a2 done (in-app resume, missing-cwd prompts); 11.3a closed
+- The interactive mode now owns an `AgentSessionRuntime` (`InteractiveOptions::session_runtime`).
+  The CLI's `build_session_runtime` is shared with rpc mode. `alt+h` (`app.session.resume`)
+  opens the session selector in the editor slot (rename works through `append_session_info`).
+  Enter calls `switch_session`, then `rebind_current_session` (new subscription, footer
+  source, footer cwd, chip, title), then `render_current_session_state` (transcript reset,
+  resource listing, initial messages).
+- Missing cwd: at startup (interactive), the Continue/Cancel selector runs on its own TUI
+  (`session_picker::prompt_for_missing_session_cwd`, which replaces the stdin `[y/N]`
+  placeholder). In the app, the Yes/No confirm goes through `show_selector`, and
+  `poll_cwd_prompt` resumes with the fallback cwd or shows "Resume cancelled".
+- `show_status` is now hoocode's `showStatus`: the notification band, which fades after 3s.
+  The old chat-line version is `show_record` (`showRecord`). "Session compacted N times" and
+  "Current model does not support thinking" moved to the band, as they are in the pin.
+- The `listing` callback takes the session (`Fn(&AgentSession)`), so it follows a swap.
+- New L2 scenarios `session-resume-inapp` and `session-missing-cwd` pass, and selfcheck is
+  stable. The in-app missing-cwd confirm has no L2: a scenario cannot seed a session under
+  the sessions root.
+- `run all` shows the same failure set as before, all belonging to l1_done tasks.
+- Next: `ledger.py next` (11.3c, the small selectors).
+
+### 2026-09-28: 11.3a split; 11.3a1 done (session selector, `--resume`, initial transcript)
+- 11.3a is now a container: 11.3a1 (done) and 11.3a2 (todo: in-app `alt+h` resume via
+  `switch_session` + `renderCurrentSessionState`, the missing-session-cwd Continue/Cancel
+  selector, L2 `session-resume-inapp`, not written yet).
+- The four session-selector TS test files are ported (`code-tui-selectors/tests`, 24 tests).
+  The pin's `flushPromises` is `SessionSelectorComponent::poll`, and the list's callbacks are
+  the `ListEvent`s that `handle_key` returns.
+- `code-tui-app::session_picker` is `cli/session-picker.ts`: the loaders run on a thread and
+  report through `LoadSink`. The CLI's `--resume` opens it (it is no longer in
+  `unsupported_flags`), and "No session selected" exits 0.
+- The interactive mode now renders the loaded session after the resource listing
+  (`render_session_context` / `render_initial_messages`: tool calls with results, chain
+  boundaries, "Session compacted N times", and editor history).
+- `tui-terminal`: stdin is read by one process-wide reader (`stdin_hub`) that hands chunks to
+  whichever terminal is started. The old per-terminal reader outlived `stop()` and swallowed
+  the next terminal's first keys, which broke the picker → interactive-mode handoff.
+- L2 `session-resume` passes and selfcheck is stable (local normalization covers the
+  random slug and swatch). A full `harness.py run all` shows no regressions: every failure
+  belongs to an l1_done task already waiting on L2.
+- Next: 11.3a2 (see its ledger card). `AgentSessionRuntime::switch_session` exists in
+  code-agent-session. The mode holds a bare `AgentSession`, so the swap needs a resubscribe
+  and a transcript reset (`resetTranscriptView`).
 
 ### 2026-09-27: 11.2d2 done (code highlighting: highlight.js 10.7.3 port)
 - New crate `cortexcode-tui-highlight`: highlight.js 10.7.3's engine ported over its own

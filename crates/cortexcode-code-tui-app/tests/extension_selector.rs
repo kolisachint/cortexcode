@@ -147,3 +147,29 @@ fn draws_a_dynamic_border_across_the_width() {
     let lines = DynamicBorder::new(None).render(7);
     assert_eq!(strip_vt_control_characters(&lines[0]), "───────");
 }
+
+/// `picker-widths.test.ts`: "extension picker fits within N columns".
+#[test]
+fn extension_picker_fits_the_width_and_fills_its_selected_row() {
+    let _g = lock(Some("dark"));
+    const LONG: &str = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore";
+    let bg = cortexcode_code_tui_theme::theme()
+        .get_bg_ansi("selectedBg")
+        .to_string();
+    for width in [40u16, 80, 160] {
+        let mut s = ExtensionSelectorComponent::new(
+            "Pick one",
+            vec![LONG.to_string(), "short".to_string()],
+            None,
+            Box::new(|_| {}),
+        );
+        let lines = s.render(width);
+        for line in &lines {
+            let w = cortexcode_tui_util::visible_width(line);
+            assert!(w <= width as usize, "{w} > {width}: {line}");
+            if line.contains(&bg) {
+                assert_eq!(w, width as usize, "{line}");
+            }
+        }
+    }
+}

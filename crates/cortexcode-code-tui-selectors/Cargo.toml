@@ -14,8 +14,15 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-auth = { workspace = true }
 cortexcode-code-paths = { workspace = true }
+cortexcode-code-resources = { workspace = true }
 cortexcode-code-session = { workspace = true }
+cortexcode-code-settings = { workspace = true }
+cortexcode-code-tools = { workspace = true }
+cortexcode-code-tools-optin = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-code-tui-widgets = { workspace = true }
@@ -24,6 +31,7 @@ cortexcode-tui-fuzzy = { workspace = true }
 cortexcode-tui-keys = { workspace = true }
 cortexcode-tui-render = { workspace = true }
 cortexcode-tui-util = { workspace = true }
+serde_json = "1"
 
 [dev-dependencies]
 tempfile = "3"

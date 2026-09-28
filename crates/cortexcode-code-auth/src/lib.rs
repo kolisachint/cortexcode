@@ -6,6 +6,7 @@
 
 pub mod auth_guidance;
 mod backend;
+pub mod provider_display_names;
 
 pub use backend::{
     AsyncLockFn, AuthStorageBackend, FileAuthStorageBackend, InMemoryAuthStorageBackend, LockFn,

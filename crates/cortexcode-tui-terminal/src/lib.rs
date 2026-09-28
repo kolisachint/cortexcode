@@ -17,7 +17,7 @@ pub use stdin_buffer::{StdinBuffer, StdinBufferOptions, StdinEvent};
 
 use std::env;
 use std::fs::OpenOptions;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
@@ -123,7 +123,6 @@ pub struct ProcessTerminal {
     progress_active: Arc<AtomicBool>,
     forwarding: Arc<AtomicBool>,
     last_input_at: Arc<Mutex<Instant>>,
-    reader_thread: Option<thread::JoinHandle<()>>,
     resize_thread: Option<thread::JoinHandle<()>>,
     stop_signal: Arc<AtomicBool>,
     progress_thread: Option<thread::JoinHandle<()>>,
@@ -150,7 +149,6 @@ impl ProcessTerminal {
             progress_active: Arc::new(AtomicBool::new(false)),
             forwarding: Arc::new(AtomicBool::new(true)),
             last_input_at: Arc::new(Mutex::new(Instant::now())),
-            reader_thread: None,
             resize_thread: None,
             stop_signal: Arc::new(AtomicBool::new(false)),
             progress_thread: None,
@@ -254,56 +252,69 @@ impl Terminal for ProcessTerminal {
             });
         }
 
-        // Reader thread: parses raw stdin bytes into complete sequences via
-        // StdinBuffer and forwards them to `on_input`, intercepting the
-        // Kitty protocol query response before it reaches the caller.
-        let stop_signal = self.stop_signal.clone();
+        // Input: the process-wide stdin reader hands raw chunks to this
+        // terminal while it is started; StdinBuffer parses them into complete
+        // sequences for `on_input`, intercepting the Kitty protocol query
+        // response before it reaches the caller.
         let forwarding = self.forwarding.clone();
         let kitty_active = self.kitty_protocol_active.clone();
         let last_input_at = self.last_input_at.clone();
-        self.reader_thread = Some(thread::spawn(move || {
-            let mut buf = StdinBuffer::new(StdinBufferOptions::default());
-            let mut chunk = [0u8; 4096];
-            let mut stdin = io::stdin();
-            loop {
-                if stop_signal.load(Ordering::SeqCst) {
-                    break;
+        let buf = Arc::new(Mutex::new(StdinBuffer::new(StdinBufferOptions::default())));
+        type Deliver = Arc<Mutex<Box<dyn FnMut(Vec<StdinEvent>) + Send>>>;
+        let deliver: Deliver = Arc::new(Mutex::new(Box::new(move |events: Vec<StdinEvent>| {
+            for event in events {
+                if !forwarding.load(Ordering::SeqCst) {
+                    continue;
                 }
-                let n = match stdin.read(&mut chunk) {
-                    Ok(0) => break,
-                    Ok(n) => n,
-                    Err(_) => break,
-                };
-                *last_input_at.lock().unwrap() = Instant::now();
-
-                let text = if n == 1 && chunk[0] > 127 {
-                    format!("\x1b{}", (chunk[0] - 128) as char)
-                } else {
-                    String::from_utf8_lossy(&chunk[..n]).into_owned()
-                };
-
-                let events = buf.process(&text);
-                for event in events {
-                    if !forwarding.load(Ordering::SeqCst) {
-                        continue;
+                match event {
+                    StdinEvent::Data(seq) => {
+                        if !kitty_active.load(Ordering::SeqCst) && parse_kitty_query_response(&seq)
+                        {
+                            kitty_active.store(true, Ordering::SeqCst);
+                            let _ = io::stdout().write_all(b"\x1b[>7u");
+                            let _ = io::stdout().flush();
+                            continue;
+                        }
+                        on_input(&seq);
                     }
-                    match event {
-                        StdinEvent::Data(seq) => {
-                            if !kitty_active.load(Ordering::SeqCst)
-                                && parse_kitty_query_response(&seq)
-                            {
-                                kitty_active.store(true, Ordering::SeqCst);
-                                let _ = io::stdout().write_all(b"\x1b[>7u");
-                                let _ = io::stdout().flush();
-                                continue;
-                            }
-                            on_input(&seq);
-                        }
-                        StdinEvent::Paste(content) => {
-                            on_input(&format!("\x1b[200~{content}\x1b[201~"));
-                        }
+                    StdinEvent::Paste(content) => {
+                        on_input(&format!("\x1b[200~{content}\x1b[201~"));
                     }
                 }
+            }
+        })));
+        stdin_hub::subscribe(Box::new(move |chunk: &[u8]| {
+            *last_input_at.lock().unwrap() = Instant::now();
+
+            let text = if chunk.len() == 1 && chunk[0] > 127 {
+                format!("\x1b{}", (chunk[0] - 128) as char)
+            } else {
+                String::from_utf8_lossy(chunk).into_owned()
+            };
+
+            let (events, flush_after) = {
+                let mut b = buf.lock().unwrap_or_else(|e| e.into_inner());
+                let events = b.process(&text);
+                (events, b.has_pending().then(|| b.timeout()))
+            };
+            (deliver.lock().unwrap_or_else(|e| e.into_inner()))(events);
+
+            // An incomplete sequence (a lone ESC above all) is flushed once
+            // no more input arrives within the timeout (the original's
+            // setTimeout); input that completes it first resets the clock.
+            if let Some(timeout) = flush_after {
+                let buf = buf.clone();
+                let deliver = deliver.clone();
+                thread::spawn(move || {
+                    thread::sleep(timeout);
+                    let events = buf
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .poll_timeout(Instant::now());
+                    if !events.is_empty() {
+                        (deliver.lock().unwrap_or_else(|e| e.into_inner()))(events);
+                    }
+                });
             }
         }));
 
@@ -358,12 +369,9 @@ impl Terminal for ProcessTerminal {
             self.raw_write("\x1b[>4;0m");
         }
 
-        // Reader/resize threads are left detached: they read from stdin,
-        // which cannot be interrupted from another thread without OS-level
-        // signalling, so they exit naturally once no more input arrives
-        // (matching the fire-and-forget cleanup semantics of a background
-        // Node listener being removed).
-        self.reader_thread = None;
+        // Stop listening; input that arrives before the next terminal starts
+        // waits for it, as it does in a paused Node stdin.
+        stdin_hub::unsubscribe();
         self.resize_thread = None;
 
         let _ = crossterm::terminal::disable_raw_mode();
@@ -526,5 +534,61 @@ mod tests {
     fn new_terminal_is_not_kitty_active_by_default() {
         let term = ProcessTerminal::new();
         assert!(!term.kitty_protocol_active());
+    }
+}
+
+/// The one stdin reader for the process. A blocking read cannot be
+/// interrupted, so a reader per terminal would outlive a stopped terminal and
+/// swallow the next terminal's first keys (`--resume`'s picker, then the
+/// interactive mode). Chunks go to the started terminal, or wait for the next.
+mod stdin_hub {
+    use std::io::Read;
+    use std::sync::{Mutex, Once};
+
+    type Sink = Box<dyn FnMut(&[u8]) + Send>;
+
+    struct Hub {
+        sink: Option<Sink>,
+        pending: Vec<Vec<u8>>,
+    }
+
+    static HUB: Mutex<Hub> = Mutex::new(Hub {
+        sink: None,
+        pending: Vec::new(),
+    });
+    static READER: Once = Once::new();
+
+    fn lock_hub() -> std::sync::MutexGuard<'static, Hub> {
+        HUB.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(crate) fn subscribe(mut sink: Sink) {
+        let mut hub = lock_hub();
+        for chunk in std::mem::take(&mut hub.pending) {
+            sink(&chunk);
+        }
+        hub.sink = Some(sink);
+        drop(hub);
+        READER.call_once(|| {
+            std::thread::spawn(|| {
+                let mut chunk = [0u8; 4096];
+                let mut stdin = std::io::stdin();
+                loop {
+                    let n = match stdin.read(&mut chunk) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    };
+                    let mut hub = lock_hub();
+                    match hub.sink.as_mut() {
+                        Some(sink) => sink(&chunk[..n]),
+                        None => hub.pending.push(chunk[..n].to_vec()),
+                    }
+                }
+            });
+        });
+    }
+
+    pub(crate) fn unsubscribe() {
+        lock_hub().sink = None;
     }
 }

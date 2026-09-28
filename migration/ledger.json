@@ -4469,7 +4469,62 @@
    "id": "11.3a",
    "title": "Session selector: session-selector (+ search, rename, delete, branch view) over list_sessions/list_all_sessions; alt+h and --resume open it; the missing-session-cwd Continue/Cancel prompt",
    "phase": 11,
-   "status": "in_progress",
+   "status": "done",
+   "depends": [
+    "11.3a1",
+    "11.3a2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: container for 11.3a1/11.3a2",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:35:00Z",
+     "commit": "dca7f63",
+     "kind": "note",
+     "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.3a1 (component, tests, --resume, initial transcript) and 11.3a2 (in-app switch, missing-cwd prompt). Bookkeeping: status reset to todo as a container."
+    },
+    {
+     "at": "2026-09-28T06:17:21Z",
+     "commit": "b267eca",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.3a1",
+   "title": "Session selector component (search, rename, delete, branch view) with its ported tests; --resume opens it before startup; the interactive app renders a loaded session (renderInitialMessages)",
+   "phase": 11,
+   "status": "done",
    "depends": [
     "11.2"
    ],
@@ -4480,7 +4535,9 @@
    "sources": [
     "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
     "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
-    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/cli/session-picker.ts",
+    "packages/coding-agent/src/main.ts"
    ],
    "ts_tests": [
     "packages/coding-agent/test/session-selector-search.test.ts",
@@ -4511,6 +4568,67 @@
      "commit": "dca7f63",
      "kind": "note",
      "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3a (bookkeeping): the in-app switch needs a session swap in the interactive mode, which is its own piece of work."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "018d31d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:56:55Z",
+     "commit": "018d31d",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-resume=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.3a2",
+   "title": "In-app session resume: alt+h (and /resume via 11.4) open the session selector; switch_session + renderCurrentSessionState; the missing-session-cwd Continue/Cancel prompt",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "session-resume-inapp",
+    "session-missing-cwd"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3a (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:05:28Z",
+     "commit": "27e2971",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:10:53Z",
+     "commit": "b267eca",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-resume-inapp=pass, session-missing-cwd=pass"
     }
    ]
   },
@@ -4518,10 +4636,10 @@
    "id": "11.3b",
    "title": "Model selector: model-selector, scoped-models-selector, model-controller (/model, cycling)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a",
-    "11.4"
+    "11.4a"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4544,6 +4662,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T11:03:20Z",
+     "commit": "8be2527",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:03:26Z",
+     "commit": "8be2527",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:15:35Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T11:15:56Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T11:16:43Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 pass; L2 model-selector=pass"
     }
    ]
   },
@@ -4551,7 +4699,7 @@
    "id": "11.3c",
    "title": "Small selectors: thinking, theme, show-images, session-color, user-message-selector, ask-options",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a"
    ],
@@ -4573,7 +4721,9 @@
     "packages/coding-agent/test/picker-widths.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "ask-options"
+   ],
    "notes": "",
    "log": [
     {
@@ -4581,6 +4731,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:19:02Z",
+     "commit": "4555f6b",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:26:09Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Scope: the six components plus the ask_options pane wired as the interactive AskOptionsHost (L2 ask-options). The thinking, theme, show-images, session-colour and fork pickers are opened by slash commands and /settings (11.4/11.3d), which wire them. ask-options-loop.test.ts is owned by 10.2f/12.5 (the /loop extension). The tree case of picker-widths.test.ts goes with 11.3e. The completion chime on a blocked ask (chime.onBlockedForInput) is not ported."
+    },
+    {
+     "at": "2026-09-28T06:26:23Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T06:26:34Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T06:27:09Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 pass; L2 ask-options=pass"
     }
    ]
   },
@@ -4588,9 +4768,11 @@
    "id": "11.3d",
    "title": "Settings selector: settings-selector panes and config-selector",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "11.3a"
+    "11.3d1",
+    "11.3d2",
+    "11.3d3"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4615,6 +4797,178 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:36:55Z",
+     "commit": "dbc8952",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "dbc8952",
+     "kind": "note",
+     "text": "Split into 11.3d1 (pane component + its 4 TS tests), 11.3d2 (/settings wiring + L2 settings-pane, needs 11.4 slash commands), 11.3d3 (config-selector for `hoocode config`). Container closes when all three are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T14:08:02Z",
+     "commit": "47ebacb",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T14:10:08Z",
+     "commit": "47ebacb",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3d1",
+   "title": "Settings pane component: settings-selector.ts (categories, submenus, token surface) + external-tools table + platform-targets",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-settings",
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
+    "packages/coding-agent/src/core/external-tools.ts",
+    "packages/coding-agent/src/core/extensions/plugins/formats/platform-targets.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/settings-token-surface.test.ts",
+    "packages/coding-agent/test/learn-settings-pane.test.ts",
+    "packages/coding-agent/test/platform-settings-pane.test.ts",
+    "packages/coding-agent/test/plugin-settings-keyboard.test.ts",
+    "packages/coding-agent/test/external-tools-pane.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "No L2 here: nothing opens the pane until /settings exists (11.3d2 after 11.4).",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "dbc8952",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:51:21Z",
+     "commit": "dbc8952",
+     "kind": "note",
+     "text": "Also ported: external-tools-pane.test.ts (minus 'resolves live status': describeExternalTools needs utils/tools-manager.ts, not ported) and the platform-targets part of platform.test.ts (code-settings tests/platform_targets.rs; its CLI/plugin-authoring/scaffold parts stay with those modules). SettingsList gained items()/filtered_items()/emit_change()/emit_cancel()/pub apply_filter, and a submenu opened from a filtered list now writes back to the right row; Component gained as_any() so a caller can reach the list a submenu factory built."
+    },
+    {
+     "at": "2026-09-28T06:54:04Z",
+     "commit": "dbc8952",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3d2",
+   "title": "/settings in the app: build SettingsConfig from the live session and apply every callback",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3d1",
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "settings-pane"
+   ],
+   "notes": "showSettingsSelector in interactive-mode.ts: config from settings manager + session, callbacks write settings and apply live.",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T11:26:42Z",
+     "commit": "47601b9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:38:49Z",
+     "commit": "47601b9",
+     "kind": "verify",
+     "text": "L1 pass; L2 settings-pane=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.3d3",
+   "title": "hoocode config: config-selector (package resource enable/disable TUI)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-cli",
+    "cortexcode-code-tui-app",
+    "cortexcode-tui-terminal"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/config-selector.ts",
+    "packages/coding-agent/src/cli/config-selector.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "config-selector"
+   ],
+   "notes": "The `config` subcommand of package-manager-cli.ts; the resource resolution it lists comes from the package manager (local part 10.x, npm/git 12.2).",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:02:10Z",
+     "commit": "ff03824",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:02:10Z",
+     "commit": "ff03824",
+     "kind": "note",
+     "text": "config-selector.ts has no TS tests; Rust tests in code-tui-selectors tests/config_selector.rs, L2 config-selector. Only local resources are listed (resolve_local_resources); package sources wait on 12.2. Fixed in cortexcode-tui-terminal: a lone ESC was never delivered (nothing called StdinBuffer::poll_timeout), so ProcessTerminal now flushes a pending partial sequence after the buffer timeout, like the original's setTimeout."
+    },
+    {
+     "at": "2026-09-28T07:04:59Z",
+     "commit": "ff03824",
+     "kind": "verify",
+     "text": "L1 pass; L2 config-selector=pass"
     }
    ]
   },
@@ -4622,9 +4976,10 @@
    "id": "11.3e",
    "title": "Tree selector (session tree navigation)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "11.3a"
+    "11.3e1",
+    "11.3e2"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4645,6 +5000,116 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:10:24Z",
+     "commit": "c9501f5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "c9501f5",
+     "kind": "note",
+     "text": "Split into 11.3e1 (component + tree-selector.test.ts) and 11.3e2 (wiring + L2 session-tree). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:22:35Z",
+     "commit": "74018fe",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3e1",
+   "title": "Tree selector component (tree-selector.ts)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/dynamic-border.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tree-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "Also the tree case of picker-widths.test.ts.",
+   "log": [
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "c9501f5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:13:55Z",
+     "commit": "c9501f5",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3e2",
+   "title": "Session tree in the app: double-escape and /tree open it; branch-summary choice, navigateTree, label changes",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3e1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-selectors"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/extension-editor.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "session-tree"
+   ],
+   "notes": "showTreeSelector: 'Summarize branch?' selector, custom-prompt editor (extension-editor.ts, not yet ported), summary loader, re-render after navigation. The double-escape trigger works without slash commands; /tree itself arrives with 11.4.",
+   "log": [
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:15:34Z",
+     "commit": "74018fe",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:22:19Z",
+     "commit": "74018fe",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-tree=pass"
+    },
+    {
+     "at": "2026-09-28T07:22:35Z",
+     "commit": "74018fe",
+     "kind": "note",
+     "text": "Wired: double escape on an empty idle prompt (doubleEscapeAction=tree), the tree in the editor slot, label changes to the session, 'Summarize branch?' (No summary navigates in place; Summarize/custom run navigate_tree off the loop behind a 'Summarizing branch...' loader that escape aborts), the custom-instructions ExtensionEditorComponent (tui-app extension_editor.rs, without the $EDITOR hand-off). Not here: doubleEscapeAction=fork (the fork picker is wired with /fork, 11.4), /tree itself (11.4), flushCompactionQueue after navigation. L2 session-tree covers the no-summary path."
     }
    ]
   },
@@ -4654,7 +5119,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.3a"
+    "11.3f1",
+    "11.3f2"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4677,6 +5143,102 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "ec74f8e",
+     "kind": "note",
+     "text": "Split into 11.3f1 (components + oauth-selector.test.ts) and 11.3f2 (LoginController wiring for /login and /logout, L2 login-api-key, after 11.4). Container closes when both are done (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3f1",
+   "title": "Login components: oauth-selector, login-dialog, provider display names, isApiKeyLoginProvider",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-auth",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/oauth-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/login-dialog.ts",
+    "packages/coding-agent/src/core/provider-display-names.ts",
+    "packages/coding-agent/src/modes/interactive/components/selected-row-list.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/oauth-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "ec74f8e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3f (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:29:50Z",
+     "commit": "ec74f8e",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3f2",
+   "title": "/login and /logout: LoginController flows (auth type, provider pick, OAuth and API-key dialogs, post-login model selection)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3f1",
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-models"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/login-controller.ts",
+    "packages/coding-agent/src/utils/open-url.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "login-api-key"
+   ],
+   "notes": "Needs ModelRegistry.getProviderDisplayName/getProviderAuthStatus (registered providers, models.json apiKey) and openUrl.",
+   "log": [
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3f (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T14:10:25Z",
+     "commit": "beceab8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T14:20:32Z",
+     "commit": "beceab8",
+     "kind": "verify",
+     "text": "L1 pass; L2 login-api-key=pass"
     }
    ]
   },
@@ -4736,7 +5298,12 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2b"
+    "11.4a",
+    "11.4b",
+    "11.4c",
+    "11.4d",
+    "11.4e",
+    "11.4f"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -4748,12 +5315,205 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
+   "l2": [],
+   "notes": "code-media already exists (10.2a: mime sniffing, resize_image, format_dimension_note); add clipboard/paste here.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "74147ea",
+     "kind": "note",
+     "text": "Split into 11.4a (dispatch + slash autocomplete + commands with existing UI, L2 slash-commands), 11.4b (@file, L2 file-autocomplete), 11.4c (! bash), 11.4d (clipboard/copy/paste), 11.4e (remaining commands). Container closes when all are done; its L2 list moved to 11.4a/11.4b (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4a",
+   "title": "Slash commands I: submit dispatch (createBuiltInSlashCommands, setupEditorSubmitHandler), slash autocomplete (builtins, prompt templates, skill commands), and the commands whose UI exists: /quit /resume /tree /compact /name /session /new",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2b"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
    "l2": [
-    "slash-commands",
+    "slash-commands"
+   ],
+   "notes": "compact-command (9.2b's L2) should pass once /compact dispatches.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "74147ea",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T10:47:30Z",
+     "commit": "74147ea",
+     "kind": "verify",
+     "text": "L1 pass; L2 slash-commands=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4b",
+   "title": "@file autocomplete (fd path from the managed tools / PATH)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
     "file-autocomplete"
    ],
-   "notes": "code-media already exists (10.2a: mime sniffing, resize_image, format_dimension_note); add clipboard/paste here.",
-   "log": []
+   "notes": "The pin's CombinedAutocompleteProvider has no fuzzy-file fallback without fd.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4c",
+   "title": "! and !! bash from the prompt (bash-execution-controller.ts)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/bash-execution-controller.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4d",
+   "title": "Clipboard: /copy (rich-clipboard, markdown-to-html), image paste (clipboard-image/native)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard.ts",
+    "packages/coding-agent/src/utils/clipboard-image.ts",
+    "packages/coding-agent/src/utils/clipboard-native.ts",
+    "packages/coding-agent/src/utils/rich-clipboard.ts",
+    "packages/coding-agent/src/utils/markdown-to-html.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "arboard in the adapter crate per the dependency firewall.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e",
+   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4f",
+   "title": "Compaction in the transcript: compaction_start/end loader and status, CompactionSummaryMessageComponent, chat rebuild after compaction",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/compaction-summary-message.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "compact-command"
+   ],
+   "notes": "/compact dispatches since 11.4a; nothing draws the compaction events yet. compact-command is also 9.2b's L2.",
+   "log": [
+    {
+     "at": "2026-09-28T10:44:03Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping): the compaction UI had no owner."
+    }
+   ]
   },
   {
    "id": "11.5",

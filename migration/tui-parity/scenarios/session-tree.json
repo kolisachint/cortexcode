@@ -1,0 +1,173 @@
+{
+  "description": "Session tree: two exchanges, then a double Escape on the empty prompt opens the tree (keys, search line, active path markers). Up + Enter picks the second user message, the 'Summarize branch?' selector answers 'No summary', the transcript drops back to the first exchange with the message text in the prompt, and resubmitting it sends a request without the abandoned branch.",
+  "phase": "11.3e2",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model"
+  ],
+  "llm": [
+    {
+      "text": "First answer."
+    },
+    {
+      "text": "Second answer."
+    },
+    {
+      "text": "Retried answer."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "First answer\\.",
+      "timeout": 30
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Second answer\\.",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "sleep": 0.15
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_for": "session tree",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "tree",
+      "contains": [
+        "session tree",
+        "Type to search:",
+        "user: first question",
+        "assistant: Second answer."
+      ]
+    },
+    {
+      "keys": [
+        "Up"
+      ]
+    },
+    {
+      "wait_stable": 0.5,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Summarize branch\\?",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "summary-choice",
+      "contains": [
+        "No summary",
+        "Summarize with custom prompt"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Navigated to selected point",
+      "timeout": 20
+    },
+    {
+      "wait_gone": "Navigated to selected point",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "navigated",
+      "contains": [
+        "First answer.",
+        "second question"
+      ],
+      "not_contains": [
+        "Second answer."
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Retried answer\\.",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "retried",
+      "contains": [
+        "Retried answer."
+      ]
+    }
+  ]
+}

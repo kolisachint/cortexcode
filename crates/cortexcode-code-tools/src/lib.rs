@@ -20,6 +20,7 @@ use cortexcode_code_tools_fs::{
 };
 use std::path::Path;
 
+pub mod external_tools;
 pub mod light;
 pub mod permissions;
 

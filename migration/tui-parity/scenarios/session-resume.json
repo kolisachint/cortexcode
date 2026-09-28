@@ -1,0 +1,116 @@
+{
+  "description": "--resume: a first -p run leaves a session; `--resume` opens the session picker before startup (header, hints, the session row), Enter resumes it, the transcript shows the earlier exchange, and a new prompt carries it to the model.",
+  "phase": "11.3a1",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "pre_runs": [
+    [
+      "--offline",
+      "--light",
+      "--provider",
+      "mock",
+      "--model",
+      "mock-model",
+      "-p",
+      "remember the word apple"
+    ]
+  ],
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--resume"
+  ],
+  "llm": [
+    {
+      "text": "Noted: apple."
+    },
+    {
+      "text": "The word was apple."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "Resume Session",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "picker",
+      "contains": [
+        "Resume Session (Current Folder)",
+        "remember the word apple"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Noted: apple",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "resumed",
+      "contains": [
+        "remember the word apple",
+        "Noted: apple."
+      ]
+    },
+    {
+      "type": "what was the word?"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "The word was apple",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "answered",
+      "contains": [
+        "The word was apple."
+      ]
+    }
+  ],
+  "normalize": [
+    {
+      "_why": "session slug in the picker row is derived from the random session id (its length moves the padding)",
+      "pattern": " +[a-z]+-[a-z]+(?= \\d+ \\S+ │$)",
+      "replace": " <slug>"
+    },
+    {
+      "_why": "the row's colour swatch is derived from the random session id",
+      "pattern": "(?<=^│ › ) ",
+      "replace": " ",
+      "style": "<masked: session colour swatch>"
+    }
+  ]
+}

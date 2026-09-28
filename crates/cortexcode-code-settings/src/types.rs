@@ -152,6 +152,11 @@ str_enum!(
     }
 );
 
+str_enum!(
+    /// `MarketplacePlatform` (plugins/formats/types.ts): an artifact layout.
+    MarketplacePlatform { Agents => "agents", Claude => "claude", Github => "github" }
+);
+
 /// `PackageSource`: a package, optionally filtered to some resources.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
