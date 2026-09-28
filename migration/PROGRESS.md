@@ -39,6 +39,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3b done (model pickers, /model, cycling)
+- `code-tui-selectors`: `model_selector` (`ModelSelectorComponent`, all/scoped tabs, events
+  instead of callbacks; the owner hands in the loaded models) and `scoped_models_selector`
+  (`ScopedModelsSelectorComponent` + the enabled-set helpers `toggle`/`enable_all`/`clear_all`/
+  `move_id`). Tests: `tests/model_selector.rs` (port of regression 3217 + picker behaviour).
+- App (model-controller.ts): `/model [ref]` (exact match switches, else the picker searching
+  for it), `/scoped-models` (session-only scope; alt+s persists `enabledModels`), alt+m /
+  shift+alt+m cycling with the dial note, `app.model.select`, the footer's available-provider
+  count (startup, rebind, scope change), and the once-per-session Anthropic extra-usage notice
+  (`show_notice`, a warningBg block; `AgentSession::uses_anthropic_subscription_auth`).
+- Adaptation: the registry is `Arc` without interior mutability, so the pickers don't
+  `refresh()` models.json first; the pick's default-model save happens in `set_model`.
+- L2 `model-selector` written from hoocode, selfcheck stable, pass. Full L2: only the known 11 fail.
+- Next: `ledger.py next` → 11.3d2 (/settings in the app).
+
 ### 2026-09-28: 11.4 split; 11.4a done (slash command dispatch)
 - 11.4 split into:
   - 11.4a: dispatch, slash autocomplete, and the commands whose UI exists.

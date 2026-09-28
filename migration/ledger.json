@@ -4636,7 +4636,7 @@
    "id": "11.3b",
    "title": "Model selector: model-selector, scoped-models-selector, model-controller (/model, cycling)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a",
     "11.4a"
@@ -4662,6 +4662,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T11:03:20Z",
+     "commit": "8be2527",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:03:26Z",
+     "commit": "8be2527",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:15:35Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T11:15:56Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T11:16:43Z",
+     "commit": "8be2527",
+     "kind": "verify",
+     "text": "L1 pass; L2 model-selector=pass"
     }
    ]
   },

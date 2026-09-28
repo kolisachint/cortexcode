@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use cortexcode_agent_types::{AgentEvent, AgentMessage};
 use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
+use cortexcode_ai_types::{Model, ThinkingLevel};
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
 use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, RuntimeError};
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
@@ -23,6 +24,7 @@ use cortexcode_code_agent_session::{
     AgentSession, AgentSessionEvent, AgentSessionRuntime, NavigateTreeOptions, NavigateTreeResult,
     NewSessionRequest, PromptOptions,
 };
+use cortexcode_code_models::{find_exact_model_reference_match, resolve_model_scope};
 use cortexcode_code_paths::{APP_NAME, APP_TITLE};
 use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::SessionManager;
@@ -32,10 +34,15 @@ use cortexcode_code_tui_keybindings::{
     app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
 };
 use cortexcode_code_tui_selectors::ask_options::{AskOptionsComponent, AskOptionsOptions};
+use cortexcode_code_tui_selectors::model_selector::{ModelSelectorComponent, ModelSelectorEvent};
+use cortexcode_code_tui_selectors::scoped_models_selector::{
+    ScopedModelsEvent, ScopedModelsSelectorComponent,
+};
 use cortexcode_code_tui_selectors::session_selector::{
     SessionSelectorComponent, SessionSelectorOptions,
 };
 use cortexcode_code_tui_selectors::tree_selector::{TreeEvent, TreeSelectorComponent};
+use cortexcode_code_tui_theme::{apply_block_fill, BlockFill};
 use cortexcode_code_tui_theme::{
     get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
     set_theme, theme, ThinkingBorderLevel,
@@ -51,6 +58,7 @@ use cortexcode_code_tui_widgets::tools::registered_tool_definition;
 use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
+use cortexcode_tui_components::BoxComponent;
 use cortexcode_tui_components::{
     CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
     FrameBorderStyle, Loader, MarkdownTheme, SlashCommand, Spacer, Text,
@@ -189,6 +197,9 @@ enum Action {
     ChromeBackward,
     ThinkingForward,
     ThinkingBackward,
+    ModelForward,
+    ModelBackward,
+    ModelSelect,
     ViewForward,
     ViewBackward,
     /// The editor submitted this text (it has already cleared itself).
@@ -220,7 +231,7 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 9] = [
+const EDITOR_ACTIONS: [(&str, Action); 12] = [
     ("app.view.cycleForward", Action::ViewForward),
     ("app.view.cycleBackward", Action::ViewBackward),
     ("app.clear", Action::Clear),
@@ -229,6 +240,9 @@ const EDITOR_ACTIONS: [(&str, Action); 9] = [
     ("app.chrome.cycleForward", Action::ChromeForward),
     ("app.chrome.cycleBackward", Action::ChromeBackward),
     ("app.thinking.cycleForward", Action::ThinkingForward),
+    ("app.model.cycleForward", Action::ModelForward),
+    ("app.model.cycleBackward", Action::ModelBackward),
+    ("app.model.select", Action::ModelSelect),
     ("app.session.resume", Action::ResumeSession),
 ];
 
@@ -491,6 +505,12 @@ struct Mode {
     ask_options: Option<OpenAskOptions>,
     /// The open session tree, with the leaf it was opened on.
     tree_selector: Option<(Rc<RefCell<TreeSelectorComponent>>, Option<String>)>,
+    /// The open `/model` picker.
+    model_selector: Option<Rc<RefCell<ModelSelectorComponent>>>,
+    /// The open `/scoped-models` picker, with how many models it lists.
+    scoped_models_selector: Option<(Rc<RefCell<ScopedModelsSelectorComponent>>, usize)>,
+    /// The Anthropic extra-usage notice has been shown this session.
+    anthropic_warning_shown: bool,
     /// When escape last hit an empty, idle prompt (`lastEscapeTime`).
     last_escape: Option<Instant>,
     /// A tree selection waiting on "Summarize branch?".
@@ -747,6 +767,9 @@ impl Mode {
             pending_cwd_prompt: None,
             ask_options: None,
             tree_selector: None,
+            model_selector: None,
+            scoped_models_selector: None,
+            anthropic_warning_shown: false,
             last_escape: None,
             pending_tree_summary: None,
             pending_tree_instructions: None,
@@ -1403,6 +1426,250 @@ impl Mode {
         }
     }
 
+    /// `showNotice`: a filled warning block in the chat, for warnings that
+    /// cost money if ignored (`showBlock`).
+    fn show_notice(&mut self, title: &str, body: &[&str]) {
+        let t = theme();
+        let mut block = BoxComponent::new(1, 1, None);
+        apply_block_fill(&mut block, BlockFill::WarningBg);
+        block.add_child(as_component(&handle(Text::new(
+            t.bold(&t.fg("warning", title)),
+            0,
+            0,
+        ))));
+        for line in body {
+            block.add_child(as_component(&handle(Text::new(t.fg("muted", line), 0, 0))));
+        }
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(block)));
+    }
+
+    /// `getModelCandidates`: the model scope when set, else every model with
+    /// configured auth.
+    fn model_candidates(&self) -> Vec<Model> {
+        let scoped = self.session.scoped_models();
+        if scoped.is_empty() {
+            self.session.get_available_models()
+        } else {
+            scoped.into_iter().map(|s| s.model).collect()
+        }
+    }
+
+    /// `updateAvailableProviderCount`: the footer names the provider once
+    /// there is more than one.
+    fn update_available_provider_count(&mut self) {
+        let providers: HashSet<String> = self
+            .model_candidates()
+            .into_iter()
+            .map(|m| m.provider)
+            .collect();
+        self.footer_data
+            .set_available_provider_count(providers.len());
+        self.dirty.set(true);
+    }
+
+    /// `maybeWarnAboutAnthropicSubscriptionAuth`: once per session.
+    fn maybe_warn_about_anthropic_subscription_auth(&mut self, model: Option<Model>) {
+        if self.anthropic_warning_shown {
+            return;
+        }
+        let Some(model) = model.or_else(|| self.session.model()) else {
+            return;
+        };
+        if !self.session.uses_anthropic_subscription_auth(&model) {
+            return;
+        }
+        self.anthropic_warning_shown = true;
+        self.show_notice(
+            "Anthropic subscription",
+            &[
+                "Billed per token as extra usage, not against plan limits.",
+                "Turn off in /settings → Anthropic extra usage.",
+            ],
+        );
+    }
+
+    /// `cycleModel`.
+    fn cycle_model(&mut self, forward: bool) {
+        let direction = if forward {
+            cortexcode_code_agent_session::CycleDirection::Forward
+        } else {
+            cortexcode_code_agent_session::CycleDirection::Backward
+        };
+        match self.session.cycle_model(direction) {
+            None => {
+                let message = if self.session.scoped_models().is_empty() {
+                    "Only one model available"
+                } else {
+                    "Only one model in scope"
+                };
+                self.show_status(message);
+            }
+            Some(result) => {
+                self.footer.borrow_mut().invalidate();
+                self.update_editor_border_color();
+                let thinking =
+                    if result.model.reasoning && result.thinking_level != ThinkingLevel::Off {
+                        format!(" (thinking: {})", result.thinking_level.as_str())
+                    } else {
+                        String::new()
+                    };
+                let name = if result.model.name.is_empty() {
+                    &result.model.id
+                } else {
+                    &result.model.name
+                };
+                self.show_dial_step(
+                    if forward {
+                        "app.model.cycleBackward"
+                    } else {
+                        "app.model.cycleForward"
+                    },
+                    &format!("Switched to {name}{thinking}"),
+                );
+                self.maybe_warn_about_anthropic_subscription_auth(Some(result.model));
+            }
+        }
+    }
+
+    /// `handleModel`: `/model` opens the picker; `/model <ref>` switches on
+    /// an exact match, else opens the picker searching for it.
+    fn handle_model_command(&mut self, search: Option<String>) {
+        let Some(search) = search else {
+            self.show_model_selector(None);
+            return;
+        };
+        let candidates = self.model_candidates();
+        let Some(model) = find_exact_model_reference_match(&search, &candidates).cloned() else {
+            self.show_model_selector(Some(&search));
+            return;
+        };
+        self.switch_model(model);
+    }
+
+    /// `session.setModel` and what the chrome shows about it.
+    fn switch_model(&mut self, model: Model) {
+        match self.session.set_model(model.clone()) {
+            Ok(()) => {
+                self.footer.borrow_mut().invalidate();
+                self.update_editor_border_color();
+                self.show_status(&format!("Model: {}", model.id));
+                self.maybe_warn_about_anthropic_subscription_auth(Some(model));
+            }
+            Err(error) => self.show_error(&error.to_string()),
+        }
+    }
+
+    /// `showModelSelector`.
+    fn show_model_selector(&mut self, initial_search: Option<&str>) {
+        let load_error = self.session.model_registry().error().map(String::from);
+        let selector = handle(ModelSelectorComponent::new(
+            self.session.model(),
+            Ok(self.session.get_available_models()),
+            load_error,
+            self.session
+                .scoped_models()
+                .into_iter()
+                .map(|s| s.model)
+                .collect(),
+            initial_search,
+        ));
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&selector));
+        }
+        self.tui.set_focus(Some(as_component(&selector)));
+        self.model_selector = Some(selector);
+        self.dirty.set(true);
+    }
+
+    /// `showModelsSelector`: the enable set model cycling steps through.
+    fn show_models_selector(&mut self) {
+        let all = self.session.get_available_models();
+        if all.is_empty() {
+            self.show_status("No models available");
+            return;
+        }
+        let full_id = |m: &Model| format!("{}/{}", m.provider, m.id);
+        let scoped = self.session.scoped_models();
+        let enabled = if !scoped.is_empty() {
+            Some(scoped.iter().map(|s| full_id(&s.model)).collect())
+        } else {
+            let patterns = self.session.settings().enabled_models();
+            patterns.filter(|p| !p.is_empty()).map(|patterns| {
+                resolve_model_scope(&patterns, &all)
+                    .models
+                    .iter()
+                    .map(|s| full_id(&s.model))
+                    .collect()
+            })
+        };
+        let total = all.len();
+        let selector = handle(ScopedModelsSelectorComponent::new(all, enabled));
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&selector));
+        }
+        self.tui.set_focus(Some(as_component(&selector)));
+        self.scoped_models_selector = Some((selector, total));
+        self.dirty.set(true);
+    }
+
+    /// The model pickers' answers.
+    fn poll_model_selectors(&mut self) {
+        let event = self
+            .model_selector
+            .as_ref()
+            .and_then(|s| s.borrow_mut().take_events().into_iter().next());
+        if let Some(event) = event {
+            self.model_selector = None;
+            self.restore_editor();
+            if let ModelSelectorEvent::Select(model) = event {
+                self.switch_model(*model);
+            }
+        }
+        if let Some((selector, total)) = &self.scoped_models_selector {
+            let total = *total;
+            let events = selector.borrow_mut().take_events();
+            for event in events {
+                match event {
+                    ScopedModelsEvent::Change(enabled) => {
+                        self.set_session_model_scope(enabled, total)
+                    }
+                    ScopedModelsEvent::Persist(enabled) => {
+                        // Every model enabled clears the filter.
+                        let patterns = enabled.filter(|ids| ids.len() != total);
+                        self.session
+                            .settings()
+                            .set_enabled_models(patterns.as_deref());
+                        self.show_status("Model selection saved to settings");
+                    }
+                    ScopedModelsEvent::Cancel => {
+                        self.scoped_models_selector = None;
+                        self.restore_editor();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// The session's model scope from the picker (session-only): all or
+    /// none enabled means no filter.
+    fn set_session_model_scope(&mut self, enabled: Option<Vec<String>>, total: usize) {
+        match enabled.filter(|ids| !ids.is_empty() && ids.len() < total) {
+            Some(ids) => {
+                let available = self.session.get_available_models();
+                let scope = resolve_model_scope(&ids, &available);
+                self.session.set_scoped_models(scope.models);
+            }
+            None => self.session.set_scoped_models(Vec::new()),
+        }
+        self.update_available_provider_count();
+    }
+
     /// "Summarize branch?" for a tree selection.
     fn ask_tree_summary(&mut self, entry_id: String) {
         let (reply, answer) = mpsc::channel();
@@ -1604,6 +1871,15 @@ impl Mode {
                     .map(String::from);
                 self.handle_compact_command(instructions);
             }
+            BuiltinCommand::Model => {
+                let search = text
+                    .strip_prefix("/model ")
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(String::from);
+                self.handle_model_command(search);
+            }
+            BuiltinCommand::ScopedModels => self.show_models_selector(),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.3b/11.3d2/11.3f2/11.4d/11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -1884,6 +2160,7 @@ impl Mode {
         self.update_session_chip();
         self.update_terminal_title();
         self.setup_autocomplete_provider();
+        self.update_available_provider_count();
     }
 
     /// `resetTranscriptView`: drop every view reference into the transcript.
@@ -2313,6 +2590,10 @@ impl Mode {
                     }
                 }
             }
+            Action::ModelForward | Action::ModelBackward => {
+                self.cycle_model(action == Action::ModelForward)
+            }
+            Action::ModelSelect => self.show_model_selector(None),
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
@@ -2390,6 +2671,8 @@ impl Mode {
         // Messages after the resource listing, as the pin orders them.
         self.render_initial_messages();
         self.setup_autocomplete_provider();
+        self.update_available_provider_count();
+        self.maybe_warn_about_anthropic_subscription_auth(None);
 
         let tx = Mutex::new(self.tx.clone());
         set_dialog_sink(Some(Box::new(move |request| {
@@ -2525,6 +2808,7 @@ impl Mode {
             }
             self.poll_cwd_prompt();
             self.poll_tree_selector();
+            self.poll_model_selectors();
             self.poll_tree_summary();
             self.poll_tree_instructions();
             self.poll_tree_navigation();
@@ -2585,6 +2869,8 @@ enum BuiltinCommand {
     Session,
     New,
     Compact,
+    Model,
+    ScopedModels,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -2600,6 +2886,8 @@ impl BuiltinCommand {
             "session" => Self::Session,
             "new" => Self::New,
             "compact" => Self::Compact,
+            "model" => Self::Model,
+            "scoped-models" => Self::ScopedModels,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -2610,10 +2898,10 @@ impl BuiltinCommand {
     /// Commands that also match "/name <args>".
     fn with_args(self) -> bool {
         match self {
-            Self::Name | Self::Compact => true,
+            Self::Name | Self::Compact | Self::Model => true,
             Self::Pending(name) => matches!(
                 name,
-                "model" | "export" | "import" | "copy" | "color" | "chrome" | "cd" | "subagent"
+                "export" | "import" | "copy" | "color" | "chrome" | "cd" | "subagent"
             ),
             _ => false,
         }

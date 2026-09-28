@@ -1144,6 +1144,7 @@ dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
  "cortexcode-code-agent-session",
+ "cortexcode-code-models",
  "cortexcode-code-paths",
  "cortexcode-code-permissions",
  "cortexcode-code-resources",

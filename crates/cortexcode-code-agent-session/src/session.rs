@@ -866,6 +866,28 @@ impl AgentSession {
             .collect()
     }
 
+    /// `usesAnthropicSubscriptionAuth` (model-controller.ts): whether `model`
+    /// bills through Anthropic subscription auth (extra usage), unless
+    /// `warnings.anthropicExtraUsage` is off.
+    pub fn uses_anthropic_subscription_auth(&self, model: &Model) -> bool {
+        if self.settings().warnings().anthropic_extra_usage == Some(false) {
+            return false;
+        }
+        if model.provider != "anthropic" {
+            return false;
+        }
+        if self.inner.auth.is_oauth("anthropic") {
+            return true;
+        }
+        // Lookup failures are ignored: this only decides a warning.
+        self.inner
+            .model_registry
+            .get_api_key_and_headers(model, self.inner.auth.as_ref())
+            .ok()
+            .and_then(|auth| auth.api_key)
+            .is_some_and(|key| key.starts_with("sk-ant-oat"))
+    }
+
     pub fn cwd(&self) -> &Path {
         &self.inner.cwd
     }
