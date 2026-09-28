@@ -39,6 +39,10 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28 · 11.3d settings selector (parent)
+- No code: 11.3d1/11.3d2/11.3d3 are done and 11.3d has no scenario of its own; `ledger.py verify 11.3d` passed L1.
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-28: 11.3d2 done (/settings in the app)
 - `/settings` and alt+s (`app.settings.open`) open the pane built from the live session
   (`show_settings_selector`); every `SettingsChange` is applied (`apply_settings_change`):

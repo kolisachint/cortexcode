@@ -4768,7 +4768,7 @@
    "id": "11.3d",
    "title": "Settings selector: settings-selector panes and config-selector",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3d1",
     "11.3d2",
@@ -4809,6 +4809,18 @@
      "commit": "dbc8952",
      "kind": "note",
      "text": "Split into 11.3d1 (pane component + its 4 TS tests), 11.3d2 (/settings wiring + L2 settings-pane, needs 11.4 slash commands), 11.3d3 (config-selector for `hoocode config`). Container closes when all three are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T14:08:02Z",
+     "commit": "47ebacb",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T14:10:08Z",
+     "commit": "47ebacb",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
