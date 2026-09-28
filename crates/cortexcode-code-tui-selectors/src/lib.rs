@@ -6,8 +6,10 @@
 //! - [`user_message_selector`]: the message to fork from.
 //! - [`ask_options`]: the options pane (`ask_options`).
 //! - [`settings_selector`]: the `/settings` pane.
+//! - [`config_selector`]: the `config` subcommand's resource list.
 
 pub mod ask_options;
+pub mod config_selector;
 pub mod framed_list;
 pub mod session_selector;
 pub mod session_selector_search;

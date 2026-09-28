@@ -4871,13 +4871,15 @@
    "id": "11.3d3",
    "title": "hoocode config: config-selector (package resource enable/disable TUI)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
-    "cortexcode-code-cli"
+    "cortexcode-code-cli",
+    "cortexcode-code-tui-app",
+    "cortexcode-tui-terminal"
    ],
    "sources": [
     "packages/coding-agent/src/modes/interactive/components/config-selector.ts",
@@ -4885,7 +4887,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "config-selector"
+   ],
    "notes": "The `config` subcommand of package-manager-cli.ts; the resource resolution it lists comes from the package manager (local part 10.x, npm/git 12.2).",
    "log": [
     {
@@ -4893,6 +4897,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:02:10Z",
+     "commit": "ff03824",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:02:10Z",
+     "commit": "ff03824",
+     "kind": "note",
+     "text": "config-selector.ts has no TS tests; Rust tests in code-tui-selectors tests/config_selector.rs, L2 config-selector. Only local resources are listed (resolve_local_resources); package sources wait on 12.2. Fixed in cortexcode-tui-terminal: a lone ESC was never delivered (nothing called StdinBuffer::poll_timeout), so ProcessTerminal now flushes a pending partial sequence after the buffer timeout, like the original's setTimeout."
+    },
+    {
+     "at": "2026-09-28T07:04:59Z",
+     "commit": "ff03824",
+     "kind": "verify",
+     "text": "L1 pass; L2 config-selector=pass"
     }
    ]
   },

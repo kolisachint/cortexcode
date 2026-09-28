@@ -39,6 +39,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3d3 done (`cortex config`)
+- `code-tui-selectors::config_selector`: `build_groups` and `ConfigSelectorComponent`
+  (header, groups by origin/scope/source, type subheads, `[x]` rows, filter, pageUp/pageDown).
+  A toggle writes `+pattern`/`-pattern` to the scope's resource array, or to the package entry's
+  filter. Group sort uses a V8-style binary insertion sort because the original comparator is not
+  a total order.
+- `code-tui-app::session_picker::select_config` runs it on its own TUI. code-cli dispatches
+  `config` (off the not-supported list). It lists local resources only; packages wait on 12.2.
+- Fix in `cortexcode-tui-terminal`: a lone Escape was never delivered because nothing called
+  `StdinBuffer::poll_timeout`. `ProcessTerminal` now flushes a pending partial sequence after the
+  buffer timeout. No earlier scenario pressed Escape.
+- L2 `config-selector` passes and selfcheck is stable (it also compares the project settings.json
+  the toggle writes). Rust tests: `tests/config_selector.rs` (hoocode has none).
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3d split; 11.3d1 done (the /settings pane component)
 - 11.3d split into 11.3d1 (pane component + tests), 11.3d2 (/settings in the app, L2
   `settings-pane`, depends on 11.4 because nothing dispatches slash commands yet) and 11.3d3

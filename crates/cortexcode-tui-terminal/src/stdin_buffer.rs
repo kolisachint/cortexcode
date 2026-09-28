@@ -349,6 +349,16 @@ impl StdinBuffer {
         out.push(StdinEvent::Data(sequence));
     }
 
+    /// Whether an incomplete sequence is waiting for its timeout.
+    pub fn has_pending(&self) -> bool {
+        self.pending_since.is_some()
+    }
+
+    /// The flush timeout for an incomplete sequence.
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
     /// Call periodically (e.g. from the reader loop) so an idle partial
     /// sequence gets flushed after the configured timeout.
     pub fn poll_timeout(&mut self, now: Instant) -> Vec<StdinEvent> {

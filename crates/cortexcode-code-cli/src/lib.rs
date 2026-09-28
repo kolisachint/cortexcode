@@ -7,6 +7,7 @@
 
 pub mod args;
 pub mod auth;
+mod config_command;
 mod help;
 mod help_text;
 pub mod initial_message;
@@ -27,16 +28,15 @@ use std::io::{IsTerminal, Read, Write};
 /// `VERSION` printed by `--version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Package-manager and config subcommands that hoocode handles before
-/// `parseArgs` (`handlePackageCommand`, `handleConfigCommand`,
-/// `handleResourcesCommand`). None are ported yet.
-const SUBCOMMANDS: [&str; 7] = [
+/// Package-manager subcommands that hoocode handles before `parseArgs`
+/// (`handlePackageCommand`, `handleResourcesCommand`). Not ported yet;
+/// `config` (`handleConfigCommand`) is.
+const SUBCOMMANDS: [&str; 6] = [
     "install",
     "remove",
     "uninstall",
     "update",
     "list",
-    "config",
     "resources",
 ];
 
@@ -137,6 +137,9 @@ pub fn main(argv: &[String]) -> i32 {
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
 
+    if argv.first().is_some_and(|a| a == "config") {
+        return config_command::run_config_command(env.color, &mut stderr);
+    }
     if let Some(cmd) = argv.first().filter(|a| SUBCOMMANDS.contains(&a.as_str())) {
         let _ = writeln!(
             stderr,

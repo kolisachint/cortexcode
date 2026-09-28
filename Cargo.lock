@@ -1183,6 +1183,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "cortexcode-code-paths",
+ "cortexcode-code-resources",
  "cortexcode-code-session",
  "cortexcode-code-settings",
  "cortexcode-code-tools",

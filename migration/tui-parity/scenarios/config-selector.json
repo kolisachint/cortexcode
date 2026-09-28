@@ -1,0 +1,77 @@
+{
+  "description": "`config` subcommand: the resource list (header, groups by origin, type subheads, checkboxes), space toggles a skill off and writes a -pattern to the project settings file, typing filters, escape closes.",
+  "phase": "11.3d3",
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    ".hoocode/prompts/review.md": "---\ndescription: Review the diff\n---\nReview the diff.\n",
+    ".cortexcode/prompts/review.md": "---\ndescription: Review the diff\n---\nReview the diff.\n",
+    ".agents/skills/deploy/SKILL.md": "---\nname: deploy\ndescription: Deploy the app\n---\nRun the deploy script.\n"
+  },
+  "args": [
+    "config"
+  ],
+  "work_files": {
+    "{config}/settings.json": {}
+  },
+  "steps": [
+    {
+      "wait_for": "Resource Configuration",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "list",
+      "contains": [
+        "Resource Configuration",
+        "deploy",
+        "review.md"
+      ]
+    },
+    {
+      "keys": [
+        "Space"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "toggled"
+    },
+    {
+      "type": "rev"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "filtered",
+      "contains": [
+        "review.md"
+      ],
+      "not_contains": [
+        "deploy"
+      ]
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_exit": true,
+      "timeout": 20
+    }
+  ]
+}

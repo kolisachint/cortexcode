@@ -8,8 +8,11 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
 use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, SessionCwdIssue};
+use cortexcode_code_resources::package_resolve::ResolvedPaths;
 use cortexcode_code_session::{list_all_sessions, list_sessions, SessionInfo, SessionListProgress};
+use cortexcode_code_settings::SettingsManager;
 use cortexcode_code_tui_keybindings::AppKeybindingsManager;
+use cortexcode_code_tui_selectors::config_selector::ConfigSelectorComponent;
 use cortexcode_code_tui_selectors::session_selector::{
     LoadSink, SessionSelectorComponent, SessionSelectorOptions, SessionsLoader,
 };
@@ -152,6 +155,40 @@ pub fn prompt_for_missing_session_cwd(
 
 /// main.ts's `--resume` branch: the settings' theme (watched while the picker
 /// is up), then the picker over this folder's and every folder's sessions.
+/// `cli/config-selector.ts` `selectConfig`: the resource list on its own TUI
+/// until escape. Returns `false` when ctrl+c asked to exit the process
+/// (`process.exit(0)` in the original).
+pub fn select_config(
+    resolved: &ResolvedPaths,
+    settings: Rc<RefCell<SettingsManager>>,
+    cwd: &str,
+    agent_dir: &str,
+) -> bool {
+    let theme_name = settings.borrow().theme();
+    cortexcode_code_tui_theme::init_theme(theme_name.as_deref(), true);
+    AppKeybindingsManager::create(None).install();
+    let tui = process_tui(None, None);
+    // Some(true) = closed, Some(false) = exit.
+    let outcome: Rc<RefCell<Option<bool>>> = Rc::default();
+    let on_close = outcome.clone();
+    let on_exit = outcome.clone();
+    let selector = Rc::new(RefCell::new(ConfigSelectorComponent::new(
+        resolved,
+        settings,
+        cwd,
+        agent_dir,
+        move || {
+            on_close.borrow_mut().get_or_insert(true);
+        },
+        move || {
+            on_exit.borrow_mut().get_or_insert(false);
+        },
+    )));
+    let closed = run_standalone(selector, tui, outcome, |_| false).unwrap_or(true);
+    cortexcode_code_tui_theme::stop_theme_watcher();
+    closed
+}
+
 pub fn resume_picker(theme_name: Option<&str>, session_dir: PathBuf) -> Option<PathBuf> {
     cortexcode_code_tui_theme::init_theme(theme_name, true);
     let selected = select_session(

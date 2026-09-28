@@ -259,17 +259,9 @@ impl Terminal for ProcessTerminal {
         let forwarding = self.forwarding.clone();
         let kitty_active = self.kitty_protocol_active.clone();
         let last_input_at = self.last_input_at.clone();
-        let mut buf = StdinBuffer::new(StdinBufferOptions::default());
-        stdin_hub::subscribe(Box::new(move |chunk: &[u8]| {
-            *last_input_at.lock().unwrap() = Instant::now();
-
-            let text = if chunk.len() == 1 && chunk[0] > 127 {
-                format!("\x1b{}", (chunk[0] - 128) as char)
-            } else {
-                String::from_utf8_lossy(chunk).into_owned()
-            };
-
-            let events = buf.process(&text);
+        let buf = Arc::new(Mutex::new(StdinBuffer::new(StdinBufferOptions::default())));
+        type Deliver = Arc<Mutex<Box<dyn FnMut(Vec<StdinEvent>) + Send>>>;
+        let deliver: Deliver = Arc::new(Mutex::new(Box::new(move |events: Vec<StdinEvent>| {
             for event in events {
                 if !forwarding.load(Ordering::SeqCst) {
                     continue;
@@ -289,6 +281,40 @@ impl Terminal for ProcessTerminal {
                         on_input(&format!("\x1b[200~{content}\x1b[201~"));
                     }
                 }
+            }
+        })));
+        stdin_hub::subscribe(Box::new(move |chunk: &[u8]| {
+            *last_input_at.lock().unwrap() = Instant::now();
+
+            let text = if chunk.len() == 1 && chunk[0] > 127 {
+                format!("\x1b{}", (chunk[0] - 128) as char)
+            } else {
+                String::from_utf8_lossy(chunk).into_owned()
+            };
+
+            let (events, flush_after) = {
+                let mut b = buf.lock().unwrap_or_else(|e| e.into_inner());
+                let events = b.process(&text);
+                (events, b.has_pending().then(|| b.timeout()))
+            };
+            (deliver.lock().unwrap_or_else(|e| e.into_inner()))(events);
+
+            // An incomplete sequence (a lone ESC above all) is flushed once
+            // no more input arrives within the timeout (the original's
+            // setTimeout); input that completes it first resets the clock.
+            if let Some(timeout) = flush_after {
+                let buf = buf.clone();
+                let deliver = deliver.clone();
+                thread::spawn(move || {
+                    thread::sleep(timeout);
+                    let events = buf
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .poll_timeout(Instant::now());
+                    if !events.is_empty() {
+                        (deliver.lock().unwrap_or_else(|e| e.into_inner()))(events);
+                    }
+                });
             }
         }));
 
