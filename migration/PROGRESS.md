@@ -39,6 +39,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3e split; 11.3e1 done (session tree component)
+- `code-tui-selectors::tree_selector`: `TreeSelectorComponent::new(tree, leaf, rows, initial,
+  filter)`. Entries are read as their JSON wire form so the flatten, filter, search, fold and
+  display rules match tree-selector.ts line for line. Keys come out as `TreeEvent`s (`Select`,
+  `Cancel`, `LabelChange`) through `poll(now)`, which also fires the empty tree's 100ms
+  auto-cancel. The label editor replaces the tree inside the frame.
+- `DynamicBorder` moved to code-tui-widgets (re-exported from `extension_selector`).
+- Tests: tree-selector.test.ts (17) plus the tree case of picker-widths.
+- 11.3e2 (wiring) is next or later. It covers double-escape now, `/tree` after 11.4,
+  "Summarize branch?", navigate_tree, the custom-prompt editor (extension-editor.ts, unported)
+  and the L2 `session-tree` scenario.
+
 ### 2026-09-28: 11.3d3 done (`cortex config`)
 - `code-tui-selectors::config_selector`: `build_groups` and `ConfigSelectorComponent`
   (header, groups by origin/scope/source, type subheads, `[x]` rows, filter, pageUp/pageDown).

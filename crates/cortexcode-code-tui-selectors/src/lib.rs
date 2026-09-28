@@ -7,6 +7,7 @@
 //! - [`ask_options`]: the options pane (`ask_options`).
 //! - [`settings_selector`]: the `/settings` pane.
 //! - [`config_selector`]: the `config` subcommand's resource list.
+//! - [`tree_selector`]: the session tree (`/tree`).
 
 pub mod ask_options;
 pub mod config_selector;
@@ -15,4 +16,5 @@ pub mod session_selector;
 pub mod session_selector_search;
 pub mod settings_selector;
 pub mod small_selectors;
+pub mod tree_selector;
 pub mod user_message_selector;

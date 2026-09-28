@@ -63,24 +63,7 @@ impl Component for SelectedRowList {
 /// A text styler.
 pub type ColorFn = Box<dyn Fn(&str) -> String>;
 
-/// `DynamicBorder`: a rule across the viewport.
-pub struct DynamicBorder {
-    color: ColorFn,
-}
-
-impl DynamicBorder {
-    pub fn new(color: Option<ColorFn>) -> Self {
-        Self {
-            color: color.unwrap_or_else(|| Box::new(|s: &str| theme().fg("border", s))),
-        }
-    }
-}
-
-impl Component for DynamicBorder {
-    fn render(&mut self, width: u16) -> Vec<String> {
-        vec![(self.color)(&"─".repeat((width as usize).max(1)))]
-    }
-}
+pub use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
 
 /// `CountdownTimer`, driven by the owner's loop: [`CountdownTimer::poll`]
 /// advances it once a second has passed.

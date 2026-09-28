@@ -4924,7 +4924,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.3a"
+    "11.3e1",
+    "11.3e2"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4945,6 +4946,92 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:10:24Z",
+     "commit": "c9501f5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "c9501f5",
+     "kind": "note",
+     "text": "Split into 11.3e1 (component + tree-selector.test.ts) and 11.3e2 (wiring + L2 session-tree). Container closes when both are done (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3e1",
+   "title": "Tree selector component (tree-selector.ts)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/dynamic-border.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tree-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "Also the tree case of picker-widths.test.ts.",
+   "log": [
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "c9501f5",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:13:55Z",
+     "commit": "c9501f5",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3e2",
+   "title": "Session tree in the app: double-escape and /tree open it; branch-summary choice, navigateTree, label changes",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3e1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-selectors"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/extension-editor.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "session-tree"
+   ],
+   "notes": "showTreeSelector: 'Summarize branch?' selector, custom-prompt editor (extension-editor.ts, not yet ported), summary loader, re-render after navigation. The double-escape trigger works without slash commands; /tree itself arrives with 11.4.",
+   "log": [
+    {
+     "at": "2026-09-28T07:11:27Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3e (bookkeeping)."
     }
    ]
   },
