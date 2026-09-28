@@ -4469,7 +4469,7 @@
    "id": "11.3a",
    "title": "Session selector: session-selector (+ search, rename, delete, branch view) over list_sessions/list_all_sessions; alt+h and --resume open it; the missing-session-cwd Continue/Cancel prompt",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a1",
     "11.3a2"
@@ -4511,6 +4511,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split into 11.3a1 (component, tests, --resume, initial transcript) and 11.3a2 (in-app switch, missing-cwd prompt). Bookkeeping: status reset to todo as a container."
+    },
+    {
+     "at": "2026-09-28T06:17:21Z",
+     "commit": "b267eca",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -4587,7 +4593,7 @@
    "id": "11.3a2",
    "title": "In-app session resume: alt+h (and /resume via 11.4) open the session selector; switch_session + renderCurrentSessionState; the missing-session-cwd Continue/Cancel prompt",
    "phase": 11,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "11.3a1"
    ],
@@ -4601,7 +4607,8 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "session-resume-inapp"
+    "session-resume-inapp",
+    "session-missing-cwd"
    ],
    "notes": "",
    "log": [
@@ -4616,6 +4623,12 @@
      "commit": "27e2971",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:10:53Z",
+     "commit": "b267eca",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-resume-inapp=pass, session-missing-cwd=pass"
     }
    ]
   },

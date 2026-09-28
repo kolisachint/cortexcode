@@ -1,0 +1,134 @@
+{
+  "description": "In-app resume: a first -p run leaves a session; a fresh interactive start opens the session selector with alt+h (rename hint shown), Enter swaps to that session (its transcript and 'Resumed session'), and a new prompt carries the earlier exchange to the model.",
+  "phase": "11.3a2",
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ],
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "pre_runs": [
+    [
+      "--offline",
+      "--light",
+      "--provider",
+      "mock",
+      "--model",
+      "mock-model",
+      "-p",
+      "remember the word apple"
+    ]
+  ],
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model"
+  ],
+  "llm": [
+    {
+      "text": "Noted: apple."
+    },
+    {
+      "text": "The word was apple."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "M-h"
+      ]
+    },
+    {
+      "wait_for": "Resume Session",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "picker",
+      "contains": [
+        "Resume Session (Current Folder)",
+        "remember the word apple",
+        "rename"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Resumed session",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "resumed",
+      "contains": [
+        "remember the word apple",
+        "Noted: apple.",
+        "Resumed session"
+      ]
+    },
+    {
+      "wait_gone": "Resumed session",
+      "timeout": 15
+    },
+    {
+      "type": "what was the word?"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "The word was apple",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "answered",
+      "contains": [
+        "The word was apple."
+      ]
+    }
+  ],
+  "normalize": [
+    {
+      "_why": "session slug in the picker row is derived from the random session id (its length moves the padding)",
+      "pattern": " +[a-z]+-[a-z]+(?= \\d+ \\S+ │$)",
+      "replace": " <slug>"
+    },
+    {
+      "_why": "the row's colour swatch is derived from the random session id",
+      "pattern": "(?<=^│ › ) ",
+      "replace": " ",
+      "style": "<masked: session colour swatch>"
+    }
+  ]
+}

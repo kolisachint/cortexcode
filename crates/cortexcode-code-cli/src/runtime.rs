@@ -842,12 +842,11 @@ pub fn run_print_mode(
     }
 }
 
-/// `--mode rpc`: JSON commands on stdin, responses and session events on
-/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
-/// new_session/switch_session/fork/clone replace it through the factory.
-pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
+/// main.ts's `createAgentSessionRuntime`: the startup session, and the
+/// factory that rebuilds the cwd-bound services when it is replaced.
+fn build_session_runtime(args: &Args, interactive: bool) -> (AgentSessionRuntime, Diagnostics) {
     let auth = load_auth();
-    let session_manager = initial_session_manager(args, false);
+    let session_manager = initial_session_manager(args, interactive);
     let cwd = std::path::PathBuf::from(session_manager.cwd());
     let (session, services, diagnostics) = create_runtime(
         args,
@@ -856,15 +855,8 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         cortexcode_code_paths::agent_dir(),
         session_manager,
         None,
-        false,
+        interactive,
     );
-    report_diagnostics(err, color, &diagnostics)?;
-    if diagnostics
-        .iter()
-        .any(|(kind, _)| *kind == DiagnosticKind::Error)
-    {
-        return Ok(1);
-    }
     let factory_args = args.clone();
     let factory: cortexcode_code_agent_session::RuntimeFactory = Arc::new(move |request| {
         let (session, services, diagnostics) = create_runtime(
@@ -874,7 +866,7 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
             request.agent_dir,
             request.session_manager,
             request.session_start_event,
-            false,
+            interactive,
         );
         let created = CreatedRuntime {
             session,
@@ -888,11 +880,26 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         CreatedRuntime {
             session,
             services,
-            diagnostics: runtime_diagnostics(diagnostics),
+            diagnostics: runtime_diagnostics(diagnostics.clone()),
             model_fallback_message: None,
         },
         factory,
     );
+    (runtime, diagnostics)
+}
+
+/// `--mode rpc`: JSON commands on stdin, responses and session events on
+/// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
+/// new_session/switch_session/fork/clone replace it through the factory.
+pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
+    let (runtime, diagnostics) = build_session_runtime(args, false);
+    report_diagnostics(err, color, &diagnostics)?;
+    if diagnostics
+        .iter()
+        .any(|(kind, _)| *kind == DiagnosticKind::Error)
+    {
+        return Ok(1);
+    }
     let stdout = Arc::new(Mutex::new(std::io::stdout()));
     let output: cortexcode_code_rpc::RpcOutput = Arc::new(move |value| {
         let line = cortexcode_code_rpc::serialize_json_line(value);
@@ -1110,7 +1117,8 @@ pub fn run_interactive_mode(
     _output: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
-    let (session, diagnostics) = build_session(args, true);
+    let (session_runtime, diagnostics) = build_session_runtime(args, true);
+    let session = session_runtime.session().clone();
     report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -1123,12 +1131,12 @@ pub fn run_interactive_mode(
     let mut messages = args.messages.clone();
     let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
     let auth = load_auth();
-    let listing_session = session.clone();
     cortexcode_code_tui_app::interactive_mode::run_interactive(
         cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
             session,
+            session_runtime: Some(session_runtime),
             runtime: async_runtime().handle().clone(),
-            listing: Box::new(move || resource_listing(&listing_session)),
+            listing: Box::new(resource_listing),
             is_oauth: Box::new(move |provider| {
                 cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
             }),
@@ -1237,12 +1245,12 @@ mod tests {
             output: output.clone(),
             title: title.clone(),
         };
-        let listing_session = session.clone();
         let result = cortexcode_code_tui_app::interactive_mode::run_interactive(
             cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
                 session,
+                session_runtime: None,
                 runtime: async_runtime().handle().clone(),
-                listing: Box::new(move || resource_listing(&listing_session)),
+                listing: Box::new(resource_listing),
                 is_oauth: Box::new(|_| false),
                 version: "0.0.1".into(),
                 verbose: false,

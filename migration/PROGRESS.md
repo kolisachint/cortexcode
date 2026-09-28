@@ -39,6 +39,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3a2 done (in-app resume, missing-cwd prompts); 11.3a closed
+- The interactive mode now owns an `AgentSessionRuntime` (`InteractiveOptions::session_runtime`).
+  The CLI's `build_session_runtime` is shared with rpc mode. `alt+h` (`app.session.resume`)
+  opens the session selector in the editor slot (rename works through `append_session_info`).
+  Enter calls `switch_session`, then `rebind_current_session` (new subscription, footer
+  source, footer cwd, chip, title), then `render_current_session_state` (transcript reset,
+  resource listing, initial messages).
+- Missing cwd: at startup (interactive), the Continue/Cancel selector runs on its own TUI
+  (`session_picker::prompt_for_missing_session_cwd`, which replaces the stdin `[y/N]`
+  placeholder). In the app, the Yes/No confirm goes through `show_selector`, and
+  `poll_cwd_prompt` resumes with the fallback cwd or shows "Resume cancelled".
+- `show_status` is now hoocode's `showStatus`: the notification band, which fades after 3s.
+  The old chat-line version is `show_record` (`showRecord`). "Session compacted N times" and
+  "Current model does not support thinking" moved to the band, as they are in the pin.
+- The `listing` callback takes the session (`Fn(&AgentSession)`), so it follows a swap.
+- New L2 scenarios `session-resume-inapp` and `session-missing-cwd` pass, and selfcheck is
+  stable. The in-app missing-cwd confirm has no L2: a scenario cannot seed a session under
+  the sessions root.
+- `run all` shows the same failure set as before, all belonging to l1_done tasks.
+- Next: `ledger.py next` (11.3c, the small selectors).
+
 ### 2026-09-28: 11.3a split; 11.3a1 done (session selector, `--resume`, initial transcript)
 - 11.3a is now a container: 11.3a1 (done) and 11.3a2 (todo: in-app `alt+h` resume via
   `switch_session` + `renderCurrentSessionState`, the missing-session-cwd Continue/Cancel

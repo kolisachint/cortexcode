@@ -8,6 +8,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
@@ -16,12 +17,19 @@ use std::time::{Duration, Instant};
 use cortexcode_agent_types::{AgentEvent, AgentMessage};
 use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
+use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, RuntimeError};
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
-use cortexcode_code_agent_session::{AgentSession, AgentSessionEvent, PromptOptions};
+use cortexcode_code_agent_session::{
+    AgentSession, AgentSessionEvent, AgentSessionRuntime, PromptOptions,
+};
 use cortexcode_code_paths::{APP_NAME, APP_TITLE};
+use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::{ChromeDensity, EditorBorder, ToolOutputView};
 use cortexcode_code_tui_keybindings::{
     app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
+};
+use cortexcode_code_tui_selectors::session_selector::{
+    SessionSelectorComponent, SessionSelectorOptions,
 };
 use cortexcode_code_tui_theme::{
     get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
@@ -59,16 +67,20 @@ use crate::input_frame::set_input_frame_border;
 use crate::notification_panel::{NotificationKind, NotificationPanel};
 use crate::resource_display::{format_display_path, show_loaded_resources, ResourceListing};
 use crate::session_chip::render_session_chip;
+use crate::session_picker;
 use crate::startup_progress;
 use crate::wordmark::{build_compact_wordmark, CompactWordmarkOptions};
 
 /// How the mode is started.
 pub struct InteractiveOptions {
     pub session: AgentSession,
+    /// The owner of `session` that replaces it (`/resume`, alt+h). Without
+    /// one the session cannot be switched.
+    pub session_runtime: Option<AgentSessionRuntime>,
     /// Where agent turns run.
     pub runtime: tokio::runtime::Handle,
-    /// The startup resource listing, read when it is drawn.
-    pub listing: Box<dyn Fn() -> ResourceListing>,
+    /// The resource listing for a session, read when it is drawn.
+    pub listing: Box<dyn Fn(&AgentSession) -> ResourceListing>,
     /// Whether a provider's stored credential is an OAuth token.
     pub is_oauth: Box<dyn Fn(&str) -> bool>,
     pub version: String,
@@ -171,10 +183,14 @@ enum Action {
     AutocompleteVisibility(bool),
     /// The extension selector closed.
     SelectorDone(SelectorOutcome),
+    /// `app.session.resume`: open the session selector.
+    ResumeSession,
+    /// The session selector closed, with the chosen file.
+    SessionSelectorDone(Option<PathBuf>),
 }
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 8] = [
+const EDITOR_ACTIONS: [(&str, Action); 9] = [
     ("app.view.cycleForward", Action::ViewForward),
     ("app.view.cycleBackward", Action::ViewBackward),
     ("app.clear", Action::Clear),
@@ -183,6 +199,7 @@ const EDITOR_ACTIONS: [(&str, Action); 8] = [
     ("app.chrome.cycleForward", Action::ChromeForward),
     ("app.chrome.cycleBackward", Action::ChromeBackward),
     ("app.thinking.cycleForward", Action::ThinkingForward),
+    ("app.session.resume", Action::ResumeSession),
 ];
 
 /// The prompt editor with the app's key dispatch in front of it
@@ -431,7 +448,15 @@ struct Mode {
     tx: Sender<AppEvent>,
     rx: Receiver<AppEvent>,
     exit_requested: bool,
-    listing: Box<dyn Fn() -> ResourceListing>,
+    listing: Box<dyn Fn(&AgentSession) -> ResourceListing>,
+    session_runtime: Option<AgentSessionRuntime>,
+    subscription: Option<cortexcode_code_agent_session::SessionSubscription>,
+    is_oauth: Rc<dyn Fn(&str) -> bool>,
+    /// The open session selector (alt+h).
+    session_selector: Option<Rc<RefCell<SessionSelectorComponent>>>,
+    /// A resume waiting on the missing-cwd confirm: the session file, the
+    /// cwd to fall back to, and where the answer arrives.
+    pending_cwd_prompt: Option<(PathBuf, String, mpsc::Receiver<Option<String>>)>,
 }
 
 impl Mode {
@@ -525,7 +550,7 @@ impl Mode {
         let mut footer = FooterComponent::new(
             Box::new(SessionFooter {
                 session: session.clone(),
-                is_oauth,
+                is_oauth: is_oauth.clone(),
             }),
             footer_data.clone(),
         );
@@ -671,6 +696,11 @@ impl Mode {
             rx,
             exit_requested: false,
             listing: options.listing,
+            session_runtime: options.session_runtime,
+            subscription: None,
+            is_oauth,
+            session_selector: None,
+            pending_cwd_prompt: None,
         }
     }
 
@@ -721,7 +751,7 @@ impl Mode {
 
     /// The startup/reload listing and the session's own state.
     fn render_resources(&mut self) {
-        let mut listing = (self.listing)();
+        let mut listing = (self.listing)(&self.session);
         listing.columns = Some(self.size.get().0 as usize);
         listing.verbose = self.verbose;
         listing.expanded = self.expanded;
@@ -1125,9 +1155,195 @@ impl Mode {
         self.dirty.set(true);
     }
 
-    /// `showStatus`: a dim line in the chat; back-to-back statuses update the
-    /// previous line instead of stacking.
+    /// `showSessionSelector`: the session picker in the editor's slot.
+    fn show_session_selector(&mut self) {
+        if self.session_runtime.is_none() || self.session_selector.is_some() {
+            return;
+        }
+        let (session_dir, current_file) = {
+            let manager = self.session.session_manager();
+            let dir = manager.session_dir().to_path_buf();
+            let dir = if dir.as_os_str().is_empty() {
+                cortexcode_code_session::default_session_dir(manager.cwd())
+            } else {
+                dir
+            };
+            (dir, manager.session_file().map(Path::to_path_buf))
+        };
+        let on_select = self.actions.clone();
+        let on_cancel = self.actions.clone();
+        let selector = handle(SessionSelectorComponent::new(
+            session_picker::current_sessions_loader(session_dir),
+            session_picker::all_sessions_loader(),
+            Box::new(move |path| {
+                on_select
+                    .borrow_mut()
+                    .push(Action::SessionSelectorDone(Some(path)))
+            }),
+            Box::new(move || {
+                on_cancel
+                    .borrow_mut()
+                    .push(Action::SessionSelectorDone(None))
+            }),
+            SessionSelectorOptions {
+                rename_session: Some(Box::new(|path: &Path, next: &str| {
+                    let next = next.trim();
+                    if next.is_empty() {
+                        return Ok(());
+                    }
+                    let mut manager = SessionManager::open(path, None, None);
+                    manager.append_session_info(Some(next), None);
+                    Ok(())
+                })),
+                show_rename_hint: Some(true),
+                keybindings: None,
+            },
+            current_file.as_deref(),
+        ));
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&selector));
+        }
+        self.tui.set_focus(Some(as_component(&selector)));
+        self.session_selector = Some(selector);
+        self.dirty.set(true);
+    }
+
+    fn close_session_selector(&mut self) {
+        if self.session_selector.take().is_none() {
+            return;
+        }
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&self.editor));
+        }
+        self.tui.set_focus(Some(as_component(&self.editor)));
+        self.dirty.set(true);
+    }
+
+    /// `handleResumeSession`: swap to `path`; a stored cwd that is gone asks
+    /// first (`promptForMissingSessionCwd`).
+    fn handle_resume_session(&mut self, path: PathBuf, cwd_override: Option<String>) {
+        if self.session_runtime.is_none() {
+            return;
+        }
+        self.stop_working_loader();
+        let overridden = cwd_override.is_some();
+        let handle = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        let result = handle.block_on(runtime.switch_session(&path, cwd_override));
+        match result {
+            Ok(result) if result.cancelled => {}
+            Ok(_) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.show_status(if overridden {
+                    "Resumed session in current cwd"
+                } else {
+                    "Resumed session"
+                });
+            }
+            Err(RuntimeError::MissingSessionCwd(issue)) if !overridden => {
+                let (reply, answer) = mpsc::channel();
+                let title = format!(
+                    "Session cwd not found\n{}",
+                    format_missing_session_cwd_prompt(&issue)
+                );
+                self.show_selector(&title, vec!["Yes".into(), "No".into()], reply);
+                self.pending_cwd_prompt = Some((path, issue.fallback_cwd, answer));
+            }
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!("Failed to resume session: {error}"));
+                self.exit_requested = true;
+            }
+        }
+    }
+
+    /// The missing-cwd confirm answered: resume in the fallback cwd, or not.
+    fn poll_cwd_prompt(&mut self) {
+        let Some((_, _, answer)) = &self.pending_cwd_prompt else {
+            return;
+        };
+        let confirmed = match answer.try_recv() {
+            Ok(choice) => choice.as_deref() == Some("Yes"),
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => false,
+        };
+        let Some((path, fallback, _)) = self.pending_cwd_prompt.take() else {
+            return;
+        };
+        if confirmed {
+            self.handle_resume_session(path, Some(fallback));
+        } else {
+            self.show_status("Resume cancelled");
+        }
+    }
+
+    /// `rebindCurrentSession`: point the mode at the runtime's session.
+    fn rebind_current_session(&mut self) {
+        let Some(runtime) = &self.session_runtime else {
+            return;
+        };
+        self.subscription = None;
+        self.session = runtime.session().clone();
+        self.footer.borrow_mut().set_source(Box::new(SessionFooter {
+            session: self.session.clone(),
+            is_oauth: self.is_oauth.clone(),
+        }));
+        self.footer_data.set_cwd(self.session.cwd());
+        self.subscription = Some(self.subscribe());
+        self.update_editor_border_color();
+        self.update_session_chip();
+        self.update_terminal_title();
+    }
+
+    /// `resetTranscriptView`: drop every view reference into the transcript.
+    fn reset_transcript_view(&mut self) {
+        self.chat.borrow_mut().clear();
+        self.open_chain = None;
+        self.latest_block = None;
+        self.latest_chain = None;
+        self.streaming = None;
+        self.streaming_message = None;
+        self.pending_tools.clear();
+        self.chains.clear();
+        self.assistant_components.clear();
+        self.last_status = None;
+    }
+
+    /// `renderCurrentSessionState`: the transcript of the session just
+    /// swapped in, after its resource listing.
+    fn render_current_session_state(&mut self) {
+        self.reset_transcript_view();
+        self.render_resources();
+        self.render_initial_messages();
+    }
+
+    /// `showStatus`: a passing status in the notification band above the
+    /// prompt (the first line is the title, the rest its body).
     fn show_status(&mut self, message: &str) {
+        let mut lines = message.split('\n');
+        let title = lines.next().unwrap_or("");
+        let body: Vec<&str> = lines.collect();
+        self.notifications.borrow_mut().notify(
+            NotificationKind::Info,
+            title,
+            &body,
+            None,
+            None,
+            None,
+        );
+        self.dirty.set(true);
+    }
+
+    /// `showRecord`: a dim line in the chat that stays; back-to-back records
+    /// update the previous line instead of stacking.
+    fn show_record(&mut self, message: &str) {
         let styled = if message.contains("\x1b[") {
             message.to_string()
         } else {
@@ -1509,6 +1725,13 @@ impl Mode {
                 }
             }
             Action::SelectorDone(outcome) => self.close_selector(outcome),
+            Action::ResumeSession => self.show_session_selector(),
+            Action::SessionSelectorDone(path) => {
+                self.close_session_selector();
+                if let Some(path) = path {
+                    self.handle_resume_session(path, None);
+                }
+            }
             Action::AutocompleteVisibility(visible) => {
                 if self.chrome.set_autocomplete_open(visible) {
                     self.dirty.set(true);
@@ -1551,7 +1774,7 @@ impl Mode {
         options_initial: (Option<String>, Vec<String>, Option<String>),
     ) -> Result<(), String> {
         let input = self.tui.start();
-        let _subscription = self.subscribe();
+        self.subscription = Some(self.subscribe());
 
         // Everything the chrome shows about the session.
         self.update_editor_border_color();
@@ -1663,7 +1886,7 @@ impl Mode {
                         options,
                         reply,
                     }) => self.show_selector(&title, options, reply),
-                    AppEvent::Dialog(DialogRequest::Notify(message)) => self.show_status(&message),
+                    AppEvent::Dialog(DialogRequest::Notify(message)) => self.show_record(&message),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -1690,6 +1913,14 @@ impl Mode {
                     }
                 }
             }
+            if self
+                .session_selector
+                .as_ref()
+                .is_some_and(|s| s.borrow_mut().poll())
+            {
+                self.dirty.set(true);
+            }
+            self.poll_cwd_prompt();
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
                 self.dirty.set(true);
             }
