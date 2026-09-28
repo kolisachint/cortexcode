@@ -1184,6 +1184,8 @@ dependencies = [
  "chrono",
  "cortexcode-code-paths",
  "cortexcode-code-session",
+ "cortexcode-code-settings",
+ "cortexcode-code-tools",
  "cortexcode-code-tools-optin",
  "cortexcode-code-tui-keybindings",
  "cortexcode-code-tui-theme",
@@ -1193,6 +1195,7 @@ dependencies = [
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
  "cortexcode-tui-util",
+ "serde_json",
  "tempfile",
 ]
 

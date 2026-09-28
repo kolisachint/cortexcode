@@ -4740,7 +4740,9 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.3a"
+    "11.3d1",
+    "11.3d2",
+    "11.3d3"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4765,6 +4767,132 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:36:55Z",
+     "commit": "dbc8952",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "dbc8952",
+     "kind": "note",
+     "text": "Split into 11.3d1 (pane component + its 4 TS tests), 11.3d2 (/settings wiring + L2 settings-pane, needs 11.4 slash commands), 11.3d3 (config-selector for `hoocode config`). Container closes when all three are done (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3d1",
+   "title": "Settings pane component: settings-selector.ts (categories, submenus, token surface) + external-tools table + platform-targets",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-settings",
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
+    "packages/coding-agent/src/core/external-tools.ts",
+    "packages/coding-agent/src/core/extensions/plugins/formats/platform-targets.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/settings-token-surface.test.ts",
+    "packages/coding-agent/test/learn-settings-pane.test.ts",
+    "packages/coding-agent/test/platform-settings-pane.test.ts",
+    "packages/coding-agent/test/plugin-settings-keyboard.test.ts",
+    "packages/coding-agent/test/external-tools-pane.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "No L2 here: nothing opens the pane until /settings exists (11.3d2 after 11.4).",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "dbc8952",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:51:21Z",
+     "commit": "dbc8952",
+     "kind": "note",
+     "text": "Also ported: external-tools-pane.test.ts (minus 'resolves live status': describeExternalTools needs utils/tools-manager.ts, not ported) and the platform-targets part of platform.test.ts (code-settings tests/platform_targets.rs; its CLI/plugin-authoring/scaffold parts stay with those modules). SettingsList gained items()/filtered_items()/emit_change()/emit_cancel()/pub apply_filter, and a submenu opened from a filtered list now writes back to the right row; Component gained as_any() so a caller can reach the list a submenu factory built."
+    },
+    {
+     "at": "2026-09-28T06:54:04Z",
+     "commit": "dbc8952",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3d2",
+   "title": "/settings in the app: build SettingsConfig from the live session and apply every callback",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3d1",
+    "11.4"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "settings-pane"
+   ],
+   "notes": "showSettingsSelector in interactive-mode.ts: config from settings manager + session, callbacks write settings and apply live.",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3d3",
+   "title": "hoocode config: config-selector (package resource enable/disable TUI)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/config-selector.ts",
+    "packages/coding-agent/src/cli/config-selector.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "The `config` subcommand of package-manager-cli.ts; the resource resolution it lists comes from the package manager (local part 10.x, npm/git 12.2).",
+   "log": [
+    {
+     "at": "2026-09-28T06:46:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3d (bookkeeping)."
     }
    ]
   },

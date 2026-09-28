@@ -33,6 +33,13 @@ pub trait Component {
 
     /// Called by [`crate::Tui`] when focus changes, for focusable components.
     fn set_focused(&mut self, _focused: bool) {}
+
+    /// The concrete component behind a handle, for components that opt in.
+    /// TypeScript reaches into any object's fields; Rust code that needs the
+    /// same (a caller inspecting a submenu a factory built) downcasts this.
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        None
+    }
 }
 
 pub type ComponentHandle = Rc<RefCell<dyn Component>>;

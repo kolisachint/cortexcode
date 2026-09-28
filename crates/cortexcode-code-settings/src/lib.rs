@@ -7,6 +7,7 @@
 //! apply the defaults and the range checks and return typed values.
 
 mod manager;
+pub mod platform_targets;
 mod storage;
 mod types;
 

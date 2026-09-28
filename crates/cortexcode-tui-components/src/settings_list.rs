@@ -77,6 +77,9 @@ pub struct SettingsList {
     submenu_component: Option<ComponentHandle>,
     submenu_result_slot: Option<Rc<RefCell<Option<SubmenuOutcome>>>>,
     submenu_item_index: Option<usize>,
+    /// The item (in `items`) whose submenu is open. `submenu_item_index` is
+    /// the row in the displayed (possibly filtered) list, restored on close.
+    submenu_item: Option<usize>,
 }
 
 impl SettingsList {
@@ -109,6 +112,35 @@ impl SettingsList {
             submenu_component: None,
             submenu_result_slot: None,
             submenu_item_index: None,
+            submenu_item: None,
+        }
+    }
+
+    /// Every item, in order (the TypeScript `items`).
+    pub fn items(&self) -> &[SettingItem] {
+        &self.items
+    }
+
+    /// The items the search currently shows (`filteredItems`).
+    pub fn filtered_items(&self) -> Vec<&SettingItem> {
+        self.filtered_indices
+            .iter()
+            .map(|&i| &self.items[i])
+            .collect()
+    }
+
+    /// Fire the change callback as the list does when a row changes
+    /// (`onChange(id, value)`).
+    pub fn emit_change(&mut self, id: &str, value: &str) {
+        if let Some(cb) = &mut self.on_change {
+            cb(id, value);
+        }
+    }
+
+    /// Fire the cancel callback (`onCancel()`).
+    pub fn emit_cancel(&mut self) {
+        if let Some(cb) = &mut self.on_cancel {
+            cb();
         }
     }
 
@@ -321,7 +353,7 @@ impl SettingsList {
         if let Some(outcome) = outcome {
             match outcome {
                 SubmenuOutcome::Selected(value) => {
-                    if let Some(idx) = self.submenu_item_index {
+                    if let Some(idx) = self.submenu_item {
                         self.items[idx].current_value = value.clone();
                         let id = self.items[idx].id.clone();
                         if let Some(cb) = &mut self.on_change {
@@ -342,6 +374,7 @@ impl SettingsList {
 
         if self.items[idx].submenu.is_some() {
             self.submenu_item_index = Some(self.selected_index);
+            self.submenu_item = Some(idx);
             let slot = Rc::new(RefCell::new(None));
             self.submenu_result_slot = Some(slot.clone());
             let current_value = self.items[idx].current_value.clone();
@@ -368,12 +401,14 @@ impl SettingsList {
     fn close_submenu(&mut self) {
         self.submenu_component = None;
         self.submenu_result_slot = None;
+        self.submenu_item = None;
         if let Some(idx) = self.submenu_item_index.take() {
             self.selected_index = idx;
         }
     }
 
-    fn apply_filter(&mut self, query: &str) {
+    /// Filter the list by `query` (label plus keywords), as typing does.
+    pub fn apply_filter(&mut self, query: &str) {
         struct View {
             index: usize,
             label: String,

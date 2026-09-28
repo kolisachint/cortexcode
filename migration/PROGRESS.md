@@ -39,6 +39,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3d split; 11.3d1 done (the /settings pane component)
+- 11.3d split into 11.3d1 (pane component + tests), 11.3d2 (/settings in the app, L2
+  `settings-pane`, depends on 11.4 because nothing dispatches slash commands yet) and 11.3d3
+  (`config-selector.ts`, the `config` subcommand's resource TUI).
+- `code-tui-selectors::settings_selector`: `SettingsSelectorComponent::new(SettingsConfig,
+  FnMut(SettingsChange))`. The TS callbacks are one `SettingsChange` enum. Leaves live in a shared
+  table so a category rebuilds its rows from current values. `ListSubmenu`/`submenu_list` let a
+  caller reach the list a submenu factory built.
+- New: `code-tools::external_tools` (catalog, `status_label`, `build_row_gates`; no
+  `describeExternalTools` until tools-manager is ported) and `code-settings::platform_targets`
+  (+ `MarketplacePlatform`).
+- `SettingsList` gained `items()`, `filtered_items()`, `emit_change()`, `emit_cancel()` and a
+  public `apply_filter`. A submenu opened from a filtered list now writes back to the right row.
+  `Component` gained `as_any()`.
+- Tests: settings-token-surface, learn-settings-pane, platform-settings-pane,
+  plugin-settings-keyboard, external-tools-pane (minus its live-status case), and the
+  platform-targets part of platform.test.ts.
+- Pane text says `cortex` / `.cortexcode` where hoocode says `hoocode` / `.hoocode`; the static
+  external-tools prose is verbatim. The 11.3d2 scenario will need a branding rule for that.
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3c done (small selectors, ask_options pane)
 - `code-tui-selectors`: `small_selectors` (thinking, theme, show-images, session colour, each a
   `FramedSelectList`: a `SelectList` in the prompt's `InputFrame`), `user_message_selector`
