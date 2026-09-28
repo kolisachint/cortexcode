@@ -82,9 +82,5 @@
       "cortexcode-ai-provider-openai-codex"
     ]
   },
-  "pending": {
-    "crossterm": {
-      "cortexcode-code-cli": "11.1 (interactive mode moves onto tui-render)"
-    }
-  }
+  "pending": {}
 }

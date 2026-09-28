@@ -1,0 +1,40 @@
+[package]
+name = "cortexcode-code-tui-widgets"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The coding agent's chat transcript widgets on the cortex TUI"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-agent-session = { workspace = true }
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-settings = { workspace = true }
+cortexcode-code-subagents = { workspace = true }
+cortexcode-code-task-store = { workspace = true }
+cortexcode-code-tool-api = { workspace = true }
+cortexcode-code-tool-bash = { workspace = true }
+cortexcode-code-tools-fs = { workspace = true }
+cortexcode-code-tui-keybindings = { workspace = true }
+cortexcode-code-tui-theme = { workspace = true }
+cortexcode-tui-components = { workspace = true }
+cortexcode-tui-images = { workspace = true }
+cortexcode-tui-render = { workspace = true }
+cortexcode-tui-util = { workspace = true }
+once_cell = "1"
+regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+cortexcode-tui-util = { workspace = true }
+serde_json = "1"
+cortexcode-code-tui-keybindings = { workspace = true }
+cortexcode-tui-images = { workspace = true }
+tempfile = "3"

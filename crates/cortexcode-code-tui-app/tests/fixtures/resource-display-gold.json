@@ -1,0 +1,247 @@
+{
+ "home": "/root",
+ "cases": {
+  "startup": {
+   "case": {
+    "skills": [
+     [
+      "a-skill",
+      "/w/.agents/skills/a/SKILL.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "project",
+       "origin": "top-level"
+      }
+     ],
+     [
+      "b-skill",
+      "/root/.agents/skills/b/SKILL.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "user",
+       "origin": "top-level"
+      }
+     ]
+    ],
+    "agents": [
+     [
+      "explore",
+      "Explores."
+     ],
+     [
+      "plan",
+      "Plans."
+     ],
+     [
+      "general-purpose",
+      "General."
+     ],
+     [
+      "reviewer",
+      "Reviews code\nin detail."
+     ],
+     [
+      "debugger",
+      "Debugs."
+     ]
+    ]
+   },
+   "lines": [
+    "",
+    "\u001b[38;2;92;200;187m✦\u001b[39m \u001b[1m2\u001b[22m \u001b[38;2;168;168;168mskills\u001b[39m   \u001b[38;2;92;200;187m◈\u001b[39m \u001b[1m5\u001b[22m \u001b[38;2;168;168;168magents\u001b[39m                                                                             "
+   ]
+  },
+  "empty": {
+   "case": {},
+   "lines": [
+    "",
+    "\u001b[38;2;152;152;152mno project resources loaded\u001b[39m                                                                         "
+   ]
+  },
+  "rich_expanded": {
+   "case": {
+    "expanded": true,
+    "skills": [
+     [
+      "zeta",
+      "/w/.agents/skills/zeta/SKILL.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "project",
+       "origin": "top-level"
+      }
+     ],
+     [
+      "alpha",
+      "/root/.hoo/skills/alpha/SKILL.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "user",
+       "origin": "top-level"
+      }
+     ],
+     [
+      "pkg-skill",
+      "/n/node_modules/@acme/tools/skills/x/SKILL.md",
+      {
+       "path": "",
+       "source": "npm:@acme/tools",
+       "scope": "user",
+       "origin": "top-level",
+       "baseDir": "/n/node_modules/@acme/tools"
+      }
+     ]
+    ],
+    "templates": [
+     [
+      "review",
+      "/w/.hoo/prompts/review.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "project",
+       "origin": "top-level"
+      }
+     ],
+     [
+      "fix",
+      "/w/.hoo/prompts/fix.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "project",
+       "origin": "top-level"
+      }
+     ]
+    ],
+    "context": [
+     [
+      "/w/AGENTS.md",
+      1200,
+      null
+     ],
+     [
+      "/w/sub/CLAUDE.md",
+      30000,
+      "large"
+     ]
+    ],
+    "warnings": [
+     "Could not read /w/BROKEN.md"
+    ],
+    "agents": [
+     [
+      "explore",
+      "Explores the codebase quickly and reports back with a long description that goes on and on past the width of the terminal"
+     ]
+    ],
+    "mcp": [
+     {
+      "name": "github",
+      "state": "ready",
+      "toolCount": 12,
+      "background": false,
+      "deferred": true
+     },
+     {
+      "name": "auth",
+      "state": "authorizing",
+      "toolCount": 0,
+      "background": true
+     }
+    ],
+    "skillDiagnostics": [
+     {
+      "type": "collision",
+      "message": "c",
+      "collision": {
+       "resourceType": "skill",
+       "name": "dup",
+       "winnerPath": "/w/.agents/skills/zeta/SKILL.md",
+       "loserPath": "/root/.hoo/skills/dup/SKILL.md"
+      }
+     },
+     {
+      "type": "warning",
+      "message": "bad frontmatter",
+      "path": "/w/.agents/skills/zeta/SKILL.md"
+     },
+     {
+      "type": "error",
+      "message": "no path error"
+     }
+    ],
+    "columns": 60
+   },
+   "lines": [
+    "",
+    "\u001b[38;2;92;200;187m✦\u001b[39m \u001b[1m3\u001b[22m \u001b[38;2;168;168;168mskills\u001b[39m        \u001b[38;2;92;200;187m⌘\u001b[39m \u001b[1m2\u001b[22m \u001b[38;2;168;168;168mcommands\u001b[39m      \u001b[38;2;92;200;187m◈\u001b[39m \u001b[1m1\u001b[22m \u001b[38;2;168;168;168magent\u001b[39m         \u001b[38;2;92;200;187m⧉\u001b[39m \u001b[1m2\u001b[22m \u001b[38;2;168;168;168mmcp servers\u001b[39m                               ",
+    "\u001b[38;2;92;200;187m❯\u001b[39m \u001b[38;2;168;168;168mcontext\u001b[39m AGENTS.md, sub/CLAUDE.md\u001b[38;2;255;255;0m ~30k tokens · consider trimming\u001b[39m\u001b[38;2;168;168;168m · ~31k tokens/turn\u001b[39m               ",
+    "\u001b[38;2;240;198;116m[Skills]\u001b[39m                                                                                            ",
+    "\u001b[38;2;152;152;152m  alpha, pkg-skill, zeta\u001b[39m                                                                            ",
+    "  \u001b[38;2;92;200;187mproject\u001b[39m                                                                                           ",
+    "\u001b[38;2;152;152;152m    /w/.agents/skills/zeta/SKILL.md\u001b[39m                                                                 ",
+    "  \u001b[38;2;92;200;187muser\u001b[39m                                                                                              ",
+    "\u001b[38;2;152;152;152m    ~/.hoo/skills/alpha/SKILL.md\u001b[39m                                                                    ",
+    "    \u001b[38;2;129;162;190mnpm:@acme/tools\u001b[39m                                                                                 ",
+    "\u001b[38;2;152;152;152m      skills/x/SKILL.md\u001b[39m                                                                             ",
+    "                                                                                                    ",
+    "\u001b[38;2;240;198;116m[Commands]\u001b[39m                                                                                          ",
+    "\u001b[38;2;152;152;152m  /fix, /review\u001b[39m                                                                                     ",
+    "  \u001b[38;2;92;200;187mproject\u001b[39m                                                                                           ",
+    "\u001b[38;2;152;152;152m    /fix\u001b[39m                                                                                            ",
+    "\u001b[38;2;152;152;152m    /review\u001b[39m                                                                                         ",
+    "                                                                                                    ",
+    "\u001b[38;2;240;198;116m[Agents]\u001b[39m                                                                                            ",
+    "  \u001b[38;2;168;168;168mexplore\u001b[39m  \u001b[38;2;152;152;152mExplores the codebase quickly and reports back w…\u001b[39m                                        ",
+    "                                                                                                    ",
+    "\u001b[38;2;240;198;116m[MCP]\u001b[39m                                                                                               ",
+    "\u001b[38;2;152;152;152m  github 12 tools · foreground · schemas deferred\u001b[39m                                                   ",
+    "\u001b[38;2;152;152;152m  auth awaiting authorization\u001b[39m                                                                       ",
+    "\u001b[38;2;255;255;0mCould not read /w/BROKEN.md\u001b[39m                                                                         ",
+    "\u001b[38;2;255;255;0m[Skill conflicts]\u001b[39m                                                                                   ",
+    "\u001b[38;2;255;255;0m  \"dup\" collision:\u001b[39m                                                                                  ",
+    "\u001b[38;2;152;152;152m    \u001b[38;2;181;189;104m✓\u001b[39m project /w/.agents/skills/zeta/SKILL.md\u001b[39m                                                       ",
+    "\u001b[38;2;152;152;152m    \u001b[38;2;255;255;0m✗\u001b[39m ~/.hoo/skills/dup/SKILL.md (skipped)\u001b[39m                                                          ",
+    "\u001b[38;2;255;255;0m  project /w/.agents/skills/zeta/SKILL.md\u001b[39m                                                           ",
+    "\u001b[38;2;255;255;0m    bad frontmatter\u001b[39m                                                                                 ",
+    "\u001b[38;2;213;129;129m  no path error\u001b[39m                                                                                     ",
+    ""
+   ]
+  },
+  "quiet_diag": {
+   "case": {
+    "quiet": true,
+    "promptDiagnostics": [
+     {
+      "type": "warning",
+      "message": "dup name",
+      "path": "/w/.hoo/prompts/fix.md"
+     }
+    ],
+    "templates": [
+     [
+      "fix",
+      "/w/.hoo/prompts/fix.md",
+      {
+       "path": "",
+       "source": "local",
+       "scope": "project",
+       "origin": "top-level"
+      }
+     ]
+    ]
+   },
+   "lines": [
+    "\u001b[38;2;255;255;0m[Prompt conflicts]\u001b[39m                                                                                  ",
+    "\u001b[38;2;255;255;0m  project /w/.hoo/prompts/fix.md\u001b[39m                                                                    ",
+    "\u001b[38;2;255;255;0m    dup name\u001b[39m                                                                                        ",
+    ""
+   ]
+  }
+ }
+}

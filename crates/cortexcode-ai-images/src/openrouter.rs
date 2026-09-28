@@ -133,7 +133,7 @@ async fn request(
         .or_else(|| cortexcode_ai_env::get_env_api_key(&model.provider))
         .ok_or_else(|| format!("No API key available for provider: {}", model.provider))?;
 
-    let mut builder = reqwest::Client::builder();
+    let mut builder = cortexcode_ai_util::tls::http_client_builder();
     if let Some(ms) = options.timeout_ms {
         builder = builder.timeout(std::time::Duration::from_millis(ms));
     }

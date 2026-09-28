@@ -16,7 +16,7 @@ use cortexcode_code_agent_session::{
     PromptOptions, ScopedModel, SessionStartEvent,
 };
 use cortexcode_code_models::{resolve_cli_model, resolve_model_scope, AuthLookup, ModelRegistry};
-use cortexcode_code_print::{format_text_output, json_line, text_result, PrintMode};
+use cortexcode_code_print::{json_line, text_result, PrintMode};
 use cortexcode_code_resources::DefaultResourceLoaderOptions;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::SettingsManager;
@@ -358,7 +358,7 @@ fn subagent_tools(
 /// for bash/write/edit/web tools only when there is a UI to ask.
 fn build_permission_gate(interactive: bool, cwd: &std::path::Path) -> Arc<dyn PermissionGate> {
     let ui: Option<Arc<dyn cortexcode_code_permissions::PermissionUi>> =
-        interactive.then(|| Arc::new(crate::permission_dialog::TerminalPermissionUi) as _);
+        interactive.then(|| Arc::new(cortexcode_code_tui_app::dialog_bridge::TuiPermissionUi) as _);
     Arc::new(cortexcode_code_permissions::HooPermissionGate::new(
         cwd.to_path_buf(),
         ui,
@@ -504,6 +504,19 @@ fn create_runtime(
     (session, services, diagnostics)
 }
 
+/// The concrete resource loader of the most recently assembled session: the
+/// interactive listing reads skills, prompts and diagnostics from it (the
+/// session only holds it as `dyn ResourceLoader`).
+static LAST_RESOURCES: Mutex<Option<Arc<cortexcode_code_agent_session::DefaultResources>>> =
+    Mutex::new(None);
+
+pub(crate) fn last_resources() -> Option<Arc<cortexcode_code_agent_session::DefaultResources>> {
+    LAST_RESOURCES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
 /// The session over resolved parts. Light preset (`--light`, else the
 /// `light` setting): the four light tools and the terse prompt.
 #[allow(clippy::too_many_arguments)]
@@ -593,13 +606,15 @@ fn assemble_session(
             }
         }
     }
+    let resources = Arc::new(resources);
+    *LAST_RESOURCES.lock().unwrap_or_else(|e| e.into_inner()) = Some(resources.clone());
     let services = AgentSessionServices {
         cwd,
         agent_dir,
         auth,
         settings,
         model_registry: Arc::new(registry),
-        resource_loader: Arc::new(resources),
+        resource_loader: resources,
         diagnostics: Vec::new(),
     };
     let session = create_agent_session(
@@ -996,19 +1011,107 @@ fn write_lines(
     output.flush()
 }
 
-/// Run the agent in an interactive TUI loop.
+/// The startup resource listing for the interactive mode, from the concrete
+/// resource loader and the agent registry.
+fn resource_listing(
+    session: &AgentSession,
+) -> cortexcode_code_tui_app::resource_display::ResourceListing {
+    use cortexcode_code_tui_app::resource_display::{ListedItem, ResourceListing};
+    let cwd = session.cwd().to_string_lossy().into_owned();
+    let quiet_startup = session.settings().quiet_startup();
+    let mut listing = ResourceListing {
+        cwd: cwd.clone(),
+        quiet_startup,
+        ..Default::default()
+    };
+    if let Some(resources) = last_resources() {
+        let loader = resources.loader();
+        let skills = loader.skills();
+        listing.skills = skills
+            .skills
+            .iter()
+            .map(|s| ListedItem {
+                name: s.name.clone(),
+                path: s.file_path.clone(),
+                source_info: Some(s.source_info.clone()),
+                display_name: None,
+            })
+            .collect();
+        listing.skill_diagnostics = skills.diagnostics;
+        let prompts = loader.prompts();
+        listing.templates = prompts
+            .prompts
+            .iter()
+            .map(|p| ListedItem {
+                name: p.name.clone(),
+                path: p.file_path.clone(),
+                source_info: Some(p.source_info.clone()),
+                display_name: None,
+            })
+            .collect();
+        listing.prompt_diagnostics = prompts.diagnostics;
+        let context = loader.agents_files();
+        listing.context_files = context.agents_files;
+        listing.context_warnings = context.warnings;
+    }
+    // Dispatchable agents only when the Task tool is on.
+    if session.get_active_tool_names().iter().any(|t| t == "Task") {
+        let registry = cortexcode_code_resources::agent_registry::load_agent_registry(
+            &cortexcode_code_resources::agent_registry::LoadAgentRegistryOptions::new(cwd),
+        );
+        listing.agents = registry
+            .list()
+            .iter()
+            .map(|a| (a.name.clone(), a.description.clone()))
+            .collect();
+    }
+    listing
+}
+
+/// main.ts's semantic-index start, as far as cortex has it: the binary is
+/// looked up (the setting, `PATH`, the agent's `bin/`) and, missing, reported
+/// unavailable on the footer. Indexing itself is deferred (12.4), so a found
+/// binary settles as skipped.
+fn start_semantic_index(args: &Args, session: &AgentSession) {
+    use cortexcode_code_tui_app::embsearch_progress::{report_embsearch_progress, EmbsearchState};
+    let (enabled, configured) = {
+        let settings = session.settings();
+        (
+            args.enable_semantic_index
+                .unwrap_or_else(|| settings.enable_semantic_index()),
+            settings.embsearch_binary_path(),
+        )
+    };
+    if !enabled {
+        return;
+    }
+    let exe = if cfg!(windows) {
+        "embsearch.exe"
+    } else {
+        "embsearch"
+    };
+    let found = configured.is_some()
+        || std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(exe).is_file()))
+        || cortexcode_code_paths::bin_dir().join(exe).is_file();
+    let state = if found {
+        EmbsearchState::Skipped {
+            reason: "semantic indexing is not available in this build".into(),
+        }
+    } else {
+        EmbsearchState::Unavailable {
+            reason: "embsearch binary not found (PATH or embsearchBinaryPath setting)".into(),
+        }
+    };
+    report_embsearch_progress(&state, true, &mut |_| {});
+}
+
+/// Run the interactive mode on the TUI (`InteractiveMode`).
 pub fn run_interactive_mode(
     args: &Args,
-    output: &mut dyn Write,
+    _output: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
-    use crossterm::{
-        cursor, event,
-        style::{self, Stylize},
-        terminal, QueueableCommand,
-    };
-    use std::io::Write as _;
-
     let (session, diagnostics) = build_session(args, true);
     report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
     if diagnostics
@@ -1017,92 +1120,29 @@ pub fn run_interactive_mode(
     {
         return Err(RuntimeError::Setup("invalid model options".into()));
     }
-    let mut stdout = std::io::stdout();
-    terminal::enable_raw_mode().map_err(|e| RuntimeError::Setup(e.to_string()))?;
-    let _ = stdout
-        .queue(terminal::Clear(terminal::ClearType::All))?
-        .queue(cursor::MoveTo(0, 0))?
-        .flush();
+    start_semantic_index(args, &session);
 
-    writeln!(
-        output,
-        "{} Interactive Cortex mode. /compact, /quit or Ctrl+C to exit.",
-        "TUI".bold()
-    )?;
-
-    let mut input = String::new();
-    loop {
-        let _ = stdout
-            .queue(cursor::MoveToColumn(0))?
-            .queue(terminal::Clear(terminal::ClearType::CurrentLine))?
-            .queue(style::Print("cortex> "))?
-            .queue(style::Print(&input))?
-            .flush();
-
-        if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
-            if let Ok(event::Event::Key(key)) = event::read() {
-                match key.code {
-                    event::KeyCode::Enter => {
-                        let line = input.trim();
-                        if line == "/quit" {
-                            break;
-                        }
-                        if line == "/compact" || line.starts_with("/compact ") {
-                            // handleCompactCommand: the session decides whether
-                            // compaction is possible and reports why not.
-                            let instructions = line["/compact".len()..].trim();
-                            let instructions = (!instructions.is_empty()).then_some(instructions);
-                            match async_runtime().block_on(session.compact(instructions)) {
-                                Ok(result) => writeln!(
-                                    output,
-                                    "\nCompacted {} → {} tokens\n",
-                                    result.tokens_before,
-                                    result
-                                        .tokens_after
-                                        .map_or_else(|| "?".to_string(), |t| t.to_string())
-                                )?,
-                                Err(e) => writeln!(output, "\nCompaction failed: {}\n", e)?,
-                            }
-                            input.clear();
-                            continue;
-                        }
-                        if !line.is_empty() {
-                            writeln!(output, "\nYou: {}", line)?;
-                            let before = session.messages().len();
-                            let run = session.prompt(line, PromptOptions::default());
-                            match async_runtime().block_on(run) {
-                                Ok(()) => {
-                                    let messages = session.messages();
-                                    let text = format_text_output(&messages[before..]);
-                                    if !text.is_empty() {
-                                        writeln!(output, "Cortex: {}\n", text)?;
-                                    } else {
-                                        writeln!(output, "Cortex: (no response)\n")?;
-                                    }
-                                }
-                                Err(e) => writeln!(output, "Cortex error: {}\n", e)?,
-                            }
-                        }
-                        input.clear();
-                    }
-                    event::KeyCode::Char(c) => {
-                        if key.modifiers == event::KeyModifiers::CONTROL && c == 'c' {
-                            break;
-                        }
-                        input.push(c);
-                    }
-                    event::KeyCode::Backspace => {
-                        input.pop();
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    let _ = terminal::disable_raw_mode();
-    writeln!(err, "interactive session ended")?;
-    Ok(())
+    let mut messages = args.messages.clone();
+    let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
+    let auth = load_auth();
+    let listing_session = session.clone();
+    cortexcode_code_tui_app::interactive_mode::run_interactive(
+        cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+            session,
+            runtime: async_runtime().handle().clone(),
+            listing: Box::new(move || resource_listing(&listing_session)),
+            is_oauth: Box::new(move |provider| {
+                cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
+            }),
+            version: cortexcode_code_paths::VERSION.to_string(),
+            verbose: args.verbose == Some(true),
+            initial_message,
+            initial_messages: messages,
+            model_fallback_message: None,
+            terminal: None,
+        },
+    )
+    .map_err(RuntimeError::Setup)
 }
 
 #[cfg(test)]
@@ -1126,6 +1166,101 @@ mod tests {
             false,
         );
         (session.system_prompt(), session.get_active_tool_names())
+    }
+
+    /// A terminal that records what is drawn and types a script of keys.
+    struct ScriptedTerminal {
+        script: Vec<(u64, &'static str)>,
+        output: Arc<Mutex<String>>,
+        title: Arc<Mutex<String>>,
+    }
+
+    impl cortexcode_tui_terminal::Terminal for ScriptedTerminal {
+        fn start(
+            &mut self,
+            mut on_input: Box<dyn FnMut(&str) + Send>,
+            _on_resize: Box<dyn FnMut() + Send>,
+        ) {
+            let script = std::mem::take(&mut self.script);
+            std::thread::spawn(move || {
+                for (delay, keys) in script {
+                    std::thread::sleep(std::time::Duration::from_millis(delay));
+                    on_input(keys);
+                }
+            });
+        }
+        fn stop(&mut self) {}
+        fn drain_input(&mut self, _max: std::time::Duration, _idle: std::time::Duration) {}
+        fn write(&mut self, data: &str) {
+            self.output.lock().unwrap().push_str(data);
+        }
+        fn columns(&self) -> u16 {
+            80
+        }
+        fn rows(&self) -> u16 {
+            30
+        }
+        fn kitty_protocol_active(&self) -> bool {
+            false
+        }
+        fn move_by(&mut self, _lines: i32) {}
+        fn hide_cursor(&mut self) {}
+        fn show_cursor(&mut self) {}
+        fn clear_line(&mut self) {}
+        fn clear_from_cursor(&mut self) {}
+        fn clear_screen(&mut self) {}
+        fn set_title(&mut self, title: &str) {
+            *self.title.lock().unwrap() = title.to_string();
+        }
+        fn set_progress(&mut self, _active: bool) {}
+    }
+
+    #[test]
+    fn interactive_mode_draws_the_idle_screen_takes_input_and_exits_on_ctrl_d() {
+        let args = crate::args::parse_args(&[]);
+        let agent_dir = tempfile::tempdir().unwrap();
+        let (session, _) = assemble_session(
+            &args,
+            std::path::PathBuf::from("/w"),
+            agent_dir.path().to_path_buf(),
+            SettingsManager::in_memory(Default::default()),
+            cortexcode_code_models::ModelRegistry::in_memory(),
+            Arc::new(cortexcode_code_models::NoAuth),
+            SessionManager::in_memory("/w"),
+            ModelOptions::default(),
+            None,
+            true,
+        );
+        let output = Arc::new(Mutex::new(String::new()));
+        let title = Arc::new(Mutex::new(String::new()));
+        let terminal = ScriptedTerminal {
+            // Type, clear with ctrl+c, then leave with ctrl+d on the empty prompt.
+            script: vec![(300, "hi"), (100, "\x03"), (600, "\x04")],
+            output: output.clone(),
+            title: title.clone(),
+        };
+        let listing_session = session.clone();
+        let result = cortexcode_code_tui_app::interactive_mode::run_interactive(
+            cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+                session,
+                runtime: async_runtime().handle().clone(),
+                listing: Box::new(move || resource_listing(&listing_session)),
+                is_oauth: Box::new(|_| false),
+                version: "0.0.1".into(),
+                verbose: false,
+                initial_message: None,
+                initial_messages: Vec::new(),
+                model_fallback_message: None,
+                terminal: Some(Box::new(terminal)),
+            },
+        );
+        assert!(result.is_ok());
+        let drawn = cortexcode_tui_util::strip_vt_control_characters(&output.lock().unwrap());
+        assert!(drawn.contains("❯"), "{drawn}");
+        assert!(drawn.contains("⬢ BUILD"), "{drawn}");
+        assert!(drawn.contains("coding agent · v0.0.1"), "{drawn}");
+        assert!(drawn.contains("hi"), "{drawn}");
+        assert_eq!(*title.lock().unwrap(), "Cortex - w");
     }
 
     #[test]

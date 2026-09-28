@@ -6,7 +6,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 ## Resume here
 
 - Disk: if builds fail with ENOSPC / "Bus error" in ld, `rm -rf target/debug` (keep
-  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0`.
+  target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
+  CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
+  1 GB instead of about 28 GB.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -23,7 +25,8 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   10.8c done (`--mode rpc` core); 10.8e done (Rust `RpcClient`); 10.8d done (rpc mode runs an
   `AgentSessionRuntime`). 10.9 split into 10.9a..e; 10.9a done (subagent foundations), 10.9b done (cold pool +
   lifeguard), 10.9e done (child protocol), 10.9c done (warm pool + inbox), 10.9d done (Task/TaskOutput tools),
-  10.9f done (Task tool in sessions). Phase-10 subagents are complete; check `ledger.py next`.
+  10.9f done (Task tool in sessions). Phase-10 subagents are complete. 10.10 split into 10.10a/b/c,
+  all done (core utils, parseGitUrl, TLS CA trust); check `ledger.py next`.
 - Deferred leftovers recorded in the ledger: `--resume` (11.3), `--export` (phase 12),
   `.webtoolsignore` host rule in the permission gate (10.2e), TUI consumers of
   `ModesExtension::take_actions` / `PermissionUi` (11.2/11.3).
@@ -35,6 +38,299 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-27: 11.2d2 done (code highlighting: highlight.js 10.7.3 port)
+- New crate `cortexcode-tui-highlight`: highlight.js 10.7.3's engine ported over its own
+  grammars, which `migration/tools/goldens/hljs-grammars.mjs` dumps as an object graph
+  (identity, frozen flags, named callbacks) to `data/hljs-grammars.json`. The engine mutates
+  them as hljs does, so each thread keeps its own copy.
+- `highlight` colors like cli-highlight (caller theme, then its `DEFAULT_THEME` with chalk 4
+  nesting). `code-tui-theme` installs it as the default `CodeHighlighter` (`CliHighlight`).
+- Golden: `highlight.mjs` -> `tests/fixtures/highlight-gold.json`, 435 cases (pin and
+  cortexcode sources, snippets, a polyglot snippet in all 191 languages), byte-identical.
+  The debug-mode test takes about 40s; release highlights about 1,900 lines of TS in about 100ms.
+- `js_regex` moved to `cortexcode-tui-util`. Multiline `^`/`$` now also treat `\r`, U+2028
+  and U+2029 as line ends, as JS does (CRLF files).
+- `needs_highlighter` has been removed from `tool_renderers_gold.rs`.
+- 11.2d (container) done. 11.2 done: L2 chat-basic, tool-read, tool-bash and the new
+  `tool-edit` pass (edit diff and write preview, both allowed through the permission prompt;
+  selfcheck stable).
+- Next: `ledger.py next` (11.3 selectors).
+
+### 2026-09-28: 11.3 split into 11.3a..f; 11.3a in progress (session selector)
+- 11.3 is now a container: 11.3a session selector (L2 `session-resume`), 11.3b model selector
+  (L2 `model-selector`; needs `/model` from 11.4), 11.3c small selectors, 11.3d settings,
+  11.3e tree, 11.3f login.
+- 11.3a WIP: new crate `cortexcode-code-tui-selectors` with the session search and picker
+  components. It builds and passes clippy, but has no tests or app wiring yet. See the 11.3a
+  ledger note for the exact next steps.
+
+### 2026-09-27: 11.2d split; 11.2d1 done (bash/diff/edit; L2 `tool-bash`); 10.6 done
+- 11.2d is split (bookkeeping): 11.2d1 covers bash, diff, edit and bash-execution;
+  11.2d2 covers code highlighting (highlightCode); 11.2d closes after both.
+- `jsdiff`: a literal port of jsdiff 8's Myers core and `diffWords` (tokenizer and
+  whitespace dedupe). `diff::render_diff` is diff.ts. Goldens from the real
+  jsdiff/renderDiff (`migration/tools/goldens/diff.mjs`: 1210 word pairs, 66 diffs)
+  match exactly.
+- `tools::bash`: `$ cmd` with the timeout suffix; a peek of the last visual lines;
+  truncation and full-output notes; `Took`/`Elapsed`. Bash sets a `ticking` state flag
+  while partial, and the mode invalidates ticking blocks once a second, as the pin's
+  `setInterval` does.
+- `tools::edit` is a framed call whose header band is tinted by the preview (pending,
+  success or error), plus a diff or error body; the result slot shows only what the
+  preview did not. `ToolRenderContext.objects` gives both slots a shared Rust object
+  (the pin keeps the call component in `state`). The preview is computed synchronously
+  (the pin computes it in the background and re-renders), so only the settled state
+  matches: the golden generator waits for the preview.
+- `bash_execution`: the `!` command block (it gets wired in with `!` input in 11.4).
+- Goldens: `tool-renderers.mjs` now covers bash and edit; the Took/Elapsed durations are
+  compared as a placeholder. The edit case of tool-execution-component.test.ts is ported.
+- With the bash renderer in place, 10.6's permission-prompt L2 passes, so 10.6 is done.
+- Next: 11.2d2 (highlighting).
+
+### 2026-09-27: 11.2e added and done (selector dialog; permission prompt on the TUI)
+- 11.2e was added (bookkeeping) because tool-bash (11.2d) and permission-prompt (10.6)
+  both need the gate's "Allow: …" prompt on the TUI.
+- `code-tui-app::extension_selector`: `ExtensionSelectorComponent` (an InputFrame with the
+  title in the border, select keys plus `j`/`k`, and hints), `SelectedRowList`,
+  `DynamicBorder` and `CountdownTimer` (driven by `poll`, not a timer thread).
+- `dialog_bridge`: `TuiPermissionUi` sends `DialogRequest`s to the running mode through
+  a global sink and blocks on the reply. The mode swaps the selector into the editor
+  slot (`showSelector`/`hideSelector`/`restoreEditor`); `notify` is `showStatus`.
+- code-cli drops the crossterm `TerminalPermissionUi` and its crossterm dependency. The
+  dep firewall's last `pending` entry is gone.
+- permission-prompt now differs from hoocode only in the bash block (`$ ls` call line,
+  `Took` line), which 11.2d ports; 10.6's L2 should pass after that.
+- Next: 11.2d.
+
+### 2026-09-27: 11.2c2 done; 11.2c done (remaining tool renderers)
+- New `tools::{web, subagent, plugins}` renderers: webfetch/websearch (with the token,
+  truncation and outline/match notes), Task (`Agent [type]` in the agent's colour),
+  TaskOutput (status card with inbox elapsed time and task-store tokens, or the coloured
+  roster), and the four plugin tools that render their results.
+- Registered tools get renderers from `tools::registered_tool_definition`; the mode uses
+  it for any tool the session knows. Canvas has no renderers of its own in the pin.
+- `tests/tool_renderers_gold.rs` compares against the pin's real renderCall/renderResult
+  output, rendered at 120 columns: 30 calls, each at both expand settings (generator
+  `migration/tools/goldens/tool-renderers.mjs`). Two expanded read results on `.md`
+  paths are exempt until the highlighter lands; 11.2d's ledger notes say to remove that
+  exemption.
+- Next: 11.2d (bash/diff/highlight; L2 tool-bash).
+
+### 2026-09-27: 11.2c split; 11.2c1 done (tool blocks; L2 `tool-read` passes)
+- 11.2c is split (bookkeeping). 11.2c1 is the tool-block framework plus the read, write
+  and SearchCodebase renderers. 11.2c2 is the remaining built-in renderers (webfetch,
+  websearch, subagent, canvas, plugins). 11.2c closes when both are done.
+- `cortexcode-code-tui-widgets` gains:
+  - `tool_execution`: renderer slots with built-in/registered inheritance, the
+    status-dot prefix, peek-budget fallbacks, the radar row, images and freeze.
+  - `tool_signal`, `tool_chain`, `tool_chain_summary`, `tool_output_view`,
+    `read_output`, `visual_truncate` and `render_utils`.
+  - `tools::{read, write, search}`.
+- Renderers are `ToolRenderDefinition` closures (`Result<ComponentHandle, _>`), and
+  renderer state is a JSON map shared by the call and result slots. Renderers build a
+  fresh `Text` instead of reusing `lastComponent`: the output is the same.
+- The bash, edit, webfetch and websearch definitions are registered with empty slots
+  (edit is `self`-shelled). They draw the fallbacks until 11.2d and 11.2c2.
+- Interactive mode:
+  - Tool events build blocks inside chains.
+  - A chain closes when the agent speaks, and at settle (done or interrupted).
+  - It marks the latest block and chain, and freezes all but the last 50 blocks.
+  - The view dial (`app.view.cycle*`, `app.tools.expand` jump) is live.
+  - `showDialStep` is now used for the view, chrome and thinking dials.
+  - `showStatus` updates the previous status line in place.
+- Tests ported: tool-execution-component (all cases except the edit-renderer one, which
+  11.2d owns), tool-chain, tool-chain-summary and tool-output-view. The bash
+  "initial empty partial update" case went into tool-bash's own tests.
+- Next: 11.2c2 or 11.2d (bash/diff/highlight; L2 tool-bash).
+
+### 2026-09-27: 11.2b done (turn transcript; L2 `chat-basic` passes)
+- New crate `cortexcode-code-tui-widgets` with `UserMessageComponent`,
+  `AssistantMessageComponent` (thinking display full/label/omit, Markdown reuse cache,
+  segmented streaming above 2048 UTF-16 units, abort/error line, OSC 133 zones) and
+  `segment_streaming_markdown`. Ports assistant-message, user-message and
+  streaming-segmentation tests; the ledger now lists them on 11.2b.
+- Interactive mode: user messages come from `message_start` as in the pin.
+  - The assistant message streams with a 100 ms throttle.
+  - The working loader runs in the status container (ticked by the loop).
+  - The turn cost line (`showTurnCost`) prints when the prompt future resolves. That
+    is the Rust stand-in for `settleRequestOnIdle`, and it runs after retries too.
+  - The cost anchor is sampled inside the session subscriber at `agent_start`,
+    because the UI thread sees events only after the session has already recorded
+    usage.
+- Fixed: submitting from the editor dropped the prompt, because the editor clears
+  itself before `on_submit` and the mode re-read the empty editor. The text now
+  travels in `Action::Submit(text)`.
+- Tool blocks (`tool_execution_*`), chains and summaries are 11.2c/11.2d.
+- Next: 11.2c (tool blocks; L2 tool-read).
+
+### 2026-09-27: 11.2a done (markdown on a marked lexer port)
+- `cortexcode-tui-components/src/markdown/` now parses with a literal port of the pinned
+  marked 15 lexer (`lexer.rs`) instead of pulldown-cmark. The rules are marked's own
+  compiled GFM regex sources (`rules_gen.rs`, regenerate with
+  `migration/tools/goldens/marked-rules.mjs`), run on fancy-regex through a JS-to-Rust
+  regex translator (`js_regex.rs`: ASCII `\d \w \b`, the JS `\s` set and `.`, literal
+  `[`/`{` where JS allows them). The inline queue, token merges and markdown.ts's
+  strict-strikethrough `del` are kept.
+- One known divergence: masks in the emphasis scan are byte-aligned, where marked keeps
+  UTF-16 lengths. They only differ for an escaped astral symbol (`\😀`), where marked's
+  own mask misaligns.
+- `render.rs` is a re-port of markdown.ts: style-prefix restore after inline resets,
+  table sizing, per-width line cache, and a token cache.
+- Tests: all 59 cases of markdown.test.ts (`tests/markdown.rs`, with TUI cell checks on the
+  shared vt100 support). `tests/markdown_gold.rs` checks token streams against real marked
+  (175 corpus docs plus 1500 fuzzed docs, byte-exact JSON) and renders against real
+  markdown.ts (4 variants per doc). Generators: `migration/tools/goldens/markdown.mjs`
+  and `markdown-fuzz.mjs`.
+- Next: 11.2b (turn transcript; L2 chat-basic).
+
+### 2026-09-27: 11.1c2 done; 11.1c done (interactive mode on the TUI, L2 `startup` passes)
+- `cortexcode-code-tui-app::interactive_mode` replaces code-cli's crossterm REPL: the banner,
+  the flex fill, the resource listing, notification band, prompt editor with the app's key
+  dispatch (`CustomEditor`), session chip, thinking-coloured border, footer, chrome dial,
+  theme watcher, startup-progress/branch rerenders. The loop drives `Tui::process_event`,
+  drains session events from a channel, and polls the band's and editor's deadlines.
+- code-cli: `run_interactive_mode` builds the listing from the concrete loader (kept as
+  `last_resources()`) + the agent registry, and reports the semantic index (binary lookup
+  only; indexing is 12.4). Headless end-to-end test with a scripted terminal.
+- L2 `startup`: pass, text and style, first run. normalize.json gained `\bcortex_` ->
+  `<WORDMARK>` (branding is the only banner difference).
+- Placeholders until 11.2: a turn shows the user's text and the agent's final text, no
+  working loader. The permission prompt still draws with crossterm (firewall pending now
+  names 10.6).
+- `harness.py run all`: every failing scenario belongs to a task that is `l1_done`/`todo`
+  (10.2a-g, 10.4c, 10.5, 10.5b, 10.6, 9.2b, 11.2) — no done task regressed.
+- Next: 11.2 (chat widgets + tui-highlight).
+
+### 2026-09-27: 11.1c split; 11.1c1 done (interactive chrome components)
+- 11.1c split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 `startup`); 11.1c
+  is a container closed when both are done (bookkeeping).
+- New crate `cortexcode-code-tui-app`: brand glyphs, compact wordmark, `ExpandableText`,
+  the startup-progress store and embsearch progress mapping, the shared progress bar,
+  session chip, footer (+ `FooterSource` trait the session will implement) and
+  `FooterDataProvider` (polling git-branch watcher), chrome density (`resolve_chrome`,
+  controller over `Slot`s), notification band (polled: `deadline()`/`poll()`),
+  `InputFrame`, and the resource listing (`ResourceListing` in, components out).
+- Goldens from the pin via `migration/tools/goldens/` (`run.sh` copies a script into the
+  pin's dist and runs it with a TTY-like chalk level): footer (13 states), resource listing,
+  wordmark. All matched byte for byte.
+- tui-util: `truncate_to_width` now walks ANSI codes and tabs like the pin (it used to
+  count escape bytes as visible and could cut a sequence in half).
+- Next: 11.1c2 (the mode itself, replacing `run_interactive_mode`; L2 `startup`).
+
+### 2026-09-27: 11.1b done (keybindings)
+- New crate `cortexcode-code-tui-keybindings`: the full keyboard map (TUI + app bindings in
+  hoocode's declaration order, which is also the order `keybindings.json` is written in),
+  legacy-name migration, `AppKeybindingsManager` (`create` from the agent dir, `reload`,
+  `install` as the global manager), the keybindings step of `migrations.ts`, and the hint
+  helpers from `keybinding-hints.ts`.
+- tui-keys: the TUI table is now the ordered `TUI_KEYBINDINGS` const; `KeybindingsManager` is
+  `Clone`.
+- Tests: keybinding-layout (every scope/dial/family rule), keybindings-migration, and a
+  golden of the table, key text and migration output from the pin.
+- Next: 11.1c (tui-app idle screen + L2 `startup`).
+
+### 2026-09-27: 11.1a done (theme)
+- New crate `cortexcode-code-tui-theme` (port of `modes/interactive/theme/theme.ts` + the 8
+  bundled JSON themes, embedded): color-mode detection, hex/256/HSL math with JS rounding,
+  WCAG contrast, chip fills (lift / magenta deepen), schema validation with typebox's exact
+  messages, `Theme` (fg/bg/fill/has/…), loader (built-in, custom `themes/`, registered,
+  retired names), the process-wide current theme (`theme()`, `init_theme`, `set_theme`,
+  `set_theme_instance`, `on_theme_change`), custom-theme watcher, export colors, and the TUI
+  hooks (`get_select_list_theme`, `get_settings_list_theme`, `get_editor_theme`,
+  `get_markdown_theme`, `apply_paper_sheet`, `apply_block_fill`, `message_label`, ...).
+  Hooks resolve the current theme when called, so a theme switch reaches existing components.
+- Tests: goldens from the pin for every token's ANSI in both modes; theme-contrast (51),
+  theme-cutout-tokens (radar-row cases wait on 11.2's tool-signal), theme-export + loader.
+- Deviations (ledger note): pluggable `CodeHighlighter` until tui-highlight (11.2); polling
+  watcher; built-ins have no file path.
+- Next: 11.1b (keybindings).
+
+### 2026-09-27: 11.0c done (Editor re-port at the pin)
+- `components/editor.ts` re-ported from the pin instead of patching the old divergent Editor:
+  `Editor::new(EditorHost{rows, request_render}, EditorTheme, EditorOptions)`; scrollOffset over
+  layout lines capped at 30% of terminal rows; frame border box/rule/none via `Frame` with a
+  top-border label; redo (alt+u); autocomplete visibility callback; 20ms debounce for `@`/`#`
+  contexts (`autocomplete_deadline` / `poll_autocomplete`). Cursor columns are UTF-16, as in JS.
+- `editor/word_wrap.rs`: UTF-16 helpers (`len16`, `slice16`), marker-aware segmentation, and
+  `word_wrap_segments` with the oversized-atomic-segment and wide-grapheme (no infinite
+  recursion) fixes.
+- `tests/editor.rs`: editor.test.ts, 199 tests. N/A: the async "aborts active autocomplete"
+  test (the Rust provider is synchronous); the visibility-announcement test is adapted to it.
+- tui-keys: removed stray plain `f`/`F` jump bindings that the pin doesn't have (typing "f"
+  entered jump mode and swallowed the next key).
+- Next: 11.1a (theme).
+
+### 2026-09-27: 11.0b done (renderer catch-up to the pin)
+- tui-render: `FlexSpacer` (moved here from components, re-exported there) + `Tui::set_flex_spacer`
+  (buffer never shorter than the screen; prompt on the floor); window-moved-back repaint; hardware
+  cursor move folded into every frame's synchronized block (`\r` + hide when unfocused); the pinned
+  viewport on the alternate screen (`scroll_by_lines/pages`, `scroll_to_top/live/row`, search with
+  match highlight, `ScrollStatus` + `default_scroll_status`, `can_pin_scroll`, kitty image copies
+  retagged per pinned frame); mouse reports consumed before listeners (wheel scrolls 3 lines, click
+  opens `on_hyperlink`); `Slot`; `child_row_offsets`; Termux height exemption.
+- tui-terminal: `mouse` module (SGR + X10), `mouse_reporting()` / `set_alternate_screen()` on the
+  trait; ProcessTerminal enables `?1000h?1006h` unless `CORTEX_MOUSE=0`/dumb/not a tty.
+- tui-images: Sixel (`encode_sixel`, host rasterizer hook, WT_SESSION detection,
+  `CORTEX_IMAGE_PROTOCOL` override); `Image` saves/restores the cursor around a sixel.
+- Tests: a vt100-backed `VirtualTerminal` (`crates/cortexcode-tui-render/tests/support`) stands in
+  for the pin's xterm-headless one; ported screen-fill, scroll-viewport, cursor-parking,
+  hyperlink-click, scroll-images, sixel, mouse.
+- Next: 11.0c (Editor re-port), then 11.1a/b/c.
+
+### 2026-09-27: 11.1 split; TUI catch-up tasks 11.0a/b/c added; 11.0a done
+- 11.1 split into 11.1a (theme), 11.1b (app keybindings), 11.1c (tui-app idle screen + L2 `startup`).
+- Found: the tui-* crates were ported 2026-07-20 from hoocode ~713e5dd; `packages/tui` grew +2.6K lines
+  in 35 commits before the pin. New tasks: 11.0a (utils/components delta), 11.0b (tui.ts renderer
+  +1.1K, terminal, mouse, terminal-image/Sixel, image), 11.0c (re-port Editor: the Rust one diverged
+  from hoocode even before the delta). Diff with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`.
+- 11.0a done: tui-util `hyperlink_at` / `bare_url_at`, band repair in `apply_background_to_line`;
+  Box paper sheets (`set_paper`, `PaperSheet`); `Frame` + `render_frame_edge` (new frame.rs);
+  SelectList/SettingsList cursor + selected-row band, no 2-col right margin, `""` ellipsis fixes
+  (the old port used "..."); SettingsList value_suffix/keywords; Loader ○/● pulse, single line;
+  Input `❯` prompt_prefix/prompt_color; FlexSpacer; UndoStack redo; keybindings redo + unbound
+  editor pageUp/Down; markdown heading level + heading_block; thread-local
+  `get_keybindings()/set_keybindings()` and `Component::handle_input` on Input/SelectList/
+  SettingsList/CancellableLoader. Tests ported from the pin's test files.
+- Noted for 11.2: the Rust markdown is a custom AST renderer, not a port of hoocode's.
+- Next: 11.0b (renderer), then 11.0c (editor), then 11.1a/b/c.
+
+### 2026-09-27: 10.10c done (tls-ca); 10.10 complete
+- `cortexcode_ai_util::tls`: `TlsSources` (argv pre-scan for `--ca-cert` / `--use-system-ca` +
+  `CORTEX_CA_CERT` / `NODE_EXTRA_CA_CERTS` / `CORTEX_USE_SYSTEM_CA`), `resolve_trusted_cas`
+  (first explicit source only, OS store via rustls-native-certs only when opted in, dedupe,
+  warn-once `[tls] ...` and skip on failure), `configure_global_tls`, `http_client_builder()` /
+  `http_client()`. Bundled roots = reqwest's webpki-roots, always kept (add_root_certificate is additive).
+- Every `reqwest::Client::new()/builder()` in the workspace (11 crates) now starts from
+  `http_client_builder()`; new client code must too. The CLI installs the set first thing in `main`,
+  and `--ca-cert` / `--use-system-ca` are no longer "unsupported".
+- Checked end to end against a local `openssl s_server` with a throwaway CA: UnknownIssuer without
+  the flag, 200 with `--ca-cert`.
+- L2 run-all: only scenarios of not-yet-done tasks fail (interactive TUI = phase 11, default bundle).
+
+### 2026-09-27: 10.10b done (utils/git parseGitUrl)
+- `cortexcode_code_paths::git`: `parse_git_url` / `GitSource` plus a port of hosted-git-info 9.0.3
+  `fromUrl` (`hosted_git_info_from_url`: shorthand detection, correctProtocol/correctUrl, the five
+  host extractors, decodeURIComponent failure = no match). The `url` crate is the same WHATWG parser
+  as Node's `URL`. Quirks kept: `/tree` with no ref gives ref "undefined", a user-less gist gives
+  path "null/<id>".
+- Tests: git-ssh-url.test.ts + a 70-input golden corpus from the pinned build
+  (`tests/fixtures/git-url-gold.json`).
+- Next: 10.10c (tls-ca).
+
+### 2026-09-27: 10.10 split; 10.10a done (exec, event-bus, format-*, output-guard)
+- 10.10 split into 10.10a/b/c (parent closed as a container, noted in the ledger). Already ported
+  before the split: token-budget, format-duration, mime, resolve-config-value, utils/paths, git-branch.
+- code-agent-session: `format` (format_tokens, format_duration_secs moved here from code-subagents
+  and re-exported there, plural/pad_cell/truncate_visible/wrap_indented/render_list/
+  render_compact_rows, `js_to_fixed` with toFixed's exact-tie rounding), `exec` (execCommand:
+  SIGTERM then SIGKILL after 5s, `code ?? 0`, spawn error -> code 1, 100ms stdio grace after exit),
+  `event_bus` (EventBus on/emit/clear, handler errors reported, re-entrant), `output_guard`
+  (explicit take_over/write_stdout/write_raw_stdout; Rust can't patch stdout, so nothing wires it yet).
+- tui-util fix: `visible_width` counted every U+2600..27BF symbol (e.g. `✓`) as 2 columns; hoocode
+  only widens RGI emoji. Goldens from the pinned build are in the tests.
+- Next: 10.10b (utils/git parseGitUrl with hosted-git-info semantics), then 10.10c (tls-ca, threading
+  the CA set into every reqwest client builder).
 
 ### 2026-09-27: 10.9f done (Task tool in sessions)
 - CLI (`subagent_tools` in runtime.rs, main.ts's buildSessionOptions block): seeds

@@ -1,0 +1,25 @@
+[package]
+name = "cortexcode-code-tui-theme"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Color themes for the cortex coding agent's interactive mode"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-code-paths = { workspace = true }
+cortexcode-tui-components = { workspace = true }
+cortexcode-tui-highlight = { workspace = true }
+cortexcode-tui-util = { workspace = true }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+cortexcode-code-session = { workspace = true }
+cortexcode-tui-render = { workspace = true }
+tempfile = "3"

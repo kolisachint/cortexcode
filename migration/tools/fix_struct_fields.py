@@ -50,6 +50,11 @@ FIELD_DEFAULTS = {
     ("ToolContext", "available_models"): "Vec::new()",
     ("ToolContext", "session_file"): "None",
     ("Tool", "defer_loading"): "None",
+    ("SelectListTheme", "cursor"): "None",
+    ("SelectListTheme", "selected_row"): "None",
+    ("SettingsListTheme", "selected_row"): "None",
+    ("SettingItem", "value_suffix"): "None",
+    ("SettingItem", "keywords"): "None",
 }
 REMOVED = {"stop_sequence", "cache_control", "cache_control_format", "supports_long_cache_retention"}
 # expected type (as rustc prints it) -> replacement for a bare `None`

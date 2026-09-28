@@ -655,7 +655,7 @@ pub fn connect_http_mcp_server(
         .map_err(|e| McpError::Config(format!("failed to create tokio runtime: {}", e)))?;
     Ok(Arc::new(HttpMcpConnection {
         config,
-        client: reqwest::Client::new(),
+        client: cortexcode_ai_util::tls::http_client(),
         runtime,
         next_id: AtomicU64::new(1),
         pending: Arc::new(Mutex::new(HashMap::new())),

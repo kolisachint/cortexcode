@@ -6,8 +6,13 @@
 //! for (bracketed paste, Kitty keyboard protocol negotiation, OSC progress /
 //! title) are written directly, matching the byte sequences hoocode used.
 
+pub mod mouse;
 mod stdin_buffer;
 
+pub use mouse::{
+    is_mouse_sequence, mouse_sequence_length, parse_mouse_event, MouseEvent, MouseEventKind,
+    MOUSE_DISABLE, MOUSE_ENABLE,
+};
 pub use stdin_buffer::{StdinBuffer, StdinBufferOptions, StdinEvent};
 
 use std::env;
@@ -44,6 +49,16 @@ pub trait Terminal: Send {
     fn clear_screen(&mut self);
     fn set_title(&mut self, title: &str);
     fn set_progress(&mut self, active: bool);
+
+    /// Whether mouse reporting is on, so the wheel arrives as input rather
+    /// than scrolling the terminal's own scrollback.
+    fn mouse_reporting(&self) -> bool {
+        false
+    }
+
+    /// Enter or leave the alternate screen (`?1049`), a fixed grid with no
+    /// scrollback of its own; leaving restores the normal screen as it was.
+    fn set_alternate_screen(&mut self, _active: bool) {}
 }
 
 /// Resolves terminal dimensions the same way hoocode's `columns`/`rows`
@@ -115,6 +130,8 @@ pub struct ProcessTerminal {
     last_cols: Arc<AtomicU16>,
     last_rows: Arc<AtomicU16>,
     write_log_path: Option<PathBuf>,
+    mouse_reporting: bool,
+    alternate_screen: bool,
 }
 
 impl Default for ProcessTerminal {
@@ -140,6 +157,20 @@ impl ProcessTerminal {
             last_cols: Arc::new(AtomicU16::new(0)),
             last_rows: Arc::new(AtomicU16::new(0)),
             write_log_path: resolve_write_log_path(),
+            mouse_reporting: false,
+            alternate_screen: false,
+        }
+    }
+
+    /// `restoreOnExit`: leave the alternate screen and mouse reporting.
+    fn restore_screen_modes(&mut self) {
+        if self.alternate_screen {
+            self.raw_write("\x1b[?1049l");
+            self.alternate_screen = false;
+        }
+        if self.mouse_reporting {
+            self.raw_write(mouse::MOUSE_DISABLE);
+            self.mouse_reporting = false;
         }
     }
 
@@ -190,6 +221,16 @@ impl Terminal for ProcessTerminal {
 
         // Bracketed paste mode.
         self.raw_write("\x1b[?2004h");
+
+        // Take the wheel (see mouse.rs). A dumb terminal has nothing to report
+        // with, and CORTEX_MOUSE=0 hands the wheel back.
+        if std::env::var("CORTEX_MOUSE").as_deref() != Ok("0")
+            && std::env::var("TERM").as_deref() != Ok("dumb")
+            && std::io::IsTerminal::is_terminal(&io::stdout())
+        {
+            self.raw_write(mouse::MOUSE_ENABLE);
+            self.mouse_reporting = true;
+        }
 
         self.stop_signal.store(false, Ordering::SeqCst);
         self.forwarding.store(true, Ordering::SeqCst);
@@ -303,6 +344,10 @@ impl Terminal for ProcessTerminal {
         if let Some(handle) = self.progress_thread.take() {
             let _ = handle.join();
         }
+
+        // Back to the normal screen and off the wheel first, so the rest of
+        // the teardown lands where the user will see it.
+        self.restore_screen_modes();
 
         self.raw_write("\x1b[?2004l");
 
@@ -423,6 +468,19 @@ impl Terminal for ProcessTerminal {
             }
             self.raw_write(TERMINAL_PROGRESS_CLEAR_SEQUENCE);
         }
+    }
+
+    fn mouse_reporting(&self) -> bool {
+        self.mouse_reporting
+    }
+
+    fn set_alternate_screen(&mut self, active: bool) {
+        if self.alternate_screen == active {
+            return;
+        }
+        self.alternate_screen = active;
+        // ?1049 saves and restores the cursor along with the screen.
+        self.write(if active { "\x1b[?1049h" } else { "\x1b[?1049l" });
     }
 }
 

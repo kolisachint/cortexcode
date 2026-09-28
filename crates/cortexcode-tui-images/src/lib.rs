@@ -7,6 +7,7 @@
 mod dimensions;
 mod iterm2;
 mod kitty;
+mod sixel;
 
 pub use dimensions::{
     get_gif_dimensions, get_image_dimensions, get_jpeg_dimensions, get_png_dimensions,
@@ -14,6 +15,10 @@ pub use dimensions::{
 };
 pub use iterm2::{encode_iterm2, ITerm2EncodeOptions};
 pub use kitty::{delete_all_kitty_images, delete_kitty_image, encode_kitty, KittyEncodeOptions};
+pub use sixel::{
+    encode_sixel, has_image_rasterizer, set_image_rasterizer, ImageRasterizer, RgbaImage,
+    SIXEL_PREFIX,
+};
 
 use once_cell::sync::Lazy;
 use rand::Rng;
@@ -24,6 +29,7 @@ use std::sync::Mutex;
 pub enum ImageProtocol {
     Kitty,
     ITerm2,
+    Sixel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +71,27 @@ fn env_lower(key: &str) -> String {
     env::var(key).unwrap_or_default().to_lowercase()
 }
 
+/// `CORTEX_IMAGE_PROTOCOL=kitty|iterm2|sixel|none` names the protocol
+/// outright, for terminals detection cannot identify. `Some(None)` is "none".
+fn image_protocol_override() -> Option<Option<ImageProtocol>> {
+    match env_lower("CORTEX_IMAGE_PROTOCOL").trim() {
+        "kitty" => Some(Some(ImageProtocol::Kitty)),
+        "iterm2" => Some(Some(ImageProtocol::ITerm2)),
+        "sixel" => Some(Some(ImageProtocol::Sixel)),
+        "none" | "off" | "0" => Some(None),
+        _ => None,
+    }
+}
+
 pub fn detect_capabilities() -> TerminalCapabilities {
+    let detected = detect_terminal_capabilities();
+    match image_protocol_override() {
+        Some(images) => TerminalCapabilities { images, ..detected },
+        None => detected,
+    }
+}
+
+fn detect_terminal_capabilities() -> TerminalCapabilities {
     let term_program = env_lower("TERM_PROGRAM");
     let term = env_lower("TERM");
     let color_term = env_lower("COLORTERM");
@@ -116,6 +142,16 @@ pub fn detect_capabilities() -> TerminalCapabilities {
         };
     }
 
+    // Windows Terminal speaks only Sixel, and announces itself only through
+    // WT_SESSION.
+    if env::var("WT_SESSION").is_ok() {
+        return TerminalCapabilities {
+            images: Some(ImageProtocol::Sixel),
+            true_color: true,
+            hyperlinks: false,
+        };
+    }
+
     if term_program == "vscode" {
         return TerminalCapabilities {
             images: None,
@@ -161,10 +197,9 @@ const KITTY_PREFIX: &str = "\x1b_G";
 const ITERM2_PREFIX: &str = "\x1b]1337;File=";
 
 pub fn is_image_line(line: &str) -> bool {
-    line.starts_with(KITTY_PREFIX)
-        || line.starts_with(ITERM2_PREFIX)
-        || line.contains(KITTY_PREFIX)
-        || line.contains(ITERM2_PREFIX)
+    [KITTY_PREFIX, ITERM2_PREFIX, SIXEL_PREFIX]
+        .iter()
+        .any(|p| line.contains(p))
 }
 
 /// Generate a random image ID for the Kitty graphics protocol, in range [1, 0xffffffff].
@@ -193,6 +228,8 @@ pub struct ImageRenderOptions {
     pub image_id: Option<u32>,
     /// Whether Kitty should apply its default cursor movement after placement.
     pub move_cursor: Option<bool>,
+    /// MIME type of the data; Sixel needs it to decode the image into pixels.
+    pub mime_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -246,7 +283,48 @@ pub fn render_image(
                 image_id: None,
             })
         }
+        ImageProtocol::Sixel => render_sixel(base64_data, image_dimensions, max_width, options),
     }
+}
+
+/// Sixel draws pixels, so the size in cells follows from the size in pixels:
+/// scaled to fit (never enlarged), `rows` is how many cells tall it is.
+fn render_sixel(
+    base64_data: &str,
+    image_dimensions: ImageDimensions,
+    max_width_cells: u32,
+    options: &ImageRenderOptions,
+) -> Option<RenderedImage> {
+    if !has_image_rasterizer() {
+        return None;
+    }
+    let mime_type = options.mime_type.as_deref()?;
+    if image_dimensions.width_px == 0 || image_dimensions.height_px == 0 {
+        return None;
+    }
+    let cell = get_cell_dimensions();
+    let mut scale =
+        (max_width_cells as f64 * cell.width_px as f64 / image_dimensions.width_px as f64).min(1.0);
+    if let Some(max_height) = options.max_height_cells.filter(|h| *h > 0) {
+        scale = scale
+            .min(max_height as f64 * cell.height_px as f64 / image_dimensions.height_px as f64);
+    }
+    let width_px = ((image_dimensions.width_px as f64 * scale).floor() as u32).max(1);
+    let height_px = ((image_dimensions.height_px as f64 * scale).floor() as u32).max(1);
+
+    let pixels = sixel::rasterize(base64_data, mime_type, width_px, height_px)?;
+    if pixels.width == 0 || pixels.height == 0 {
+        return None;
+    }
+    if pixels.data.len() < (pixels.width * pixels.height * 4) as usize {
+        return None;
+    }
+    let rows = (pixels.height.div_ceil(cell.height_px)).max(1);
+    Some(RenderedImage {
+        sequence: encode_sixel(&pixels, 256),
+        rows,
+        image_id: None,
+    })
 }
 
 /// Wrap text in an OSC 8 hyperlink sequence.

@@ -9,6 +9,7 @@ mod diagnostics;
 mod param_fallback;
 mod partial_json;
 mod retry_delay;
+pub mod tls;
 mod tool_constraints;
 mod transform_messages;
 mod validation;

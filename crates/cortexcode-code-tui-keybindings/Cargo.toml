@@ -1,0 +1,23 @@
+[package]
+name = "cortexcode-code-tui-keybindings"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The coding agent's keyboard map: app keybindings, keybindings.json loading and hint text"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-code-paths = { workspace = true }
+cortexcode-code-tui-theme = { workspace = true }
+cortexcode-tui-keys = { workspace = true }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+regex = "1"
+tempfile = "3"

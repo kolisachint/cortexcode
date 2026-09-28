@@ -11,7 +11,6 @@ mod help;
 mod help_text;
 pub mod initial_message;
 mod list_models;
-mod permission_dialog;
 mod runtime;
 mod session_flags;
 
@@ -105,7 +104,7 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 16] = [
+    let checks: [(bool, &'static str); 14] = [
         (a.resume.is_some(), "--resume"),
         (a.team.is_some(), "--team"),
         (a.todo_write.is_some(), "--enable-todowrite"),
@@ -114,8 +113,6 @@ pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
         (a.enable_semantic_index.is_some(), "--enable-semantic-index"),
         (a.print_token_surface.is_some(), "--print-token-surface"),
         (a.platform.is_some(), "--platform"),
-        (a.ca_cert.is_some(), "--ca-cert"),
-        (a.use_system_ca.is_some(), "--use-system-ca"),
         (a.extensions.is_some(), "--extension"),
         (a.no_extensions.is_some(), "--no-extensions"),
         (a.agents.is_some(), "--agent"),
@@ -132,6 +129,11 @@ pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
 
 /// Process entry point used by the `cortex` binary. Returns the exit code.
 pub fn main(argv: &[String]) -> i32 {
+    // cli.ts: install the CA trust set before anything builds an HTTP client.
+    // The two flags are read by an argv pre-scan, as in hoocode.
+    cortexcode_ai_util::tls::configure_global_tls(
+        &cortexcode_ai_util::tls::TlsSources::from_args_and_env(argv, |k| std::env::var(k).ok()),
+    );
     let env = Env::detect();
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();

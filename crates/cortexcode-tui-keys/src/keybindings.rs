@@ -44,6 +44,7 @@ fn normalize_keys(keys: Option<&[String]>) -> Vec<String> {
 
 /// Resolves a set of keybinding definitions against user overrides, with
 /// conflict detection.
+#[derive(Debug, Clone)]
 pub struct KeybindingsManager {
     definitions: HashMap<String, KeybindingDefinition>,
     user_bindings: HashMap<String, Vec<String>>,
@@ -146,106 +147,138 @@ impl KeybindingsManager {
     }
 }
 
+/// `TUI_KEYBINDINGS` in declaration order: `(id, default keys, description)`.
+/// The order is meaningful to apps that write a keybindings file from it.
+pub const TUI_KEYBINDINGS: &[(&str, &[&str], &str)] = &[
+    ("tui.editor.cursorUp", &["up"], "Move cursor up"),
+    ("tui.editor.cursorDown", &["down"], "Move cursor down"),
+    (
+        "tui.editor.cursorLeft",
+        &["left", "ctrl+b"],
+        "Move cursor left",
+    ),
+    (
+        "tui.editor.cursorRight",
+        &["right", "ctrl+f"],
+        "Move cursor right",
+    ),
+    (
+        "tui.editor.cursorWordLeft",
+        &["alt+left", "ctrl+left", "alt+b"],
+        "Move cursor word left",
+    ),
+    (
+        "tui.editor.cursorWordRight",
+        &["alt+right", "ctrl+right", "alt+f"],
+        "Move cursor word right",
+    ),
+    (
+        "tui.editor.cursorLineStart",
+        &["home", "ctrl+a"],
+        "Move to line start",
+    ),
+    (
+        "tui.editor.cursorLineEnd",
+        &["end", "ctrl+e"],
+        "Move to line end",
+    ),
+    (
+        "tui.editor.jumpForward",
+        &["ctrl+]"],
+        "Jump forward to character",
+    ),
+    (
+        "tui.editor.jumpBackward",
+        &["ctrl+alt+]"],
+        "Jump backward to character",
+    ),
+    // Unbound by default: the app gives pageUp/pageDown to the transcript.
+    ("tui.editor.pageUp", &[], "Page up within the prompt"),
+    ("tui.editor.pageDown", &[], "Page down within the prompt"),
+    (
+        "tui.editor.deleteCharBackward",
+        &["backspace"],
+        "Delete character backward",
+    ),
+    (
+        "tui.editor.deleteCharForward",
+        &["delete", "ctrl+d"],
+        "Delete character forward",
+    ),
+    (
+        "tui.editor.deleteWordBackward",
+        &["ctrl+w", "alt+backspace"],
+        "Delete word backward",
+    ),
+    (
+        "tui.editor.deleteWordForward",
+        &["alt+d", "alt+delete"],
+        "Delete word forward",
+    ),
+    (
+        "tui.editor.deleteToLineStart",
+        &["ctrl+u"],
+        "Delete to line start",
+    ),
+    (
+        "tui.editor.deleteToLineEnd",
+        &["ctrl+k"],
+        "Delete to line end",
+    ),
+    ("tui.editor.yank", &["ctrl+y"], "Yank"),
+    ("tui.editor.yankPop", &["alt+y"], "Yank pop"),
+    ("tui.editor.undo", &["ctrl+-"], "Undo"),
+    // alt+u: `\x1b-` is not a key this parser reads, so alt+- would only
+    // work under the Kitty protocol.
+    ("tui.editor.redo", &["alt+u"], "Redo"),
+    ("tui.input.newLine", &["shift+enter"], "Insert newline"),
+    ("tui.input.submit", &["enter"], "Submit input"),
+    ("tui.input.tab", &["tab"], "Tab / autocomplete"),
+    ("tui.input.copy", &["ctrl+c"], "Copy selection"),
+    ("tui.select.up", &["up"], "Move selection up"),
+    ("tui.select.down", &["down"], "Move selection down"),
+    ("tui.select.pageUp", &["pageUp"], "Selection page up"),
+    ("tui.select.pageDown", &["pageDown"], "Selection page down"),
+    ("tui.select.confirm", &["enter"], "Confirm selection"),
+    (
+        "tui.select.cancel",
+        &["escape", "ctrl+c"],
+        "Cancel selection",
+    ),
+];
+
 /// The built-in TUI keybinding definitions (editor navigation/editing,
 /// generic input actions, and generic selection actions).
 pub fn default_tui_keybindings() -> HashMap<String, KeybindingDefinition> {
-    let entries: &[(&str, &[&str], &str)] = &[
-        ("tui.editor.cursorUp", &["up"], "Move cursor up"),
-        ("tui.editor.cursorDown", &["down"], "Move cursor down"),
-        (
-            "tui.editor.cursorLeft",
-            &["left", "ctrl+b"],
-            "Move cursor left",
-        ),
-        (
-            "tui.editor.cursorRight",
-            &["right", "ctrl+f"],
-            "Move cursor right",
-        ),
-        (
-            "tui.editor.cursorWordLeft",
-            &["alt+left", "ctrl+left", "alt+b"],
-            "Move cursor word left",
-        ),
-        (
-            "tui.editor.cursorWordRight",
-            &["alt+right", "ctrl+right", "alt+f"],
-            "Move cursor word right",
-        ),
-        (
-            "tui.editor.cursorLineStart",
-            &["home", "ctrl+a"],
-            "Move to line start",
-        ),
-        (
-            "tui.editor.cursorLineEnd",
-            &["end", "ctrl+e"],
-            "Move to line end",
-        ),
-        (
-            "tui.editor.jumpForward",
-            &["ctrl+]", "f"],
-            "Jump forward to character",
-        ),
-        (
-            "tui.editor.jumpBackward",
-            &["ctrl+alt+]", "F"],
-            "Jump backward to character",
-        ),
-        ("tui.editor.pageUp", &["pageUp"], "Page up"),
-        ("tui.editor.pageDown", &["pageDown"], "Page down"),
-        (
-            "tui.editor.deleteCharBackward",
-            &["backspace"],
-            "Delete character backward",
-        ),
-        (
-            "tui.editor.deleteCharForward",
-            &["delete", "ctrl+d"],
-            "Delete character forward",
-        ),
-        (
-            "tui.editor.deleteWordBackward",
-            &["ctrl+w", "alt+backspace"],
-            "Delete word backward",
-        ),
-        (
-            "tui.editor.deleteWordForward",
-            &["alt+d", "alt+delete"],
-            "Delete word forward",
-        ),
-        (
-            "tui.editor.deleteToLineStart",
-            &["ctrl+u"],
-            "Delete to line start",
-        ),
-        (
-            "tui.editor.deleteToLineEnd",
-            &["ctrl+k"],
-            "Delete to line end",
-        ),
-        ("tui.editor.yank", &["ctrl+y"], "Yank"),
-        ("tui.editor.yankPop", &["alt+y"], "Yank pop"),
-        ("tui.editor.undo", &["ctrl+-"], "Undo"),
-        ("tui.input.newLine", &["shift+enter"], "Insert newline"),
-        ("tui.input.submit", &["enter"], "Submit input"),
-        ("tui.input.tab", &["tab"], "Tab / autocomplete"),
-        ("tui.input.copy", &["ctrl+c"], "Copy selection"),
-        ("tui.select.up", &["up"], "Move selection up"),
-        ("tui.select.down", &["down"], "Move selection down"),
-        ("tui.select.pageUp", &["pageUp"], "Selection page up"),
-        ("tui.select.pageDown", &["pageDown"], "Selection page down"),
-        ("tui.select.confirm", &["enter"], "Confirm selection"),
-        (
-            "tui.select.cancel",
-            &["escape", "ctrl+c"],
-            "Cancel selection",
-        ),
-    ];
-    entries
+    TUI_KEYBINDINGS
         .iter()
         .map(|(id, keys, desc)| (id.to_string(), KeybindingDefinition::new(keys, desc)))
         .collect()
+}
+
+thread_local! {
+    static GLOBAL_KEYBINDINGS: std::cell::RefCell<Option<std::rc::Rc<KeybindingsManager>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// `setKeybindings`: install the manager components consult for their
+/// actions. The TUI is single-threaded, so the global is per thread.
+pub fn set_keybindings(keybindings: KeybindingsManager) {
+    GLOBAL_KEYBINDINGS.with(|g| *g.borrow_mut() = Some(std::rc::Rc::new(keybindings)));
+}
+
+/// `getKeybindings`: the installed manager, or the library defaults.
+pub fn get_keybindings() -> std::rc::Rc<KeybindingsManager> {
+    GLOBAL_KEYBINDINGS.with(|g| {
+        g.borrow_mut()
+            .get_or_insert_with(|| {
+                std::rc::Rc::new(KeybindingsManager::new(
+                    default_tui_keybindings(),
+                    HashMap::new(),
+                ))
+            })
+            .clone()
+    })
 }
 
 #[cfg(test)]

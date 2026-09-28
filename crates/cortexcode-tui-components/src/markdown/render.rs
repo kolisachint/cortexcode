@@ -1,13 +1,12 @@
-//! Renders the [`super::ast::Block`]/[`super::ast::Inline`] AST to styled
-//! terminal lines, ported (with reduced fidelity — see module docs) from
-//! `markdown.ts`'s `renderToken`/`renderInlineTokens`/`renderList`/`renderTable`.
+//! Token rendering, ported from markdown.ts's `renderToken`,
+//! `renderInlineTokens`, `renderList` and `renderTable`.
 
 use cortexcode_tui_images::{get_capabilities, hyperlink};
 use cortexcode_tui_util::{visible_width, wrap_text_with_ansi};
 
 use crate::color::ColorFn;
 
-use super::ast::{Block, Inline};
+use super::lexer::{Token, TokenType};
 
 #[derive(Default)]
 pub struct DefaultTextStyle {
@@ -21,8 +20,15 @@ pub struct DefaultTextStyle {
 
 pub type HighlightCodeFn = Box<dyn Fn(&str, Option<&str>) -> Vec<String>>;
 
+/// A heading style, given the heading's level.
+pub type HeadingFn = Box<dyn Fn(&str, u8) -> String>;
+
 pub struct MarkdownTheme {
-    pub heading: ColorFn,
+    pub heading: HeadingFn,
+    /// Wrapper applied to a *finished* heading line (`headingBlock`), the hook
+    /// a theme uses to render headings as a filled chip. Separate from
+    /// `heading`, whose output is also spliced around inline tokens.
+    pub heading_block: Option<HeadingFn>,
     pub link: ColorFn,
     pub link_url: ColorFn,
     pub code: ColorFn,
@@ -37,24 +43,43 @@ pub struct MarkdownTheme {
     pub strikethrough: ColorFn,
     pub underline: ColorFn,
     pub highlight_code: Option<HighlightCodeFn>,
+    /// Prefix applied to each rendered code block line (default: two spaces).
     pub code_block_indent: Option<String>,
 }
 
+/// `InlineStyleContext.applyText`.
 #[derive(Clone, Copy)]
-enum StyleMode {
+enum ApplyText {
     Default,
     Heading(u8),
-    /// No default styling applied to bare text (used inside blockquotes).
-    Plain,
+    Identity,
 }
 
-pub struct MarkdownRenderer<'a> {
+/// `InlineStyleContext`.
+#[derive(Clone)]
+struct StyleContext {
+    apply: ApplyText,
+    prefix: String,
+}
+
+const SENTINEL: &str = "\u{0}";
+
+fn prefix_of(styled: &str) -> String {
+    styled
+        .find(SENTINEL)
+        .map(|i| styled[..i].to_string())
+        .unwrap_or_default()
+}
+
+pub(super) struct Renderer<'a> {
     pub theme: &'a MarkdownTheme,
     pub default_style: Option<&'a DefaultTextStyle>,
 }
 
-impl<'a> MarkdownRenderer<'a> {
-    fn apply_default_style(&self, text: &str) -> String {
+impl Renderer<'_> {
+    /// `applyDefaultStyle`: foreground and decorations (the background is
+    /// applied at the padding stage so it spans the full line).
+    pub fn apply_default_style(&self, text: &str) -> String {
         let Some(style) = self.default_style else {
             return text.to_string();
         };
@@ -77,129 +102,264 @@ impl<'a> MarkdownRenderer<'a> {
         styled
     }
 
-    fn apply_heading_style(&self, level: u8, text: &str) -> String {
+    fn default_style_prefix(&self) -> String {
+        if self.default_style.is_none() {
+            return String::new();
+        }
+        prefix_of(&self.apply_default_style(SENTINEL))
+    }
+
+    fn heading_style(&self, level: u8, text: &str) -> String {
         if level == 1 {
-            (self.theme.heading)(&(self.theme.bold)(&(self.theme.underline)(text)))
+            (self.theme.heading)(&(self.theme.bold)(&(self.theme.underline)(text)), level)
         } else {
-            (self.theme.heading)(&(self.theme.bold)(text))
+            (self.theme.heading)(&(self.theme.bold)(text), level)
         }
     }
 
-    fn apply_style_mode(&self, mode: StyleMode, text: &str) -> String {
-        match mode {
-            StyleMode::Default => self.apply_default_style(text),
-            StyleMode::Heading(level) => self.apply_heading_style(level, text),
-            StyleMode::Plain => text.to_string(),
+    fn apply(&self, apply: ApplyText, text: &str) -> String {
+        match apply {
+            ApplyText::Default => self.apply_default_style(text),
+            ApplyText::Heading(level) => self.heading_style(level, text),
+            ApplyText::Identity => text.to_string(),
         }
     }
 
-    /// Render the whole document to lines wrapped to `width` (already the
-    /// content width, i.e. padding has been subtracted by the caller).
-    pub fn render_document(&self, blocks: &[Block], width: usize) -> Vec<String> {
+    fn default_context(&self) -> StyleContext {
+        StyleContext {
+            apply: ApplyText::Default,
+            prefix: self.default_style_prefix(),
+        }
+    }
+
+    /// Render top-level tokens to unwrapped lines.
+    pub fn render_tokens(&self, tokens: &[Token], width: usize) -> Vec<String> {
         let mut lines = Vec::new();
-        for (i, block) in blocks.iter().enumerate() {
-            lines.extend(self.render_block(block, width, StyleMode::Default));
-            if i + 1 < blocks.len() && !matches!(block, Block::List { .. }) {
-                lines.push(String::new());
-            }
+        for (i, token) in tokens.iter().enumerate() {
+            let next = tokens.get(i + 1).map(|t| t.kind);
+            lines.extend(self.render_token(token, width, next, None));
         }
         lines
     }
 
-    fn render_block(&self, block: &Block, width: usize, mode: StyleMode) -> Vec<String> {
-        match block {
-            Block::Heading { level, inlines } => {
-                let heading_mode = StyleMode::Heading(*level);
-                let text = self.render_inlines(inlines, heading_mode);
-                if *level >= 3 {
-                    let prefix = format!("{} ", "#".repeat(*level as usize));
-                    vec![format!(
-                        "{}{text}",
-                        self.apply_heading_style(*level, &prefix)
-                    )]
+    fn render_token(
+        &self,
+        token: &Token,
+        width: usize,
+        next: Option<TokenType>,
+        ctx: Option<&StyleContext>,
+    ) -> Vec<String> {
+        let mut lines = Vec::new();
+        let spaced = next.is_some_and(|n| n != TokenType::Space);
+        match token.kind {
+            TokenType::Heading => {
+                let level = token.depth.unwrap_or(1);
+                let heading_ctx = StyleContext {
+                    apply: ApplyText::Heading(level),
+                    prefix: prefix_of(&self.heading_style(level, SENTINEL)),
+                };
+                let text = self.render_inline_tokens(token.children(), Some(&heading_ctx));
+                let styled = if level >= 3 {
+                    let prefix = format!("{} ", "#".repeat(level as usize));
+                    format!("{}{text}", self.heading_style(level, &prefix))
                 } else {
-                    vec![text]
+                    text
+                };
+                lines.push(match &self.theme.heading_block {
+                    Some(block) => block(&styled, level),
+                    None => styled,
+                });
+                if spaced {
+                    lines.push(String::new());
                 }
             }
-            Block::Paragraph(inlines) => {
-                vec![self.render_inlines(inlines, mode)]
+            TokenType::Paragraph => {
+                lines.push(self.render_inline_tokens(token.children(), ctx));
+                if next.is_some_and(|n| n != TokenType::List && n != TokenType::Space) {
+                    lines.push(String::new());
+                }
             }
-            Block::CodeBlock { lang, text } => {
-                let mut lines = Vec::new();
-                let indent = self
-                    .theme
-                    .code_block_indent
-                    .clone()
-                    .unwrap_or_else(|| "  ".to_string());
-                lines.push((self.theme.code_block_border)(&format!(
-                    "```{}",
-                    lang.as_deref().unwrap_or("")
-                )));
-                if let Some(hl) = &self.theme.highlight_code {
-                    for line in hl(text, lang.as_deref()) {
+            TokenType::Text => {
+                lines.push(self.render_inline_tokens(std::slice::from_ref(token), ctx));
+            }
+            TokenType::Code => {
+                let indent = self.theme.code_block_indent.as_deref().unwrap_or("  ");
+                let lang = token.lang.as_deref().unwrap_or("");
+                lines.push((self.theme.code_block_border)(&format!("```{lang}")));
+                if let Some(highlight) = &self.theme.highlight_code {
+                    for line in highlight(token.text(), token.lang.as_deref()) {
                         lines.push(format!("{indent}{line}"));
                     }
                 } else {
-                    for code_line in text.split('\n') {
-                        lines.push(format!("{indent}{}", (self.theme.code_block)(code_line)));
+                    for line in token.text().split('\n') {
+                        lines.push(format!("{indent}{}", (self.theme.code_block)(line)));
                     }
                 }
                 lines.push((self.theme.code_block_border)("```"));
-                lines
+                if spaced {
+                    lines.push(String::new());
+                }
             }
-            Block::List {
-                ordered,
-                start,
-                items,
-            } => self.render_list(*ordered, *start, items, 0, width, mode),
-            Block::Table { header, rows } => self.render_table(header, rows, width, mode),
-            Block::BlockQuote(inner) => self.render_blockquote(inner, width),
-            Block::Rule => {
-                vec![(self.theme.hr)(&"─".repeat(width.min(80)))]
+            TokenType::List => {
+                lines.extend(self.render_list(token, 0, width, ctx));
             }
-            Block::Html(raw) => {
-                vec![self.apply_style_mode(mode, raw.trim())]
+            TokenType::Table => {
+                lines.extend(self.render_table(token, width, next, ctx));
             }
-        }
-    }
-
-    fn render_blockquote(&self, inner: &[Block], width: usize) -> Vec<String> {
-        let quote_content_width = width.saturating_sub(2).max(1);
-        let mut rendered = Vec::new();
-        for (i, block) in inner.iter().enumerate() {
-            rendered.extend(self.render_block(block, quote_content_width, StyleMode::Plain));
-            if i + 1 < inner.len() && !matches!(block, Block::List { .. }) {
-                rendered.push(String::new());
+            TokenType::Blockquote => {
+                let quote_style = |text: &str| (self.theme.quote)(&(self.theme.italic)(text));
+                let quote_prefix = prefix_of(&quote_style(SENTINEL));
+                let apply_quote_style = |line: &str| {
+                    if quote_prefix.is_empty() {
+                        quote_style(line)
+                    } else {
+                        quote_style(&line.replace("\x1b[0m", &format!("\x1b[0m{quote_prefix}")))
+                    }
+                };
+                let quote_width = width.saturating_sub(2).max(1);
+                let quote_ctx = StyleContext {
+                    apply: ApplyText::Identity,
+                    prefix: quote_prefix.clone(),
+                };
+                let children = token.children();
+                let mut rendered = Vec::new();
+                for (i, child) in children.iter().enumerate() {
+                    let next_child = children.get(i + 1).map(|t| t.kind);
+                    rendered.extend(self.render_token(
+                        child,
+                        quote_width,
+                        next_child,
+                        Some(&quote_ctx),
+                    ));
+                }
+                while rendered.last().is_some_and(|l: &String| l.is_empty()) {
+                    rendered.pop();
+                }
+                for line in &rendered {
+                    let styled = apply_quote_style(line);
+                    for wrapped in wrap_text_with_ansi(&styled, quote_width) {
+                        lines.push(format!("{}{wrapped}", (self.theme.quote_border)("│ ")));
+                    }
+                }
+                if spaced {
+                    lines.push(String::new());
+                }
             }
-        }
-        while rendered.last().is_some_and(String::is_empty) {
-            rendered.pop();
-        }
-
-        let mut lines = Vec::new();
-        for line in rendered {
-            let styled = (self.theme.quote)(&(self.theme.italic)(&line));
-            for wrapped in wrap_text_with_ansi(&styled, quote_content_width) {
-                lines.push(format!("{}{wrapped}", (self.theme.quote_border)("│ ")));
+            TokenType::Hr => {
+                lines.push((self.theme.hr)(&"─".repeat(width.min(80))));
+                if spaced {
+                    lines.push(String::new());
+                }
+            }
+            TokenType::Html => {
+                lines.push(
+                    self.apply_default_style(token.raw.trim_matches(super::js_regex::is_js_space)),
+                );
+            }
+            TokenType::Space => lines.push(String::new()),
+            _ => {
+                if let Some(text) = &token.text {
+                    lines.push(text.clone());
+                }
             }
         }
         lines
+    }
+
+    fn render_inline_tokens(&self, tokens: &[Token], ctx: Option<&StyleContext>) -> String {
+        let owned;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                owned = self.default_context();
+                &owned
+            }
+        };
+        let prefix = ctx.prefix.as_str();
+        let apply_lines = |text: &str| {
+            text.split('\n')
+                .map(|seg| self.apply(ctx.apply, seg))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let mut result = String::new();
+        for token in tokens {
+            match token.kind {
+                TokenType::Text => match &token.tokens {
+                    Some(children) if !children.is_empty() => {
+                        result.push_str(&self.render_inline_tokens(children, Some(ctx)));
+                    }
+                    _ => result.push_str(&apply_lines(token.text())),
+                },
+                TokenType::Paragraph => {
+                    result.push_str(&self.render_inline_tokens(token.children(), Some(ctx)));
+                }
+                TokenType::Strong => {
+                    let content = self.render_inline_tokens(token.children(), Some(ctx));
+                    result.push_str(&(self.theme.bold)(&content));
+                    result.push_str(prefix);
+                }
+                TokenType::Em => {
+                    let content = self.render_inline_tokens(token.children(), Some(ctx));
+                    result.push_str(&(self.theme.italic)(&content));
+                    result.push_str(prefix);
+                }
+                TokenType::Codespan => {
+                    result.push_str(&(self.theme.code)(token.text()));
+                    result.push_str(prefix);
+                }
+                TokenType::Link => {
+                    let link_text = self.render_inline_tokens(token.children(), Some(ctx));
+                    let styled = (self.theme.link)(&(self.theme.underline)(&link_text));
+                    let href = token.href.as_deref().unwrap_or("");
+                    if get_capabilities().hyperlinks {
+                        result.push_str(&hyperlink(&styled, href));
+                    } else {
+                        let cmp = href.strip_prefix("mailto:").unwrap_or(href);
+                        result.push_str(&styled);
+                        if token.text() != href && token.text() != cmp {
+                            result.push_str(&(self.theme.link_url)(&format!(" ({href})")));
+                        }
+                    }
+                    result.push_str(prefix);
+                }
+                TokenType::Br => result.push('\n'),
+                TokenType::Del => {
+                    let content = self.render_inline_tokens(token.children(), Some(ctx));
+                    result.push_str(&(self.theme.strikethrough)(&content));
+                    result.push_str(prefix);
+                }
+                TokenType::Html => result.push_str(&apply_lines(&token.raw)),
+                _ => {
+                    if let Some(text) = &token.text {
+                        result.push_str(&apply_lines(text));
+                    }
+                }
+            }
+        }
+        if !prefix.is_empty() {
+            while result.ends_with(prefix) {
+                result.truncate(result.len() - prefix.len());
+            }
+        }
+        result
     }
 
     fn render_list(
         &self,
-        ordered: bool,
-        start: u64,
-        items: &[Vec<Block>],
+        token: &Token,
         depth: usize,
         width: usize,
-        mode: StyleMode,
+        ctx: Option<&StyleContext>,
     ) -> Vec<String> {
         let mut lines = Vec::new();
+        let Some(list) = token.list.as_deref() else {
+            return lines;
+        };
         let indent = "    ".repeat(depth);
-
-        for (i, item) in items.iter().enumerate() {
-            let bullet = if ordered {
+        let start = list.start.unwrap_or(1) as u64;
+        for (i, item) in list.items.iter().enumerate() {
+            let bullet = if list.ordered {
                 format!("{}. ", start + i as u64)
             } else {
                 "- ".to_string()
@@ -207,220 +367,224 @@ impl<'a> MarkdownRenderer<'a> {
             let first_prefix = format!("{indent}{}", (self.theme.list_bullet)(&bullet));
             let continuation_prefix = format!("{indent}{}", " ".repeat(visible_width(&bullet)));
             let item_width = width.saturating_sub(visible_width(&first_prefix)).max(1);
-            let mut rendered_any_line = false;
-
-            for block in item {
-                if let Block::List {
-                    ordered: nested_ordered,
-                    start: nested_start,
-                    items: nested_items,
-                } = block
-                {
-                    lines.extend(self.render_list(
-                        *nested_ordered,
-                        *nested_start,
-                        nested_items,
-                        depth + 1,
-                        width,
-                        mode,
-                    ));
-                    rendered_any_line = true;
+            let mut rendered_any = false;
+            for item_token in &item.tokens {
+                if item_token.kind == TokenType::List {
+                    lines.extend(self.render_list(item_token, depth + 1, width, ctx));
+                    rendered_any = true;
                     continue;
                 }
-
-                let item_lines = self.render_block(block, item_width, mode);
-                for line in item_lines {
+                for line in self.render_token(item_token, item_width, None, ctx) {
                     for wrapped in wrap_text_with_ansi(&line, item_width) {
-                        let prefix = if rendered_any_line {
+                        let prefix = if rendered_any {
                             &continuation_prefix
                         } else {
                             &first_prefix
                         };
                         lines.push(format!("{prefix}{wrapped}"));
-                        rendered_any_line = true;
+                        rendered_any = true;
                     }
                 }
             }
-
-            if !rendered_any_line {
+            if !rendered_any {
                 lines.push(first_prefix);
             }
         }
-
         lines
     }
 
-    fn render_inlines(&self, inlines: &[Inline], mode: StyleMode) -> String {
-        let mut result = String::new();
-        for inline in inlines {
-            result.push_str(&self.render_inline(inline, mode));
-        }
-        result
-    }
-
-    fn render_inline(&self, inline: &Inline, mode: StyleMode) -> String {
-        match inline {
-            Inline::Text(t) => self.apply_style_mode(mode, t),
-            Inline::Html(t) => self.apply_style_mode(mode, t),
-            Inline::Code(t) => (self.theme.code)(t),
-            Inline::Strong(inner) => (self.theme.bold)(&self.render_inlines(inner, mode)),
-            Inline::Emphasis(inner) => (self.theme.italic)(&self.render_inlines(inner, mode)),
-            Inline::Strikethrough(inner) => {
-                (self.theme.strikethrough)(&self.render_inlines(inner, mode))
-            }
-            Inline::Link { text, href } => {
-                let link_text = self.render_inlines(text, mode);
-                let styled_link = (self.theme.link)(&(self.theme.underline)(&link_text));
-                if get_capabilities().hyperlinks {
-                    hyperlink(&styled_link, href)
-                } else {
-                    let href_for_comparison = href.strip_prefix("mailto:").unwrap_or(href);
-                    let raw_text: String = text
-                        .iter()
-                        .map(|i| match i {
-                            Inline::Text(t) => t.clone(),
-                            _ => String::new(),
-                        })
-                        .collect();
-                    if raw_text == *href || raw_text == href_for_comparison {
-                        styled_link
-                    } else {
-                        format!(
-                            "{styled_link}{}",
-                            (self.theme.link_url)(&format!(" ({href})"))
-                        )
-                    }
-                }
-            }
-            Inline::SoftBreak => " ".to_string(),
-            Inline::HardBreak => "\n".to_string(),
-        }
-    }
-
-    fn wrap_cell_text(&self, text: &str, max_width: usize) -> Vec<String> {
-        wrap_text_with_ansi(text, max_width.max(1))
+    fn longest_word_width(text: &str, max: usize) -> usize {
+        text.split(super::js_regex::is_js_space)
+            .filter(|w| !w.is_empty())
+            .map(visible_width)
+            .max()
+            .unwrap_or(0)
+            .min(max)
     }
 
     fn render_table(
         &self,
-        header: &[Vec<Inline>],
-        rows: &[Vec<Vec<Inline>>],
-        available_width: usize,
-        mode: StyleMode,
+        token: &Token,
+        available: usize,
+        next: Option<TokenType>,
+        ctx: Option<&StyleContext>,
     ) -> Vec<String> {
-        let num_cols = header.len();
+        let mut lines = Vec::new();
+        let Some(table) = token.table.as_deref() else {
+            return lines;
+        };
+        let num_cols = table.header.len();
         if num_cols == 0 {
-            return Vec::new();
+            return lines;
         }
+        let border_overhead = 3 * num_cols + 1;
+        let available_for_cells = available as isize - border_overhead as isize;
+        if available_for_cells < num_cols as isize {
+            let mut fallback = if token.raw.is_empty() {
+                Vec::new()
+            } else {
+                wrap_text_with_ansi(&token.raw, available)
+            };
+            if next.is_some_and(|n| n != TokenType::Space) {
+                fallback.push(String::new());
+            }
+            return fallback;
+        }
+        let available_for_cells = available_for_cells as usize;
+        const MAX_UNBROKEN_WORD_WIDTH: usize = 30;
 
-        let header_text: Vec<String> = header
-            .iter()
-            .map(|cell| self.render_inlines(cell, mode))
-            .collect();
-        let row_texts: Vec<Vec<String>> = rows
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|cell| self.render_inlines(cell, mode))
-                    .collect()
-            })
-            .collect();
-
-        let mut natural_widths: Vec<usize> = header_text.iter().map(|t| visible_width(t)).collect();
-        for row in &row_texts {
+        let mut natural = vec![0usize; num_cols];
+        let mut min_word = vec![1usize; num_cols];
+        for (i, cell) in table.header.iter().enumerate() {
+            let text = self.render_inline_tokens(&cell.tokens, ctx);
+            natural[i] = visible_width(&text);
+            min_word[i] = Self::longest_word_width(&text, MAX_UNBROKEN_WORD_WIDTH).max(1);
+        }
+        for row in &table.rows {
             for (i, cell) in row.iter().enumerate() {
-                if i < natural_widths.len() {
-                    natural_widths[i] = natural_widths[i].max(visible_width(cell));
-                }
+                let text = self.render_inline_tokens(&cell.tokens, ctx);
+                natural[i] = natural[i].max(visible_width(&text));
+                min_word[i] =
+                    min_word[i].max(Self::longest_word_width(&text, MAX_UNBROKEN_WORD_WIDTH));
             }
         }
 
-        let border_overhead = 3 * num_cols + 1;
-        let available_for_cells = available_width
-            .saturating_sub(border_overhead)
-            .max(num_cols);
+        let mut min_cols = min_word.clone();
+        let mut min_cells: usize = min_cols.iter().sum();
+        if min_cells > available_for_cells {
+            min_cols = vec![1; num_cols];
+            let remaining = available_for_cells - num_cols;
+            if remaining > 0 {
+                let total_weight: usize = min_word.iter().map(|w| w.saturating_sub(1)).sum();
+                let growth: Vec<usize> = min_word
+                    .iter()
+                    .map(|w| {
+                        if total_weight > 0 {
+                            ((w.saturating_sub(1) as f64 / total_weight as f64) * remaining as f64)
+                                .floor() as usize
+                        } else {
+                            0
+                        }
+                    })
+                    .collect();
+                for i in 0..num_cols {
+                    min_cols[i] += growth[i];
+                }
+                let allocated: usize = growth.iter().sum();
+                let mut leftover = remaining.saturating_sub(allocated);
+                let mut i = 0;
+                while leftover > 0 && i < num_cols {
+                    min_cols[i] += 1;
+                    leftover -= 1;
+                    i += 1;
+                }
+            }
+            min_cells = min_cols.iter().sum();
+        }
 
-        let total_natural: usize = natural_widths.iter().sum();
-        let column_widths: Vec<usize> = if total_natural + border_overhead <= available_width {
-            natural_widths.iter().map(|w| (*w).max(1)).collect()
-        } else if total_natural == 0 {
-            vec![(available_for_cells / num_cols).max(1); num_cols]
-        } else {
-            let mut widths: Vec<usize> = natural_widths
+        let total_natural = natural.iter().sum::<usize>() + border_overhead;
+        let widths: Vec<usize> = if total_natural <= available {
+            natural
                 .iter()
-                .map(|w| ((*w * available_for_cells) / total_natural).max(1))
+                .zip(&min_cols)
+                .map(|(n, m)| *n.max(m))
+                .collect()
+        } else {
+            let total_grow: usize = natural
+                .iter()
+                .zip(&min_cols)
+                .map(|(n, m)| n.saturating_sub(*m))
+                .sum();
+            let extra = available_for_cells.saturating_sub(min_cells);
+            let mut widths: Vec<usize> = min_cols
+                .iter()
+                .zip(&natural)
+                .map(|(m, n)| {
+                    let delta = n.saturating_sub(*m);
+                    let grow = if total_grow > 0 {
+                        ((delta as f64 / total_grow as f64) * extra as f64).floor() as usize
+                    } else {
+                        0
+                    };
+                    m + grow
+                })
                 .collect();
             let allocated: usize = widths.iter().sum();
-            let mut remaining = available_for_cells.saturating_sub(allocated);
-            let mut i = 0;
-            while remaining > 0 && num_cols > 0 {
-                widths[i % num_cols] += 1;
-                remaining -= 1;
-                i += 1;
+            let mut remaining = available_for_cells as isize - allocated as isize;
+            while remaining > 0 {
+                let mut grew = false;
+                for i in 0..num_cols {
+                    if remaining <= 0 {
+                        break;
+                    }
+                    if widths[i] < natural[i] {
+                        widths[i] += 1;
+                        remaining -= 1;
+                        grew = true;
+                    }
+                }
+                if !grew {
+                    break;
+                }
             }
             widths
         };
 
-        let mut lines = Vec::new();
-        let border_row = |left: &str, mid: &str, right: &str| -> String {
-            let cells: Vec<String> = column_widths.iter().map(|w| "─".repeat(*w)).collect();
-            format!("{left}{}{right}", cells.join(mid))
+        let rule = |l: &str, m: &str, r: &str| {
+            let cells: Vec<String> = widths.iter().map(|w| "─".repeat(*w)).collect();
+            format!("{l}─{}─{r}", cells.join(&format!("─{m}─")))
+        };
+        let wrap_cell = |text: &str, w: usize| wrap_text_with_ansi(text, w.max(1));
+        let pad = |text: &str, w: usize| {
+            format!(
+                "{text}{}",
+                " ".repeat(w.saturating_sub(visible_width(text)))
+            )
         };
 
-        lines.push(border_row("┌─", "─┬─", "─┐"));
-
-        let header_cell_lines: Vec<Vec<String>> = header_text
+        lines.push(rule("┌", "┬", "┐"));
+        let header_lines: Vec<Vec<String>> = table
+            .header
             .iter()
-            .zip(&column_widths)
-            .map(|(text, w)| self.wrap_cell_text(text, *w))
+            .enumerate()
+            .map(|(i, c)| wrap_cell(&self.render_inline_tokens(&c.tokens, ctx), widths[i]))
             .collect();
-        let header_line_count = header_cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
-        for line_idx in 0..header_line_count {
-            let parts: Vec<String> = header_cell_lines
+        let header_count = header_lines.iter().map(Vec::len).max().unwrap_or(0);
+        for li in 0..header_count {
+            let parts: Vec<String> = header_lines
                 .iter()
-                .zip(&column_widths)
-                .map(|(cell_lines, w)| {
-                    let text = cell_lines.get(line_idx).cloned().unwrap_or_default();
-                    let padded = format!(
-                        "{text}{}",
-                        " ".repeat(w.saturating_sub(visible_width(&text)))
-                    );
-                    (self.theme.bold)(&padded)
+                .enumerate()
+                .map(|(ci, cl)| {
+                    (self.theme.bold)(&pad(cl.get(li).map_or("", String::as_str), widths[ci]))
                 })
                 .collect();
             lines.push(format!("│ {} │", parts.join(" │ ")));
         }
-
-        let separator_line = border_row("├─", "─┼─", "─┤");
-        lines.push(separator_line.clone());
-
-        for (row_index, row) in row_texts.iter().enumerate() {
-            let row_cell_lines: Vec<Vec<String>> = row
+        let separator = rule("├", "┼", "┤");
+        lines.push(separator.clone());
+        for (ri, row) in table.rows.iter().enumerate() {
+            let cell_lines: Vec<Vec<String>> = row
                 .iter()
-                .zip(&column_widths)
-                .map(|(text, w)| self.wrap_cell_text(text, *w))
+                .enumerate()
+                .map(|(i, c)| wrap_cell(&self.render_inline_tokens(&c.tokens, ctx), widths[i]))
                 .collect();
-            let row_line_count = row_cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
-            for line_idx in 0..row_line_count {
-                let parts: Vec<String> = row_cell_lines
+            let count = cell_lines.iter().map(Vec::len).max().unwrap_or(0);
+            for li in 0..count {
+                let parts: Vec<String> = cell_lines
                     .iter()
-                    .zip(&column_widths)
-                    .map(|(cell_lines, w)| {
-                        let text = cell_lines.get(line_idx).cloned().unwrap_or_default();
-                        format!(
-                            "{text}{}",
-                            " ".repeat(w.saturating_sub(visible_width(&text)))
-                        )
-                    })
+                    .enumerate()
+                    .map(|(ci, cl)| pad(cl.get(li).map_or("", String::as_str), widths[ci]))
                     .collect();
                 lines.push(format!("│ {} │", parts.join(" │ ")));
             }
-            if row_index + 1 < row_texts.len() {
-                lines.push(separator_line.clone());
+            if ri + 1 < table.rows.len() {
+                lines.push(separator.clone());
             }
         }
-
-        lines.push(border_row("└─", "─┴─", "─┘"));
+        lines.push(rule("└", "┴", "┘"));
+        if next.is_some_and(|n| n != TokenType::Space) {
+            lines.push(String::new());
+        }
         lines
     }
 }

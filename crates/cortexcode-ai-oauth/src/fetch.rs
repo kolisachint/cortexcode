@@ -71,7 +71,7 @@ pub struct ReqwestFetch;
 impl Fetch for ReqwestFetch {
     fn fetch(&self, request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, String>> {
         Box::pin(async move {
-            let mut builder = reqwest::Client::builder();
+            let mut builder = cortexcode_ai_util::tls::http_client_builder();
             if let Some(ms) = request.timeout_ms {
                 builder = builder.timeout(std::time::Duration::from_millis(ms));
             }

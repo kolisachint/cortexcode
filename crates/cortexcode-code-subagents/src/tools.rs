@@ -112,25 +112,8 @@ fn summarize(task: &str) -> String {
     js_truncate(&name, 60)
 }
 
-/// `formatDurationSecs`.
-pub fn format_duration_secs(secs: f64) -> String {
-    let s = secs.max(0.0);
-    let round = |x: f64| (x + 0.5).floor();
-    if s < 10.0 {
-        return format!("{:.1}s", (s * 10.0).round() / 10.0);
-    }
-    if s < 60.0 {
-        return format!("{}s", round(s));
-    }
-    if s < 3600.0 {
-        let mins = (s / 60.0).floor();
-        let rem = round(s % 60.0);
-        return format!("{mins}m{rem:02}s");
-    }
-    let hrs = (s / 3600.0).floor();
-    let rem = round((s % 3600.0) / 60.0);
-    format!("{hrs}h{rem:02}m")
-}
+/// `formatDurationSecs` (hoocode `core/format-duration.ts`).
+pub use cortexcode_code_agent_session::format::format_duration_secs;
 
 /// A pool task id for a dispatch (the pool's own format).
 fn new_dispatch_task_id() -> String {

@@ -45,6 +45,26 @@ pub fn normalize_terminal_output(s: &str) -> String {
         .collect()
 }
 
+/// Remove escape sequences (SGR, OSC 8, APC markers), keeping the visible text
+/// (Node's `stripVTControlCharacters`).
+pub fn strip_vt_control_characters(s: &str) -> String {
+    if !s.contains('\x1b') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < s.len() {
+        if let Some((_, len)) = extract_ansi_code(s, i) {
+            i += len;
+            continue;
+        }
+        let ch = s[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
 /// Apply a background-color function to `line`, padding it to `width` first.
 pub fn apply_background_to_line(
     line: &str,
@@ -53,7 +73,61 @@ pub fn apply_background_to_line(
 ) -> String {
     let visible_len = visible_width(line);
     let padding = " ".repeat(width.saturating_sub(visible_len));
-    bg_fn(&format!("{line}{padding}"))
+    let repaired = repair_nested_bg_resets(line, &bg_fn);
+    bg_fn(&format!("{repaired}{padding}"))
+}
+
+/// Whether an SGR sequence's parameters put the background back to the
+/// terminal's own: `49`, or `0` (also spelled `ESC[m` or an empty parameter),
+/// alone or inside a compound sequence.
+fn clears_background(params: &str) -> bool {
+    if params.is_empty() {
+        return true;
+    }
+    params
+        .split(';')
+        .any(|p| p.is_empty() || p.parse::<u64>().is_ok_and(|n| n == 0 || n == 49))
+}
+
+/// Re-open the band's background after anything inside the line closed it
+/// (`repairNestedBgResets`). A child that paints and closes its own fill, or
+/// ends with a full `ESC[0m`, would otherwise leave a hole from there to the
+/// end of the row. The opener is recovered from `bg_fn` itself; only the
+/// background is restored.
+fn repair_nested_bg_resets(line: &str, bg_fn: &impl Fn(&str) -> String) -> String {
+    if !line.contains("\x1b[") {
+        return line.to_string();
+    }
+    let sentinel = "\u{0}";
+    let painted = bg_fn(sentinel);
+    let opener = painted.split(sentinel).next().unwrap_or("");
+    if opener.is_empty() {
+        return line.to_string();
+    }
+    // `/\x1b\[([0-9;]*)m/g`, scanning the original line only.
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(pos) = rest.find("\x1b[") {
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + 2..];
+        let params_len = after
+            .bytes()
+            .take_while(|b| b.is_ascii_digit() || *b == b';')
+            .count();
+        if after[params_len..].starts_with('m') {
+            let params = &after[..params_len];
+            out.push_str(&rest[pos..pos + 2 + params_len + 1]);
+            if clears_background(params) {
+                out.push_str(opener);
+            }
+            rest = &after[params_len + 1..];
+        } else {
+            out.push_str("\x1b[");
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -268,20 +342,71 @@ pub fn wrap_text_with_ansi(text: &str, width: usize) -> Vec<String> {
 // Truncation
 // ---------------------------------------------------------------------------
 
+/// One piece of a line for width-aware walking: an ANSI code, a tab, or a
+/// run of text containing neither.
+enum Piece<'a> {
+    Ansi(&'a str),
+    Tab,
+    Run(&'a str),
+}
+
+fn pieces(text: &str) -> Vec<Piece<'_>> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < text.len() {
+        if let Some((code, len)) = crate::ansi::extract_ansi_code(text, i) {
+            out.push(Piece::Ansi(code));
+            i += len;
+            continue;
+        }
+        if text.as_bytes()[i] == b'\t' {
+            out.push(Piece::Tab);
+            i += 1;
+            continue;
+        }
+        let mut end = i;
+        while end < text.len()
+            && text.as_bytes()[end] != b'\t'
+            && crate::ansi::extract_ansi_code(text, end).is_none()
+        {
+            end += text[end..].chars().next().map_or(1, char::len_utf8);
+        }
+        out.push(Piece::Run(&text[i..end]));
+        i = end;
+    }
+    out
+}
+
 fn truncate_fragment_to_width(text: &str, max_width: usize) -> (String, usize) {
     if max_width == 0 || text.is_empty() {
         return (String::new(), 0);
     }
-
     let mut result = String::new();
     let mut width = 0;
-    for g in text.graphemes(true) {
-        let w = grapheme_width(g);
-        if width + w > max_width {
-            break;
+    let mut pending_ansi = String::new();
+    for piece in pieces(text) {
+        match piece {
+            Piece::Ansi(code) => pending_ansi.push_str(code),
+            Piece::Tab => {
+                if width + 3 > max_width {
+                    break;
+                }
+                result.push_str(&std::mem::take(&mut pending_ansi));
+                result.push('\t');
+                width += 3;
+            }
+            Piece::Run(run) => {
+                for g in run.graphemes(true) {
+                    let w = grapheme_width(g);
+                    if width + w > max_width {
+                        return (result, width);
+                    }
+                    result.push_str(&std::mem::take(&mut pending_ansi));
+                    result.push_str(g);
+                    width += w;
+                }
+            }
         }
-        result.push_str(g);
-        width += w;
     }
     (result, width)
 }
@@ -345,28 +470,52 @@ pub fn truncate_to_width(text: &str, max_width: usize, ellipsis: &str, pad: bool
 
     let target_width = max_width - ellipsis_width;
     let mut result = String::new();
+    let mut pending_ansi = String::new();
     let mut visible_so_far = 0usize;
     let mut kept_width = 0usize;
     let mut keep_contiguous_prefix = true;
     let mut overflowed = false;
 
-    for g in text.graphemes(true) {
-        let w = grapheme_width(g);
-        if keep_contiguous_prefix && kept_width + w <= target_width {
-            result.push_str(g);
-            kept_width += w;
-        } else {
-            keep_contiguous_prefix = false;
-        }
-        visible_so_far += w;
-        if visible_so_far > max_width {
-            overflowed = true;
-            break;
+    'walk: for piece in pieces(text) {
+        match piece {
+            Piece::Ansi(code) => pending_ansi.push_str(code),
+            Piece::Tab => {
+                if keep_contiguous_prefix && kept_width + 3 <= target_width {
+                    result.push_str(&std::mem::take(&mut pending_ansi));
+                    result.push('\t');
+                    kept_width += 3;
+                } else {
+                    keep_contiguous_prefix = false;
+                    pending_ansi.clear();
+                }
+                visible_so_far += 3;
+                if visible_so_far > max_width {
+                    overflowed = true;
+                    break 'walk;
+                }
+            }
+            Piece::Run(run) => {
+                for g in run.graphemes(true) {
+                    let w = grapheme_width(g);
+                    if keep_contiguous_prefix && kept_width + w <= target_width {
+                        result.push_str(&std::mem::take(&mut pending_ansi));
+                        result.push_str(g);
+                        kept_width += w;
+                    } else {
+                        keep_contiguous_prefix = false;
+                        pending_ansi.clear();
+                    }
+                    visible_so_far += w;
+                    if visible_so_far > max_width {
+                        overflowed = true;
+                        break 'walk;
+                    }
+                }
+            }
         }
     }
-    let exhausted = !overflowed;
 
-    if !overflowed && exhausted && visible_so_far <= max_width && kept_width == visible_so_far {
+    if !overflowed {
         return if pad {
             format!(
                 "{text}{}",

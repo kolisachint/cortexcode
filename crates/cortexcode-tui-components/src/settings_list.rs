@@ -15,7 +15,9 @@ use std::rc::Rc;
 use cortexcode_tui_fuzzy::fuzzy_filter;
 use cortexcode_tui_keys::KeybindingsManager;
 use cortexcode_tui_render::{Component, ComponentHandle};
-use cortexcode_tui_util::{truncate_to_width, visible_width, wrap_text_with_ansi};
+use cortexcode_tui_util::{
+    apply_background_to_line, truncate_to_width, visible_width, wrap_text_with_ansi,
+};
 
 use crate::color::ColorFn;
 use crate::input::Input;
@@ -33,6 +35,11 @@ pub struct SettingItem {
     pub label: String,
     pub description: Option<String>,
     pub current_value: String,
+    /// Display-only text after the value, dimmed and never cycled (a token
+    /// price, a count).
+    pub value_suffix: Option<String>,
+    /// Extra text the search matches against, never rendered.
+    pub keywords: Option<String>,
     /// If provided, Enter/Space cycles through these values.
     pub values: Option<Vec<String>>,
     /// If provided, Enter opens this submenu.
@@ -47,6 +54,8 @@ pub struct SettingsListTheme {
     pub description: ColorFn,
     pub cursor: String,
     pub hint: ColorFn,
+    /// Background for the selected row, padded to the full width.
+    pub selected_row: Option<ColorFn>,
 }
 
 #[derive(Default)]
@@ -57,7 +66,7 @@ pub struct SettingsListOptions {
 pub struct SettingsList {
     items: Vec<SettingItem>,
     filtered_indices: Vec<usize>,
-    theme: SettingsListTheme,
+    theme: Rc<SettingsListTheme>,
     selected_index: usize,
     max_visible: usize,
     pub on_change: Option<OnChangeFn>,
@@ -79,6 +88,14 @@ impl SettingsList {
     ) -> Self {
         let filtered_indices = (0..items.len()).collect();
         let search_enabled = options.enable_search;
+        let theme = Rc::new(theme);
+        let search_input = search_enabled.then(|| {
+            let mut input = Input::new();
+            // The query line's caret follows the list's own theme.
+            let theme = theme.clone();
+            input.prompt_color = Box::new(move |t: &str| (theme.hint)(t));
+            input
+        });
         Self {
             items,
             filtered_indices,
@@ -87,11 +104,7 @@ impl SettingsList {
             max_visible,
             on_change: None,
             on_cancel: None,
-            search_input: if search_enabled {
-                Some(Input::new())
-            } else {
-                None
-            },
+            search_input,
             search_enabled,
             submenu_component: None,
             submenu_result_slot: None,
@@ -163,12 +176,13 @@ impl SettingsList {
         {
             let item = &self.items[item_idx];
             let is_selected = i == self.selected_index;
+            // Unselected rows are indented by the cursor's width.
+            let prefix_width = visible_width(&self.theme.cursor);
             let prefix = if is_selected {
                 self.theme.cursor.clone()
             } else {
-                "  ".to_string()
+                " ".repeat(prefix_width)
             };
-            let prefix_width = visible_width(&prefix);
 
             let label_padded = format!(
                 "{}{}",
@@ -179,19 +193,34 @@ impl SettingsList {
 
             let separator = "  ";
             let used_width = prefix_width + max_label_width + visible_width(separator);
-            let value_max_width = (width_usize as i64 - used_width as i64 - 2).max(0) as usize;
+            let value_max_width = width_usize.saturating_sub(used_width);
 
             let value_text = (self.theme.value)(
-                &truncate_to_width(&item.current_value, value_max_width, "...", false),
+                &truncate_to_width(&item.current_value, value_max_width, "", false),
                 is_selected,
             );
+            // The suffix takes what the value left behind, so a narrow terminal
+            // drops the price rather than the setting.
+            let suffix_text = match item.value_suffix.as_deref().filter(|s| !s.is_empty()) {
+                Some(suffix) => (self.theme.hint)(&truncate_to_width(
+                    &format!("  {suffix}"),
+                    value_max_width.saturating_sub(visible_width(&item.current_value)),
+                    "",
+                    false,
+                )),
+                None => String::new(),
+            };
 
-            lines.push(truncate_to_width(
-                &format!("{prefix}{label_text}{separator}{value_text}"),
+            let row = truncate_to_width(
+                &format!("{prefix}{label_text}{separator}{value_text}{suffix_text}"),
                 width_usize,
                 "...",
                 false,
-            ));
+            );
+            lines.push(match (&self.theme.selected_row, is_selected) {
+                (Some(band), true) => apply_background_to_line(&row, width_usize, |t| band(t)),
+                _ => row,
+            });
         }
 
         if start_index > 0 || end_index < display_indices.len() {
@@ -207,7 +236,7 @@ impl SettingsList {
         if let Some(&idx) = display_indices.get(self.selected_index) {
             if let Some(desc) = &self.items[idx].description {
                 lines.push(String::new());
-                let wrapped = wrap_text_with_ansi(desc, width_usize.saturating_sub(4));
+                let wrapped = wrap_text_with_ansi(desc, width_usize.saturating_sub(2));
                 for line in wrapped {
                     lines.push((self.theme.description)(&format!("  {line}")));
                 }
@@ -355,7 +384,10 @@ impl SettingsList {
             .enumerate()
             .map(|(i, item)| View {
                 index: i,
-                label: item.label.clone(),
+                label: match item.keywords.as_deref().filter(|k| !k.is_empty()) {
+                    Some(keywords) => format!("{} {keywords}", item.label),
+                    None => item.label.clone(),
+                },
             })
             .collect();
         impl Clone for View {
@@ -373,6 +405,12 @@ impl SettingsList {
 }
 
 impl Component for SettingsList {
+    /// Keys go through the global keybindings (`getKeybindings()`).
+    fn handle_input(&mut self, data: &str) {
+        let kb = cortexcode_tui_keys::get_keybindings();
+        self.handle_input_with(data, &kb);
+    }
+
     fn render(&mut self, width: u16) -> Vec<String> {
         if let Some(submenu) = &self.submenu_component {
             return submenu.borrow_mut().render(width);
@@ -399,6 +437,7 @@ mod tests {
 
     fn theme() -> SettingsListTheme {
         SettingsListTheme {
+            selected_row: None,
             label: Box::new(|s: &str, _sel| s.to_string()),
             value: Box::new(|s: &str, _sel| s.to_string()),
             description: identity(),
@@ -413,6 +452,8 @@ mod tests {
 
     fn item(id: &str, values: Vec<&str>) -> SettingItem {
         SettingItem {
+            keywords: None,
+            value_suffix: None,
             id: id.to_string(),
             label: id.to_string(),
             description: None,

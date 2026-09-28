@@ -2563,7 +2563,7 @@
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -2597,6 +2597,12 @@
      "commit": "24570c8",
      "kind": "note",
      "text": "New crate code-permissions: HooPermissionGate ports permission-gate.ts over code-modes' merged hoo-config.json (read on every call): denied_tools, enabled_tools allowlist, denied/allowed_bash_commands (regex crate; no look-around), then with a UI allowed_write_paths, auto_allow and the 'Allow: …' Yes/No/Always prompt ('Always' appends to the global auto_allow). Headless (print) sessions now run every tool not hard-blocked, as in hoocode (the invented PolicyPermissionGate denied unknown tools like webfetch in print mode; it stays in code-tools unused by the CLI). CLI: --disallowed-tools + disabledTools setting feed CreateAgentSessionOptions.disallowed_tools. Left: .webtoolsignore host rule (10.2e, blockedHostForUrl); the gate runs in the loop before before_tool_call on the raw (prepared) args. permission-prompt L2 (stable on hoocode) waits on the TUI selector (11.3); cortex's prompt is the crossterm placeholder (TerminalPermissionUi)."
+    },
+    {
+     "at": "2026-09-27T21:09:56Z",
+     "commit": "8859079",
+     "kind": "verify",
+     "text": "L1 pass; L2 permission-prompt=pass"
     }
    ]
   },
@@ -3225,7 +3231,7 @@
    "id": "10.10",
    "title": "Small core modules: exec, event-bus, git-branch, format-*, token-budget, output-guard, resolve-config-value, utils (paths, git, mime, tls-ca)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.3a"
    ],
@@ -3240,13 +3246,169 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
-   "notes": "",
+   "notes": "Split into 10.10a (exec/event-bus/format/output-guard), 10.10b (utils/git), 10.10c (tls-ca). Bookkeeping: this parent is marked done by hand because it is now only a container; its children carry the gates.",
    "log": [
     {
      "at": "2026-09-26T23:42:24Z",
      "commit": "6441f47",
      "kind": "note",
      "text": "10.3a: git-branch.ts is ported (cortexcode_code_paths::git_branch: find_git_paths, read_branch_from_head, resolve_branch_with_git, read_git_branch); SessionManager records Header.branch with it. The footer's live branch watcher is still open."
+    },
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 10.10a/10.10b/10.10c; parent closed as a container (bookkeeping, not a verify)."
+    }
+   ]
+  },
+  {
+   "id": "10.10a",
+   "title": "Small core modules: exec, event-bus, format-tokens, format-list, output-guard",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-agent-session",
+    "cortexcode-tui-util",
+    "cortexcode-code-subagents"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/exec.ts",
+    "packages/coding-agent/src/core/event-bus.ts",
+    "packages/coding-agent/src/core/format-tokens.ts",
+    "packages/coding-agent/src/core/format-list.ts",
+    "packages/coding-agent/src/core/output-guard.ts",
+    "packages/coding-agent/src/core/format-duration.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/format-tokens.test.ts",
+    "packages/coding-agent/test/format-list.test.ts",
+    "packages/coding-agent/test/format-duration.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:35:58Z",
+     "commit": "f454947",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:44:14Z",
+     "commit": "f454947",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.10b",
+   "title": "utils/git: parseGitUrl (hosted-git-info semantics for github/gitlab/bitbucket/gist/sourcehut)",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-paths"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/git.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/git-ssh-url.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:47:34Z",
+     "commit": "a5cc1c0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:50:10Z",
+     "commit": "a5cc1c0",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T10:50:20Z",
+     "commit": "a5cc1c0",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "10.10c",
+   "title": "utils/tls-ca: --ca-cert / CORTEX_CA_CERT / NODE_EXTRA_CA_CERTS / --use-system-ca trust set, threaded into every reqwest client",
+   "phase": 10,
+   "status": "done",
+   "depends": [
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-ai-util",
+    "cortexcode-code-cli",
+    "cortexcode-agent-mcp",
+    "cortexcode-ai-images",
+    "cortexcode-ai-oauth",
+    "cortexcode-ai-provider-anthropic",
+    "cortexcode-ai-provider-google",
+    "cortexcode-ai-provider-google-gemini-cli",
+    "cortexcode-ai-provider-openai",
+    "cortexcode-ai-provider-openai-codex",
+    "cortexcode-ai-provider-openai-responses",
+    "cortexcode-code-tools"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/tls-ca.ts",
+    "packages/coding-agent/src/cli.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tls-ca.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library-internal, no user-visible surface of its own; covered by downstream scenarios",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T14:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 10.10. Already ported before the split: token-budget (code-subagents::token_budget), format-duration (code-subagents::format_duration_secs), mime (code-media::detect_supported_image_mime_type), resolve-config-value (code-models::config_value), utils/paths and git-branch (code-paths)."
+    },
+    {
+     "at": "2026-09-27T10:50:33Z",
+     "commit": "411e996",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T10:55:08Z",
+     "commit": "411e996",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -3286,7 +3448,7 @@
    "id": "11.1",
    "title": "Interactive shell on ported TUI: new crates code-tui-app, code-tui-theme (theme.ts + JSON themes), code-tui-keybindings; header/editor/footer idle screen",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.1c",
     "10.3a"
@@ -3307,16 +3469,946 @@
    "l2": [
     "startup"
    ],
+   "notes": "Split into 11.1a (theme), 11.1b (keybindings), 11.1c (app + startup L2). Parent closed by hand as a container (bookkeeping).",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.1a/11.1b/11.1c; parent closed as a container (bookkeeping, not a verify)."
+    }
+   ]
+  },
+  {
+   "id": "11.0a",
+   "title": "TUI library catch-up to the pin, part 1: utils, box (paper sheets), spacer, select-list/settings-list (cursor + selected-row band), loader (○/● toggle), input, markdown, undo-stack, keybindings, frame.ts",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-tui-util",
+    "cortexcode-tui-components",
+    "cortexcode-tui-editing",
+    "cortexcode-tui-keys"
+   ],
+   "sources": [
+    "packages/tui/src/utils.ts",
+    "packages/tui/src/components/box.ts",
+    "packages/tui/src/components/spacer.ts",
+    "packages/tui/src/components/select-list.ts",
+    "packages/tui/src/components/settings-list.ts",
+    "packages/tui/src/components/loader.ts",
+    "packages/tui/src/components/input.ts",
+    "packages/tui/src/components/markdown.ts",
+    "packages/tui/src/components/frame.ts",
+    "packages/tui/src/undo-stack.ts",
+    "packages/tui/src/keybindings.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    },
+    {
+     "at": "2026-09-27T11:08:34Z",
+     "commit": "fb8b13a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T18:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Markdown here is only the pin delta (heading level + headingBlock); the Rust markdown is its own AST renderer, not a port of hoocode's marked-based one: re-check it against the pin in 11.2. Components now implement Component::handle_input through a thread-local get_keybindings()/set_keybindings()."
+    },
+    {
+     "at": "2026-09-27T11:18:35Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:18:51Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:19:01Z",
+     "commit": "df3631a",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.0b",
+   "title": "TUI library catch-up to the pin, part 2: tui.ts renderer (+1.1K: owned scroll position, chrome dial, floor packing, pinned window), terminal.ts, mouse.ts, terminal-image.ts (Sixel)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-tui-render",
+    "cortexcode-tui-terminal",
+    "cortexcode-tui-images",
+    "cortexcode-tui-components",
+    "cortexcode-tui-util"
+   ],
+   "sources": [
+    "packages/tui/src/tui.ts",
+    "packages/tui/src/terminal.ts",
+    "packages/tui/src/mouse.ts",
+    "packages/tui/src/terminal-image.ts",
+    "packages/tui/src/components/image.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The tui-* crates were ported 2026-07-20 from hoocode ~713e5dd (2026-07-19); packages/tui changed by +2.6K lines in 35 commits up to the pin (frame.ts, mouse.ts, paper sheets, selected-row bands, the chrome dial/floor in tui.ts, Sixel). Port that delta with `git -C target/hoocode-pin diff 713e5dd HEAD -- packages/tui`."
+    },
+    {
+     "at": "2026-09-27T11:20:13Z",
+     "commit": "a5b5617",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T11:30:29Z",
+     "commit": "3fed45e",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T11:31:05Z",
+     "commit": "3fed45e",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.0c",
+   "title": "Re-port the Editor faithfully at the pin: components/editor.ts (layout, scrollOffset over layout lines at 30% of terminal rows, frame border box/rule/none + top-border label, redo, autocomplete visibility, word-wrap atomic-grapheme fix) and editor.test.ts",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/tui/src/components/editor.ts",
+    "packages/tui/src/editor-component.ts"
+   ],
+   "ts_tests": [
+    "packages/tui/test/editor.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T18:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "The Rust Editor diverged from hoocode before the pin (a viewport over logical lines instead of scrollOffset over layout lines, caller-owned preferredVisualCol, a select-list theme factory; touched by 8f5693e). Re-port from the pin rather than patching the 713e5dd..pin delta."
+    },
+    {
+     "at": "2026-09-27T11:32:18Z",
+     "commit": "a408d80",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:21:52Z",
+     "commit": "a408d80",
+     "kind": "note",
+     "text": "editor.test.ts ported to crates/cortexcode-tui-components/tests/editor.rs (199 tests). N/A: 'aborts active autocomplete when typing continues' — the Rust AutocompleteProvider is synchronous, so there is no in-flight request to abort; 'announces the list only once it actually exists' adapted to the sync provider (list + announcement arrive together, exactly once). Also fixed tui-keys defaults: jumpForward/jumpBackward had stray plain 'f'/'F' bindings not in the pin (swallowed typed f/g)."
+    },
+    {
+     "at": "2026-09-27T15:22:04Z",
+     "commit": "a408d80",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.1a",
+   "title": "code-tui-theme: theme.ts (color resolution, truecolor/256 detection, fg/bg/bold helpers, loading + validation) and the bundled JSON themes",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "10.1c",
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-theme"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/theme/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T11:07:30Z",
+     "commit": "fb8b13a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Back to todo (bookkeeping): the theme's hooks (SelectListTheme cursor/selectedRow, Box paper) need 11.0a first."
+    },
+    {
+     "at": "2026-09-27T15:26:04Z",
+     "commit": "b0c1366",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:40:11Z",
+     "commit": "b0c1366",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-theme. Ported theme-contrast (51 Rust tests incl. it.each expansions), theme-export (+ loader/global/watcher tests), theme-cutout-tokens (N/A until 11.2: the two radar-row cases need tool-signal's renderToolSignalLine). Goldens: every token's fg/bg/fill ANSI for all 8 themes x truecolor/256color, resolved + export colors, agent/session palette mapping, and validation error text, all captured from the pinned build. Deviations: cli-highlight is a pluggable CodeHighlighter (set_code_highlighter; tui-highlight lands in 11.2 and should install one); the custom-theme watcher polls the file (50ms, 100ms debounce) instead of fs.watch; built-in themes are embedded, so ThemeInfo.path is None for them; SourceInfo on Theme not carried (extensions are deferred)."
+    },
+    {
+     "at": "2026-09-27T15:40:24Z",
+     "commit": "b0c1366",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.1b",
+   "title": "code-tui-keybindings: core/keybindings.ts (app actions on top of tui-keys, keybindings.json loading, hint text)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "10.1c",
+    "11.0a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-keybindings"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/keybindings.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c's startup scenario",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T15:41:28Z",
+     "commit": "d70674d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:46:12Z",
+     "commit": "d70674d",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-keybindings: KEYBINDINGS (TUI + app, declaration order; tui-keys now exports the ordered TUI_KEYBINDINGS table and KeybindingsManager is Clone), legacy-name migration + ordering, keybindings.json loading (AppKeybindingsManager::create/reload/install), the keybindings step of migrations.ts (migrate_keybindings_config_file; the rest of runMigrations is not ported here), and keybinding-hints.ts (format_key_text, key_text, key_hint, matches_app_key, app_key_label). Ported keybinding-layout (20) and keybindings-migration tests; golden of the full table, key text and migration order from the pinned build."
+    },
+    {
+     "at": "2026-09-27T15:46:20Z",
+     "commit": "d70674d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.1c",
+   "title": "code-tui-app: interactive shell on the ported TUI; header, resource summary, editor frame, footer idle screen; replaces run_interactive_mode",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.1c1",
+    "11.1c2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/footer.ts",
+    "packages/coding-agent/src/modes/interactive/resource-display.ts",
+    "packages/coding-agent/src/modes/interactive/chrome-layout.ts",
+    "packages/coding-agent/src/modes/interactive/components/input-frame.ts",
+    "packages/coding-agent/src/core/wordmark.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "startup"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1 (theme.ts alone is 1.9K lines, keybindings.ts 0.8K, interactive-mode.ts 4.6K)."
+    },
+    {
+     "at": "2026-09-27T15:47:10Z",
+     "commit": "6152858",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.1c1 (chrome components) and 11.1c2 (the mode + L2 startup); this card is closed as a container once both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:20:04Z",
+     "commit": "7dabecd",
+     "kind": "verify",
+     "text": "L1 pass; L2 startup=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.1c1",
+   "title": "code-tui-app chrome components: wordmark header (ExpandableText), resource summary (resource-display.ts), footer + footer data provider + startup-progress line, chrome-layout, session chip, input frame, notification panel",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.0b",
+    "11.0c",
+    "11.1a",
+    "11.1b",
+    "10.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/wordmark.ts",
+    "packages/coding-agent/src/modes/interactive/resource-display.ts",
+    "packages/coding-agent/src/modes/interactive/components/footer.ts",
+    "packages/coding-agent/src/core/footer-data-provider.ts",
+    "packages/coding-agent/src/core/startup-progress.ts",
+    "packages/coding-agent/src/modes/interactive/chrome-layout.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-chip.ts",
+    "packages/coding-agent/src/modes/interactive/components/input-frame.ts",
+    "packages/coding-agent/src/modes/interactive/components/notification-panel.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.1c2 startup",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T15:49:59Z",
+     "commit": "6152858",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:05:03Z",
+     "commit": "bbe019d",
+     "kind": "note",
+     "text": "New crate cortexcode-code-tui-app (chrome components). Goldens from the pin (generators in migration/tools/goldens/): footer across 13 states, resource listing (4 cases), wordmark. Ported tests: progress-bar (voice-panel cases N/A: no voice UI), session-chip, startup-progress (store, embsearch mapping, footer lines), footer-width, subagent-footer, footer-data-provider (git child_process mocks replaced by real files; fs.watch retry N/A: the watcher polls), chrome-layout (Slot cases live in tui-render), notification-panel (fake clock; the panel is polled via deadline()/poll() instead of owning a timer), input-surface-frame's InputFrame cases (surface cases wait on 11.3 pickers). Fixed tui-util truncate_to_width, which cut escape sequences in half."
+    },
+    {
+     "at": "2026-09-27T16:05:46Z",
+     "commit": "bbe019d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T16:06:08Z",
+     "commit": "bbe019d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.1c2",
+   "title": "code-tui-app InteractiveMode shell: TUI tree (header, flex fill, chat, notifications, editor, footer), key handlers, submit loop; replaces run_interactive_mode",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.1c1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "startup"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T15:49:52Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.1c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:10:20Z",
+     "commit": "7dabecd",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T16:19:12Z",
+     "commit": "7dabecd",
+     "kind": "note",
+     "text": "InteractiveMode in code-tui-app (interactive_mode.rs) replaces code-cli's crossterm REPL: banner (expandable via app.tools.expand), flex fill, resource listing, notification band, CustomEditor dispatch (interrupt/clear-twice-exits/exit/expand/chrome dial/thinking dial), session chip, thinking-coloured border, footer via FooterSource, chrome density, startup-progress and branch rerenders, theme watcher. Semantic index: binary lookup only (setting/PATH/bin), missing -> the footer's 'unavailable' line; found -> skipped (indexing is 12.4). Placeholders until 11.2: a turn shows the user's text and the agent's final text; no working loader. The crossterm permission prompt remains (firewall pending moved to 10.6). normalize.json: added \\\\bcortex_ -> <WORDMARK> (the brand name is the only difference in the banner). Headless end-to-end test in code-cli runtime tests."
+    },
+    {
+     "at": "2026-09-27T16:19:50Z",
+     "commit": "7dabecd",
+     "kind": "verify",
+     "text": "L1 pass; L2 startup=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2a",
+   "title": "Markdown: faithful re-port of the pin's marked-based components/markdown.ts (block/inline token semantics of marked 15) with markdown.test.ts",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.1c2"
+   ],
+   "crates": [
+    "cortexcode-tui-components"
+   ],
+   "sources": [
+    "packages/tui/src/components/markdown.ts"
+   ],
+   "ts_tests": [
+    "packages/tui/test/markdown.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: library; rendered through 11.2b chat-basic",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T16:27:15Z",
+     "commit": "4f99ecc",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:23:20Z",
+     "commit": "4f99ecc",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:23:42Z",
+     "commit": "4f99ecc",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.2b",
+   "title": "Turn transcript: user-message, assistant-message (streaming, thinking display), working loader, turn cost line, wired into the interactive mode",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/user-message.ts",
+    "packages/coding-agent/src/modes/interactive/components/assistant-message.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/assistant-message.test.ts",
+    "packages/coding-agent/test/user-message.test.ts",
+    "packages/coding-agent/test/streaming-segmentation.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "chat-basic"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:24:11Z",
+     "commit": "43a6142",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:34:54Z",
+     "commit": "",
+     "kind": "note",
+     "text": "ts_tests assigned: assistant-message, user-message, streaming-segmentation (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:35:18Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:35:35Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T20:37:32Z",
+     "commit": "43a6142",
+     "kind": "verify",
+     "text": "L1 pass; L2 chat-basic=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2c",
+   "title": "Tool blocks: tool-execution, tool-chain (+summary), tool-signal (radar), read-output, visual-truncate; the view dial",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2c1",
+    "11.2c2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tool-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain-summary.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-signal.ts",
+    "packages/coding-agent/src/modes/interactive/components/read-output.ts",
+    "packages/coding-agent/src/modes/interactive/components/visual-truncate.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: container for 11.2c1/11.2c2",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:37:49Z",
+     "commit": "1b4047a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2c1 (framework + read/write/search renderers, L2 tool-read) and 11.2c2 (remaining renderers) (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:56:06Z",
+     "commit": "c484cb8",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.2c1",
+   "title": "Tool blocks: tool-execution (renderer slots, view dial, radar signal row, freeze), tool-chain + summary, read-output, visual-truncate; read/write/SearchCodebase renderers; wired into the interactive mode",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2b"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tool-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-chain-summary.ts",
+    "packages/coding-agent/src/modes/interactive/components/tool-signal.ts",
+    "packages/coding-agent/src/modes/interactive/components/read-output.ts",
+    "packages/coding-agent/src/modes/interactive/components/visual-truncate.ts",
+    "packages/coding-agent/src/core/tools/render-utils.ts",
+    "packages/coding-agent/src/core/tools/read.ts",
+    "packages/coding-agent/src/core/tools/write.ts",
+    "packages/coding-agent/src/core/tools/search.ts",
+    "packages/coding-agent/src/core/tool-output-view.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tool-execution-component.test.ts",
+    "packages/coding-agent/test/tool-chain.test.ts",
+    "packages/coding-agent/test/tool-chain-summary.test.ts",
+    "packages/coding-agent/test/tool-output-view.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "tool-read"
+   ],
+   "notes": "The edit-renderer case of tool-execution-component.test.ts is owned by 11.2d (diff).",
+   "log": [
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:52:14Z",
+     "commit": "1b4047a",
+     "kind": "verify",
+     "text": "L1 pass; L2 tool-read=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2c2",
+   "title": "Remaining built-in tool renderers: webfetch, websearch, subagent (Task/TaskOutput), canvas, plugin tools",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2c1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/core/tools/webfetch.ts",
+    "packages/coding-agent/src/core/tools/websearch.ts",
+    "packages/coding-agent/src/core/tools/webtools-shared.ts",
+    "packages/coding-agent/src/core/tools/subagent.ts",
+    "packages/coding-agent/src/core/tools/canvas.ts",
+    "packages/coding-agent/src/core/tools/plugins.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: renderers; covered by unit tests against the pin's formatting",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T20:39:41Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2c (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:52:46Z",
+     "commit": "c484cb8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:55:52Z",
+     "commit": "c484cb8",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.2d",
+   "title": "Bash and diff: bash-execution, diff rendering (edit/write), and tui-highlight (highlight.js port) for code",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2d1",
+    "11.2d2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-tui-highlight",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/bash-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/diff.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: container for 11.2d1/11.2d2",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:55:23Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Handoff from 11.2c2: highlighted read-result goldens wait on the highlighter (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:56:24Z",
+     "commit": "5b19d0d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Paused: tool-bash L2 needs the permission prompt on the TUI; 11.2e added first (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:00:53Z",
+     "commit": "8859079",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2d1 (bash/diff/edit, L2 tool-bash) and 11.2d2 (code highlighting) (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:37:37Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Title: syntect -> highlight.js port, matching 11.2d2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:38:48Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.2d1",
+   "title": "Bash and diff: bash tool renderer (live Elapsed/Took), edit renderer (framed preview + result), diff.ts with a jsdiff diffWords port, bash-execution.ts (the ! command block)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2e"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/bash-execution.ts",
+    "packages/coding-agent/src/modes/interactive/components/diff.ts",
+    "packages/coding-agent/src/core/tools/bash.ts",
+    "packages/coding-agent/src/core/tools/edit.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/bash-execution-width.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "tool-bash"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:09:19Z",
+     "commit": "8859079",
+     "kind": "verify",
+     "text": "L1 pass; L2 tool-bash=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.2d2",
+   "title": "Code highlighting: highlightCode (cli-highlight / highlight.js with the theme's cli-highlight palette) behind code-tui-theme's CodeHighlighter; used by markdown code blocks, read and write previews",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2d1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-theme",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/theme/theme.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: covered by goldens against cli-highlight output",
+   "notes": "Remove needs_highlighter() from cortexcode-code-tui-widgets/tests/tool_renderers_gold.rs once the highlighter is installed (two read cases with .md paths). Exact parity needs highlight.js's tokenizer, not syntect.",
+   "log": [
+    {
+     "at": "2026-09-27T21:08:35Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.2d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:10:20Z",
+     "commit": "824c569",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T21:36:22Z",
+     "commit": "824c569",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.2e",
+   "title": "Extension selector dialog on the TUI (extension-dialogs showSelector, extension-selector, selected-row-list, dynamic-border, countdown-timer) and the permission gate's prompt through it (replaces the crossterm TerminalPermissionUi in interactive mode)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2c"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/extension-dialogs.ts",
+    "packages/coding-agent/src/modes/interactive/components/extension-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/selected-row-list.ts",
+    "packages/coding-agent/src/modes/interactive/components/dynamic-border.ts",
+    "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: the dialog is rendered by permission-prompt (10.6) and tool-bash (11.2d); with this task the prompt snapshot differs from hoocode only in the bash block, which 11.2d ports",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added: prerequisite of 11.2d's tool-bash L2 and 10.6's permission-prompt L2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T20:57:17Z",
+     "commit": "",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-27T20:59:44Z",
+     "commit": "",
+     "kind": "note",
+     "text": "permission-prompt run: selector matches; remaining diff is the bash call line/'Took' (11.2d bash renderer). L2 re-scoped to n/a (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:00:13Z",
+     "commit": "5b19d0d",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T21:00:40Z",
+     "commit": "5b19d0d",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "11.2",
-   "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (syntect); user/assistant messages, tool execution, diff, bash, summaries, usage line",
+   "title": "Chat view widgets: new crates code-tui-widgets + tui-highlight (highlight.js port); user/assistant messages, tool execution, diff, bash, summaries, usage line",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "11.1"
+    "11.2a",
+    "11.2b",
+    "11.2c",
+    "11.2d"
    ],
    "crates": [
     "cortexcode-code-tui-widgets",
@@ -3340,6 +4432,251 @@
      "commit": "9b29742",
      "kind": "note",
      "text": "10.5b: mode-plan scenario (L2 gate of 10.5b) needs the editor + footer mode badge ('⬢ PLAN') and must consume ModesExtension::take_actions after run_command (Notify, Reload, NewSessionWithMessage, SendFollowUp)."
+    },
+    {
+     "at": "2026-09-27T18:30:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "cortexcode-tui-components' markdown is a custom AST renderer, not a port of the pin's marked-based markdown.ts; port it faithfully (with markdown.test.ts) before chat-basic parity."
+    },
+    {
+     "at": "2026-09-27T16:27:05Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.2a (markdown), 11.2b (turn transcript, chat-basic), 11.2c (tool blocks, tool-read), 11.2d (bash/diff/highlight, tool-bash); this card closes as a container once they are done (bookkeeping). tool-edit scenario: still to be written, under 11.2d."
+    },
+    {
+     "at": "2026-09-27T21:37:37Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Title: syntect -> highlight.js port, matching 11.2d2 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:40:50Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-27T21:43:45Z",
+     "commit": "86156e4",
+     "kind": "verify",
+     "text": "L1 pass; L2 chat-basic=pass, tool-read=pass, tool-bash=pass, tool-edit=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.3a",
+   "title": "Session selector: session-selector (+ search, rename, delete, branch view) over list_sessions/list_all_sessions; alt+h and --resume open it; the missing-session-cwd Continue/Cancel prompt",
+   "phase": 11,
+   "status": "in_progress",
+   "depends": [
+    "11.2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/session-selector-search.test.ts",
+    "packages/coding-agent/test/session-selector-rename.test.ts",
+    "packages/coding-agent/test/session-selector-path-delete.test.ts",
+    "packages/coding-agent/test/session-selector-branch.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "session-resume"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:35:00Z",
+     "commit": "dca7f63",
+     "kind": "note",
+     "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
+    }
+   ]
+  },
+  {
+   "id": "11.3b",
+   "title": "Model selector: model-selector, scoped-models-selector, model-controller (/model, cycling)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a",
+    "11.4"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/model-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts",
+    "packages/coding-agent/src/modes/interactive/model-controller.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "model-selector"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3c",
+   "title": "Small selectors: thinking, theme, show-images, session-color, user-message-selector, ask-options",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/thinking-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/theme-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/show-images-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-color-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/user-message-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/ask-options.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/ask-options.test.ts",
+    "packages/coding-agent/test/ask-options-loop.test.ts",
+    "packages/coding-agent/test/picker-widths.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3d",
+   "title": "Settings selector: settings-selector panes and config-selector",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/config-selector.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/settings-token-surface.test.ts",
+    "packages/coding-agent/test/learn-settings-pane.test.ts",
+    "packages/coding-agent/test/platform-settings-pane.test.ts",
+    "packages/coding-agent/test/plugin-settings-keyboard.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3e",
+   "title": "Tree selector (session tree navigation)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/tree-selector.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tree-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3f",
+   "title": "Login: login-dialog, oauth-selector, login-controller",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/login-dialog.ts",
+    "packages/coding-agent/src/modes/interactive/components/oauth-selector.ts",
+    "packages/coding-agent/src/modes/interactive/login-controller.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/oauth-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
     }
    ]
   },
@@ -3349,7 +4686,12 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2"
+    "11.3a",
+    "11.3b",
+    "11.3c",
+    "11.3d",
+    "11.3e",
+    "11.3f"
    ],
    "crates": [
     "cortexcode-code-tui-selectors"
@@ -3359,10 +4701,7 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [
-    "model-selector",
-    "session-resume"
-   ],
+   "l2": [],
    "notes": "",
    "log": [
     {
@@ -3382,6 +4721,12 @@
      "commit": "efc0d51",
      "kind": "note",
      "text": "10.7b: --resume is rejected until the session selector exists (session-picker.ts selectSession over list_sessions/list_all_sessions, then SessionManager::open); the missing-session-cwd prompt should be the Continue/Cancel selector too (runtime.rs uses a stdin y/N placeholder)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "note",
+     "text": "Split into 11.3a (session selector, L2 session-resume), 11.3b (model selector, L2 model-selector; needs /model from 11.4), 11.3c (small selectors), 11.3d (settings), 11.3e (tree), 11.3f (login). This card closes as a container (bookkeeping)."
     }
    ]
   },
@@ -3391,7 +4736,7 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2"
+    "11.2b"
    ],
    "crates": [
     "cortexcode-code-tui-app",

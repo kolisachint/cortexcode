@@ -11,11 +11,28 @@ use std::rc::Rc;
 
 use crate::color::ColorFn;
 
+/// The paper treatment a box asks its owner for on every frame (`PaperSheet`):
+/// the ink of its shadow and the gutter it holds back from the right margin.
+/// A sheet with neither is the plain full-width band.
+#[derive(Default)]
+pub struct PaperSheet {
+    /// Paints the shadow's own glyphs. `None`: the sheet casts no shadow.
+    pub shadow: Option<ColorFn>,
+    /// Columns of page held back at the right margin, so the sheet has a right
+    /// edge to show and somewhere to put the shadow's column.
+    pub inset: Option<usize>,
+}
+
+/// Resolves the paper treatment per frame, so a box already on screen follows
+/// a theme switch.
+pub type PaperFn = Box<dyn Fn() -> Option<PaperSheet>>;
+
 pub struct BoxComponent {
     pub children: Vec<ComponentHandle>,
     padding_x: usize,
     padding_y: usize,
     bg_fn: Option<ColorFn>,
+    paper_fn: Option<PaperFn>,
 }
 
 impl BoxComponent {
@@ -25,7 +42,24 @@ impl BoxComponent {
             padding_x,
             padding_y,
             bg_fn,
+            paper_fn: None,
         }
+    }
+
+    /// Change the horizontal padding after construction (`setPaddingX`): with
+    /// no band to draw, padding is just an indent.
+    pub fn set_padding_x(&mut self, padding_x: usize) {
+        self.padding_x = padding_x;
+    }
+
+    /// Give the box the paper treatment, resolved on every frame (`setPaper`).
+    ///
+    /// The shadow is one extra row of `▔` (an upper one-eighth block) indented
+    /// one column; an inset box also gets a column of `▏` down its right edge,
+    /// starting on the second row, so the two meet as an L. No provider, or
+    /// one returning `None`, draws the plain full-width band.
+    pub fn set_paper(&mut self, paper_fn: Option<PaperFn>) {
+        self.paper_fn = paper_fn;
     }
 
     pub fn add_child(&mut self, component: ComponentHandle) {
@@ -68,8 +102,24 @@ impl Component for BoxComponent {
         }
 
         let width = width as usize;
-        let content_width = (width.saturating_sub(self.padding_x * 2)).max(1);
-        let left_pad = " ".repeat(self.padding_x);
+        // Asked for per frame, so a box on screen follows a theme switch.
+        let paper = self.paper_fn.as_ref().and_then(|f| f());
+        let paper_inset = paper.as_ref().and_then(|p| p.inset).unwrap_or(0);
+        // A sheet needs a band wide enough to carry its own bottom run; below
+        // that the box falls back to the plain full-width band.
+        let wide = width as i64 - paper_inset as i64 > 1;
+        let shadow_fn = if wide {
+            paper.as_ref().and_then(|p| p.shadow.as_ref())
+        } else {
+            None
+        };
+        let inset = if wide { paper_inset } else { 0 };
+
+        let band_width = width.saturating_sub(inset).max(1);
+        // Padding gives way rather than pushing content off the end of the band.
+        let padding_x = self.padding_x.min((band_width - 1) / 2);
+        let content_width = band_width.saturating_sub(padding_x * 2).max(1);
+        let left_pad = " ".repeat(padding_x);
 
         let mut child_lines = Vec::new();
         for child in &self.children {
@@ -82,15 +132,32 @@ impl Component for BoxComponent {
             return Vec::new();
         }
 
-        let mut result = Vec::with_capacity(child_lines.len() + self.padding_y * 2);
-        for _ in 0..self.padding_y {
-            result.push(self.apply_bg("", width));
-        }
-        for line in &child_lines {
-            result.push(self.apply_bg(line, width));
-        }
-        for _ in 0..self.padding_y {
-            result.push(self.apply_bg("", width));
+        let mut rows: Vec<String> = Vec::with_capacity(child_lines.len() + self.padding_y * 2);
+        rows.extend(std::iter::repeat_n(String::new(), self.padding_y));
+        rows.extend(child_lines);
+        rows.extend(std::iter::repeat_n(String::new(), self.padding_y));
+
+        // The right-hand column only exists when a gutter was reserved for it.
+        let has_column = shadow_fn.is_some() && inset > 0;
+        let mut result: Vec<String> = rows
+            .iter()
+            .enumerate()
+            .map(|(index, line)| {
+                let band = self.apply_bg(line, band_width);
+                // The first row has no column: the offset is down *and* right.
+                let column = match shadow_fn {
+                    Some(shadow) if has_column && index > 0 => shadow("\u{258f}"),
+                    _ => String::new(),
+                };
+                format!("{band}{column}")
+            })
+            .collect();
+
+        // The shadow's bottom run, offset one column right of the band.
+        if let Some(shadow) = shadow_fn {
+            if band_width > 1 {
+                result.push(format!(" {}", shadow(&"\u{2594}".repeat(band_width - 1))));
+            }
         }
 
         result

@@ -121,6 +121,11 @@ pub struct SessionInfo {
     pub cwd: String,
     /// User-defined display name, if any.
     pub name: Option<String>,
+    /// User-chosen colour slot (1-6) from session_info entries, if one was set.
+    pub color: Option<u8>,
+    /// Git branch the session started on; `None` for sessions recorded before
+    /// it was kept.
+    pub branch: Option<String>,
     /// Path to the parent session, if this session was forked.
     pub parent_session_path: Option<String>,
     /// Creation time from the session header.
@@ -1245,13 +1250,22 @@ pub fn build_session_info(path: impl AsRef<Path>) -> Option<SessionInfo> {
     let mut first_message = String::new();
     let mut all_messages: Vec<String> = Vec::new();
     let mut name: Option<String> = None;
+    let mut color: Option<u8> = None;
 
     for entry in &entries {
-        if let FileEntry::SessionInfo { name: n, .. } = entry {
-            name = n
-                .as_ref()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty());
+        // Name and colour resolve independently: an entry written by `/color`
+        // carries no name and must not clear one, while an entry with an empty
+        // name still clears it explicitly.
+        if let FileEntry::SessionInfo {
+            name: n, color: c, ..
+        } = entry
+        {
+            if let Some(n) = n {
+                name = Some(n.trim().to_string()).filter(|s| !s.is_empty());
+            }
+            if c.is_some() {
+                color = *c;
+            }
         }
         if let FileEntry::Message { message, .. } = entry {
             message_count += 1;
@@ -1278,6 +1292,8 @@ pub fn build_session_info(path: impl AsRef<Path>) -> Option<SessionInfo> {
         id: header.id,
         cwd: header.cwd,
         name,
+        color,
+        branch: header.branch,
         parent_session_path: header.parent_session,
         created,
         modified,

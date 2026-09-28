@@ -69,6 +69,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+
+[[package]]
 name = "async-trait"
 version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -108,6 +114,21 @@ name = "base64"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
+name = "bit-set"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
+dependencies = [
+ "bit-vec",
+]
+
+[[package]]
+name = "bit-vec"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
 name = "bitflags"
@@ -230,6 +251,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
+name = "core-foundation"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -338,6 +369,7 @@ dependencies = [
  "cortexcode-agent-tools",
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "rand 0.8.8",
  "reqwest",
  "serde",
@@ -466,6 +498,7 @@ version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "rand 0.8.8",
  "reqwest",
  "serde",
@@ -588,6 +621,7 @@ dependencies = [
  "cortexcode-ai-provider-google",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "futures-util",
  "regex",
  "reqwest",
@@ -704,8 +738,10 @@ dependencies = [
  "cortexcode-ai-types",
  "regex",
  "reqwest",
+ "rustls-native-certs",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -751,6 +787,8 @@ dependencies = [
  "cortexcode-code-tool-bash",
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
+ "cortexcode-tui-util",
+ "libc",
  "regex-lite",
  "serde",
  "serde_json",
@@ -791,6 +829,7 @@ dependencies = [
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "cortexcode-code-agent-session",
  "cortexcode-code-auth",
  "cortexcode-code-media",
@@ -811,8 +850,10 @@ dependencies = [
  "cortexcode-code-tools",
  "cortexcode-code-tools-fs",
  "cortexcode-code-tools-optin",
+ "cortexcode-code-tui-app",
  "cortexcode-tui-fuzzy",
- "crossterm",
+ "cortexcode-tui-terminal",
+ "cortexcode-tui-util",
  "serde_json",
  "tempfile",
  "tokio",
@@ -872,7 +913,9 @@ name = "cortexcode-code-paths"
 version = "0.0.1"
 dependencies = [
  "dirs",
+ "serde_json",
  "tempfile",
+ "url",
 ]
 
 [[package]]
@@ -1048,6 +1091,7 @@ version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
+ "cortexcode-ai-util",
  "cortexcode-code-prompts",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
@@ -1094,6 +1138,100 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexcode-code-tui-app"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-agent-types",
+ "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
+ "cortexcode-code-paths",
+ "cortexcode-code-permissions",
+ "cortexcode-code-resources",
+ "cortexcode-code-settings",
+ "cortexcode-code-task-store",
+ "cortexcode-code-tui-keybindings",
+ "cortexcode-code-tui-theme",
+ "cortexcode-code-tui-widgets",
+ "cortexcode-tui-components",
+ "cortexcode-tui-keys",
+ "cortexcode-tui-render",
+ "cortexcode-tui-terminal",
+ "cortexcode-tui-util",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "cortexcode-code-tui-keybindings"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-paths",
+ "cortexcode-code-tui-theme",
+ "cortexcode-tui-keys",
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-tui-selectors"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "cortexcode-code-paths",
+ "cortexcode-code-session",
+ "cortexcode-code-tui-keybindings",
+ "cortexcode-code-tui-theme",
+ "cortexcode-code-tui-widgets",
+ "cortexcode-tui-components",
+ "cortexcode-tui-fuzzy",
+ "cortexcode-tui-keys",
+ "cortexcode-tui-render",
+ "cortexcode-tui-util",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-tui-theme"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-code-paths",
+ "cortexcode-code-session",
+ "cortexcode-tui-components",
+ "cortexcode-tui-highlight",
+ "cortexcode-tui-render",
+ "cortexcode-tui-util",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "cortexcode-code-tui-widgets"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-ai-types",
+ "cortexcode-code-agent-session",
+ "cortexcode-code-paths",
+ "cortexcode-code-settings",
+ "cortexcode-code-subagents",
+ "cortexcode-code-task-store",
+ "cortexcode-code-tool-api",
+ "cortexcode-code-tool-bash",
+ "cortexcode-code-tools-fs",
+ "cortexcode-code-tui-keybindings",
+ "cortexcode-code-tui-theme",
+ "cortexcode-tui-components",
+ "cortexcode-tui-images",
+ "cortexcode-tui-render",
+ "cortexcode-tui-util",
+ "once_cell",
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "cortexcode-tui"
 version = "0.0.1"
 dependencies = [
@@ -1116,10 +1254,12 @@ dependencies = [
  "cortexcode-tui-images",
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
+ "cortexcode-tui-terminal",
  "cortexcode-tui-util",
  "once_cell",
- "pulldown-cmark",
+ "serde_json",
  "unicode-segmentation",
+ "vt100",
 ]
 
 [[package]]
@@ -1129,6 +1269,15 @@ version = "0.0.1"
 [[package]]
 name = "cortexcode-tui-fuzzy"
 version = "0.0.1"
+
+[[package]]
+name = "cortexcode-tui-highlight"
+version = "0.0.1"
+dependencies = [
+ "cortexcode-tui-util",
+ "once_cell",
+ "serde_json",
+]
 
 [[package]]
 name = "cortexcode-tui-images"
@@ -1155,6 +1304,7 @@ dependencies = [
  "cortexcode-tui-keys",
  "cortexcode-tui-terminal",
  "cortexcode-tui-util",
+ "vt100",
 ]
 
 [[package]]
@@ -1169,6 +1319,7 @@ dependencies = [
 name = "cortexcode-tui-util"
 version = "0.0.1"
 dependencies = [
+ "fancy-regex",
  "unicode-segmentation",
  "unicode-width",
 ]
@@ -1535,6 +1686,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
 
 [[package]]
+name = "fancy-regex"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e24cb5a94bcae1e5408b0effca5cd7172ea3c5755049c5f3af4cd283a165298"
+dependencies = [
+ "bit-set",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1692,15 +1854,6 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
-]
-
-[[package]]
-name = "getopts"
-version = "0.2.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df"
-dependencies = [
- "unicode-width",
 ]
 
 [[package]]
@@ -2459,6 +2612,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "openssl-probe"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+
+[[package]]
 name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2599,25 +2758,6 @@ dependencies = [
  "ar_archive_writer",
  "cc",
 ]
-
-[[package]]
-name = "pulldown-cmark"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86ba2052aebccc42cbbb3ed234b8b13ce76f75c3551a303cb2bcffcff12bb14"
-dependencies = [
- "bitflags",
- "getopts",
- "memchr",
- "pulldown-cmark-escape",
- "unicase",
-]
-
-[[package]]
-name = "pulldown-cmark-escape"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulley-interpreter"
@@ -3000,6 +3140,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-native-certs"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dab5152771c58876a2146916e53e35057e1a4dfa2b9df0f0305b07f611fdea4d"
+dependencies = [
+ "openssl-probe",
+ "rustls-pki-types",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
 name = "rustls-pki-types"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3042,10 +3194,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "schannel"
+version = "0.1.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91c1b7e4904c873ef0710c1f407dde2e6287de2bebc1bbbf7d430bb7cbffd939"
+dependencies = [
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "security-framework"
+version = "3.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d"
+dependencies = [
+ "bitflags",
+ "core-foundation",
+ "core-foundation-sys",
+ "libc",
+ "security-framework-sys",
+]
+
+[[package]]
+name = "security-framework-sys"
+version = "2.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
 
 [[package]]
 name = "semver"
@@ -3632,12 +3816,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
-name = "unicase"
-version = "2.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3728,6 +3906,27 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vt100"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "054ff75fb8fa83e609e685106df4faeffdf3a735d3c74ebce97ec557d5d36fd9"
+dependencies = [
+ "itoa",
+ "unicode-width",
+ "vte",
+]
+
+[[package]]
+name = "vte"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5924018406ce0063cd67f8e008104968b74b563ee1b85dde3ed1f7cb87d3dbd"
+dependencies = [
+ "arrayvec",
+ "memchr",
+]
 
 [[package]]
 name = "walkdir"

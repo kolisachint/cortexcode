@@ -48,6 +48,8 @@ pub type ComponentHandle = Rc<RefCell<dyn Component>>;
 #[derive(Default)]
 pub struct Container {
     pub children: Vec<ComponentHandle>,
+    /// Where each child's output started in the last render, and at what width.
+    last_offsets: Option<(u16, Vec<usize>)>,
 }
 
 impl Container {
@@ -66,14 +68,29 @@ impl Container {
     pub fn clear(&mut self) {
         self.children.clear();
     }
+
+    /// Where each direct child's output starts, in rows, from the last render
+    /// (`childRowOffsets`). `None` before the first render or at a different
+    /// width: "no answer", not "zero".
+    pub fn child_row_offsets(&self, width: u16) -> Option<Vec<usize>> {
+        match &self.last_offsets {
+            Some((w, offsets)) if *w == width && offsets.len() == self.children.len() => {
+                Some(offsets.clone())
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Component for Container {
     fn render(&mut self, width: u16) -> Vec<String> {
         let mut lines = Vec::new();
+        let mut offsets = Vec::with_capacity(self.children.len());
         for child in &self.children {
+            offsets.push(lines.len());
             lines.extend(child.borrow_mut().render(width));
         }
+        self.last_offsets = Some((width, offsets));
         lines
     }
 
@@ -81,5 +98,99 @@ impl Component for Container {
         for child in &self.children {
             child.borrow_mut().invalidate();
         }
+    }
+}
+
+/// A spacer whose height the renderer decides, so the layout can fill the
+/// screen (`FlexSpacer`, from `components/spacer.ts`; it lives here because
+/// the root sizes it). Put it between the part that flows from the top and
+/// the chrome that hangs off the bottom, and hand it to
+/// [`crate::Tui::set_flex_spacer`].
+#[derive(Default)]
+pub struct FlexSpacer {
+    height: usize,
+}
+
+impl FlexSpacer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Rows it is currently contributing.
+    pub fn current_height(&self) -> usize {
+        self.height
+    }
+
+    /// Set the fill; true when it changed and a re-flatten is owed.
+    pub fn set_height(&mut self, height: i64) -> bool {
+        let next = height.max(0) as usize;
+        if next == self.height {
+            return false;
+        }
+        self.height = next;
+        true
+    }
+}
+
+impl Component for FlexSpacer {
+    fn render(&mut self, _width: u16) -> Vec<String> {
+        vec![String::new(); self.height]
+    }
+}
+
+/// A child that can be taken off screen (`Slot`). While hidden the child is
+/// not rendered at all, so an animating child is paused, not merely hidden.
+/// Swapping the occupant keeps the slot's place in the tree.
+pub struct Slot {
+    component: ComponentHandle,
+    hidden: bool,
+}
+
+impl Slot {
+    pub fn new(component: ComponentHandle) -> Self {
+        Self {
+            component,
+            hidden: false,
+        }
+    }
+
+    /// Whoever is in the slot right now.
+    pub fn child(&self) -> ComponentHandle {
+        self.component.clone()
+    }
+
+    /// Swap the occupant; returns whether anything changed.
+    pub fn set_child(&mut self, component: ComponentHandle) -> bool {
+        if Rc::ptr_eq(&self.component, &component) {
+            return false;
+        }
+        self.component = component;
+        true
+    }
+
+    pub fn visible(&self) -> bool {
+        !self.hidden
+    }
+
+    /// Returns whether this changed anything, so callers can skip a render.
+    pub fn set_visible(&mut self, visible: bool) -> bool {
+        if self.hidden != visible {
+            return false;
+        }
+        self.hidden = !visible;
+        true
+    }
+}
+
+impl Component for Slot {
+    fn render(&mut self, width: u16) -> Vec<String> {
+        if self.hidden {
+            return Vec::new();
+        }
+        self.component.borrow_mut().render(width)
+    }
+
+    fn invalidate(&mut self) {
+        self.component.borrow_mut().invalidate();
     }
 }

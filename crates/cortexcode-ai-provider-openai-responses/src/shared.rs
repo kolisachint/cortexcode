@@ -854,7 +854,7 @@ async fn drive(
     state: &mut ResponsesStreamState,
     sender: &AssistantMessageEventStream,
 ) -> Result<(), String> {
-    let mut builder = reqwest::Client::builder();
+    let mut builder = cortexcode_ai_util::tls::http_client_builder();
     if let Some(ms) = request.timeout_ms {
         builder = builder.timeout(std::time::Duration::from_millis(ms));
     }

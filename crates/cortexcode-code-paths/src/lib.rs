@@ -6,6 +6,7 @@
 //! fallback. Env overrides take `CORTEXCODE_`, `CORTEX_` or hoocode's
 //! `HOOCODE_` prefix, in that order.
 
+pub mod git;
 pub mod git_branch;
 
 use std::path::{Component, Path, PathBuf};
@@ -40,7 +41,8 @@ pub fn env_override(suffix: &str) -> Option<String> {
     })
 }
 
-fn home_dir() -> PathBuf {
+/// `os.homedir()`.
+pub fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
 

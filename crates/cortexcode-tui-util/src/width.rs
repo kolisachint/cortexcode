@@ -28,6 +28,22 @@ fn could_be_emoji(segment: &str) -> bool {
         || segment.chars().count() > 2
 }
 
+/// Stand-in for the TS `^\p{RGI_Emoji}$` test, applied after the
+/// `could_be_emoji` pre-filter. A lone codepoint is an RGI emoji exactly when
+/// it has Emoji_Presentation, and those are all East Asian Wide, so a
+/// text-presentation symbol like `✓` (U+2713) stays 1 column as in hoocode.
+/// Sequences count when they carry an emoji-forming joiner: VS16, ZWJ, a skin
+/// tone modifier, the keycap mark or tag characters.
+fn looks_like_rgi_emoji(segment: &str, base: char) -> bool {
+    if UnicodeWidthChar::width(base) == Some(2) {
+        return true;
+    }
+    segment.chars().any(|c| {
+        matches!(c as u32,
+            0xFE0F | 0x200D | 0x1F3FB..=0x1F3FF | 0x20E3 | 0xE0020..=0xE007F)
+    })
+}
+
 /// Codepoints treated as zero-width: combining marks, formatting/control
 /// characters, and other default-ignorable code points.
 fn is_zero_width_char(c: char) -> bool {
@@ -60,13 +76,13 @@ pub(crate) fn grapheme_width(segment: &str) -> usize {
         return 0;
     }
 
-    if could_be_emoji(segment) {
-        return 2;
-    }
-
     let Some(base) = segment.chars().find(|c| !is_zero_width_char(*c)) else {
         return 0;
     };
+
+    if could_be_emoji(segment) && looks_like_rgi_emoji(segment, base) {
+        return 2;
+    }
 
     // Regional indicators (flag halves) render full-width even in isolation.
     if (0x1F1E6..=0x1F1FF).contains(&(base as u32)) {
@@ -142,6 +158,25 @@ mod tests {
     #[test]
     fn test_visible_width_emoji_is_double() {
         assert_eq!(visible_width("😀"), 2);
+    }
+
+    #[test]
+    fn test_visible_width_text_presentation_symbols_are_single() {
+        // Not RGI emoji on their own: hoocode measures these as 1 column.
+        assert_eq!(visible_width("\u{2713}"), 1);
+        assert_eq!(visible_width("\u{2714}"), 1);
+        assert_eq!(visible_width("\u{2022}"), 1);
+        assert_eq!(visible_width("\u{23f5}"), 1);
+        assert_eq!(visible_width("\u{2600}"), 1);
+        assert_eq!(visible_width("\u{1f170}"), 1);
+        assert_eq!(visible_width("\u{2713}\u{301}"), 1);
+        // Emoji_Presentation singletons and VS16 sequences stay wide.
+        assert_eq!(visible_width("\u{2705}"), 2);
+        assert_eq!(visible_width("\u{231b}"), 2);
+        assert_eq!(visible_width("\u{26a1}"), 2);
+        assert_eq!(visible_width("\u{2b50}"), 2);
+        assert_eq!(visible_width("\u{2714}\u{fe0f}"), 2);
+        assert_eq!(visible_width("\u{1f44d}\u{1f3fd}"), 2);
     }
 
     #[test]
