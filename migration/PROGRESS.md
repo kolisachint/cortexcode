@@ -9,6 +9,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
+- Stopped 2026-09-28 (end of day). Phase 11 is 34/43 done. `ledger.py next` says START 11.3f: the
+  login parent task, whose subtasks 11.3f1/11.3f2 are done, so it should need only `start` +
+  `verify`. Then the open phase-11 tasks: 11.4b (@file autocomplete, L2 file-autocomplete),
+  11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
+  compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
