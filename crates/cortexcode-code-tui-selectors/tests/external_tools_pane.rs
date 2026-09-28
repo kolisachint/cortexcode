@@ -1,10 +1,5 @@
 //! Port of `external-tools-pane.test.ts`: the external binaries as the
 //! `/settings` pane shows them.
-//!
-//! "resolves live status without downloading anything" is not here:
-//! `describeExternalTools` needs the managed-binary resolver
-//! (`utils/tools-manager.ts`), which is not ported. The row-list case feeds
-//! one status per catalog entry in its place.
 
 mod support;
 
@@ -12,7 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use cortexcode_code_tools::external_tools::{
-    build_row_gates, status_label, ExternalToolStatus, ManagedToolSource, EXTERNAL_TOOLS,
+    build_row_gates, describe_external_tools, status_label, ExternalToolStatus, ManagedToolSource,
+    EXTERNAL_TOOLS,
 };
 use cortexcode_code_tui_selectors::settings_selector::{
     submenu_list, DoneSlot, SettingsConfig, SettingsSelectorComponent, ToolGroupInfo,
@@ -140,6 +136,16 @@ fn gives_every_binary_a_fallback_because_none_of_them_is_required() {
     for doc in EXTERNAL_TOOLS {
         assert!(!doc.fallback.is_empty(), "{}", doc.tool);
         assert!(!doc.enables.is_empty(), "{}", doc.tool);
+    }
+}
+
+#[test]
+fn resolves_live_status_without_downloading_anything() {
+    let statuses = describe_external_tools();
+    assert_eq!(statuses.len(), EXTERNAL_TOOLS.len());
+    for status in &statuses {
+        assert_eq!(status.installed, status.path.is_some());
+        assert!(!status_label(status).is_empty());
     }
 }
 

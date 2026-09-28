@@ -39,6 +39,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3d2 done (/settings in the app)
+- `/settings` and alt+s (`app.settings.open`) open the pane built from the live session
+  (`show_settings_selector`); every `SettingsChange` is applied (`apply_settings_change`):
+  settings writes plus the live effects (active tools, footer, editor border/padding/
+  autocomplete, hardware cursor, clear-on-shrink, theme + preview, thinking level, transport
+  via new `Agent::set_transport`, platforms, images on tool blocks, hidden thinking rebuild).
+- Changes are queued by the pane's callback and applied in the poll loop, so the pane's own
+  re-price ran too early: new `SettingsSelectorComponent::refresh_token_surface()`, called
+  after a batch is applied.
+- `code-tools::external_tools::describe_external_tools` (+ `get_tool_path`/`get_tool_status`,
+  the never-downloads half of tools-manager.ts; PATH lookup instead of spawning `--version`).
+  Ported the skipped "resolves live status" test. `--offline` now sets `CORTEX_OFFLINE=1`
+  process-wide (main.ts), read by `cortexcode_code_paths::is_offline_mode()`.
+- Not live yet: extension flags (12.3: the pane lists none), voice silence (voice not ported).
+- L2 `settings-pane` (open, category, turn bash off → surface re-priced, back, close): stable, pass.
+  Full L2: the known 11, plus `print-error` once under load (snapshot taken before the exit;
+  passes on rerun, scenario untouched).
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3b done (model pickers, /model, cycling)
 - `code-tui-selectors`: `model_selector` (`ModelSelectorComponent`, all/scoped tabs, events
   instead of callbacks; the owner hands in the loaded models) and `scoped_models_selector`

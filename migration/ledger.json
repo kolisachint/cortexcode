@@ -4871,7 +4871,7 @@
    "id": "11.3d2",
    "title": "/settings in the app: build SettingsConfig from the live session and apply every callback",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3d1",
     "11.4a"
@@ -4894,6 +4894,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T11:26:42Z",
+     "commit": "47601b9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T11:38:49Z",
+     "commit": "47601b9",
+     "kind": "verify",
+     "text": "L1 pass; L2 settings-pane=pass"
     }
    ]
   },

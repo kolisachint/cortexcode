@@ -123,6 +123,14 @@ pub fn custom_themes_dir() -> PathBuf {
     agent_dir().join("themes")
 }
 
+/// `isOfflineModeEnabled`: `*_OFFLINE` is 1, true or yes.
+pub fn is_offline_mode() -> bool {
+    env_override("OFFLINE").is_some_and(|v| {
+        let v = v.to_lowercase();
+        v == "1" || v == "true" || v == "yes"
+    })
+}
+
 /// `getAuthPath`.
 pub fn auth_path() -> PathBuf {
     agent_dir().join("auth.json")

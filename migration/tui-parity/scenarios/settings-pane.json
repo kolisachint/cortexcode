@@ -1,0 +1,112 @@
+{
+  "description": "/settings: the pane opens over the prompt with its categories; Enter opens a category; turning bash off applies live (tool count and per-turn surface re-priced); Escape backs out to the pane and then to the prompt.",
+  "phase": "11.3d2",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/settings"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "pane"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "category"
+    },
+    {
+      "keys": [
+        "Down",
+        "Down"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "toggled",
+      "contains": [
+        "bash",
+        "off"
+      ]
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "back"
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "closed"
+    }
+  ]
+}

@@ -1220,6 +1220,7 @@ impl SurfaceLine {
 /// `SettingsSelectorComponent`: the whole pane in the prompt's frame.
 pub struct SettingsSelectorComponent {
     frame: InputFrame,
+    surface: SurfaceLine,
     list: Rc<RefCell<SettingsList>>,
 }
 
@@ -1925,7 +1926,18 @@ impl SettingsSelectorComponent {
         if let Some(text) = surface_text {
             frame.add_child(text);
         }
-        Self { frame, list }
+        Self {
+            frame,
+            surface,
+            list,
+        }
+    }
+
+    /// Re-price the per-turn surface. A host that applies the pane's changes
+    /// after the callback returns (rather than inside it) calls this once they
+    /// are applied, since the pane's own re-measure ran before them.
+    pub fn refresh_token_surface(&self) {
+        self.surface.refresh();
     }
 
     /// `getSettingsList()`: the list the keyboard goes to.

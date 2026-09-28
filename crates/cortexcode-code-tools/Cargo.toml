@@ -20,6 +20,7 @@ cortexcode-code-tool-api = { workspace = true }
 cortexcode-code-tools-fs = { workspace = true }
 cortexcode-code-tool-bash = { workspace = true }
 cortexcode-code-tool-search = { workspace = true }
+cortexcode-code-paths = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex-lite = "0.1"

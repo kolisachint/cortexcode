@@ -416,6 +416,11 @@ impl Agent {
         self.settings.lock().unwrap().max_retry_delay_ms = ms;
     }
 
+    /// `agent.transport`: used from the next run on.
+    pub fn set_transport(&self, transport: Option<Transport>) {
+        self.settings.lock().unwrap().transport = transport;
+    }
+
     /// `agent.onPayload`: inspect or replace each provider request body.
     pub fn set_on_payload(&self, hook: Option<cortexcode_ai_types::OnPayload>) {
         self.settings.lock().unwrap().on_payload = hook;
