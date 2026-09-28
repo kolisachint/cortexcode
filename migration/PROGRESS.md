@@ -57,6 +57,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   selfcheck stable).
 - Next: `ledger.py next` (11.3 selectors).
 
+### 2026-09-28: 11.3 split into 11.3a..f; 11.3a in progress (session selector)
+- 11.3 is now a container: 11.3a session selector (L2 `session-resume`), 11.3b model selector
+  (L2 `model-selector`; needs `/model` from 11.4), 11.3c small selectors, 11.3d settings,
+  11.3e tree, 11.3f login.
+- 11.3a WIP: new crate `cortexcode-code-tui-selectors` with the session search and picker
+  components. It builds and passes clippy, but has no tests or app wiring yet. See the 11.3a
+  ledger note for the exact next steps.
+
 ### 2026-09-27: 11.2d split; 11.2d1 done (bash/diff/edit; L2 `tool-bash`); 10.6 done
 - 11.2d is split (bookkeeping): 11.2d1 covers bash, diff, edit and bash-execution;
   11.2d2 covers code highlighting (highlightCode); 11.2d closes after both.

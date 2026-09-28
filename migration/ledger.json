@@ -4505,6 +4505,12 @@
      "commit": "887d6e8",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:35:00Z",
+     "commit": "dca7f63",
+     "kind": "note",
+     "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
     }
    ]
   },

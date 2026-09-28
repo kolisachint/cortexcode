@@ -41,7 +41,8 @@ pub fn env_override(suffix: &str) -> Option<String> {
     })
 }
 
-fn home_dir() -> PathBuf {
+/// `os.homedir()`.
+pub fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
 

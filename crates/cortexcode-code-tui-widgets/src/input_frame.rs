@@ -128,6 +128,13 @@ impl InputFrame {
     pub fn remove_child(&mut self, component: &ComponentHandle) {
         self.frame.remove_child(component);
     }
+
+    /// Remove every row (the hints and a title row with them).
+    pub fn clear(&mut self) {
+        self.frame.container.children.clear();
+        self.hint_row = None;
+        self.title_row = None;
+    }
 }
 
 impl Component for InputFrame {

@@ -3,7 +3,9 @@
 
 mod assistant_message;
 pub mod bash_execution;
+pub mod brand;
 pub mod diff;
+pub mod input_frame;
 mod js_json;
 pub mod jsdiff;
 pub mod read_output;
