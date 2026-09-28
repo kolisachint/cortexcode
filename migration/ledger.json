@@ -5202,7 +5202,7 @@
    "id": "11.3f2",
    "title": "/login and /logout: LoginController flows (auth type, provider pick, OAuth and API-key dialogs, post-login model selection)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3f1",
     "11.4a"
@@ -5227,6 +5227,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3f (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T14:10:25Z",
+     "commit": "beceab8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T14:20:32Z",
+     "commit": "beceab8",
+     "kind": "verify",
+     "text": "L1 pass; L2 login-api-key=pass"
     }
    ]
   },

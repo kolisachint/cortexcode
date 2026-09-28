@@ -846,8 +846,11 @@ pub fn run_print_mode(
 
 /// main.ts's `createAgentSessionRuntime`: the startup session, and the
 /// factory that rebuilds the cwd-bound services when it is replaced.
-fn build_session_runtime(args: &Args, interactive: bool) -> (AgentSessionRuntime, Diagnostics) {
-    let auth = load_auth();
+fn build_session_runtime(
+    args: &Args,
+    auth: Arc<AuthStorage>,
+    interactive: bool,
+) -> (AgentSessionRuntime, Diagnostics) {
     let session_manager = initial_session_manager(args, interactive);
     let cwd = std::path::PathBuf::from(session_manager.cwd());
     let (session, services, diagnostics) = create_runtime(
@@ -894,7 +897,7 @@ fn build_session_runtime(args: &Args, interactive: bool) -> (AgentSessionRuntime
 /// stdout, until stdin ends. The session lives in an `AgentSessionRuntime`, so
 /// new_session/switch_session/fork/clone replace it through the factory.
 pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::Result<i32> {
-    let (runtime, diagnostics) = build_session_runtime(args, false);
+    let (runtime, diagnostics) = build_session_runtime(args, load_auth(), false);
     report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -1119,7 +1122,9 @@ pub fn run_interactive_mode(
     _output: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<(), RuntimeError> {
-    let (session_runtime, diagnostics) = build_session_runtime(args, true);
+    // One credential store for the session and `/login`/`/logout`.
+    let auth = load_auth();
+    let (session_runtime, diagnostics) = build_session_runtime(args, auth.clone(), true);
     let session = session_runtime.session().clone();
     report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
     if diagnostics
@@ -1132,16 +1137,19 @@ pub fn run_interactive_mode(
 
     let mut messages = args.messages.clone();
     let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
-    let auth = load_auth();
     cortexcode_code_tui_app::interactive_mode::run_interactive(
         cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
             session,
             session_runtime: Some(session_runtime),
             runtime: async_runtime().handle().clone(),
             listing: Box::new(resource_listing),
-            is_oauth: Box::new(move |provider| {
-                cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
-            }),
+            is_oauth: {
+                let auth = auth.clone();
+                Box::new(move |provider| {
+                    cortexcode_code_models::AuthLookup::is_oauth(auth.as_ref(), provider)
+                })
+            },
+            auth_storage: auth,
             version: cortexcode_code_paths::VERSION.to_string(),
             verbose: args.verbose == Some(true),
             initial_message,
@@ -1254,6 +1262,7 @@ mod tests {
                 runtime: async_runtime().handle().clone(),
                 listing: Box::new(resource_listing),
                 is_oauth: Box::new(|_| false),
+                auth_storage: Arc::new(AuthStorage::in_memory([])),
                 version: "0.0.1".into(),
                 verbose: false,
                 initial_message: None,

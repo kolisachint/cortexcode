@@ -85,7 +85,7 @@ pub struct ResourceGroup {
 /// An approximation of `String.prototype.localeCompare` (ICU root
 /// collation): punctuation, digits, letters; case-insensitive first, then
 /// lowercase before uppercase.
-pub(crate) fn locale_compare(a: &str, b: &str) -> Ordering {
+pub fn locale_compare(a: &str, b: &str) -> Ordering {
     fn key(c: char) -> (u8, char) {
         let class = if c.is_alphabetic() {
             2

@@ -1143,8 +1143,10 @@ name = "cortexcode-code-tui-app"
 version = "0.0.1"
 dependencies = [
  "cortexcode-agent-types",
+ "cortexcode-ai-oauth",
  "cortexcode-ai-types",
  "cortexcode-code-agent-session",
+ "cortexcode-code-auth",
  "cortexcode-code-models",
  "cortexcode-code-paths",
  "cortexcode-code-permissions",

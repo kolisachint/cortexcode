@@ -39,6 +39,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28 · 11.3f2 /login and /logout
+- `crates/cortexcode-code-tui-app/src/login_controller.rs`: provider option lists, post-login
+  default-model pick, `OAuthBridge` (OAuth callbacks → `AppEvent::Login` updates answered through
+  oneshots; a dropped answer = "Login cancelled"), `open_url`/`is_openable_url` (open-url.ts).
+- The mode drives a `LoginStep` machine: auth-type pane → provider pane (Esc goes back) → API-key
+  dialog or an OAuth login spawned on the runtime (prompt / pasted redirect URL / onSelect pane).
+- `provider_display_name` / `provider_auth_status` (registry lookups) live in
+  `cortexcode-code-auth::provider_display_names`; `ModelRegistry::provider_api_key_config` added.
+- The CLI now shares one `AuthStorage` between the session runtime and the app
+  (`InteractiveOptions::auth_storage`), so a saved key is visible to model availability.
+- Adaptations: no `modelRegistry.refresh()` after login (Arc registry; availability reads the store
+  live); extension-registered provider names wait on `registerProvider`.
+- L2 `login-api-key` written from hoocode, stable, passes. Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-28 · 11.3d settings selector (parent)
 - No code: 11.3d1/11.3d2/11.3d3 are done and 11.3d has no scenario of its own; `ledger.py verify 11.3d` passed L1.
 - Next: `python3 migration/ledger.py next`.

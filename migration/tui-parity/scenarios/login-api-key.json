@@ -1,0 +1,57 @@
+{
+  "description": "/login with an API key: pick the auth method, pick the provider (searchable, with each provider's auth state), enter the key; the transcript records where it was saved. /logout lists the stored credential and removes it.",
+  "phase": "11.3f2",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/login"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"keys": ["Enter"]},
+    {"wait_for": "Use an API key", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "method", "contains": ["authentication method", "Use a subscription", "Use an API key"]},
+    {"keys": ["Down", "Enter"]},
+    {"wait_for": "login provider", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "providers", "contains": ["login provider", "Anthropic"]},
+    {"type": "mock"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "filtered", "contains": ["mock"]},
+    {"keys": ["Enter"]},
+    {"wait_for": "Enter API key", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "dialog", "contains": ["Enter API key"]},
+    {"type": "sk-test-123"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Saved API key", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "saved", "contains": ["Saved API key for mock"]},
+    {"type": "/logout"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"keys": ["Enter"]},
+    {"wait_for": "logout provider", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "logout", "contains": ["logout provider", "mock"]},
+    {"keys": ["Enter"]},
+    {"wait_for": "Removed stored API key", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "removed", "contains": ["Removed stored API key for mock"]}
+  ]
+}

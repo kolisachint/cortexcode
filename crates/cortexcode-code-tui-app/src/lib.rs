@@ -12,6 +12,7 @@ pub mod footer;
 pub mod footer_data;
 pub use cortexcode_code_tui_widgets::input_frame;
 pub mod interactive_mode;
+pub mod login_controller;
 pub mod notification_panel;
 pub mod progress_bar;
 pub mod resource_display;

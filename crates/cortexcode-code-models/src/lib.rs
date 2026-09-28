@@ -368,6 +368,14 @@ impl ModelRegistry {
             .find(|m| m.provider == provider && m.id == model_id)
     }
 
+    /// The provider's `apiKey` from models.json, unresolved (an env var name,
+    /// a `!command`, or the key itself).
+    pub fn provider_api_key_config(&self, provider: &str) -> Option<&str> {
+        self.provider_request_configs
+            .get(provider)
+            .and_then(|c| c.api_key.as_deref())
+    }
+
     pub fn has_configured_auth(&self, model: &Model, auth: &dyn AuthLookup) -> bool {
         auth.has_auth(&model.provider)
             || self
