@@ -4639,7 +4639,7 @@
    "status": "todo",
    "depends": [
     "11.3a",
-    "11.4"
+    "11.4a"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -4844,7 +4844,7 @@
    "status": "todo",
    "depends": [
     "11.3d1",
-    "11.4"
+    "11.4a"
    ],
    "crates": [
     "cortexcode-code-tui-app"
@@ -5151,7 +5151,7 @@
    "status": "todo",
    "depends": [
     "11.3f1",
-    "11.4"
+    "11.4a"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5232,7 +5232,12 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2b"
+    "11.4a",
+    "11.4b",
+    "11.4c",
+    "11.4d",
+    "11.4e",
+    "11.4f"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5244,12 +5249,205 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
+   "l2": [],
+   "notes": "code-media already exists (10.2a: mime sniffing, resize_image, format_dimension_note); add clipboard/paste here.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "74147ea",
+     "kind": "note",
+     "text": "Split into 11.4a (dispatch + slash autocomplete + commands with existing UI, L2 slash-commands), 11.4b (@file, L2 file-autocomplete), 11.4c (! bash), 11.4d (clipboard/copy/paste), 11.4e (remaining commands). Container closes when all are done; its L2 list moved to 11.4a/11.4b (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4a",
+   "title": "Slash commands I: submit dispatch (createBuiltInSlashCommands, setupEditorSubmitHandler), slash autocomplete (builtins, prompt templates, skill commands), and the commands whose UI exists: /quit /resume /tree /compact /name /session /new",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2b"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
    "l2": [
-    "slash-commands",
+    "slash-commands"
+   ],
+   "notes": "compact-command (9.2b's L2) should pass once /compact dispatches.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "74147ea",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T10:47:30Z",
+     "commit": "74147ea",
+     "kind": "verify",
+     "text": "L1 pass; L2 slash-commands=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4b",
+   "title": "@file autocomplete (fd path from the managed tools / PATH)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
     "file-autocomplete"
    ],
-   "notes": "code-media already exists (10.2a: mime sniffing, resize_image, format_dimension_note); add clipboard/paste here.",
-   "log": []
+   "notes": "The pin's CombinedAutocompleteProvider has no fuzzy-file fallback without fd.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4c",
+   "title": "! and !! bash from the prompt (bash-execution-controller.ts)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/bash-execution-controller.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4d",
+   "title": "Clipboard: /copy (rich-clipboard, markdown-to-html), image paste (clipboard-image/native)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard.ts",
+    "packages/coding-agent/src/utils/clipboard-image.ts",
+    "packages/coding-agent/src/utils/clipboard-native.ts",
+    "packages/coding-agent/src/utils/rich-clipboard.ts",
+    "packages/coding-agent/src/utils/markdown-to-html.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "arboard in the adapter crate per the dependency firewall.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e",
+   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks.",
+   "log": [
+    {
+     "at": "2026-09-28T07:31:24Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4f",
+   "title": "Compaction in the transcript: compaction_start/end loader and status, CompactionSummaryMessageComponent, chat rebuild after compaction",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/compaction-summary-message.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "compact-command"
+   ],
+   "notes": "/compact dispatches since 11.4a; nothing draws the compaction events yet. compact-command is also 9.2b's L2.",
+   "log": [
+    {
+     "at": "2026-09-28T10:44:03Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4 (bookkeeping): the compaction UI had no owner."
+    }
+   ]
   },
   {
    "id": "11.5",

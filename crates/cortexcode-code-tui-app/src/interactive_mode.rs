@@ -21,9 +21,10 @@ use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, 
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::{
     AgentSession, AgentSessionEvent, AgentSessionRuntime, NavigateTreeOptions, NavigateTreeResult,
-    PromptOptions,
+    NewSessionRequest, PromptOptions,
 };
 use cortexcode_code_paths::{APP_NAME, APP_TITLE};
+use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
 use cortexcode_code_tools_optin::AskQuestion;
@@ -51,7 +52,8 @@ use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
 use cortexcode_tui_components::{
-    Editor, EditorHost, EditorOptions, FrameBorderStyle, Loader, MarkdownTheme, Spacer, Text,
+    CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
+    FrameBorderStyle, Loader, MarkdownTheme, SlashCommand, Spacer, Text,
 };
 use cortexcode_tui_keys::get_keybindings;
 use cortexcode_tui_render::{
@@ -846,6 +848,17 @@ impl Mode {
         if text.is_empty() {
             return;
         }
+        // Built-in slash commands; `with_args` ones also take "/name <args>".
+        let (name, has_args) = match text.find(' ') {
+            Some(i) => (&text[..i], true),
+            None => (text.as_str(), false),
+        };
+        if let Some(command) = BuiltinCommand::lookup(name) {
+            if !has_args || command.with_args() {
+                self.run_builtin_command(command, &text);
+                return;
+            }
+        }
         self.editor.borrow_mut().editor.add_to_history(&text);
         self.prompt(text);
     }
@@ -1539,6 +1552,192 @@ impl Mode {
         self.dirty.set(true);
     }
 
+    /// `createBaseAutocompleteProvider` + `setupAutocompleteProvider`: the
+    /// built-in commands, then prompt templates, then skill commands.
+    fn setup_autocomplete_provider(&mut self) {
+        let mut commands: Vec<CommandEntry> = BUILTIN_SLASH_COMMANDS
+            .iter()
+            .map(|c| {
+                CommandEntry::Slash(SlashCommand {
+                    name: c.name.to_string(),
+                    description: Some(c.description.to_string()),
+                    argument_hint: (c.name == "cd").then(|| "<path>".to_string()),
+                    get_argument_completions: None,
+                })
+            })
+            .collect();
+        let skill_commands = self.session.settings().enable_skill_commands();
+        for info in self.session.resource_loader().slash_commands() {
+            if info.source == "skill" && !skill_commands {
+                continue;
+            }
+            commands.push(CommandEntry::Slash(SlashCommand {
+                description: prefix_autocomplete_description(info.description, &info.source_info),
+                name: info.name,
+                argument_hint: None,
+                get_argument_completions: None,
+            }));
+        }
+        let provider =
+            CombinedAutocompleteProvider::new(commands, self.session.cwd().to_path_buf(), None);
+        self.editor
+            .borrow_mut()
+            .editor
+            .set_autocomplete_provider(Box::new(provider));
+    }
+
+    /// `createBuiltInSlashCommands`: run one.
+    fn run_builtin_command(&mut self, command: BuiltinCommand, text: &str) {
+        self.editor.borrow_mut().editor.set_text("");
+        match command {
+            BuiltinCommand::Quit => self.exit_requested = true,
+            BuiltinCommand::Resume => self.show_session_selector(),
+            BuiltinCommand::Tree => self.show_tree_selector(None),
+            BuiltinCommand::Name => self.handle_name_command(text),
+            BuiltinCommand::Session => self.handle_session_command(),
+            BuiltinCommand::New => self.handle_new_command(),
+            BuiltinCommand::Compact => {
+                let instructions = text
+                    .strip_prefix("/compact ")
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(String::from);
+                self.handle_compact_command(instructions);
+            }
+            BuiltinCommand::Pending(name) => {
+                // Wired by its own ledger task (see 11.3b/11.3d2/11.3f2/11.4d/11.4e).
+                self.show_status(&format!("/{name} is not available yet"));
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// The session chip, or the plain display name without a theme slot.
+    fn current_chip(&self) -> String {
+        render_session_chip(
+            &self.session.display_name(),
+            self.session.session_color_slot() as i64,
+        )
+        .map(|chip| chip.styled)
+        .unwrap_or_else(|| self.session.display_name())
+    }
+
+    /// `handleName`.
+    fn handle_name_command(&mut self, text: &str) {
+        let name = text.strip_prefix("/name").unwrap_or("").trim();
+        let t = theme();
+        if name.is_empty() {
+            let label = if self.session.session_name().is_some() {
+                "Session name:"
+            } else {
+                "Session name (auto):"
+            };
+            let line = format!(
+                "{} {}  {}",
+                t.fg("dim", label),
+                self.current_chip(),
+                t.fg("dim", "/name <name> to change")
+            );
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+            self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+            return;
+        }
+        self.session.set_session_name(name);
+        let message = format!(
+            "{} {}",
+            t.fg("dim", "Session name set:"),
+            self.current_chip()
+        );
+        self.show_status(&message);
+    }
+
+    /// `handleSession`: the session's facts in the transcript.
+    fn handle_session_command(&mut self) {
+        let stats = self.session.get_session_stats();
+        let t = theme();
+        let dim = |s: &str| t.fg("dim", s);
+        let mut info = format!("{}\n\n", t.bold("Session Info"));
+        let name_label = if self.session.session_name().is_some() {
+            "Name:"
+        } else {
+            "Name (auto):"
+        };
+        info += &format!("{} {}\n", dim(name_label), self.current_chip());
+        if let Some(branch) = self.session.session_manager().session_branch() {
+            info += &format!("{} {branch}\n", dim("Branch:"));
+        }
+        info += &format!(
+            "{} {}\n",
+            dim("File:"),
+            stats.session_file.as_deref().unwrap_or("In-memory")
+        );
+        info += &format!("{} {}\n\n", dim("ID:"), stats.session_id);
+        info += &format!("{}\n", t.bold("Messages"));
+        info += &format!("{} {}\n", dim("User:"), stats.user_messages);
+        info += &format!("{} {}\n", dim("Assistant:"), stats.assistant_messages);
+        info += &format!("{} {}\n", dim("Tool Calls:"), stats.tool_calls);
+        info += &format!("{} {}\n", dim("Tool Results:"), stats.tool_results);
+        info += &format!("{} {}\n\n", dim("Total:"), stats.total_messages);
+        info += &format!("{}\n", t.bold("Tokens"));
+        info += &format!("{} {}\n", dim("Input:"), group_digits(stats.tokens.input));
+        info += &format!("{} {}\n", dim("Output:"), group_digits(stats.tokens.output));
+        if stats.tokens.cache_read > 0 {
+            info += &format!(
+                "{} {}\n",
+                dim("Cache Read:"),
+                group_digits(stats.tokens.cache_read)
+            );
+        }
+        if stats.tokens.cache_write > 0 {
+            info += &format!(
+                "{} {}\n",
+                dim("Cache Write:"),
+                group_digits(stats.tokens.cache_write)
+            );
+        }
+        info += &format!("{} {}\n", dim("Total:"), group_digits(stats.tokens.total));
+        if stats.cost > 0.0 {
+            info += &format!("\n{}\n", t.bold("Cost"));
+            info += &format!("{} {:.4}", dim("Total:"), stats.cost);
+        }
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(info, 1, 0))));
+    }
+
+    /// `handleClear` (`/new`): a fresh session in the same directory.
+    fn handle_new_command(&mut self) {
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.new_session(NewSessionRequest::default())) {
+            Ok(result) if result.cancelled => {}
+            Ok(_) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                let line = theme().fg("accent", "✓ New session started");
+                self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+            }
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!("Failed to create session: {error}"));
+                self.exit_requested = true;
+            }
+        }
+    }
+
+    /// `handleCompactCommand`: the session reports the outcome through its
+    /// compaction events.
+    fn handle_compact_command(&mut self, instructions: Option<String>) {
+        self.stop_working_loader();
+        let session = self.session.clone();
+        self.runtime.spawn(async move {
+            let _ = session.compact(instructions.as_deref()).await;
+        });
+    }
+
     /// `showSessionSelector`: the session picker in the editor's slot.
     fn show_session_selector(&mut self) {
         if self.session_runtime.is_none() || self.session_selector.is_some() {
@@ -1684,6 +1883,7 @@ impl Mode {
         self.update_editor_border_color();
         self.update_session_chip();
         self.update_terminal_title();
+        self.setup_autocomplete_provider();
     }
 
     /// `resetTranscriptView`: drop every view reference into the transcript.
@@ -2189,6 +2389,7 @@ impl Mode {
         self.render_resources();
         // Messages after the resource listing, as the pin orders them.
         self.render_initial_messages();
+        self.setup_autocomplete_provider();
 
         let tx = Mutex::new(self.tx.clone());
         set_dialog_sink(Some(Box::new(move |request| {
@@ -2372,6 +2573,104 @@ impl Mode {
         self.session.dispose();
         Ok(())
     }
+}
+
+/// The built-in slash commands this mode dispatches itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuiltinCommand {
+    Quit,
+    Resume,
+    Tree,
+    Name,
+    Session,
+    New,
+    Compact,
+    /// A built-in whose handler lands with a later task.
+    Pending(&'static str),
+}
+
+impl BuiltinCommand {
+    fn lookup(text: &str) -> Option<Self> {
+        let name = text.strip_prefix('/')?;
+        Some(match name {
+            "quit" => Self::Quit,
+            "resume" => Self::Resume,
+            "tree" => Self::Tree,
+            "name" => Self::Name,
+            "session" => Self::Session,
+            "new" => Self::New,
+            "compact" => Self::Compact,
+            _ => {
+                let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
+                Self::Pending(builtin.name)
+            }
+        })
+    }
+
+    /// Commands that also match "/name <args>".
+    fn with_args(self) -> bool {
+        match self {
+            Self::Name | Self::Compact => true,
+            Self::Pending(name) => matches!(
+                name,
+                "model" | "export" | "import" | "copy" | "color" | "chrome" | "cd" | "subagent"
+            ),
+            _ => false,
+        }
+    }
+}
+
+/// `toLocaleString()` for a count: grouped with commas.
+fn group_digits(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// `getAutocompleteSourceTag`: u/p/t, plus the package for npm and git.
+fn autocomplete_source_tag(source_info: &serde_json::Value) -> Option<String> {
+    let scope = source_info.get("scope")?.as_str()?;
+    let prefix = match scope {
+        "user" => "u",
+        "project" => "p",
+        _ => "t",
+    };
+    let source = source_info
+        .get("source")
+        .and_then(|s| s.as_str())
+        .unwrap_or("")
+        .trim();
+    if matches!(source, "auto" | "local" | "cli") {
+        return Some(prefix.to_string());
+    }
+    if source.starts_with("npm:") {
+        return Some(format!("{prefix}:{source}"));
+    }
+    if let Some(git) = cortexcode_code_paths::git::parse_git_url(source) {
+        let git_ref = git.git_ref.map(|r| format!("@{r}")).unwrap_or_default();
+        return Some(format!("{prefix}:git:{}/{}{git_ref}", git.host, git.path));
+    }
+    Some(prefix.to_string())
+}
+
+/// `prefixAutocompleteDescription`.
+fn prefix_autocomplete_description(
+    description: Option<String>,
+    source_info: &serde_json::Value,
+) -> Option<String> {
+    let Some(tag) = autocomplete_source_tag(source_info) else {
+        return description;
+    };
+    Some(match description {
+        Some(d) if !d.is_empty() => format!("[{tag}] {d}"),
+        _ => format!("[{tag}]"),
+    })
 }
 
 /// `InteractiveMode.run`: until the user exits.

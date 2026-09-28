@@ -39,6 +39,28 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.4 split; 11.4a done (slash command dispatch)
+- 11.4 split into:
+  - 11.4a: dispatch, slash autocomplete, and the commands whose UI exists.
+  - 11.4b: `@file`.
+  - 11.4c: `!` bash.
+  - 11.4d: clipboard, `/copy`, paste.
+  - 11.4e: the remaining commands.
+  - 11.4f: the compaction UI (it had no owner). `compact-command` moved there.
+- 11.3b, 11.3d2 and 11.3f2 now depend on 11.4a.
+- Submit routes built-in `/commands` the way `createBuiltInSlashCommands` does. The autocomplete
+  provider lists the built-ins, then prompt templates, then skill commands (with u/p/t source tags).
+  It is reinstalled on a session swap. There is no fd yet (11.4b), and templates carry no
+  argument hints.
+- Wired commands: `/quit`, `/resume`, `/tree`, `/name`, `/session`, `/new`, `/compact` (it
+  dispatches, but nothing draws it until 11.4f). Every other built-in shows "/x is not available
+  yet" until its task lands.
+- L2 `slash-commands` passes and selfcheck is stable. It uses `/sess` narrowing plus `/session`.
+  The unfiltered menu is 39 entries vs 25: hoocode's core extensions add commands (12.3).
+- Seen once: `footer_data_provider` debounce test failed under full `cargo test --workspace`
+  load, then passed 4 of 4 alone. It is a file-watch timing test and was not touched here.
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3f split; 11.3f1 done (login components)
 - 11.3f split into 11.3f1 (components) and 11.3f2 (`/login` and `/logout` LoginController flows,
   L2 `login-api-key`, after 11.4).

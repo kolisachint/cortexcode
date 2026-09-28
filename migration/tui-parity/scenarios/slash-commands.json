@@ -1,0 +1,78 @@
+{
+  "description": "Slash commands: typing '/sess' narrows the command menu to /session, Enter runs it (the Session Info block in the transcript). The unfiltered menu is not compared: hoocode's core extensions add ~14 commands that arrive with the extension runner (12.3). --no-session keeps the file line fixed.",
+  "phase": "11.4a",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/sess"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "narrowed",
+      "contains": [
+        "session"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Session Info",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "session-info",
+      "contains": [
+        "Session Info",
+        "Messages",
+        "Tokens"
+      ]
+    }
+  ],
+  "normalize": [
+    {
+      "_why": "session ids are random",
+      "pattern": "ID: [0-9a-f-]{36}",
+      "replace": "ID: <ID>"
+    },
+    {
+      "_why": "the auto session name and its chip colour derive from the random session id",
+      "pattern": "(?<=Name \\(auto\\): ) *[a-z]+-[a-z]+ *",
+      "replace": " <slug> ",
+      "style": "<masked: session chip>"
+    }
+  ]
+}
