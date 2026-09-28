@@ -22,6 +22,7 @@ cortexcode-code-session = { workspace = true }
 cortexcode-code-settings = { workspace = true }
 cortexcode-code-task-store = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
+cortexcode-code-tools-optin = { workspace = true }
 cortexcode-code-tui-selectors = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-code-tui-widgets = { workspace = true }

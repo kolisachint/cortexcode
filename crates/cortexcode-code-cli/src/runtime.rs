@@ -257,18 +257,20 @@ fn resource_loader(
 }
 
 /// Extension-registered tools in hoocode, SDK tools here: ask_options always
-/// (no UI in print mode: it says so), TodoWrite with `--enable-todowrite` or
-/// the `enableTodoWrite` setting.
+/// (the options pane in interactive mode; elsewhere it says there is no UI),
+/// TodoWrite with `--enable-todowrite` or the `enableTodoWrite` setting.
 fn custom_tools(
     args: &Args,
     settings: &SettingsManager,
     cwd: &std::path::Path,
+    interactive: bool,
 ) -> Vec<ToolDefinition> {
-    let mut tools = vec![
-        cortexcode_code_tools_optin::create_ask_options_tool_definition(Arc::new(
-            cortexcode_code_tools_optin::NoUi,
-        )),
-    ];
+    let ask_host: Arc<dyn cortexcode_code_tools_optin::AskOptionsHost> = if interactive {
+        Arc::new(cortexcode_code_tui_app::dialog_bridge::TuiAskOptionsHost)
+    } else {
+        Arc::new(cortexcode_code_tools_optin::NoUi)
+    };
+    let mut tools = vec![cortexcode_code_tools_optin::create_ask_options_tool_definition(ask_host)];
     tools.extend(subagent_tools(args, settings, false, cwd));
     if args.task_id.is_none()
         && args
@@ -548,7 +550,7 @@ fn assemble_session(
             ),
         )
     } else {
-        (None, custom_tools(args, &settings, &cwd), None)
+        (None, custom_tools(args, &settings, &cwd, interactive), None)
     };
     // main.ts: explicit tool flags win over the light preset's allowlist.
     let explicit =

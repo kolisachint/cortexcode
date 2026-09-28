@@ -39,6 +39,24 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3c done (small selectors, ask_options pane)
+- `code-tui-selectors`: `small_selectors` (thinking, theme, show-images, session colour, each a
+  `FramedSelectList`: a `SelectList` in the prompt's `InputFrame`), `user_message_selector`
+  (fork picker; with no messages it auto-cancels after 100ms via `poll`), and `ask_options`
+  (the options pane: steps, breadcrumb, quick-pick, custom row with arrow hand-off).
+- Tests: ask-options.test.ts (10) and picker-widths.test.ts, except the tree case (11.3e).
+  The extension picker's width case is in code-tui-app `tests/extension_selector.rs`.
+  ask-options-loop.test.ts stays with 10.2f/12.5 (the /loop extension).
+- `session_chip` moved to code-tui-widgets (re-exported from code-tui-app).
+  `AskQuestion` gained `short`; the tool leaves it unset, as the pin does.
+- The ask_options tool uses `dialog_bridge::TuiAskOptionsHost` in interactive mode
+  (`DialogRequest::AskOptions` / `HideAskOptions` on abort). The pane takes the editor's slot.
+  The new L2 scenario `ask-options` passes and selfcheck is stable (it compares screens only,
+  since the default-bundle system prompt still differs, see 10.4c).
+- Not wired yet: the thinking, theme, images, colour and fork pickers are opened by slash
+  commands and /settings (11.4/11.3d). The chime on a blocked ask is not ported.
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3a2 done (in-app resume, missing-cwd prompts); 11.3a closed
 - The interactive mode now owns an `AgentSessionRuntime` (`InteractiveOptions::session_runtime`).
   The CLI's `build_session_runtime` is shared with rpc mode. `alt+h` (`app.session.resume`)

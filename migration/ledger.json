@@ -4669,7 +4669,7 @@
    "id": "11.3c",
    "title": "Small selectors: thinking, theme, show-images, session-color, user-message-selector, ask-options",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a"
    ],
@@ -4691,7 +4691,9 @@
     "packages/coding-agent/test/picker-widths.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "ask-options"
+   ],
    "notes": "",
    "log": [
     {
@@ -4699,6 +4701,36 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:19:02Z",
+     "commit": "4555f6b",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T06:26:09Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Scope: the six components plus the ask_options pane wired as the interactive AskOptionsHost (L2 ask-options). The thinking, theme, show-images, session-colour and fork pickers are opened by slash commands and /settings (11.4/11.3d), which wire them. ask-options-loop.test.ts is owned by 10.2f/12.5 (the /loop extension). The tree case of picker-widths.test.ts goes with 11.3e. The completion chime on a blocked ask (chime.onBlockedForInput) is not ported."
+    },
+    {
+     "at": "2026-09-28T06:26:23Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T06:26:34Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-28T06:27:09Z",
+     "commit": "4555f6b",
+     "kind": "verify",
+     "text": "L1 pass; L2 ask-options=pass"
     }
    ]
   },

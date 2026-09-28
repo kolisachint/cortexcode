@@ -21,6 +21,8 @@ pub struct AskOption {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AskQuestion {
     pub question: String,
+    /// Label for the answered-step breadcrumb; defaults to `question`.
+    pub short: Option<String>,
     pub detail: Option<String>,
     pub options: Vec<AskOption>,
     pub allow_custom: bool,
@@ -110,6 +112,8 @@ fn parse_questions(args: &Value) -> Result<Vec<AskQuestion>, ToolError> {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned(),
+            // The tool never sets it (the schema has no field for it).
+            short: None,
             detail: q.get("detail").and_then(Value::as_str).map(str::to_owned),
             options: q
                 .get("options")

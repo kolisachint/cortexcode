@@ -25,9 +25,11 @@ use cortexcode_code_agent_session::{
 use cortexcode_code_paths::{APP_NAME, APP_TITLE};
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::{ChromeDensity, EditorBorder, ToolOutputView};
+use cortexcode_code_tools_optin::AskQuestion;
 use cortexcode_code_tui_keybindings::{
     app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
 };
+use cortexcode_code_tui_selectors::ask_options::{AskOptionsComponent, AskOptionsOptions};
 use cortexcode_code_tui_selectors::session_selector::{
     SessionSelectorComponent, SessionSelectorOptions,
 };
@@ -163,6 +165,12 @@ type OpenSelector = (
     mpsc::Sender<Option<String>>,
 );
 
+/// The open options pane and the channel its answers go back on.
+type OpenAskOptions = (
+    Rc<RefCell<AskOptionsComponent>>,
+    mpsc::Sender<Option<Vec<String>>>,
+);
+
 /// App actions the prompt editor raises; handled by the mode after the
 /// keystroke (the editor is borrowed while it dispatches).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,6 +195,8 @@ enum Action {
     ResumeSession,
     /// The session selector closed, with the chosen file.
     SessionSelectorDone(Option<PathBuf>),
+    /// The options pane closed: the answers, or `None` when skipped.
+    AskOptionsDone(Option<Vec<String>>),
 }
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
@@ -457,6 +467,8 @@ struct Mode {
     /// A resume waiting on the missing-cwd confirm: the session file, the
     /// cwd to fall back to, and where the answer arrives.
     pending_cwd_prompt: Option<(PathBuf, String, mpsc::Receiver<Option<String>>)>,
+    /// The open options pane (`ask_options`) and where its answers go.
+    ask_options: Option<OpenAskOptions>,
 }
 
 impl Mode {
@@ -701,6 +713,7 @@ impl Mode {
             is_oauth,
             session_selector: None,
             pending_cwd_prompt: None,
+            ask_options: None,
         }
     }
 
@@ -1146,6 +1159,55 @@ impl Mode {
             SelectorOutcome::Selected(option) => Some(option),
             SelectorOutcome::Cancelled => None,
         });
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&self.editor));
+        }
+        self.tui.set_focus(Some(as_component(&self.editor)));
+        self.dirty.set(true);
+    }
+
+    /// `showAskOptions`: the options pane in the editor's slot.
+    fn show_ask_options(
+        &mut self,
+        questions: Vec<AskQuestion>,
+        reply: mpsc::Sender<Option<Vec<String>>>,
+    ) {
+        if questions.is_empty() {
+            let _ = reply.send(None);
+            return;
+        }
+        // A pane still up belongs to an asker that is gone: it reads as skipped.
+        self.hide_ask_options(None);
+        let on_submit = self.actions.clone();
+        let on_cancel = self.actions.clone();
+        let pane = handle(AskOptionsComponent::new(
+            questions,
+            Box::new(move |answers| {
+                on_submit
+                    .borrow_mut()
+                    .push(Action::AskOptionsDone(Some(answers)))
+            }),
+            Box::new(move || on_cancel.borrow_mut().push(Action::AskOptionsDone(None))),
+            AskOptionsOptions::default(),
+        ));
+        {
+            let mut container = self.editor_container.borrow_mut();
+            container.clear();
+            container.add_child(as_component(&pane));
+        }
+        self.tui.set_focus(Some(as_component(&pane)));
+        self.ask_options = Some((pane, reply));
+        self.dirty.set(true);
+    }
+
+    /// `hideAskOptions`: answer the asker and put the prompt back.
+    fn hide_ask_options(&mut self, answers: Option<Vec<String>>) {
+        let Some((_, reply)) = self.ask_options.take() else {
+            return;
+        };
+        let _ = reply.send(answers);
         {
             let mut container = self.editor_container.borrow_mut();
             container.clear();
@@ -1726,6 +1788,7 @@ impl Mode {
             }
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
+            Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::SessionSelectorDone(path) => {
                 self.close_session_selector();
                 if let Some(path) = path {
@@ -1887,6 +1950,10 @@ impl Mode {
                         reply,
                     }) => self.show_selector(&title, options, reply),
                     AppEvent::Dialog(DialogRequest::Notify(message)) => self.show_record(&message),
+                    AppEvent::Dialog(DialogRequest::AskOptions { questions, reply }) => {
+                        self.show_ask_options(questions, reply)
+                    }
+                    AppEvent::Dialog(DialogRequest::HideAskOptions) => self.hide_ask_options(None),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -1945,6 +2012,9 @@ impl Mode {
 
         set_dialog_sink(None);
         if let Some((_, reply)) = self.selector.take() {
+            let _ = reply.send(None);
+        }
+        if let Some((_, reply)) = self.ask_options.take() {
             let _ = reply.send(None);
         }
         progress.unsubscribe();

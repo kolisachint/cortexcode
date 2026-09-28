@@ -10,6 +10,7 @@ mod js_json;
 pub mod jsdiff;
 pub mod read_output;
 pub mod render_utils;
+pub mod session_chip;
 pub mod tool_chain;
 pub mod tool_chain_summary;
 pub mod tool_execution;

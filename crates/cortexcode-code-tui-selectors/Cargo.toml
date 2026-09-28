@@ -16,6 +16,7 @@ publish = false
 chrono = "0.4"
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-session = { workspace = true }
+cortexcode-code-tools-optin = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-code-tui-widgets = { workspace = true }
