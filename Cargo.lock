@@ -1182,6 +1182,9 @@ name = "cortexcode-code-tui-selectors"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "cortexcode-ai-models",
+ "cortexcode-ai-types",
+ "cortexcode-code-auth",
  "cortexcode-code-paths",
  "cortexcode-code-resources",
  "cortexcode-code-session",

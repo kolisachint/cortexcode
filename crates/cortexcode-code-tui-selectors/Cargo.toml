@@ -14,6 +14,9 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
+cortexcode-ai-models = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-auth = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-resources = { workspace = true }
 cortexcode-code-session = { workspace = true }

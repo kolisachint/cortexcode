@@ -5065,7 +5065,8 @@
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.3a"
+    "11.3f1",
+    "11.3f2"
    ],
    "crates": [
     "cortexcode-code-tui-selectors",
@@ -5088,6 +5089,90 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "ec74f8e",
+     "kind": "note",
+     "text": "Split into 11.3f1 (components + oauth-selector.test.ts) and 11.3f2 (LoginController wiring for /login and /logout, L2 login-api-key, after 11.4). Container closes when both are done (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.3f1",
+   "title": "Login components: oauth-selector, login-dialog, provider display names, isApiKeyLoginProvider",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.3a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-auth",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/oauth-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/login-dialog.ts",
+    "packages/coding-agent/src/core/provider-display-names.ts",
+    "packages/coding-agent/src/modes/interactive/components/selected-row-list.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/oauth-selector.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "ec74f8e",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3f (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:29:50Z",
+     "commit": "ec74f8e",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.3f2",
+   "title": "/login and /logout: LoginController flows (auth type, provider pick, OAuth and API-key dialogs, post-login model selection)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3f1",
+    "11.4"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-models"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/login-controller.ts",
+    "packages/coding-agent/src/utils/open-url.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "login-api-key"
+   ],
+   "notes": "Needs ModelRegistry.getProviderDisplayName/getProviderAuthStatus (registered providers, models.json apiKey) and openUrl.",
+   "log": [
+    {
+     "at": "2026-09-28T07:24:19Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3f (bookkeeping)."
     }
    ]
   },

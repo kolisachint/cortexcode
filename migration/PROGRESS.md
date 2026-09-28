@@ -39,6 +39,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3f split; 11.3f1 done (login components)
+- 11.3f split into 11.3f1 (components) and 11.3f2 (`/login` and `/logout` LoginController flows,
+  L2 `login-api-key`, after 11.4).
+- `code-tui-selectors::oauth_selector`: `OAuthSelectorComponent` (searchable provider list with
+  each provider's auth state; `take_events`) and `is_api_key_login_provider`.
+  `login_dialog::LoginDialogComponent`: prompts arm the input and the answer comes out as an event.
+  It never opens the browser itself; the owner calls the URL opener (11.3f2). Escape aborts its
+  `AbortSignal`.
+- `code-auth::provider_display_names`. `SelectedRowList` moved to code-tui-widgets.
+- Tests: oauth-selector.test.ts (6) plus a login-dialog input case.
+- 11.3f2 needs `ModelRegistry` `getProviderDisplayName` and `getProviderAuthStatus` (registered
+  providers, models.json apiKey), plus `utils/open-url.ts`.
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3e2 done (session tree in the app); 11.3e closed
 - A double escape on an empty, idle prompt opens the tree (`doubleEscapeAction` = tree). A label
   edit appends a label entry. Select asks "Summarize branch?" through the extension selector:
