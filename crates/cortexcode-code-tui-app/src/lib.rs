@@ -6,6 +6,7 @@ pub mod chrome_layout;
 pub mod dialog_bridge;
 pub mod embsearch_progress;
 pub mod expandable_text;
+pub mod extension_editor;
 pub mod extension_selector;
 pub mod footer;
 pub mod footer_data;

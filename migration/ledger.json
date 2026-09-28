@@ -4922,7 +4922,7 @@
    "id": "11.3e",
    "title": "Tree selector (session tree navigation)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3e1",
     "11.3e2"
@@ -4958,6 +4958,12 @@
      "commit": "c9501f5",
      "kind": "note",
      "text": "Split into 11.3e1 (component + tree-selector.test.ts) and 11.3e2 (wiring + L2 session-tree). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:22:35Z",
+     "commit": "74018fe",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5008,7 +5014,7 @@
    "id": "11.3e2",
    "title": "Session tree in the app: double-escape and /tree open it; branch-summary choice, navigateTree, label changes",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3e1"
    ],
@@ -5032,6 +5038,24 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T07:15:34Z",
+     "commit": "74018fe",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T07:22:19Z",
+     "commit": "74018fe",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-tree=pass"
+    },
+    {
+     "at": "2026-09-28T07:22:35Z",
+     "commit": "74018fe",
+     "kind": "note",
+     "text": "Wired: double escape on an empty idle prompt (doubleEscapeAction=tree), the tree in the editor slot, label changes to the session, 'Summarize branch?' (No summary navigates in place; Summarize/custom run navigate_tree off the loop behind a 'Summarizing branch...' loader that escape aborts), the custom-instructions ExtensionEditorComponent (tui-app extension_editor.rs, without the $EDITOR hand-off). Not here: doubleEscapeAction=fork (the fork picker is wired with /fork, 11.4), /tree itself (11.4), flushCompactionQueue after navigation. L2 session-tree covers the no-summary path."
     }
    ]
   },

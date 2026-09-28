@@ -39,6 +39,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3e2 done (session tree in the app); 11.3e closed
+- A double escape on an empty, idle prompt opens the tree (`doubleEscapeAction` = tree). A label
+  edit appends a label entry. Select asks "Summarize branch?" through the extension selector:
+  - No summary: `navigate_tree` runs in place.
+  - Summarize, or custom: it runs on the runtime behind a "Summarizing branch..." loader that
+    escape aborts. Custom instructions come from the new `extension_editor.rs` dialog
+    (no `$EDITOR` hand-off).
+  - Escape on the question returns to the tree on the same entry.
+- After navigating, the transcript is rebuilt from the session, and the message text goes back in
+  the prompt.
+- L2 `session-tree` passes and selfcheck is stable, with requests compared.
+- Left: `doubleEscapeAction` = fork and `/tree` both wait on 11.4.
+- Next: `ledger.py next`.
+
 ### 2026-09-28: 11.3e split; 11.3e1 done (session tree component)
 - `code-tui-selectors::tree_selector`: `TreeSelectorComponent::new(tree, leaf, rows, initial,
   filter)`. Entries are read as their JSON wire form so the flatten, filter, search, fold and
