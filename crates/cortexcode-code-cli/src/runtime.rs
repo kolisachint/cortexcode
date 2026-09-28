@@ -404,30 +404,27 @@ fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
     ) else {
         return session_manager;
     };
-    // hoocode asks with a selector in interactive mode (TUI, 11.3); the
-    // placeholder asks on stdin.
-    let message =
-        cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
-            .to_string();
     if !interactive {
+        let message =
+            cortexcode_code_agent_session::runtime::RuntimeError::MissingSessionCwd(issue.clone())
+                .to_string();
         eprintln!("{}", crate::red(env.color, &message));
         std::process::exit(1);
     }
-    println!(
-        "{}",
-        cortexcode_code_agent_session::runtime::format_missing_session_cwd_prompt(&issue)
-    );
-    print!("Continue? [y/N] ");
-    let _ = std::io::Write::flush(&mut std::io::stdout());
-    let mut answer = String::new();
-    let _ = std::io::BufRead::read_line(&mut std::io::stdin().lock(), &mut answer);
-    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+    let Some(selected_cwd) =
+        cortexcode_code_tui_app::session_picker::prompt_for_missing_session_cwd(
+            &issue,
+            settings.theme().as_deref(),
+            settings.show_hardware_cursor(),
+            settings.clear_on_shrink(),
+        )
+    else {
         std::process::exit(0);
-    }
+    };
     SessionManager::open(
         issue.session_file.clone().unwrap_or_default(),
         session_dir,
-        Some(issue.fallback_cwd.clone()),
+        Some(selected_cwd),
     )
 }
 

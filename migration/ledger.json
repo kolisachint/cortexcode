@@ -4587,7 +4587,7 @@
    "id": "11.3a2",
    "title": "In-app session resume: alt+h (and /resume via 11.4) open the session selector; switch_session + renderCurrentSessionState; the missing-session-cwd Continue/Cancel prompt",
    "phase": 11,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "11.3a1"
    ],
@@ -4610,6 +4610,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.3a (bookkeeping)."
+    },
+    {
+     "at": "2026-09-28T06:05:28Z",
+     "commit": "27e2971",
+     "kind": "start",
+     "text": "started"
     }
    ]
   },
