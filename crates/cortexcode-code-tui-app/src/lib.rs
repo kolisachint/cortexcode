@@ -15,5 +15,6 @@ pub mod notification_panel;
 pub mod progress_bar;
 pub mod resource_display;
 pub mod session_chip;
+pub mod session_picker;
 pub mod startup_progress;
 pub mod wordmark;

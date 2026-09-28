@@ -39,6 +39,29 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-28: 11.3a split; 11.3a1 done (session selector, `--resume`, initial transcript)
+- 11.3a is now a container: 11.3a1 (done) and 11.3a2 (todo: in-app `alt+h` resume via
+  `switch_session` + `renderCurrentSessionState`, the missing-session-cwd Continue/Cancel
+  selector, L2 `session-resume-inapp`, not written yet).
+- The four session-selector TS test files are ported (`code-tui-selectors/tests`, 24 tests).
+  The pin's `flushPromises` is `SessionSelectorComponent::poll`, and the list's callbacks are
+  the `ListEvent`s that `handle_key` returns.
+- `code-tui-app::session_picker` is `cli/session-picker.ts`: the loaders run on a thread and
+  report through `LoadSink`. The CLI's `--resume` opens it (it is no longer in
+  `unsupported_flags`), and "No session selected" exits 0.
+- The interactive mode now renders the loaded session after the resource listing
+  (`render_session_context` / `render_initial_messages`: tool calls with results, chain
+  boundaries, "Session compacted N times", and editor history).
+- `tui-terminal`: stdin is read by one process-wide reader (`stdin_hub`) that hands chunks to
+  whichever terminal is started. The old per-terminal reader outlived `stop()` and swallowed
+  the next terminal's first keys, which broke the picker → interactive-mode handoff.
+- L2 `session-resume` passes and selfcheck is stable (local normalization covers the
+  random slug and swatch). A full `harness.py run all` shows no regressions: every failure
+  belongs to an l1_done task already waiting on L2.
+- Next: 11.3a2 (see its ledger card). `AgentSessionRuntime::switch_session` exists in
+  code-agent-session. The mode holds a bare `AgentSession`, so the swap needs a resubscribe
+  and a transcript reset (`resetTranscriptView`).
+
 ### 2026-09-27: 11.2d2 done (code highlighting: highlight.js 10.7.3 port)
 - New crate `cortexcode-tui-highlight`: highlight.js 10.7.3's engine ported over its own
   grammars, which `migration/tools/goldens/hljs-grammars.mjs` dumps as an object graph

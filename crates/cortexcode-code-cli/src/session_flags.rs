@@ -1,7 +1,7 @@
 //! main.ts `resolveSessionPath` / `validateForkFlags` / `createSessionManager`:
 //! `--no-session`, `--fork`, `--session`, `--continue` and the session dir
 //! (`--session-dir`, else `CORTEXCODE_CODING_AGENT_SESSION_DIR`, else the
-//! `sessionDir` setting). `--resume` needs the session picker (11.3).
+//! `sessionDir` setting), and `--resume` (the session picker).
 
 use crate::args::Args;
 use crate::{red, Env};
@@ -112,6 +112,7 @@ pub fn create_session_manager(
     cwd: &str,
     session_dir: Option<PathBuf>,
     env: Env,
+    theme: Option<&str>,
 ) -> SessionManager {
     if let Some(message) = fork_conflicts(args) {
         exit_with(env, &message);
@@ -161,6 +162,22 @@ pub fn create_session_manager(
                 exit_with(env, &format!("No session found matching '{arg}'"))
             }
         };
+    }
+    if args.resume == Some(true) {
+        let dir = session_dir
+            .clone()
+            .unwrap_or_else(|| cortexcode_code_session::default_session_dir(cwd));
+        let Some(selected) = cortexcode_code_tui_app::session_picker::resume_picker(theme, dir)
+        else {
+            let dim = if env.color {
+                "\x1b[2mNo session selected\x1b[22m"
+            } else {
+                "No session selected"
+            };
+            println!("{dim}");
+            std::process::exit(0);
+        };
+        return SessionManager::open(selected, session_dir, None);
     }
     if args.continue_ == Some(true) {
         return SessionManager::continue_recent(cwd, session_dir);

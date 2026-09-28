@@ -18,9 +18,11 @@ cortexcode-code-agent-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-permissions = { workspace = true }
 cortexcode-code-resources = { workspace = true }
+cortexcode-code-session = { workspace = true }
 cortexcode-code-settings = { workspace = true }
 cortexcode-code-task-store = { workspace = true }
 cortexcode-code-tui-keybindings = { workspace = true }
+cortexcode-code-tui-selectors = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-code-tui-widgets = { workspace = true }
 cortexcode-ai-types = { workspace = true }

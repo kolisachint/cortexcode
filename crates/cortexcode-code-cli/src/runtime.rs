@@ -396,6 +396,7 @@ fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
         &startup_cwd.to_string_lossy(),
         session_dir.clone(),
         env,
+        settings.theme().as_deref(),
     );
     let Some(issue) = cortexcode_code_agent_session::runtime::get_missing_session_cwd_issue(
         &session_manager,

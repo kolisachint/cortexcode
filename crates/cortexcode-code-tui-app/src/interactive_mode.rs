@@ -810,7 +810,7 @@ impl Mode {
     }
 
     /// `addMessageToChat` for the roles this transcript draws so far.
-    fn add_message_to_chat(&mut self, message: &AgentMessage) {
+    fn add_message_to_chat(&mut self, message: &AgentMessage, populate_history: bool) {
         match message {
             AgentMessage::User(user) => {
                 let text: String = user
@@ -830,6 +830,9 @@ impl Mode {
                 }
                 let component = UserMessageComponent::with_theme(&text, (self.markdown_theme())());
                 self.add_to_chat(as_component(&handle(component)));
+                if populate_history {
+                    self.editor.borrow_mut().editor.add_to_history(&text);
+                }
             }
             AgentMessage::Assistant(assistant) => {
                 let component = handle(AssistantMessageComponent::with_theme(
@@ -842,6 +845,119 @@ impl Mode {
                 self.add_to_chat(as_component(&component));
             }
             _ => {}
+        }
+    }
+
+    /// `renderSessionContext`: the transcript of messages already in the
+    /// session, with tool calls drawn as the live path draws them.
+    fn render_session_context(&mut self, messages: &[AgentMessage], populate_history: bool) {
+        self.pending_tools.clear();
+        let mut rendered_pending: Vec<(String, Rc<RefCell<ToolExecutionComponent>>)> = Vec::new();
+        let mut last_stop_reason = None;
+        for message in messages {
+            match message {
+                AgentMessage::Assistant(assistant) => {
+                    // The live path's chain boundary, so a rebuilt history shows
+                    // the chains it lived through.
+                    if self.opens_new_chain(assistant) {
+                        self.close_open_chain(ChainState::Done);
+                    }
+                    last_stop_reason = Some(assistant.stop_reason);
+                    self.add_message_to_chat(message, populate_history);
+                    for content in &assistant.content {
+                        let Content::ToolCall(call) = content else {
+                            continue;
+                        };
+                        let block =
+                            self.new_tool_block(&call.name, &call.id, call.arguments.clone());
+                        self.attach_tool_block(block.clone());
+                        if matches!(
+                            assistant.stop_reason,
+                            StopReason::Aborted | StopReason::Error
+                        ) {
+                            let error = if assistant.stop_reason == StopReason::Aborted {
+                                let attempt = self.session.retry_attempt();
+                                if attempt > 0 {
+                                    format!(
+                                        "Aborted after {attempt} retry attempt{}",
+                                        if attempt > 1 { "s" } else { "" }
+                                    )
+                                } else {
+                                    "Operation aborted".to_string()
+                                }
+                            } else {
+                                assistant
+                                    .error_message
+                                    .clone()
+                                    .filter(|m| !m.is_empty())
+                                    .unwrap_or_else(|| "Error".into())
+                            };
+                            block.borrow_mut().update_result(
+                                ToolResult {
+                                    content: vec![Content::text(error)],
+                                    details: serde_json::Value::Null,
+                                    is_error: true,
+                                },
+                                false,
+                            );
+                        } else {
+                            block.borrow_mut().set_args_complete();
+                            rendered_pending.push((call.id.clone(), block));
+                        }
+                    }
+                }
+                AgentMessage::ToolResult(result) => {
+                    if let Some(i) = rendered_pending
+                        .iter()
+                        .position(|(id, _)| *id == result.tool_call_id)
+                    {
+                        let (_, block) = rendered_pending.remove(i);
+                        block.borrow_mut().update_result(
+                            ToolResult {
+                                content: result.content.clone(),
+                                details: result.details.clone().unwrap_or(serde_json::Value::Null),
+                                is_error: result.is_error,
+                            },
+                            false,
+                        );
+                    }
+                }
+                _ => self.add_message_to_chat(message, populate_history),
+            }
+        }
+        // History has no live state: a chain still open is finished, unless
+        // calls still wait for results (a resumed run in flight).
+        if rendered_pending.is_empty() {
+            self.close_open_chain(if last_stop_reason == Some(StopReason::Stop) {
+                ChainState::Done
+            } else {
+                ChainState::Interrupted
+            });
+        }
+        self.pending_tools.extend(rendered_pending);
+        self.dirty.set(true);
+    }
+
+    /// `renderInitialMessages`: the loaded session's transcript, and how often
+    /// it was compacted.
+    fn render_initial_messages(&mut self) {
+        let messages = self.session.messages();
+        self.update_editor_border_color();
+        self.render_session_context(&messages, true);
+        let compactions = self
+            .session
+            .session_manager()
+            .entries()
+            .iter()
+            .filter(|e| matches!(e, cortexcode_code_session::FileEntry::Compaction { .. }))
+            .count();
+        if compactions > 0 {
+            let times = if compactions == 1 {
+                "1 time".to_string()
+            } else {
+                format!("{compactions} times")
+            };
+            self.show_status(&format!("Session compacted {times}"));
         }
     }
 
@@ -1181,9 +1297,9 @@ impl Mode {
                 AgentMessage::User(_) => {
                     startup_progress::clear();
                     self.turn_stop_reason = None;
-                    self.add_message_to_chat(&message);
+                    self.add_message_to_chat(&message, false);
                 }
-                AgentMessage::Custom(_) => self.add_message_to_chat(&message),
+                AgentMessage::Custom(_) => self.add_message_to_chat(&message, false),
                 AgentMessage::Assistant(assistant) => {
                     let component = handle(AssistantMessageComponent::with_theme(
                         None,
@@ -1450,6 +1566,8 @@ impl Mode {
             }
         }
         self.render_resources();
+        // Messages after the resource listing, as the pin orders them.
+        self.render_initial_messages();
 
         let tx = Mutex::new(self.tx.clone());
         set_dialog_sink(Some(Box::new(move |request| {

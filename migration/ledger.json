@@ -4469,7 +4469,56 @@
    "id": "11.3a",
    "title": "Session selector: session-selector (+ search, rename, delete, branch view) over list_sessions/list_all_sessions; alt+h and --resume open it; the missing-session-cwd Continue/Cancel prompt",
    "phase": 11,
-   "status": "in_progress",
+   "status": "todo",
+   "depends": [
+    "11.3a1",
+    "11.3a2"
+   ],
+   "crates": [
+    "cortexcode-code-tui-selectors",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+    "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": "n/a: container for 11.3a1/11.3a2",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-27T21:44:56Z",
+     "commit": "887d6e8",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:35:00Z",
+     "commit": "dca7f63",
+     "kind": "note",
+     "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split into 11.3a1 (component, tests, --resume, initial transcript) and 11.3a2 (in-app switch, missing-cwd prompt). Bookkeeping: status reset to todo as a container."
+    }
+   ]
+  },
+  {
+   "id": "11.3a1",
+   "title": "Session selector component (search, rename, delete, branch view) with its ported tests; --resume opens it before startup; the interactive app renders a loaded session (renderInitialMessages)",
+   "phase": 11,
+   "status": "done",
    "depends": [
     "11.2"
    ],
@@ -4480,7 +4529,9 @@
    "sources": [
     "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
     "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
-    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/cli/session-picker.ts",
+    "packages/coding-agent/src/main.ts"
    ],
    "ts_tests": [
     "packages/coding-agent/test/session-selector-search.test.ts",
@@ -4511,6 +4562,54 @@
      "commit": "dca7f63",
      "kind": "note",
      "text": "WIP handoff: new crate cortexcode-code-tui-selectors has session_selector_search.rs (filterAndSortSessions) and session_selector.rs (header, threaded list, rename, delete, scope loaders via LoadSink + poll()). Builds and passes clippy; no tests yet. SessionInfo gained color/branch (a colour-only session_info entry no longer clears the name). brand.rs and input_frame.rs moved to code-tui-widgets (re-exported from code-tui-app); InputFrame::clear added. Next: port the 4 session-selector-*.test.ts files, wire alt+h and --resume in the app (list_sessions/list_all_sessions loaders, SessionManager::open), write and selfcheck the session-resume L2 scenario, then the missing-session-cwd Continue/Cancel prompt."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3a (bookkeeping): the in-app switch needs a session swap in the interactive mode, which is its own piece of work."
+    },
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "018d31d",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-28T05:56:55Z",
+     "commit": "018d31d",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-resume=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.3a2",
+   "title": "In-app session resume: alt+h (and /resume via 11.4) open the session selector; switch_session + renderCurrentSessionState; the missing-session-cwd Continue/Cancel prompt",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.3a1"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-agent-session"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "session-resume-inapp"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-28T05:49:39Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.3a (bookkeeping)."
     }
    ]
   },

@@ -104,8 +104,7 @@ fn yellow(env: Env, text: &str) -> String {
 /// Flags from the pinned set that parse but are not implemented yet, in
 /// `Args` field order.
 pub fn unsupported_flags(a: &Args) -> Vec<&'static str> {
-    let checks: [(bool, &'static str); 14] = [
-        (a.resume.is_some(), "--resume"),
+    let checks: [(bool, &'static str); 13] = [
         (a.team.is_some(), "--team"),
         (a.todo_write.is_some(), "--enable-todowrite"),
         (a.enable_web_tools.is_some(), "--enable-webtools"),
@@ -376,13 +375,13 @@ mod tests {
 
     #[test]
     fn unsupported_flags_fail_clearly() {
-        let (code, out, err) = run_with(&["--resume", "--theme", "t.json", "-p", "hi"], TTY);
+        let (code, out, err) = run_with(&["--no-themes", "--theme", "t.json", "-p", "hi"], TTY);
         assert_eq!(code, 1);
         assert!(out.is_empty());
         assert_eq!(
             err,
-            "Error: --resume is not yet supported by cortex\n\
-             Error: --theme is not yet supported by cortex\n"
+            "Error: --theme is not yet supported by cortex\n\
+             Error: --no-themes is not yet supported by cortex\n"
         );
     }
 
