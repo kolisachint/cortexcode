@@ -1,0 +1,82 @@
+{
+  "description": "@file autocomplete: '@rs' lists fuzzy file matches walked by fd (needs fd or fdfind on PATH; the pin downloads it otherwise, which --offline skips), Down moves the selection, Tab accepts it into the editor. --no-session keeps the footer fixed.",
+  "phase": "11.4b",
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "files": {
+    "src/main.rs": "fn main() {}\n",
+    "src/lib.rs": "pub fn x() {}\n",
+    "docs/guide.md": "# guide\n",
+    "README.md": "# readme\n"
+  },
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "look at @rs"
+    },
+    {
+      "wait_for": "main\\.rs",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "menu",
+      "contains": [
+        "src/main.rs",
+        "src/lib.rs"
+      ]
+    },
+    {
+      "keys": [
+        "Down"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "moved"
+    },
+    {
+      "keys": [
+        "Tab"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "accepted",
+      "contains": [
+        "@src/main.rs"
+      ]
+    }
+  ]
+}

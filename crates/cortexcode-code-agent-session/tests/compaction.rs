@@ -150,6 +150,11 @@ async fn throws_when_compacting_without_configured_auth() {
     );
 }
 
+/// The pin's test cancels through a `session_before_compact` extension that
+/// answers `{cancel: true}` on abort ("Compaction cancelled"); extension hooks
+/// arrive with 12.3. Without one, the pin awaits the summary request, which the
+/// abort ends with no text, so `compact()` fails with the empty-summary error
+/// (what the pinned TUI shows, L2 `compact-cancel`) and nothing is written.
 #[tokio::test(flavor = "multi_thread")]
 async fn cancels_in_progress_manual_compaction_when_abort_compaction_is_called() {
     let h = Harness::new(HarnessOptions::default());
@@ -157,7 +162,8 @@ async fn cancels_in_progress_manual_compaction_when_abort_compaction_is_called()
         text("one"),
         text("two"),
         FauxResponseStep::async_factory(|_, _, _, _| async {
-            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            // Long enough to be mid-request when the abort lands.
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             Ok(faux_assistant_message("too late", Default::default()))
         }),
     ]);
@@ -176,7 +182,10 @@ async fn cancels_in_progress_manual_compaction_when_abort_compaction_is_called()
         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
     }
     h.session.abort_compaction();
-    assert_eq!(run.await.unwrap().unwrap_err().0, "Compaction cancelled");
+    assert_eq!(
+        run.await.unwrap().unwrap_err().0,
+        "Summarization produced an empty summary"
+    );
     assert!(!h.session.is_compacting());
     assert_eq!(compaction_entries(&h), 0);
 }

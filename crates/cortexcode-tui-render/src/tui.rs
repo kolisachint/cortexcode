@@ -1391,7 +1391,7 @@ impl Tui {
 
     /// Flatten the component tree. Simplified relative to the TypeScript
     /// original: always fully re-renders (see module docs on flatten memoization).
-    fn render(&mut self, width: u16) -> Vec<String> {
+    pub fn render(&mut self, width: u16) -> Vec<String> {
         self.root.render(width)
     }
 

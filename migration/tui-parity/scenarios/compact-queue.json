@@ -1,0 +1,125 @@
+{
+  "description": "A message typed during a (slow) /compact is held ('Queued message for after compaction', listed as steering above the prompt) and sent as the next prompt once the compaction ends. keepRecentTokens is 1 as in compact-command.",
+  "phase": "11.4g",
+  "terminal": {
+    "cols": 100,
+    "rows": 34
+  },
+  "settings": {
+    "compaction": {
+      "keepRecentTokens": 1
+    }
+  },
+  "llm": [
+    {
+      "text": "First answer."
+    },
+    {
+      "text": "Second answer."
+    },
+    {
+      "text": "## Goal\nSummary.",
+      "delay_s": 4
+    },
+    {
+      "text": "## Goal\nSummary.",
+      "delay_s": 4
+    },
+    {
+      "text": "Answer after compaction."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "First answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Second answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/compact"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Compacting context",
+      "timeout": 30
+    },
+    {
+      "sleep": 0.5
+    },
+    {
+      "type": "held message"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Queued message for after compaction",
+      "timeout": 20
+    },
+    {
+      "sleep": 0.3
+    },
+    {
+      "snapshot": "held",
+      "contains": [
+        "Steering: held message"
+      ]
+    },
+    {
+      "wait_for": "Answer after compaction",
+      "timeout": 40
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "sent",
+      "contains": [
+        "held message",
+        "Answer after compaction."
+      ]
+    }
+  ]
+}

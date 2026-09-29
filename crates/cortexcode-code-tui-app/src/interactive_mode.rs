@@ -14,32 +14,54 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cortexcode_agent_types::{AgentEvent, AgentMessage};
-use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
+use cortexcode_agent_compaction::CompactionResult;
+use cortexcode_agent_types::{AgentEvent, AgentMessage, CompactionSummaryMessage, CustomMessage};
+use cortexcode_ai_types::{AssistantMessage, Content, StopReason, UserContent};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
+use cortexcode_ai_util::is_long_retry_delay_error;
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
 use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, RuntimeError};
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
-    AgentSession, AgentSessionEvent, AgentSessionRuntime, NavigateTreeOptions, NavigateTreeResult,
-    NewSessionRequest, PromptOptions,
+    AgentSession, AgentSessionEvent, AgentSessionRuntime, CompactionReason, ForkPosition,
+    NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, PromptOptions, StreamingBehavior,
+    TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
+use cortexcode_code_media::clipboard::{NativeWriter, SystemClipboardHost};
+use cortexcode_code_media::clipboard_image::{
+    extension_for_image_mime_type, read_clipboard_image, rgba_to_png, ClipboardImage,
+    SystemClipboardImageHost,
+};
+use cortexcode_code_media::markdown_to_html::markdown_to_html;
+use cortexcode_code_media::rich_clipboard::{copy_rich_to_clipboard, CopyFlavour, RichPayload};
 use cortexcode_code_models::{
     find_exact_model_reference_match, parse_thinking_level, resolve_model_scope,
 };
-use cortexcode_code_paths::{APP_NAME, APP_TITLE};
+use cortexcode_code_paths::{APP_NAME, APP_TITLE, VERSION};
+use cortexcode_code_resources::agent_registry::{load_agent_registry, LoadAgentRegistryOptions};
 use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
+use cortexcode_code_session::identity::{
+    cycle_session_color_slot, parse_session_color_slot, session_color_name,
+    session_color_name_list, CycleDirection as SessionCycleDirection, SESSION_COLOR_SLOTS,
+};
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
-use cortexcode_code_tools::external_tools::describe_external_tools;
+use cortexcode_code_subagents::agent_log::set_terminal_owned_by_tui;
+use cortexcode_code_subagents::instance::get_subagent_pool;
+use cortexcode_code_subagents::pool::DispatchOptions;
+use cortexcode_code_task_store::{task_store, TaskStatus};
+use cortexcode_code_tool_api::{truncate_tail, TruncationOptions, TruncationResult};
+use cortexcode_code_tool_bash::BashResult;
+use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_path};
 use cortexcode_code_tools::light::{measure_prompt_surface, measure_tool_schema_tokens};
+use cortexcode_code_tools_optin::todo::settle_dangling_main_tasks;
 use cortexcode_code_tools_optin::AskQuestion;
 use cortexcode_code_tui_keybindings::{
-    app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
+    app_key_label, key_display_text, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
 };
 use cortexcode_code_tui_selectors::ask_options::{AskOptionsComponent, AskOptionsOptions};
 use cortexcode_code_tui_selectors::login_dialog::{LoginDialogComponent, LoginDialogEvent};
@@ -56,12 +78,24 @@ use cortexcode_code_tui_selectors::session_selector::{
 use cortexcode_code_tui_selectors::settings_selector::{
     SettingsChange, SettingsConfig, SettingsSelectorComponent, ToolGroupInfo, ToolToggleInfo,
 };
+use cortexcode_code_tui_selectors::small_selectors::session_color_selector;
 use cortexcode_code_tui_selectors::tree_selector::{TreeEvent, TreeSelectorComponent};
+use cortexcode_code_tui_selectors::user_message_selector::{
+    UserMessageEvent, UserMessageItem, UserMessageSelectorComponent,
+};
 use cortexcode_code_tui_theme::get_available_themes;
 use cortexcode_code_tui_theme::{apply_block_fill, BlockFill};
 use cortexcode_code_tui_theme::{
     get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
     set_theme, theme, ThinkingBorderLevel,
+};
+use cortexcode_code_tui_widgets::bash_execution::BashExecutionComponent;
+use cortexcode_code_tui_widgets::custom_message::{
+    BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomMessageComponent,
+};
+use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
+use cortexcode_code_tui_widgets::task_panel::{
+    TaskPanelComponent, TaskPanelDensity, TaskPanelView,
 };
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
@@ -75,9 +109,11 @@ use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
 use cortexcode_tui_components::BoxComponent;
+use cortexcode_tui_components::TruncatedText;
 use cortexcode_tui_components::{
-    CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
-    FrameBorderStyle, Loader, MarkdownTheme, SlashCommand, Spacer, Text,
+    ArgumentCompletionsFn, AutocompleteItem, CombinedAutocompleteProvider, CommandEntry, Editor,
+    EditorHost, EditorOptions, FrameBorderStyle, Loader, Markdown, MarkdownTheme, SelectItem,
+    SlashCommand, Spacer, Text,
 };
 use cortexcode_tui_images::get_capabilities;
 use cortexcode_tui_keys::get_keybindings;
@@ -85,9 +121,11 @@ use cortexcode_tui_render::{
     Component, ComponentHandle, Container, FlexSpacer, Slot, Tui, TuiEvent,
 };
 use cortexcode_tui_terminal::Terminal;
+use cortexcode_tui_util::visible_width;
 
+use crate::changelog::{changelog_for_display, changelog_path, parse_changelog};
 use crate::chrome_layout::{
-    ChromeLayoutController, ChromeSurfaces, FooterLayout, SMALL_TERMINAL_ROWS,
+    ChromeLayoutController, ChromeSurfaces, FooterLayout, TasksLayout, SMALL_TERMINAL_ROWS,
 };
 use crate::dialog_bridge::{set_dialog_sink, DialogRequest};
 use crate::expandable_text::{Expandable, ExpandableText};
@@ -95,6 +133,7 @@ use crate::extension_editor::{EditorOutcome, ExtensionEditorComponent};
 use crate::extension_selector::{ExtensionSelectorComponent, SelectorOutcome};
 use crate::footer::{FooterComponent, FooterDensity, FooterModel, FooterSource};
 use crate::footer_data::FooterDataProvider;
+use crate::hotkeys::hotkeys_markdown;
 use crate::input_frame::set_input_frame_border;
 use crate::login_controller::{
     action_label, logged_out_message, login_provider_options, logout_provider_options,
@@ -240,6 +279,32 @@ enum Action {
     AskOptionsDone(Option<Vec<String>>),
     /// The multi-line editor dialog closed.
     EditorDialogDone(EditorOutcome),
+    /// The prompt text changed (`onChange`).
+    EditorChanged(String),
+    /// `app.clipboard.copyMessage`: `/copy` with no argument.
+    CopyMessage,
+    /// `app.clipboard.pasteImage`.
+    PasteImage,
+    /// `app.hotkeys.open`: `/hotkeys`.
+    HotkeysOpen,
+    /// `app.session.color.cycleForward` / `cycleBackward`.
+    SessionColorForward,
+    SessionColorBackward,
+    /// The colour picker moved to this slot (live preview).
+    SessionColorPreview(u8),
+    /// The colour picker closed: the chosen slot, or `None` when cancelled.
+    SessionColorDone(Option<u8>),
+    /// `app.session.changeDirectory`: prefill `/cd `.
+    ChangeDirectoryPrefill,
+    /// `app.session.fork`: `/fork`.
+    ForkOpen,
+    /// `app.message.followUp`: queue the prompt as a follow-up.
+    FollowUp,
+    /// `app.message.dequeue`: every queued message back to the prompt.
+    Dequeue,
+    /// `app.tasks.cycleForward` / `cycleBackward`: step the task panel lens.
+    TasksForward,
+    TasksBackward,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -256,7 +321,26 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 13] = [
+const EDITOR_ACTIONS: [(&str, Action); 23] = [
+    ("app.tasks.cycleForward", Action::TasksForward),
+    ("app.tasks.cycleBackward", Action::TasksBackward),
+    ("app.message.followUp", Action::FollowUp),
+    ("app.message.dequeue", Action::Dequeue),
+    (
+        "app.session.changeDirectory",
+        Action::ChangeDirectoryPrefill,
+    ),
+    ("app.session.fork", Action::ForkOpen),
+    (
+        "app.session.color.cycleForward",
+        Action::SessionColorForward,
+    ),
+    (
+        "app.session.color.cycleBackward",
+        Action::SessionColorBackward,
+    ),
+    ("app.hotkeys.open", Action::HotkeysOpen),
+    ("app.clipboard.copyMessage", Action::CopyMessage),
     ("app.view.cycleForward", Action::ViewForward),
     ("app.view.cycleBackward", Action::ViewBackward),
     ("app.clear", Action::Clear),
@@ -294,6 +378,10 @@ impl Component for CustomEditor {
             return;
         }
         let kb = get_keybindings();
+        if kb.matches(data, "app.clipboard.pasteImage") {
+            self.actions.borrow_mut().push(Action::PasteImage);
+            return;
+        }
         if kb.matches(data, "app.interrupt") {
             if !self.editor.is_showing_autocomplete() {
                 self.actions.borrow_mut().push(Action::Interrupt);
@@ -344,6 +432,20 @@ enum AppEvent {
     Dialog(DialogRequest),
     /// A step of a running OAuth login.
     Login(LoginUpdate),
+    /// Output from the running `!` command.
+    BashChunk(String),
+    /// The `!` command ended.
+    BashDone(Result<BashResult, String>),
+    /// A `/copy` write ended: what was copied, and the flavour that landed.
+    CopyDone(String, Result<CopyFlavour, String>),
+    /// The clipboard image read ended.
+    PastedImage(Option<ClipboardImage>),
+    /// A `/subagent` run ended: its mode, and its summary or error.
+    SubagentDone(String, Result<Option<String>, String>),
+    /// Queued messages sent after a compaction failed; they go back.
+    CompactionQueueFailed(Vec<(String, StreamingBehavior)>, String),
+    /// A message typed while streaming could not be queued.
+    QueueError(String),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -386,6 +488,215 @@ struct OAuthSelect {
     outcomes: Outcomes,
     options: Vec<cortexcode_ai_oauth::OAuthSelectOption>,
     reply: tokio::sync::oneshot::Sender<Option<String>>,
+}
+
+/// A `{ truncated: true }` result for a `!` row: the row only reads the flag.
+fn truncated_marker(content: &str) -> TruncationResult {
+    TruncationResult {
+        truncated: true,
+        ..truncate_tail(content, TruncationOptions::default())
+    }
+}
+
+/// The native clipboard write (`clipboard-native.ts`), only where a display
+/// is available. `copy_to_clipboard` never uses it on Linux, where the
+/// platform tools keep selection ownership and the native library does not.
+fn native_clipboard_writer() -> Option<NativeWriter> {
+    SystemClipboardHost::has_native_display().then(|| {
+        Box::new(|text: &str| {
+            arboard::Clipboard::new()
+                .and_then(|mut clipboard| clipboard.set_text(text.to_string()))
+                .map_err(|e| e.to_string())
+        }) as NativeWriter
+    })
+}
+
+/// The native clipboard's image as PNG (`clipboard.getImageBinary`).
+fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
+    SystemClipboardHost::has_native_display().then(|| {
+        Box::new(|| {
+            let image = arboard::Clipboard::new().ok()?.get_image().ok()?;
+            rgba_to_png(
+                image.width as u32,
+                image.height as u32,
+                image.bytes.into_owned(),
+            )
+        }) as Box<dyn Fn() -> Option<Vec<u8>>>
+    })
+}
+
+/// `/model <prefix>` completions: the scoped models, else the available
+/// ones, fuzzy-matched on id and provider (so "opus anthropic" matches).
+fn model_argument_completions(
+    session: &AgentSession,
+    prefix: &str,
+) -> Option<Vec<AutocompleteItem>> {
+    let scoped = session.scoped_models();
+    let models: Vec<Model> = if scoped.is_empty() {
+        session.get_available_models()
+    } else {
+        scoped.into_iter().map(|s| s.model).collect()
+    };
+    if models.is_empty() {
+        return None;
+    }
+    let filtered =
+        cortexcode_tui_fuzzy::fuzzy_filter(&models, prefix, |m| format!("{} {}", m.id, m.provider));
+    if filtered.is_empty() {
+        return None;
+    }
+    Some(
+        filtered
+            .into_iter()
+            .map(|m| AutocompleteItem {
+                value: format!("{}/{}", m.provider, m.id),
+                label: m.id,
+                description: Some(m.provider),
+            })
+            .collect(),
+    )
+}
+
+/// `getPathArgument`: the first argument after `command`, quoted or not.
+fn command_path_argument(text: &str, command: &str) -> Option<String> {
+    let args = text.strip_prefix(command)?.strip_prefix(' ')?.trim_start();
+    let first = args.chars().next()?;
+    if first == '"' || first == '\'' {
+        let rest = &args[1..];
+        return rest.find(first).map(|end| rest[..end].to_string());
+    }
+    Some(
+        args.split(char::is_whitespace)
+            .next()
+            .unwrap_or(args)
+            .to_string(),
+    )
+}
+
+/// `os.homedir()`.
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"))
+}
+
+/// `path.resolve(base, path)`: absolute and normalized, without touching
+/// the filesystem.
+fn resolve_path(base: &Path, path: &Path) -> PathBuf {
+    let joined = base.join(path);
+    let mut out = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// `getChangeDirectoryCompletions`: directories for `/cd <prefix>`, plus
+/// `-` and `~` when nothing is typed yet. At most 50.
+fn change_directory_completions(
+    cwd: &Path,
+    previous_cwd: Option<&Path>,
+    home: &Path,
+    prefix: &str,
+) -> Vec<AutocompleteItem> {
+    let expanded = match prefix.strip_prefix("~/") {
+        Some(rest) => format!("{}/{rest}", home.to_string_lossy()),
+        None => prefix.to_string(),
+    };
+    let ends_with_sep = expanded.ends_with('/') || expanded.ends_with(std::path::MAIN_SEPARATOR);
+    let (base, partial) = if ends_with_sep {
+        (expanded.clone(), String::new())
+    } else {
+        let path = Path::new(&expanded);
+        let base = match path.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p.to_string_lossy().into_owned(),
+            _ if expanded.starts_with('/') => "/".to_string(),
+            _ => ".".to_string(),
+        };
+        let partial = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        (base, partial)
+    };
+    let search_dir = if Path::new(&base).is_absolute() {
+        PathBuf::from(&base)
+    } else {
+        resolve_path(cwd, Path::new(if base.is_empty() { "." } else { &base }))
+    };
+
+    let mut completions = Vec::new();
+    if prefix.is_empty() {
+        if let Some(previous) = previous_cwd {
+            completions.push(AutocompleteItem {
+                value: "-".into(),
+                label: format!("- ({})", previous.display()),
+                description: None,
+            });
+        }
+        completions.push(AutocompleteItem {
+            value: "~".into(),
+            label: format!("~ ({})", home.display()),
+            description: None,
+        });
+    }
+    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+        return completions;
+    };
+    // Node's readdirSync (libuv scandir) returns names sorted.
+    let mut dirs: Vec<String> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|t| t.is_dir()))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    dirs.sort();
+    for name in dirs {
+        if !partial.is_empty() && !name.starts_with(&partial) {
+            continue;
+        }
+        if partial.is_empty() && name.starts_with('.') {
+            continue;
+        }
+        let joined = if !ends_with_sep {
+            let dir = Path::new(prefix)
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match dir.as_str() {
+                "" | "." => name.clone(),
+                "/" => format!("/{name}"),
+                _ => format!("{dir}/{name}"),
+            }
+        } else {
+            format!("{prefix}{name}")
+        };
+        completions.push(AutocompleteItem {
+            value: format!("{joined}/"),
+            label: format!("{name}/"),
+            description: None,
+        });
+    }
+    completions.truncate(50);
+    completions
+}
+
+/// The first version header in a changelog excerpt.
+static CHANGELOG_VERSION: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"##\s+\[?(\d+\.\d+\.\d+)\]?").expect("static pattern")
+});
+
+/// `new Date().toISOString()`.
+fn iso_now() -> String {
+    chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string()
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -598,6 +909,36 @@ struct Mode {
     tree_navigation: Option<TreeNavigation>,
     /// The open multi-line editor dialog (`showEditor`).
     editor_dialog: Option<OpenEditorDialog>,
+    /// Rows started while the agent streams, until the next prompt.
+    pending_messages: Rc<RefCell<Container>>,
+    /// The prompt starts with `!` (`isBashMode`).
+    is_bash_mode: bool,
+    /// The running `!` command's row (`bashComponent`).
+    bash_component: Option<Rc<RefCell<BashExecutionComponent>>>,
+    /// `!` rows parked in the pending area (`pendingBashComponents`).
+    pending_bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
+    /// Every `!` row in the transcript, for the expand sweep.
+    bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
+    /// Every branch summary in the transcript, for the expand sweep.
+    branch_summaries: Vec<Rc<RefCell<BranchSummaryMessageComponent>>>,
+    /// Every compaction summary in the transcript, for the expand sweep.
+    compaction_summaries: Vec<Rc<RefCell<CompactionSummaryMessageComponent>>>,
+    /// The compaction spinner (`autoCompactionLoader`).
+    compaction_loader: Option<Rc<RefCell<Loader>>>,
+    /// Messages typed while a compaction runs (`compactionQueuedMessages`).
+    compaction_queue: Vec<(String, StreamingBehavior)>,
+    /// The task ledger above the prompt.
+    task_panel: Rc<RefCell<TaskPanelComponent>>,
+    /// Re-renders on task-store changes.
+    task_store_subscription: Option<cortexcode_code_task_store::Subscription<'static>>,
+    /// The open `/fork` message picker.
+    fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
+    /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
+    /// completions.
+    previous_cwd: Rc<RefCell<Option<PathBuf>>>,
+    /// An `/import` waiting on a confirm: the input path, the fallback cwd
+    /// once the stored one turned out missing, and where the answer arrives.
+    pending_import: Option<(String, Option<String>, mpsc::Receiver<Option<String>>)>,
 }
 
 impl Mode {
@@ -675,6 +1016,11 @@ impl Mode {
             sink.borrow_mut().push(Action::Submit(text.to_string()))
         }));
         let sink = actions.clone();
+        editor.on_change = Some(Box::new(move |text: &str| {
+            sink.borrow_mut()
+                .push(Action::EditorChanged(text.to_string()))
+        }));
+        let sink = actions.clone();
         editor.on_autocomplete_visibility_change = Some(Box::new(move |visible| {
             sink.borrow_mut()
                 .push(Action::AutocompleteVisibility(visible))
@@ -699,7 +1045,9 @@ impl Mode {
         footer.set_tool_output_view(tool_output_view);
         let footer = handle(footer);
         let footer_slot = handle(Slot::new(as_component(&footer)));
-        let tasks_slot = handle(Slot::new(as_component(&handle(Container::new()))));
+        let task_panel = handle(TaskPanelComponent::new());
+        let tasks_slot = handle(Slot::new(as_component(&task_panel)));
+        let panel_for_density = task_panel.clone();
         let footer_for_density = footer.clone();
         let density = chrome_density.unwrap_or(if size.get().1 < SMALL_TERMINAL_ROWS {
             ChromeDensity::Compact
@@ -719,7 +1067,15 @@ impl Mode {
                             FooterDensity::Full
                         })
                 }),
-                set_tasks_density: Box::new(|_| {}),
+                set_tasks_density: Box::new(move |d| {
+                    panel_for_density
+                        .borrow_mut()
+                        .set_density(if d == TasksLayout::Summary {
+                            TaskPanelDensity::Summary
+                        } else {
+                            TaskPanelDensity::Full
+                        })
+                }),
             },
             density,
         );
@@ -778,7 +1134,8 @@ impl Mode {
         tui.add_child(as_component(&screen_fill));
         tui.set_flex_spacer(Some(screen_fill.clone()));
         tui.add_child(as_component(&chat));
-        tui.add_child(as_component(&handle(Container::new()))); // pending messages
+        let pending_messages = handle(Container::new());
+        tui.add_child(as_component(&pending_messages));
         let status = handle(Container::new());
         tui.add_child(as_component(&status));
         tui.add_child(as_component(&widget_above));
@@ -856,14 +1213,128 @@ impl Mode {
             pending_tree_instructions: None,
             tree_navigation: None,
             editor_dialog: None,
+            pending_messages,
+            is_bash_mode: false,
+            bash_component: None,
+            pending_bash_components: Vec::new(),
+            bash_components: Vec::new(),
+            branch_summaries: Vec::new(),
+            compaction_summaries: Vec::new(),
+            compaction_loader: None,
+            compaction_queue: Vec::new(),
+            task_panel,
+            task_store_subscription: None,
+            fork_selector: None,
+            previous_cwd: Rc::new(RefCell::new(None)),
+            pending_import: None,
         }
     }
 
     fn update_editor_border_color(&mut self) {
-        let level = thinking_border_level(self.session.thinking_level().as_str());
-        self.editor.borrow_mut().editor.border_color =
-            Box::new(move |s: &str| theme().thinking_border(level, s));
+        self.editor.borrow_mut().editor.border_color = if self.is_bash_mode {
+            Box::new(|s: &str| theme().bash_mode_border(s))
+        } else {
+            let level = thinking_border_level(self.session.thinking_level().as_str());
+            Box::new(move |s: &str| theme().thinking_border(level, s))
+        };
         self.dirty.set(true);
+    }
+
+    /// `updateEditorPromptPrefix`: `!` in the bash-mode colour, else `❯`.
+    fn update_editor_prompt_prefix(&mut self) {
+        let mut editor = self.editor.borrow_mut();
+        if self.is_bash_mode {
+            editor.editor.prompt_prefix = "!".into();
+            editor.editor.prompt_color = Box::new(|s: &str| theme().bash_mode_border(s));
+        } else {
+            editor.editor.prompt_prefix = "❯".into();
+            editor.editor.prompt_color = Box::new(|s: &str| s.to_string());
+        }
+        self.dirty.set(true);
+    }
+
+    /// Out of bash mode after the prompt was cleared. The pin's `setText("")`
+    /// already ran `onChange` synchronously; here that change is still queued
+    /// and would see no transition, so the prefix is reset too.
+    fn leave_bash_mode(&mut self) {
+        self.is_bash_mode = false;
+        self.update_editor_border_color();
+        self.update_editor_prompt_prefix();
+    }
+
+    /// The editor's `onChange`: entering or leaving bash mode.
+    fn on_editor_change(&mut self, text: &str) {
+        let was_bash_mode = self.is_bash_mode;
+        self.is_bash_mode = text.trim_start().starts_with('!');
+        if was_bash_mode != self.is_bash_mode {
+            self.update_editor_border_color();
+            self.update_editor_prompt_prefix();
+        }
+    }
+
+    /// `BashExecutionController.handleBashCommand`: run a `!` command
+    /// through the session off the UI thread, streaming into its row. While
+    /// the agent streams the row waits in the pending area. The `user_bash`
+    /// extension hook waits on the extension runner (12.3).
+    fn handle_bash_command(&mut self, command: String, exclude_from_context: bool) {
+        let component = handle(BashExecutionComponent::new(&command, exclude_from_context));
+        if self.session.is_streaming() {
+            self.pending_messages
+                .borrow_mut()
+                .add_child(as_component(&component));
+            self.pending_bash_components.push(component.clone());
+        } else {
+            self.add_to_chat(as_component(&component));
+        }
+        self.bash_components.push(component.clone());
+        self.bash_component = Some(component);
+        self.dirty.set(true);
+
+        let session = self.session.clone();
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let chunks = tx.clone();
+            let mut on_chunk = move |chunk: &str| {
+                let _ = chunks.send(AppEvent::BashChunk(chunk.to_string()));
+            };
+            let result = session
+                .execute_bash(&command, Some(&mut on_chunk), exclude_from_context, None)
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::BashDone(result));
+        });
+    }
+
+    /// The `!` command ended: settle its row.
+    fn finish_bash_command(&mut self, result: Result<BashResult, String>) {
+        let component = self.bash_component.take();
+        match result {
+            Ok(result) => {
+                if let Some(component) = component {
+                    component.borrow_mut().set_complete(
+                        result.exit_code,
+                        result.cancelled,
+                        result.truncated.then(|| truncated_marker(&result.output)),
+                        result.full_output_path,
+                    );
+                }
+            }
+            Err(error) => {
+                if let Some(component) = component {
+                    component.borrow_mut().set_complete(None, false, None, None);
+                }
+                self.show_error(&format!("Bash command failed: {error}"));
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// `flushPendingBashComponents`: move parked `!` rows into the chat.
+    fn flush_pending_bash_components(&mut self) {
+        for component in std::mem::take(&mut self.pending_bash_components) {
+            let component = as_component(&component);
+            self.pending_messages.borrow_mut().remove_child(&component);
+            self.add_to_chat(component);
+        }
     }
 
     fn update_session_chip(&mut self) {
@@ -895,13 +1366,18 @@ impl Mode {
         self.dirty.set(true);
     }
 
+    /// `showError`: a filled error block in the chat, headline over detail.
     fn show_error(&mut self, message: &str) {
-        self.add_to_chat(as_component(&handle(Spacer::new(1))));
-        self.add_to_chat(as_component(&handle(Text::new(
-            theme().fg("error", message),
-            1,
-            0,
-        ))));
+        let mut lines = message.split('\n');
+        let title = format!("Error: {}", lines.next().unwrap_or(""));
+        let mut body: Vec<&str> = lines.collect();
+        // A wait measured in days is a dead end: say what to do about it.
+        if is_long_retry_delay_error(Some(message)) {
+            body.push(
+                "Switch to another model with /model, or wait for the provider's quota to reset.",
+            );
+        }
+        self.show_block(BlockFill::ToolErrorBg, "error", &title, &body);
     }
 
     /// The startup/reload listing and the session's own state.
@@ -963,6 +1439,41 @@ impl Mode {
                 return;
             }
         }
+        // `!` runs bash; `!!` keeps it out of the model's context.
+        if let Some(rest) = text.strip_prefix('!') {
+            let exclude_from_context = rest.starts_with('!');
+            let command = if exclude_from_context {
+                &rest[1..]
+            } else {
+                rest
+            }
+            .trim();
+            if !command.is_empty() {
+                if self.session.is_bash_running() {
+                    self.show_warning(
+                        "A bash command is already running. Press Esc to cancel it first.",
+                    );
+                    self.editor.borrow_mut().editor.set_text(&text);
+                    return;
+                }
+                self.editor.borrow_mut().editor.add_to_history(&text);
+                self.handle_bash_command(command.to_string(), exclude_from_context);
+                self.leave_bash_mode();
+                return;
+            }
+        }
+        // Typed during a compaction: held until it ends.
+        if self.session.is_compacting() {
+            self.queue_compaction_message(text, StreamingBehavior::Steer);
+            return;
+        }
+        // Typed while the agent works: steers the current run.
+        if self.session.is_streaming() {
+            self.editor.borrow_mut().editor.add_to_history(&text);
+            self.queue_prompt(text, StreamingBehavior::Steer);
+            return;
+        }
+        self.flush_pending_bash_components();
         self.editor.borrow_mut().editor.add_to_history(&text);
         self.prompt(text);
     }
@@ -1038,6 +1549,50 @@ impl Mode {
                     DEFAULT_HIDDEN_THINKING_LABEL,
                 ));
                 self.assistant_components.push(component.clone());
+                self.add_to_chat(as_component(&component));
+            }
+            AgentMessage::Custom(custom) => {
+                if custom.display {
+                    let mut component =
+                        CustomMessageComponent::new(custom.clone(), self.markdown_theme());
+                    component.set_expanded(self.expanded);
+                    self.add_to_chat(as_component(&handle(component)));
+                }
+            }
+            AgentMessage::CompactionSummary(summary) => {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                let component = handle(CompactionSummaryMessageComponent::new(
+                    summary.clone(),
+                    self.markdown_theme(),
+                ));
+                component.borrow_mut().set_expanded(self.expanded);
+                self.compaction_summaries.push(component.clone());
+                self.add_to_chat(as_component(&component));
+            }
+            AgentMessage::BranchSummary(summary) => {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                let component = handle(BranchSummaryMessageComponent::new(
+                    summary.clone(),
+                    self.markdown_theme(),
+                ));
+                component.borrow_mut().set_expanded(self.expanded);
+                self.branch_summaries.push(component.clone());
+                self.add_to_chat(as_component(&component));
+            }
+            AgentMessage::BashExecution(bash) => {
+                let exclude = bash.exclude_from_context.unwrap_or(false);
+                let mut component = BashExecutionComponent::new(&bash.command, exclude);
+                if !bash.output.is_empty() {
+                    component.append_output(&bash.output);
+                }
+                component.set_complete(
+                    bash.exit_code.map(|c| c as i32),
+                    bash.cancelled,
+                    bash.truncated.then(|| truncated_marker("")),
+                    bash.full_output_path.clone(),
+                );
+                let component = handle(component);
+                self.bash_components.push(component.clone());
                 self.add_to_chat(as_component(&component));
             }
             _ => {}
@@ -1510,11 +2065,16 @@ impl Mode {
     /// `showNotice`: a filled warning block in the chat, for warnings that
     /// cost money if ignored (`showBlock`).
     fn show_notice(&mut self, title: &str, body: &[&str]) {
+        self.show_block(BlockFill::WarningBg, "warning", title, body);
+    }
+
+    /// `showBlock`: a filled block in the chat, bold title over muted lines.
+    fn show_block(&mut self, fill: BlockFill, fg: &str, title: &str, body: &[&str]) {
         let t = theme();
         let mut block = BoxComponent::new(1, 1, None);
-        apply_block_fill(&mut block, BlockFill::WarningBg);
+        apply_block_fill(&mut block, fill);
         block.add_child(as_component(&handle(Text::new(
-            t.bold(&t.fg("warning", title)),
+            t.bold(&t.fg(fg, title)),
             0,
             0,
         ))));
@@ -2653,7 +3213,11 @@ impl Mode {
     }
 
     /// `createBaseAutocompleteProvider` + `setupAutocompleteProvider`: the
-    /// built-in commands, then prompt templates, then skill commands.
+    /// built-in commands, then prompt templates, then skill commands. `@`
+    /// file completion walks with `fd` (`ensureTool("fd")` at init): an
+    /// override, the managed copy or `fd`/`fdfind` on PATH. Downloading a
+    /// missing `fd` is not ported, so without one `@` completion stays off,
+    /// as in hoocode when the download fails.
     fn setup_autocomplete_provider(&mut self) {
         let mut commands: Vec<CommandEntry> = BUILTIN_SLASH_COMMANDS
             .iter()
@@ -2662,7 +3226,26 @@ impl Mode {
                     name: c.name.to_string(),
                     description: Some(c.description.to_string()),
                     argument_hint: (c.name == "cd").then(|| "<path>".to_string()),
-                    get_argument_completions: None,
+                    get_argument_completions: if c.name == "model" {
+                        let session = self.session.clone();
+                        Some(Box::new(move |prefix: &str| {
+                            model_argument_completions(&session, prefix)
+                        }) as ArgumentCompletionsFn)
+                    } else {
+                        (c.name == "cd").then(|| {
+                            let session = self.session.clone();
+                            let previous = self.previous_cwd.clone();
+                            Box::new(move |prefix: &str| {
+                                let completions = change_directory_completions(
+                                    session.cwd(),
+                                    previous.borrow().as_deref(),
+                                    &home_dir(),
+                                    prefix,
+                                );
+                                (!completions.is_empty()).then_some(completions)
+                            }) as ArgumentCompletionsFn
+                        })
+                    },
                 })
             })
             .collect();
@@ -2678,8 +3261,9 @@ impl Mode {
                 get_argument_completions: None,
             }));
         }
+        let fd_path = get_tool_path("fd").map(std::path::PathBuf::from);
         let provider =
-            CombinedAutocompleteProvider::new(commands, self.session.cwd().to_path_buf(), None);
+            CombinedAutocompleteProvider::new(commands, self.session.cwd().to_path_buf(), fd_path);
         self.editor
             .borrow_mut()
             .editor
@@ -2716,8 +3300,27 @@ impl Mode {
             BuiltinCommand::Settings => self.show_settings_selector(),
             BuiltinCommand::Login => self.show_oauth_selector(LoginMode::Login),
             BuiltinCommand::Logout => self.show_oauth_selector(LoginMode::Logout),
+            BuiltinCommand::Copy => self.handle_copy_command(text),
+            BuiltinCommand::Hotkeys => self.handle_hotkeys_command(),
+            BuiltinCommand::Changelog => self.handle_changelog_command(),
+            BuiltinCommand::Debug => self.handle_debug_command(),
+            BuiltinCommand::Color => {
+                // An argument sets the slot outright; bare `/color` opens the
+                // swatches.
+                if !self.handle_color_command(text) {
+                    self.show_session_color_selector();
+                }
+            }
+            BuiltinCommand::Chrome => self.handle_chrome_command(text),
+            BuiltinCommand::Fork => self.show_user_message_selector(),
+            BuiltinCommand::Clone => self.handle_clone_command(),
+            BuiltinCommand::Cd => self.handle_change_directory(text),
+            BuiltinCommand::Reload => self.handle_reload_command(),
+            BuiltinCommand::Export => self.handle_export_command(text),
+            BuiltinCommand::Import => self.handle_import_command(text),
+            BuiltinCommand::Subagent => self.handle_subagent_command(text),
             BuiltinCommand::Pending(name) => {
-                // Wired by its own ledger task (see 11.4d/11.4e).
+                // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
             }
         }
@@ -2732,6 +3335,751 @@ impl Mode {
         )
         .map(|chip| chip.styled)
         .unwrap_or_else(|| self.session.display_name())
+    }
+
+    /// `handleCopy`: the last agent message, the last n turns, or the whole
+    /// session, as markdown plus (where the platform can carry it) HTML. The
+    /// write runs off the UI thread; [`Self::finish_copy`] reports it.
+    fn handle_copy_command(&mut self, text: &str) {
+        let argument = text
+            .strip_prefix("/copy")
+            .unwrap_or(text)
+            .trim()
+            .to_lowercase();
+        // `/copy 0` is a typo, not a request for nothing.
+        let turns = (!argument.is_empty() && argument.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| argument.parse::<usize>().unwrap_or(usize::MAX).max(1));
+        let whole = argument == "all" || argument == "session";
+        if !argument.is_empty() && !whole && turns.is_none() {
+            self.show_warning("Usage: /copy [all|<number of turns>]");
+            return;
+        }
+
+        let markdown = if whole || turns.is_some() {
+            Some(self.session.get_transcript_markdown(&TranscriptSelection {
+                turns,
+                user_label: None,
+                agent_label: Some(APP_TITLE.to_string()),
+            }))
+        } else {
+            self.session.get_last_assistant_text()
+        };
+        let Some(markdown) = markdown.filter(|m| !m.is_empty()) else {
+            self.show_error(if whole || turns.is_some() {
+                "Nothing in this session to copy yet."
+            } else {
+                "No agent messages to copy yet."
+            });
+            return;
+        };
+
+        let subject = if whole {
+            "session transcript".to_string()
+        } else if let Some(turns) = turns {
+            format!("last {turns} turn{}", if turns > 1 { "s" } else { "" })
+        } else {
+            "last agent message".to_string()
+        };
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let host = SystemClipboardHost {
+                native: native_clipboard_writer(),
+            };
+            let payload = RichPayload {
+                html: markdown_to_html(&markdown),
+                text: markdown,
+            };
+            let result = copy_rich_to_clipboard(&host, &payload);
+            let _ = tx.send(AppEvent::CopyDone(subject, result));
+        });
+    }
+
+    /// The end of a `/copy`: name the flavour that landed, since "copied"
+    /// meaning markdown on one machine and formatted text on another is how
+    /// this gets reported as broken.
+    fn finish_copy(&mut self, subject: &str, result: Result<CopyFlavour, String>) {
+        match result {
+            Ok(flavour) => {
+                let as_ = match flavour {
+                    CopyFlavour::Rich => "markdown + formatted text",
+                    CopyFlavour::Text => "markdown",
+                };
+                self.show_status(&format!("Copied {subject} as {as_}"));
+            }
+            Err(reason) => self.show_error(&format!(
+                "Could not copy the {subject}: {reason}. /export writes it to a file instead."
+            )),
+        }
+    }
+
+    /// `handleClipboardImagePaste`: read the clipboard's image off the UI
+    /// thread; [`Self::insert_pasted_image`] puts its path in the prompt.
+    fn handle_clipboard_image_paste(&mut self) {
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let host = SystemClipboardImageHost {
+                native: native_clipboard_image_reader(),
+            };
+            let _ = tx.send(AppEvent::PastedImage(read_clipboard_image(&host)));
+        });
+    }
+
+    /// Write the pasted image to a temp file and insert its path at the
+    /// cursor. Failures are silent (no clipboard access, no image).
+    fn insert_pasted_image(&mut self, image: Option<ClipboardImage>) {
+        let Some(image) = image else {
+            return;
+        };
+        let ext = extension_for_image_mime_type(&image.mime_type).unwrap_or("png");
+        let file_name = format!("{APP_NAME}-clipboard-{}.{ext}", uuid::Uuid::new_v4());
+        let path = std::env::temp_dir().join(file_name);
+        if std::fs::write(&path, &image.bytes).is_err() {
+            return;
+        }
+        self.editor
+            .borrow_mut()
+            .editor
+            .insert_text_at_cursor(&path.to_string_lossy());
+        self.dirty.set(true);
+    }
+
+    /// A bordered page in the chat: accent title over markdown
+    /// (`handleHotkeys`, `handleChangelog`, the startup "What's New").
+    fn show_bordered_markdown(&mut self, title: &str, markdown: &str) {
+        let t = theme();
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+        self.add_to_chat(as_component(&handle(Text::new(
+            t.bold(&t.fg("accent", title)),
+            1,
+            0,
+        ))));
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Markdown::new(
+            markdown,
+            1,
+            0,
+            (self.markdown_theme())(),
+            None,
+        ))));
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+    }
+
+    /// `handleHotkeys`.
+    fn handle_hotkeys_command(&mut self) {
+        self.show_bordered_markdown("Keyboard Shortcuts", &hotkeys_markdown());
+    }
+
+    /// `handleChangelog`: every entry, oldest first.
+    fn handle_changelog_command(&mut self) {
+        let entries = parse_changelog(&changelog_path());
+        if entries.is_empty() {
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+            self.add_to_chat(as_component(&handle(Text::new(
+                theme().fg("dim", "No changelog entries found."),
+                1,
+                0,
+            ))));
+            return;
+        }
+        let markdown = entries
+            .iter()
+            .rev()
+            .map(|e| e.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        self.show_bordered_markdown("What's New", &markdown);
+    }
+
+    /// `showStartupNoticesIfNeeded`: the entries new since the last run,
+    /// in full or as one line when the changelog is collapsed.
+    fn show_startup_notices(&mut self, changelog: Option<String>) {
+        let Some(markdown) = changelog.filter(|m| !m.trim().is_empty()) else {
+            return;
+        };
+        let has_rows = !self.chat.borrow().children.is_empty();
+        if has_rows {
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        }
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+        let t = theme();
+        let collapse = self.session.settings().collapse_changelog();
+        if collapse {
+            let latest = CHANGELOG_VERSION
+                .captures(&markdown)
+                .map_or_else(|| VERSION.to_string(), |c| c[1].to_string());
+            self.add_to_chat(as_component(&handle(Text::new(
+                format!(
+                    "Updated to v{latest}. Use {} to view full changelog.",
+                    t.bold("/changelog")
+                ),
+                1,
+                0,
+            ))));
+        } else {
+            self.add_to_chat(as_component(&handle(Text::new(
+                t.bold(&t.fg("accent", "What's New")),
+                1,
+                0,
+            ))));
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+            self.add_to_chat(as_component(&handle(Markdown::new(
+                markdown.trim(),
+                1,
+                0,
+                (self.markdown_theme())(),
+                None,
+            ))));
+        }
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+    }
+
+    /// `handleDebug`: every rendered line with its width, and the messages
+    /// as JSON lines, written to the debug log.
+    fn handle_debug_command(&mut self) {
+        let (width, height) = self.size.get();
+        let lines = self.tui.render(width);
+        let mut data = vec![
+            format!("Debug output at {}", iso_now()),
+            format!("Terminal: {width}x{height}"),
+            format!("Total lines: {}", lines.len()),
+            String::new(),
+            "=== All rendered lines with visible widths ===".to_string(),
+        ];
+        for (idx, line) in lines.iter().enumerate() {
+            let escaped = serde_json::to_string(line).unwrap_or_default();
+            data.push(format!("[{idx}] (w={}) {escaped}", visible_width(line)));
+        }
+        data.push(String::new());
+        data.push("=== Agent messages (JSONL) ===".to_string());
+        for message in self.session.messages() {
+            data.push(serde_json::to_string(&message).unwrap_or_default());
+        }
+        data.push(String::new());
+
+        let path = cortexcode_code_paths::debug_log_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(error) = std::fs::write(&path, data.join("\n")) {
+            self.show_error(&format!("Failed to write debug log: {error}"));
+            return;
+        }
+        let t = theme();
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(
+            format!(
+                "{}\n{}",
+                t.fg("accent", "✓ Debug log written"),
+                t.fg("muted", &path.to_string_lossy())
+            ),
+            1,
+            0,
+        ))));
+    }
+
+    /// `handleColor`: `/color <slot|name>`; false for a bare `/color`.
+    fn handle_color_command(&mut self, text: &str) -> bool {
+        let arg = text.strip_prefix("/color").unwrap_or(text).trim();
+        if arg.is_empty() {
+            return false;
+        }
+        let Some(slot) = parse_session_color_slot(arg) else {
+            self.show_warning(&format!(
+                "Usage: /color <1-{SESSION_COLOR_SLOTS}> or /color <{}> (first letter works too), or /color on its own to pick one",
+                session_color_name_list().join("|")
+            ));
+            return true;
+        };
+        self.session.set_session_color(slot);
+        let t = theme();
+        let name = session_color_name(slot)
+            .map(|name| format!("  {}", t.fg("dim", name)))
+            .unwrap_or_default();
+        let line = format!(
+            "{} {}{name}",
+            t.fg("dim", "Session color set:"),
+            self.current_chip()
+        );
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+        true
+    }
+
+    /// `cycleSessionColor`: one step on the colour dial.
+    fn cycle_session_color(&mut self, forward: bool) {
+        let direction = if forward {
+            SessionCycleDirection::Forward
+        } else {
+            SessionCycleDirection::Backward
+        };
+        let slot =
+            cycle_session_color_slot(f64::from(self.session.session_color_slot()), direction);
+        self.session.set_session_color(slot);
+        let name = session_color_name(slot).map_or_else(|| slot.to_string(), str::to_string);
+        self.show_dial_step(
+            "app.session.color.cycleBackward",
+            &format!("Session color: {name}"),
+        );
+    }
+
+    /// `showSessionColorSelector`: swatches in the prompt's slot; moving
+    /// through them repaints the live chip.
+    fn show_session_color_selector(&mut self) {
+        let original = self.session.session_color_slot();
+        let selector = session_color_selector(&self.session.display_name(), original);
+        {
+            let list = selector.select_list();
+            let mut list = list.borrow_mut();
+            let slot_of = |item: &SelectItem| item.value.parse::<u8>().ok();
+            let sink = self.actions.clone();
+            list.on_selection_change = Some(Box::new(move |item| {
+                if let Some(slot) = slot_of(item) {
+                    sink.borrow_mut().push(Action::SessionColorPreview(slot));
+                }
+            }));
+            let sink = self.actions.clone();
+            list.on_select = Some(Box::new(move |item| {
+                sink.borrow_mut()
+                    .push(Action::SessionColorDone(slot_of(item)));
+            }));
+            let sink = self.actions.clone();
+            list.on_cancel = Some(Box::new(move || {
+                sink.borrow_mut().push(Action::SessionColorDone(None));
+            }));
+        }
+        self.show_in_editor_slot(as_component(&handle(selector)));
+    }
+
+    /// Paint the prompt's chip in `slot` without saving it.
+    fn preview_session_color(&mut self, slot: u8) {
+        let chip = render_session_chip(&self.session.display_name(), i64::from(slot));
+        self.editor.borrow_mut().editor.top_border_label = chip;
+        self.dirty.set(true);
+    }
+
+    /// The colour picker closed: save the choice, or put back the colour
+    /// the session actually has.
+    fn close_session_color_selector(&mut self, slot: Option<u8>) {
+        self.restore_editor();
+        match slot {
+            Some(slot) => {
+                self.session.set_session_color(slot);
+                let name =
+                    session_color_name(slot).map_or_else(|| slot.to_string(), str::to_string);
+                self.show_status(&format!("Session color: {name}"));
+            }
+            None => self.update_session_chip(),
+        }
+    }
+
+    /// `handleChromeCommand`: `/chrome` names the stop, `/chrome <stop>`
+    /// sets it (the dial's only way in where alt never arrives).
+    fn handle_chrome_command(&mut self, text: &str) {
+        let argument = text
+            .strip_prefix("/chrome")
+            .unwrap_or(text)
+            .trim()
+            .to_lowercase();
+        let all: Vec<&str> = ChromeDensity::ALL.iter().map(|d| d.as_str()).collect();
+        if argument.is_empty() {
+            self.show_status(&format!(
+                "Chrome: {} — {}",
+                self.chrome.density(),
+                all.join(" · ")
+            ));
+            return;
+        }
+        let Some(density) = ChromeDensity::parse(&argument) else {
+            self.show_error(&format!(
+                "Unknown chrome density \"{argument}\". Try: {}",
+                all.join(", ")
+            ));
+            return;
+        };
+        self.chrome.set_density(density);
+        self.session.settings().set_chrome_density(density);
+        self.dirty.set(true);
+        self.show_status(&format!("Chrome: {density}"));
+    }
+
+    /// `showUserMessageSelector`: `/fork` picks a user message; the branch
+    /// before it becomes a new session and its text returns to the prompt.
+    fn show_user_message_selector(&mut self) {
+        let messages = self.session.get_user_messages_for_forking();
+        let Some(last) = messages.last() else {
+            self.show_status("No messages to fork from");
+            return;
+        };
+        let initial = last.entry_id.clone();
+        let items = messages
+            .into_iter()
+            .map(|m| UserMessageItem {
+                id: m.entry_id,
+                text: m.text,
+                timestamp: None,
+            })
+            .collect();
+        let selector = handle(UserMessageSelectorComponent::new(items, Some(&initial)));
+        self.show_in_editor_slot(as_component(&selector));
+        self.fork_selector = Some(selector);
+    }
+
+    fn poll_fork_selector(&mut self) {
+        let Some(selector) = &self.fork_selector else {
+            return;
+        };
+        let Some(event) = selector
+            .borrow_mut()
+            .poll(Instant::now())
+            .into_iter()
+            .next()
+        else {
+            return;
+        };
+        self.fork_selector = None;
+        self.restore_editor();
+        if let UserMessageEvent::Select(entry_id) = event {
+            self.fork_session(&entry_id, ForkPosition::Before);
+        }
+    }
+
+    /// `runtimeHost.fork`, then the new session's transcript. `Before` puts
+    /// the forked message's text back in the prompt (`/fork`); `At` copies
+    /// the branch whole (`/clone`).
+    fn fork_session(&mut self, entry_id: &str, position: ForkPosition) {
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.fork(entry_id, position)) {
+            Ok(result) if result.cancelled => self.dirty.set(true),
+            Ok(result) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.editor
+                    .borrow_mut()
+                    .editor
+                    .set_text(result.selected_text.as_deref().unwrap_or(""));
+                self.show_status(if position == ForkPosition::At {
+                    "Cloned to new session"
+                } else {
+                    "Forked to new session"
+                });
+            }
+            Err(error) => self.show_error(&error.to_string()),
+        }
+    }
+
+    /// `handleClone`: the whole current branch into a new session.
+    fn handle_clone_command(&mut self) {
+        let leaf = self.session.session_manager().leaf_id().map(str::to_string);
+        match leaf {
+            Some(leaf) => self.fork_session(&leaf, ForkPosition::At),
+            None => self.show_status("Nothing to clone yet"),
+        }
+    }
+
+    /// `handleChangeDirectory`: `/cd [path|~|-]` moves the runtime to a new
+    /// session in the target directory.
+    fn handle_change_directory(&mut self, text: &str) {
+        let raw = text.strip_prefix("/cd").unwrap_or(text).trim();
+        let previous_cwd = self.session.cwd().to_path_buf();
+        let home = home_dir();
+        let target = if raw.is_empty() || raw == "~" {
+            home.clone()
+        } else if raw == "-" {
+            let Some(previous) = self.previous_cwd.borrow().clone() else {
+                self.show_warning("No previous directory to return to");
+                return;
+            };
+            previous
+        } else {
+            let expanded = match raw.strip_prefix("~/") {
+                Some(rest) => home.join(rest),
+                None => PathBuf::from(raw),
+            };
+            resolve_path(&previous_cwd, &expanded)
+        };
+        if resolve_path(Path::new("/"), &target) == resolve_path(Path::new("/"), &previous_cwd) {
+            self.show_status(&format!("Already in {}", target.display()));
+            return;
+        }
+
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.change_directory(&target)) {
+            Ok(result) if result.cancelled => {}
+            Ok(result) => {
+                *self.previous_cwd.borrow_mut() = Some(previous_cwd.clone());
+                self.rebind_current_session();
+                self.render_current_session_state();
+                let t = theme();
+                let line = format!(
+                    "{} {}\n{}",
+                    t.fg("accent", "✓ Working directory"),
+                    t.fg("muted", &result.cwd.to_string_lossy()),
+                    t.fg(
+                        "dim",
+                        &format!(
+                            "New session started here. {} reopens the session you left in {}.",
+                            key_display_text("app.session.resume"),
+                            previous_cwd.display()
+                        )
+                    )
+                );
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+            }
+            Err(RuntimeError::ChangeDirectory { message, .. }) => self.show_error(&message),
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!(
+                    "Failed to change directory to {}: {error}",
+                    target.display()
+                ));
+                self.exit_requested = true;
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// `handleReloadCommand`: re-read keybindings, settings, resources and
+    /// themes, then replay the transcript with the listing below it.
+    fn handle_reload_command(&mut self) {
+        if self.session.is_streaming() {
+            self.show_warning("Wait for the current response to finish before reloading.");
+            return;
+        }
+        if self.session.is_compacting() {
+            self.show_warning("Wait for compaction to finish before reloading.");
+            return;
+        }
+        let t = theme();
+        let mut reload_box = Container::new();
+        reload_box.add_child(as_component(&handle(DynamicBorder::new(Some(Box::new(
+            |s: &str| theme().fg("border", s),
+        ))))));
+        reload_box.add_child(as_component(&handle(Text::new(
+            t.fg(
+                "muted",
+                "Reloading keybindings, extensions, skills, prompts, themes...",
+            ),
+            1,
+            0,
+        ))));
+        reload_box.add_child(as_component(&handle(DynamicBorder::new(Some(Box::new(
+            |s: &str| theme().fg("border", s),
+        ))))));
+        self.show_in_editor_slot(as_component(&handle(reload_box)));
+        self.tui.request_render(true);
+
+        let session = self.session.clone();
+        self.runtime.block_on(async move { session.reload().await });
+        AppKeybindingsManager::create(None).install();
+        let theme_name = self.session.settings().theme();
+        if let Some(name) = theme_name {
+            if let Err(error) = set_theme(&name, true) {
+                self.show_error(&format!("Failed to load theme \"{name}\": {error}"));
+            }
+        }
+        self.update_editor_border_color();
+        self.setup_autocomplete_provider();
+        self.reset_transcript_view();
+        // From the session file, as the pin replays it: messages recorded
+        // only there (a `/subagent` answer) show too.
+        let messages = self.session.session_manager().build_context().messages;
+        self.render_session_context(&messages, false);
+        self.restore_editor();
+        // Below the replayed transcript: /reload is asked for to see what
+        // just loaded.
+        self.render_resources();
+        self.update_available_provider_count();
+        if let Some(error) = self.session.model_registry().error() {
+            self.show_error(&format!("models.json error: {error}"));
+        }
+        self.show_status("Reloaded keybindings, extensions, skills, prompts, themes");
+    }
+
+    /// `handleExport`: `/export <path.jsonl>` writes the branch as JSONL.
+    /// The HTML export (every other path) is export-html, owned by 12.7.
+    fn handle_export_command(&mut self, text: &str) {
+        let output = command_path_argument(text, "/export");
+        match output.as_deref() {
+            Some(path) if path.ends_with(".jsonl") => {
+                match self.session.export_to_jsonl(Some(Path::new(path))) {
+                    Ok(file) => {
+                        self.show_record(&format!("Session exported to: {}", file.display()))
+                    }
+                    Err(error) => {
+                        self.show_error(&format!("Failed to export session: {error}"))
+                    }
+                }
+            }
+            _ => self.show_error(
+                "Failed to export session: HTML export is not available yet; use /export <file.jsonl>",
+            ),
+        }
+    }
+
+    /// `handleImport`: `/import <path.jsonl>` replaces the session, after a
+    /// confirm.
+    fn handle_import_command(&mut self, text: &str) {
+        let Some(input) = command_path_argument(text, "/import") else {
+            self.show_error("Usage: /import <path.jsonl>");
+            return;
+        };
+        let (reply, answer) = mpsc::channel();
+        self.show_selector(
+            &format!("Import session\nReplace current session with {input}?"),
+            vec!["Yes".into(), "No".into()],
+            reply,
+        );
+        self.pending_import = Some((input, None, answer));
+    }
+
+    /// An `/import` confirm answered.
+    fn poll_import_confirm(&mut self) {
+        let Some((_, _, answer)) = &self.pending_import else {
+            return;
+        };
+        let confirmed = match answer.try_recv() {
+            Ok(choice) => choice.as_deref() == Some("Yes"),
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => false,
+        };
+        let Some((input, fallback, _)) = self.pending_import.take() else {
+            return;
+        };
+        if confirmed {
+            self.import_session(input, fallback);
+        } else {
+            self.show_status("Import cancelled");
+        }
+    }
+
+    /// `runtimeHost.importFromJsonl`; a stored cwd that is gone asks first.
+    fn import_session(&mut self, input: String, cwd_override: Option<String>) {
+        self.stop_working_loader();
+        let overridden = cwd_override.is_some();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.import_from_jsonl(Path::new(&input), cwd_override)) {
+            Ok(result) if result.cancelled => self.show_status("Import cancelled"),
+            Ok(_) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.show_record(&format!("Session imported from: {input}"));
+            }
+            Err(RuntimeError::MissingSessionCwd(issue)) if !overridden => {
+                let (reply, answer) = mpsc::channel();
+                let title = format!(
+                    "Session cwd not found\n{}",
+                    format_missing_session_cwd_prompt(&issue)
+                );
+                self.show_selector(&title, vec!["Yes".into(), "No".into()], reply);
+                self.pending_import = Some((input, Some(issue.fallback_cwd), answer));
+            }
+            Err(error @ RuntimeError::ImportFileNotFound(_)) => {
+                self.show_error(&format!("Failed to import session: {error}"))
+            }
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!("Failed to import session: {error}"));
+                self.exit_requested = true;
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// `handleSubagent`: `/subagent <mode> <task>` runs one subagent of that
+    /// type off the UI thread; [`Self::finish_subagent`] reports it.
+    fn handle_subagent_command(&mut self, text: &str) {
+        const USAGE: &str = "Usage: /subagent <mode> <task>";
+        let args = text.strip_prefix("/subagent ").map_or("", str::trim);
+        let Some((mode, task)) = args.split_once(' ') else {
+            self.show_status(USAGE);
+            return;
+        };
+        let (mode, task) = (mode.trim().to_string(), task.trim().to_string());
+        if task.is_empty() {
+            self.show_status(USAGE);
+            return;
+        }
+        let cwd = self.session.cwd().to_path_buf();
+        let registry = load_agent_registry(&LoadAgentRegistryOptions::new(
+            cwd.to_string_lossy().into_owned(),
+        ));
+        let valid: Vec<String> = registry.list().iter().map(|a| a.name.clone()).collect();
+        if !valid.contains(&mode) {
+            self.show_status(&format!(
+                "Unknown subagent_type: {mode}. Available: {}",
+                valid.join(", ")
+            ));
+            return;
+        }
+
+        self.show_status(&format!("Spawning {mode} subagent..."));
+        let available = self.session.get_available_models();
+        let model = self.session.model();
+        let options = DispatchOptions {
+            force_agent: Some(mode.clone()),
+            model: model.as_ref().map(|m| m.id.clone()),
+            provider: model.as_ref().map(|m| m.provider.clone()),
+            ..Default::default()
+        };
+        let tx = self.tx.clone();
+        self.runtime.spawn(async move {
+            // The pool's lifeguard runs on this runtime, so it is made here.
+            let pool = get_subagent_pool(&cwd, &available);
+            let outcome = match pool.dispatch(&task, options).await {
+                Ok(dispatched) => match dispatched.result {
+                    Some(result) if result.ok => Ok(result
+                        .result_data
+                        .as_ref()
+                        .and_then(|data| data.get("summary"))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)),
+                    result => Err(format!(
+                        "Subagent ({mode}) failed: {}",
+                        result
+                            .and_then(|r| r.error)
+                            .unwrap_or_else(|| "unknown error".into())
+                    )),
+                },
+                Err(error) => Err(error.to_string()),
+            };
+            let _ = tx.send(AppEvent::SubagentDone(mode, outcome));
+        });
+    }
+
+    /// A `/subagent` run ended. Its answer joins the session as a displayed
+    /// custom message (seen when the transcript is next drawn).
+    fn finish_subagent(&mut self, mode: &str, result: Result<Option<String>, String>) {
+        match result {
+            Ok(summary) => {
+                self.show_status(&format!("{mode} subagent completed"));
+                let summary = summary
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "(no output)".into());
+                self.session
+                    .session_manager()
+                    .append_message(AgentMessage::Custom(CustomMessage {
+                        custom_type: "subagent".into(),
+                        content: UserContent::Text(summary),
+                        display: true,
+                        details: None,
+                        timestamp: cortexcode_ai_types::now_ms(),
+                    }));
+            }
+            Err(error) => self.show_error(&error),
+        }
     }
 
     /// `handleName`.
@@ -3010,6 +4358,9 @@ impl Mode {
         self.pending_tools.clear();
         self.chains.clear();
         self.assistant_components.clear();
+        self.bash_components.clear();
+        self.branch_summaries.clear();
+        self.compaction_summaries.clear();
         self.last_status = None;
     }
 
@@ -3024,17 +4375,21 @@ impl Mode {
     /// `showStatus`: a passing status in the notification band above the
     /// prompt (the first line is the title, the rest its body).
     fn show_status(&mut self, message: &str) {
+        self.notify(NotificationKind::Info, message);
+    }
+
+    /// `showWarning`: on the notification band, not in the transcript.
+    fn show_warning(&mut self, message: &str) {
+        self.notify(NotificationKind::Warning, message);
+    }
+
+    fn notify(&mut self, kind: NotificationKind, message: &str) {
         let mut lines = message.split('\n');
         let title = lines.next().unwrap_or("");
         let body: Vec<&str> = lines.collect();
-        self.notifications.borrow_mut().notify(
-            NotificationKind::Info,
-            title,
-            &body,
-            None,
-            None,
-            None,
-        );
+        self.notifications
+            .borrow_mut()
+            .notify(kind, title, &body, None, None, None);
         self.dirty.set(true);
     }
 
@@ -3111,6 +4466,15 @@ impl Mode {
             // "full" holds nothing back: the header opens with it.
             self.expanded = expanded;
             self.header.borrow_mut().set_expanded(expanded);
+            for component in &self.bash_components {
+                component.borrow_mut().set_expanded(expanded);
+            }
+            for component in &self.branch_summaries {
+                component.borrow_mut().set_expanded(expanded);
+            }
+            for component in &self.compaction_summaries {
+                component.borrow_mut().set_expanded(expanded);
+            }
         }
         self.dirty.set(true);
     }
@@ -3189,6 +4553,18 @@ impl Mode {
         match event {
             AgentSessionEvent::Agent(event) => self.handle_agent_event(event),
             AgentSessionEvent::ThinkingLevelChanged { .. } => self.update_editor_border_color(),
+            AgentSessionEvent::CompactionStart { reason } => self.on_compaction_start(reason),
+            AgentSessionEvent::QueueUpdate { .. } => self.update_pending_messages_display(),
+            AgentSessionEvent::CompactionEnd {
+                reason,
+                result,
+                aborted,
+                will_retry,
+                error_message,
+            } => {
+                self.on_compaction_end(reason, result, aborted, error_message);
+                self.flush_compaction_queue(will_retry);
+            }
             AgentSessionEvent::SessionInfoChanged { .. } => {
                 self.update_session_chip();
                 self.update_terminal_title();
@@ -3196,6 +4572,281 @@ impl Mode {
             _ => {}
         }
         self.dirty.set(true);
+    }
+
+    /// `session.prompt(text, {streamingBehavior})` for a message typed while
+    /// the agent works: it only queues, so it has no turn of its own to settle.
+    fn queue_prompt(&mut self, text: String, behavior: StreamingBehavior) {
+        let session = self.session.clone();
+        let tx = self.tx.clone();
+        self.runtime.spawn(async move {
+            let result = session
+                .prompt(
+                    &text,
+                    PromptOptions {
+                        expand_prompt_templates: true,
+                        streaming_behavior: Some(behavior),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            if let Err(error) = result {
+                let _ = tx.send(AppEvent::QueueError(error.to_string()));
+            }
+        });
+        self.update_pending_messages_display();
+    }
+
+    /// `updatePendingMessagesDisplay`: the queued steering and follow-up
+    /// messages above the prompt, with the dequeue hint.
+    fn update_pending_messages_display(&mut self) {
+        let mut steering = self.session.get_steering_messages();
+        let mut follow_up = self.session.get_follow_up_messages();
+        for (text, behavior) in &self.compaction_queue {
+            match behavior {
+                StreamingBehavior::Steer => steering.push(text.clone()),
+                StreamingBehavior::FollowUp => follow_up.push(text.clone()),
+            }
+        }
+        let mut pending = self.pending_messages.borrow_mut();
+        pending.clear();
+        if steering.is_empty() && follow_up.is_empty() {
+            self.dirty.set(true);
+            return;
+        }
+        let t = theme();
+        pending.add_child(as_component(&handle(Spacer::new(1))));
+        let rows = steering
+            .iter()
+            .map(|m| format!("Steering: {m}"))
+            .chain(follow_up.iter().map(|m| format!("Follow-up: {m}")))
+            .chain(std::iter::once(format!(
+                "↳ {} to edit all queued messages",
+                key_display_text("app.message.dequeue")
+            )));
+        for row in rows {
+            pending.add_child(as_component(&handle(TruncatedText::new(
+                t.fg("dim", &row),
+                1,
+                0,
+            ))));
+        }
+        self.dirty.set(true);
+    }
+
+    /// `restoreQueuedMessagesToEditor`: every queued message, oldest first,
+    /// back into the prompt ahead of what is typed; `abort` then stops the run.
+    fn restore_queued_messages_to_editor(&mut self, abort: bool) -> usize {
+        let (steering, follow_up) = self.session.clear_queue();
+        let mut queued: Vec<String> = steering;
+        let mut compaction_follow_up = Vec::new();
+        for (text, behavior) in std::mem::take(&mut self.compaction_queue) {
+            match behavior {
+                StreamingBehavior::Steer => queued.push(text),
+                StreamingBehavior::FollowUp => compaction_follow_up.push(text),
+            }
+        }
+        queued.extend(follow_up);
+        queued.extend(compaction_follow_up);
+        let count = queued.len();
+        if count > 0 {
+            let current = self.editor.borrow().editor.get_text();
+            let combined = [queued.join("\n\n"), current]
+                .into_iter()
+                .filter(|t| !t.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            self.editor.borrow_mut().editor.set_text(&combined);
+        }
+        self.update_pending_messages_display();
+        if abort {
+            self.session.agent().abort();
+        }
+        count
+    }
+
+    /// `queueCompactionMessage`.
+    fn queue_compaction_message(&mut self, text: String, behavior: StreamingBehavior) {
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.add_to_history(&text);
+            editor.editor.set_text("");
+        }
+        self.compaction_queue.push((text, behavior));
+        self.update_pending_messages_display();
+        self.show_status("Queued message for after compaction");
+    }
+
+    /// `flushCompactionQueue`: once a compaction ends, the first held message
+    /// becomes the prompt and the rest queue behind it (all of them queue
+    /// when a retry is pending).
+    fn flush_compaction_queue(&mut self, will_retry: bool) {
+        if self.compaction_queue.is_empty() {
+            return;
+        }
+        let queued = std::mem::take(&mut self.compaction_queue);
+        self.update_pending_messages_display();
+        let queue_rest = |session: &AgentSession, rest: &[(String, StreamingBehavior)]| {
+            for (text, behavior) in rest {
+                let queued = match behavior {
+                    StreamingBehavior::FollowUp => session.follow_up(text, &[]),
+                    StreamingBehavior::Steer => session.steer(text, &[]),
+                };
+                queued.map_err(|e| e.to_string())?;
+            }
+            Ok::<(), String>(())
+        };
+        let failed = |error: String, count: usize| {
+            format!(
+                "Failed to send queued message{}: {error}",
+                if count > 1 { "s" } else { "" }
+            )
+        };
+        if will_retry {
+            if let Err(error) = queue_rest(&self.session, &queued) {
+                let count = queued.len();
+                let _ = self.tx.send(AppEvent::CompactionQueueFailed(
+                    queued,
+                    failed(error, count),
+                ));
+            }
+            self.update_pending_messages_display();
+            return;
+        }
+        let (first, rest) = (queued[0].0.clone(), queued[1..].to_vec());
+        self.prompt(first);
+        if let Err(error) = queue_rest(&self.session, &rest) {
+            let count = queued.len();
+            let _ = self.tx.send(AppEvent::CompactionQueueFailed(
+                queued,
+                failed(error, count),
+            ));
+        }
+        self.update_pending_messages_display();
+    }
+
+    /// `handleFollowUp`: alt+enter queues the prompt as a follow-up while the
+    /// agent works (held during a compaction), else submits it.
+    fn handle_follow_up(&mut self) {
+        let text = self.editor.borrow().editor.get_text().trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        if self.session.is_compacting() {
+            self.queue_compaction_message(text, StreamingBehavior::FollowUp);
+            return;
+        }
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.set_text("");
+        }
+        if self.session.is_streaming() {
+            self.editor.borrow_mut().editor.add_to_history(&text);
+            self.queue_prompt(text, StreamingBehavior::FollowUp);
+        } else {
+            self.submit(text);
+        }
+    }
+
+    /// `handleDequeue`.
+    fn handle_dequeue(&mut self) {
+        match self.restore_queued_messages_to_editor(false) {
+            0 => self.show_status("No queued messages to restore"),
+            1 => self.show_status("Restored 1 queued message to editor"),
+            n => self.show_status(&format!("Restored {n} queued messages to editor")),
+        }
+    }
+
+    /// `settleDanglingPlanItems`: plan rows the model left in progress settle
+    /// once the request is over: done after a clean stop, else cancelled.
+    /// Skipped while messages are queued (the request continues).
+    fn settle_dangling_plan_items(&mut self) {
+        if self.session.pending_message_count() > 0 {
+            return;
+        }
+        let outcome = if self.turn_stop_reason == Some(StopReason::Stop) {
+            TaskStatus::Done
+        } else {
+            TaskStatus::Cancelled
+        };
+        if settle_dangling_main_tasks(task_store(), outcome) > 0 {
+            self.dirty.set(true);
+        }
+    }
+
+    /// `compaction_start`: the spinner with its cancel hint; Escape aborts
+    /// the compaction meanwhile.
+    fn on_compaction_start(&mut self, reason: CompactionReason) {
+        if self.session.settings().show_terminal_progress() {
+            self.tui.terminal.set_progress(true);
+        }
+        self.status.borrow_mut().clear();
+        let cancel_hint = format!("({} to cancel)", key_text("app.interrupt"));
+        let label = match reason {
+            CompactionReason::Manual => format!("Compacting context... {cancel_hint}"),
+            CompactionReason::Overflow => {
+                format!("Context overflow detected, Auto-compacting... {cancel_hint}")
+            }
+            CompactionReason::Threshold => format!("Auto-compacting... {cancel_hint}"),
+        };
+        let mut loader = Loader::new(
+            Box::new(|s: &str| theme().fg("accent", s)),
+            Box::new(|s: &str| theme().fg("muted", s)),
+            &label,
+            None,
+        );
+        loader.start();
+        let loader = handle(loader);
+        self.status.borrow_mut().add_child(as_component(&loader));
+        self.compaction_loader = Some(loader);
+    }
+
+    /// `compaction_end`: the chat rebuilt around the summary, or why not.
+    fn on_compaction_end(
+        &mut self,
+        reason: CompactionReason,
+        result: Option<CompactionResult>,
+        aborted: bool,
+        error_message: Option<String>,
+    ) {
+        if self.session.settings().show_terminal_progress() {
+            self.tui.terminal.set_progress(false);
+        }
+        if let Some(loader) = self.compaction_loader.take() {
+            loader.borrow_mut().stop();
+            self.status.borrow_mut().clear();
+        }
+        let manual = reason == CompactionReason::Manual;
+        if aborted {
+            if manual {
+                self.show_error("Compaction cancelled");
+            } else {
+                self.show_status("Auto-compaction cancelled");
+            }
+        } else if let Some(result) = result {
+            self.reset_transcript_view();
+            let messages = self.session.session_manager().build_context().messages;
+            self.render_session_context(&messages, false);
+            let summary = AgentMessage::CompactionSummary(CompactionSummaryMessage {
+                summary: result.summary,
+                tokens_before: result.tokens_before,
+                tokens_after: result.tokens_after,
+                timestamp: cortexcode_ai_types::now_ms(),
+            });
+            self.add_message_to_chat(&summary, false);
+            self.footer.borrow_mut().invalidate();
+        } else if let Some(error) = error_message {
+            if manual {
+                self.show_error(&error);
+            } else {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                self.add_to_chat(as_component(&handle(Text::new(
+                    theme().fg("error", &error),
+                    1,
+                    0,
+                ))));
+            }
+        }
     }
 
     fn handle_agent_event(&mut self, event: AgentEvent) {
@@ -3208,9 +4859,12 @@ impl Mode {
             }
             AgentEvent::MessageStart { message } => match &message {
                 AgentMessage::User(_) => {
+                    // A new turn drops the finished tasks of the last one.
+                    task_store().reset();
                     startup_progress::clear();
                     self.turn_stop_reason = None;
                     self.add_message_to_chat(&message, false);
+                    self.update_pending_messages_display();
                 }
                 AgentMessage::Custom(_) => self.add_message_to_chat(&message, false),
                 AgentMessage::Assistant(assistant) => {
@@ -3376,9 +5030,16 @@ impl Mode {
                 if self.tree_navigation.is_some() {
                     // Escape cancels a branch summary while it runs.
                     self.session.abort_branch_summary();
+                } else if self.compaction_loader.is_some() {
+                    self.session.abort_compaction();
                 } else if self.session.is_streaming() {
-                    let session = self.session.clone();
-                    self.runtime.spawn(async move { session.abort().await });
+                    // Queued messages come back to the prompt, then the run stops.
+                    self.restore_queued_messages_to_editor(true);
+                } else if self.session.is_bash_running() {
+                    self.session.abort_bash();
+                } else if self.is_bash_mode {
+                    self.editor.borrow_mut().editor.set_text("");
+                    self.leave_bash_mode();
                 } else if self.editor.borrow().editor.get_text().trim().is_empty() {
                     self.handle_double_escape();
                 }
@@ -3433,6 +5094,41 @@ impl Mode {
             Action::SettingsOpen => self.show_settings_selector(),
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
+            Action::EditorChanged(text) => self.on_editor_change(&text),
+            Action::CopyMessage => self.handle_copy_command(""),
+            Action::PasteImage => self.handle_clipboard_image_paste(),
+            Action::HotkeysOpen => self.handle_hotkeys_command(),
+            Action::SessionColorForward | Action::SessionColorBackward => {
+                self.cycle_session_color(action == Action::SessionColorForward)
+            }
+            Action::SessionColorPreview(slot) => self.preview_session_color(slot),
+            Action::SessionColorDone(slot) => self.close_session_color_selector(slot),
+            Action::ChangeDirectoryPrefill => {
+                // Prefill rather than act: the editor's path completion is the
+                // way to name the target.
+                self.editor.borrow_mut().editor.set_text("/cd ");
+                self.dirty.set(true);
+            }
+            Action::ForkOpen => self.show_user_message_selector(),
+            Action::FollowUp => self.handle_follow_up(),
+            Action::Dequeue => self.handle_dequeue(),
+            Action::TasksForward | Action::TasksBackward => {
+                let forward = action == Action::TasksForward;
+                let view = self.task_panel.borrow_mut().cycle_view(forward);
+                let label = match view {
+                    TaskPanelView::Flat => "tasks",
+                    TaskPanelView::Subagents => "subagents",
+                    TaskPanelView::Teams => "teams",
+                };
+                self.show_dial_step(
+                    if forward {
+                        "app.tasks.cycleBackward"
+                    } else {
+                        "app.tasks.cycleForward"
+                    },
+                    &format!("Task panel: {label}"),
+                );
+            }
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -3471,6 +5167,13 @@ impl Mode {
             wait = wait.min(deadline.saturating_duration_since(now));
         }
         if let Some(deadline) = self
+            .fork_selector
+            .as_ref()
+            .and_then(|s| s.borrow().deadline())
+        {
+            wait = wait.min(deadline.saturating_duration_since(now));
+        }
+        if let Some(deadline) = self
             .tree_selector
             .as_ref()
             .and_then(|(s, _)| s.borrow().deadline())
@@ -3490,6 +5193,13 @@ impl Mode {
         options_initial: (Option<String>, Vec<String>, Option<String>),
     ) -> Result<(), String> {
         let input = self.tui.start();
+        // From here the TUI owns the terminal: the agent's operational log
+        // lines (dispatch, warm fallback, lifeguard) must not write to it.
+        set_terminal_owned_by_tui(true);
+        let tx = self.tx.clone();
+        self.task_store_subscription = Some(task_store().subscribe(move || {
+            let _ = tx.send(AppEvent::Rerender);
+        }));
         self.subscription = Some(self.subscribe());
 
         // Everything the chrome shows about the session.
@@ -3504,7 +5214,13 @@ impl Mode {
                 ));
             }
         }
+        let changelog = {
+            let has_messages = !self.session.messages().is_empty();
+            let mut settings = self.session.settings();
+            changelog_for_display(has_messages, &mut settings, VERSION)
+        };
         self.render_resources();
+        self.show_startup_notices(changelog);
         // Messages after the resource listing, as the pin orders them.
         self.render_initial_messages();
         self.setup_autocomplete_provider();
@@ -3592,6 +5308,7 @@ impl Mode {
                         };
                         self.close_open_chain(outcome);
                         self.show_turn_cost();
+                        self.settle_dangling_plan_items();
                         if let Err(error) = result {
                             self.show_error(&error);
                         }
@@ -3611,6 +5328,23 @@ impl Mode {
                     }
                     AppEvent::Dialog(DialogRequest::HideAskOptions) => self.hide_ask_options(None),
                     AppEvent::Login(update) => self.handle_login_update(update),
+                    AppEvent::BashChunk(chunk) => {
+                        if let Some(component) = &self.bash_component {
+                            component.borrow_mut().append_output(&chunk);
+                            self.dirty.set(true);
+                        }
+                    }
+                    AppEvent::BashDone(result) => self.finish_bash_command(result),
+                    AppEvent::CopyDone(subject, result) => self.finish_copy(&subject, result),
+                    AppEvent::PastedImage(image) => self.insert_pasted_image(image),
+                    AppEvent::SubagentDone(mode, result) => self.finish_subagent(&mode, result),
+                    AppEvent::CompactionQueueFailed(queued, error) => {
+                        self.session.clear_queue();
+                        self.compaction_queue = queued;
+                        self.update_pending_messages_display();
+                        self.show_error(&error);
+                    }
+                    AppEvent::QueueError(error) => self.show_error(&error),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -3630,6 +5364,9 @@ impl Mode {
             }
             if self.last_tool_tick.elapsed() >= Duration::from_secs(1) {
                 self.last_tool_tick = Instant::now();
+                if self.task_panel.borrow().ticking() {
+                    self.dirty.set(true);
+                }
                 for block in self.pending_tools.values() {
                     if block.borrow().is_ticking() {
                         block.borrow_mut().invalidate();
@@ -3645,7 +5382,9 @@ impl Mode {
                 self.dirty.set(true);
             }
             self.poll_cwd_prompt();
+            self.poll_import_confirm();
             self.poll_tree_selector();
+            self.poll_fork_selector();
             self.poll_model_selectors();
             self.poll_login();
             self.poll_settings_selector();
@@ -3653,6 +5392,20 @@ impl Mode {
             self.poll_tree_instructions();
             self.poll_tree_navigation();
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
+                self.dirty.set(true);
+            }
+            if self
+                .compaction_loader
+                .as_ref()
+                .is_some_and(|l| l.borrow_mut().tick())
+            {
+                self.dirty.set(true);
+            }
+            if self
+                .bash_component
+                .as_ref()
+                .is_some_and(|c| c.borrow_mut().tick())
+            {
                 self.dirty.set(true);
             }
             if self.stream_render_pending
@@ -3689,7 +5442,12 @@ impl Mode {
         self.footer_data.dispose();
         cortexcode_code_tui_theme::stop_theme_watcher();
         self.notifications.borrow_mut().stop();
+        if let Some(subscription) = self.task_store_subscription.take() {
+            subscription.unsubscribe();
+        }
+        self.task_panel.borrow_mut().dispose();
         self.tui.stop();
+        set_terminal_owned_by_tui(false);
         let session = self.session.clone();
         if session.is_streaming() {
             self.runtime.block_on(async move { session.abort().await });
@@ -3714,6 +5472,19 @@ enum BuiltinCommand {
     Settings,
     Login,
     Logout,
+    Copy,
+    Hotkeys,
+    Changelog,
+    Debug,
+    Color,
+    Chrome,
+    Fork,
+    Clone,
+    Cd,
+    Reload,
+    Export,
+    Import,
+    Subagent,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -3734,6 +5505,19 @@ impl BuiltinCommand {
             "settings" => Self::Settings,
             "login" => Self::Login,
             "logout" => Self::Logout,
+            "copy" => Self::Copy,
+            "hotkeys" => Self::Hotkeys,
+            "changelog" => Self::Changelog,
+            "debug" => Self::Debug,
+            "color" => Self::Color,
+            "chrome" => Self::Chrome,
+            "fork" => Self::Fork,
+            "clone" => Self::Clone,
+            "cd" => Self::Cd,
+            "reload" => Self::Reload,
+            "export" => Self::Export,
+            "import" => Self::Import,
+            "subagent" => Self::Subagent,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -3744,11 +5528,17 @@ impl BuiltinCommand {
     /// Commands that also match "/name <args>".
     fn with_args(self) -> bool {
         match self {
-            Self::Name | Self::Compact | Self::Model => true,
-            Self::Pending(name) => matches!(
-                name,
-                "export" | "import" | "copy" | "color" | "chrome" | "cd" | "subagent"
-            ),
+            Self::Name
+            | Self::Compact
+            | Self::Model
+            | Self::Copy
+            | Self::Color
+            | Self::Chrome
+            | Self::Cd
+            | Self::Export
+            | Self::Import
+            | Self::Subagent => true,
+            Self::Pending(_) => false,
             _ => false,
         }
     }

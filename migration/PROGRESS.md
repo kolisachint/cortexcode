@@ -9,11 +9,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Stopped 2026-09-28 (end of day). Phase 11 is 34/43 done. `ledger.py next` says START 11.3f: the
-  login parent task, whose subtasks 11.3f1/11.3f2 are done, so it should need only `start` +
-  `verify`. Then the open phase-11 tasks: 11.4b (@file autocomplete, L2 file-autocomplete),
-  11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
-  compact-command); 12.3 extension runner is deferred.
+- Phase 12 is deferred by user decision (2026-09-29). Phase 11 is complete (2026-09-29).
+  What's left outside phase 12: the phase-10 `l1_done` tasks whose L2 is the default-bundle
+  prompt (10.2a/b/c/d/f/g, 10.4c, 10.5, 10.5b). That prompt includes SearchHooCode from the
+  self-knowledge extension (12.4, deferred), so they can't reach L2 until 12.4 or a user
+  decision. Also 9.1/10.2e (blocked on decisions), 10.11 (needs 9.1), and phase 13.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -43,6 +43,174 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.5b task panel in the app; 11.5 closed; phase 11 complete
+- `TaskPanelComponent` mounted in the tasks slot (chrome density → full/summary), task-store
+  subscription → re-render, 1s run-clock tick, alt+l / shift+alt+l lens cycle with dial steps,
+  `task_store().reset()` on each user message, `settle_dangling_main_tasks` when a request settles
+  (done after a clean stop, else cancelled; skipped while messages are queued).
+- Team focus (alt+n, nudge/attach) is not wired: role agents come from hooteams `--team` (12.7).
+- L2 `todo-write` passes (stable). 10.2f still needs `print-todo-write` (default-bundle prompt).
+- Full L2 after 11.5b: 53 pass; the known 9 default-bundle/mode scenarios fail, plus `subagent-task`
+  once (the parent timed out waiting on the child at 60 s). It passed on the next two reruns and
+  selfchecks stable. If it recurs, look at child start-up time under load.
+
+### 2026-09-29 · 11.5 split; 11.5a TaskPanelComponent
+- 11.5 split into 11.5a (component + tests) and 11.5b (app wiring; L2 todo-write, which is
+  10.2f's gate and waits on the panel).
+- `code-tui-widgets::task_panel`: lenses (flat plan with linked runs nested / subagents forest /
+  teams roster), tab strip with per-lens counts and key hints, rail colour, rows with tags,
+  usage, live activity + run clock, ⚠ notes, summary density, team focus (↑/↓, n, a, q/esc as
+  `TaskPanelEvent`s). The pin's per-version row memo is an optimization and isn't reproduced;
+  its 1s run clock is `ticking()` for the app to poll.
+- Ported task-panel.test.ts + task-panel-team-focus.test.ts (45 tests; a static lock serializes
+  the global store). Not ported: the two console.warn store tests (Rust store is silent).
+- Next: 11.5b (mount in the tasks slot, alt+l cycle, store subscription → re-render, chrome
+  summary density and mid-turn collapse, team focus).
+
+### 2026-09-29 · 11.4g message queue; 11.4 closed
+- Enter while streaming steers (`prompt` with `StreamingBehavior::Steer`, no turn of its own to
+  settle); alt+Enter queues a follow-up; alt+Up (`app.message.dequeue`) restores every queued message
+  into the prompt; Escape while streaming restores then aborts; the pending-messages area lists
+  "Steering:/Follow-up:" rows plus the dequeue hint (on `QueueUpdate` and each user message).
+- Compaction queue: text typed during a compaction is held ("Queued message for after
+  compaction") and flushed on `compaction_end` (first as the prompt, the rest steer/follow-up;
+  all queued when a retry is pending; failures put them back).
+- L2 (new, stable, pass): message-queue (with request comparison), message-queue-escape,
+  compact-queue. 11.4 container verified.
+- Next: `ledger.py next` (11.5 task panel, L2 subagent-task).
+
+### 2026-09-29 · 11.4f compaction UI; 9.2b done; 11.4g added
+- `compaction_start`: spinner with "(Esc to cancel)" in the status row, terminal progress; Escape
+  aborts the compaction. `compaction_end`: transcript rebuilt from the session file plus the
+  appended `CompactionSummaryMessageComponent` (new widget), or the cancel/error line.
+  `/reload` now refuses during a compaction.
+- Session semantics fixed to the pin: a manual compaction awaits the summary request instead of
+  racing the abort signal (`tokio::select!`). An abort before any text fails as "Compaction failed:
+  Summarization produced an empty summary", which is what the pinned TUI shows. The adapted Rust test
+  now asserts that. The pin's own test cancels via a `session_before_compact` extension (ledger
+  note on 12.3).
+- mockllm: per-response `delay_s` (README). New L2 `compact-empty` (the pin compacts an empty
+  session and draws the block twice; matched), `compact-cancel`; `compact-command` passes, so
+  9.2b is done. Known failures are now 10.
+- New task 11.4g: message-queue-controller.ts had no owner (steer/follow-up while streaming,
+  pending display, dequeue, compaction queue). 11.4 now depends on it. Its code is drafted in
+  `/tmp` only; start from the pin source.
+- cd-reload: waits for the first warning to clear (it lingered under load).
+- Next: `ledger.py next` (11.4g).
+
+### 2026-09-29 · 11.4e6 /subagent; 11.4e closed (+ /model completions)
+- `/subagent <mode> <task>`: usage / unknown-type status, "Spawning …", `get_subagent_pool`
+  (made inside the runtime task: its lifeguard needs the Tokio context) + `dispatch` with
+  `force_agent`; the summary is appended to the session file as a displayed `subagent` custom
+  message.
+- New widgets `custom_message.rs`: `CustomMessageComponent`, `BranchSummaryMessageComponent`
+  (had no owner); the transcript draws `custom` and `branchSummary` messages.
+- Fix: the app now calls `set_terminal_owned_by_tui(true/false)` around the TUI (agent-log.ts), so
+  `[DISPATCH]` lines no longer write over the screen.
+- `/reload` replays from `SessionManager::build_context()` like the pin.
+- `/model <prefix>` argument completions (fuzzy over scoped else available models); L2
+  `model-completions` gates the 11.4e container.
+- L2 `subagent-command`, `model-completions` (new, stable, pass). Full L2: only the known 11.
+- Next: `ledger.py next` (11.4f compaction UI; also add the /reload is_compacting guard).
+
+### 2026-09-29 · 11.4e5 /export (jsonl), /import
+- `/export <file.jsonl>` via `AgentSession::export_to_jsonl` (record line); any other target
+  reports that the HTML export isn't available yet (export-html is 12.7, deferred).
+- `/import <path>`: Yes/No confirm in the prompt slot, `AgentSessionRuntime::import_from_jsonl`,
+  the missing-cwd confirm on a second pass, file-not-found error; `getPathArgument` quoting.
+- L2 `export-import` (new, stable, pass). Next: `ledger.py next` (11.4e6 /subagent).
+
+### 2026-09-29 · 11.4e4 /cd, /reload
+- `/cd [path|~|-]` through `AgentSessionRuntime::change_directory` (new session there, "✓ Working
+  directory" note), `previous_cwd` for `/cd -`, `/cd` argument completions
+  (getChangeDirectoryCompletions; names sorted like libuv's scandir), alt+… `app.session.
+  changeDirectory` prefills `/cd `, `app.session.fork` opens /fork.
+- `/reload`: reload box in the prompt slot, `session.reload()`, keybindings/theme re-read, the
+  transcript replayed with the listing below, "Reloaded …" status. The compaction guard waits on
+  11.4f (ledger note).
+- Leftover (noted on 11.4e): `/model <prefix>` argument completions aren't wired.
+- L2 `cd-reload` (new, stable, pass). Next: `ledger.py next` (11.4e5 /export jsonl, /import).
+
+### 2026-09-29 · 11.4e3 /fork, /clone
+- `/fork` opens `UserMessageSelectorComponent` (polled like the tree selector) on the latest
+  user message; selecting forks before it through `AgentSessionRuntime::fork(.., Before)`,
+  rebinds, redraws, and puts the message text back in the prompt. `/clone` forks `At` the leaf.
+- L2 `fork-clone` (in memory) and `fork-clone-persisted` (new, stable, pass).
+- Next: `ledger.py next` (11.4e4 /cd /reload).
+
+### 2026-09-29 · 11.4e2 /color, /chrome, colour dial
+- `/color <slot|name>` (chip line in the chat, usage warning), bare `/color` opens
+  `session_color_selector` in the prompt's slot with live chip preview (Esc restores the real
+  colour), alt+c / shift+alt+c step the colour dial, `/chrome [full|compact|bare]`.
+- L2 `color-chrome` (new, stable, pass). Next: `ledger.py next` (11.4e3 /fork /clone).
+
+### 2026-09-29 · 11.4e split; 11.4e1 /hotkeys /changelog /debug + startup What's New
+- 11.4e split into 11.4e1..e6 (info; /chrome /color; /fork /clone; /cd /reload; /export jsonl +
+  /import; /subagent). /share and the HTML half of /export stay with 12.7 (deferred).
+- `code-tui-app`: `hotkeys.rs` (the pin's page, generated from command-executor.ts with every
+  key looked up live), `changelog.rs` (parseChangelog, getNewEntries, getChangelogPath,
+  getChangelogForDisplay), `/hotkeys` + alt+k, `/changelog`, `/debug` (`Tui::render` is now pub),
+  startup "What's New" / collapsed "Updated to v…" after the resource listing.
+- Harness: env values expand `{WORK}`/`{HOME}`/`{TMP}`; new `symlinks` (with `{HOOCODE_PKG}`)
+  so HOOCODE_PACKAGE_DIR can point at a seeded CHANGELOG.md while hoocode keeps its package.json
+  and themes. README updated.
+- Perf: first markdown render took ~1 s in dev builds (markdown rules' regexes compiled
+  unoptimized), which delayed the first frame. Root `Cargo.toml` now builds regex-automata,
+  regex-syntax and fancy-regex at opt-level 3 in dev: ~0.13 s.
+- L2 (new, stable, pass): info-commands (whole /hotkeys page via scrollback), changelog-command,
+  changelog-startup, changelog-startup-collapsed. Full L2: only the known 11 fail.
+- Next: `ledger.py next` (11.4e2 /chrome /color).
+
+### 2026-09-29 · 11.4d2 image paste; 11.4d closed
+- `cortexcode-code-media::clipboard_image` (readClipboardImage behind `ClipboardImageHost`:
+  wl-paste → xclip on Wayland/WSL, PowerShell on WSL, native on X11/macOS/Windows; non-model
+  formats such as BMP re-encoded to PNG via `image`, bmp feature on). Ported
+  clipboard-image.test.ts + clipboard-image-bmp-conversion.test.ts.
+- App: ctrl+v (`app.clipboard.pasteImage`) reads off the UI thread, writes
+  `$TMPDIR/cortexcode-clipboard-<uuid>.<ext>` and inserts the path at the cursor. arboard
+  (image-data) is now a plain dep of code-tui-app; RGBA → PNG via `rgba_to_png`. Shares the one
+  `image` 0.25 in the tree.
+- L2 `paste-image-empty` (no clipboard in tmux: ctrl+v leaves the prompt alone): stable, pass.
+  A real image paste can't be exercised in the harness.
+- Next: `ledger.py next` (11.4e remaining slash commands).
+
+### 2026-09-29 · 11.4d split; 11.4d1 /copy
+- 11.4d split into 11.4d1 (text copy) and 11.4d2 (image paste: clipboard-image*.ts + tests).
+- `cortexcode-code-media`: `clipboard` (copyToClipboard behind a `ClipboardHost` trait:
+  native off Linux, pbcopy/clip/termux/wl-copy/xclip/xsel, OSC 52 when remote or nothing else
+  worked), `rich_clipboard` (JXA / PowerShell CF_HTML, `wrap_cf_html`), `markdown_to_html`
+  (fancy-regex, pin's JS patterns). Ported clipboard.test.ts + copy-structure.test.ts, plus
+  golden outputs recorded from the pin's dist `markdownToHtml`.
+- App: `/copy [all|n]` and `app.clipboard.copyMessage` (write off the UI thread, flavour on the
+  band). arboard (default-features off) is a non-Linux target dep of code-tui-app, like the pin
+  which skips the native addon on Linux; its snippet was `cargo check`ed for x86_64-apple-darwin.
+- Parity fix: `show_error` is now hoocode's filled "Error: ..." block (`show_block`), with the
+  long-retry-delay hint. Full L2: only the known 11 fail.
+- L2 `copy-command` (new): stable, passes. Next: `ledger.py next` (11.4d2 image paste).
+
+### 2026-09-29 · 11.4c ! and !! bash
+- `interactive_mode.rs`: bash mode (`onChange` → `!` prompt prefix + bash-mode border; Escape
+  aborts a running command, else clears a bash-mode prompt), `handle_bash_command` runs
+  `AgentSession::execute_bash` on a thread and streams `AppEvent::BashChunk`/`BashDone` into a
+  `BashExecutionComponent`; rows started while streaming wait in the pending container and move
+  to the chat on the next idle submit; history renders `bashExecution` messages; the ctrl+o
+  sweep expands `!` rows; `show_warning` (notification band).
+- Not ported: the `user_bash` extension hook (waits on 12.3, deferred).
+- New L2 `bash-command` (added as 11.4c's gate): bash mode, `!echo`, `!!printf`, Escape, and a
+  follow-up prompt whose request carries only the `!` output. Stable, passes.
+- One `cargo test --workspace -q` run exited 101 without a visible failing test; three reruns
+  were clean. If it recurs, capture the full log.
+- Next: `python3 migration/ledger.py next` (11.4d clipboard).
+
+### 2026-09-29 · 11.3f, 11.3 closed; 11.4b @file autocomplete
+- User decision: phase 12 stays deferred (noted on 12.1..12.7); skip it and keep going.
+- 11.3f and 11.3 were containers with all subtasks done: `start` + `verify` only.
+- 11.4b: `setup_autocomplete_provider` passes `get_tool_path("fd")` (override, managed copy,
+  `fd`/`fdfind` on PATH) to `CombinedAutocompleteProvider`. Downloading fd is not ported.
+- L2 `file-autocomplete` ('@rs' menu, Down, Tab): needs fd on the host (`apt-get install
+  fd-find`; `setup_hoocode.sh` warns when missing). Stable, passes.
+- Next: `python3 migration/ledger.py next` (11.4c `!` bash).
 
 ### 2026-09-28 · 11.3f2 /login and /logout
 - `crates/cortexcode-code-tui-app/src/login_controller.rs`: provider option lists, post-login

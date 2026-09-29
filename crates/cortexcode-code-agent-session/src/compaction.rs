@@ -145,10 +145,10 @@ impl AgentSession {
             signal: Some(signal.clone()),
             thinking_level: Some(self.thinking_level()),
         };
-        let generated = tokio::select! {
-            result = compact(preparation, model, custom_instructions, &options) => result?,
-            _ = signal.cancelled() => return Ok(Applied::Cancelled),
-        };
+        // Awaited whole, as the pin does: an abort reaches the summary request
+        // through its signal. A stream aborted before any text fails as an
+        // empty summary; one that still returned text is "cancelled" below.
+        let generated = compact(preparation, model, custom_instructions, &options).await?;
         if signal.aborted() {
             return Ok(Applied::Cancelled);
         }

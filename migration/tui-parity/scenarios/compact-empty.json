@@ -1,0 +1,53 @@
+{
+  "description": "/compact on a fresh session: the pin still runs a (0-token) compaction and draws the summary block twice (once from the rebuilt context, once appended). keepRecentTokens is 1 as in compact-command.",
+  "phase": "11.4f",
+  "terminal": {
+    "cols": 100,
+    "rows": 34
+  },
+  "settings": {
+    "compaction": {
+      "keepRecentTokens": 1
+    }
+  },
+  "llm": [
+    {
+      "text": "## Goal\nNothing yet."
+    },
+    {
+      "text": "## Goal\nNothing yet."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/compact"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Compacted",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "empty",
+      "contains": [
+        "[compaction]"
+      ]
+    }
+  ]
+}

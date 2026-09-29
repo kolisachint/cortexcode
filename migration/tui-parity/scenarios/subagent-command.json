@@ -1,0 +1,139 @@
+{
+  "description": "/subagent: without a task it shows the usage; an unknown type lists the available ones; '/subagent general-purpose <task>' spawns a real child (the same app, same mock LLM), says so, and reports completion (compared once the 'Spawning' notice has faded: how long the child takes differs); the answer joins the session as a custom message, seen after /reload replays the transcript. --no-session keeps the footer fixed.",
+  "phase": "11.4e6",
+  "terminal": {
+    "cols": 120,
+    "rows": 36
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [
+    {
+      "text": "42"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/subagent general-purpose"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Usage: /subagent",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "usage",
+      "contains": [
+        "Usage: /subagent <mode> <task>"
+      ]
+    },
+    {
+      "wait_gone": "Usage: /subagent",
+      "timeout": 30
+    },
+    {
+      "type": "/subagent nosuch do it"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Unknown subagent_type",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "unknown",
+      "contains": [
+        "Unknown subagent_type: nosuch. Available:"
+      ]
+    },
+    {
+      "wait_gone": "Unknown subagent_type",
+      "timeout": 30
+    },
+    {
+      "type": "/subagent general-purpose What is 6 times 7? Reply with the number only."
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "general-purpose subagent completed",
+      "timeout": 60
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "wait_gone": "Spawning general-purpose subagent",
+      "timeout": 30
+    },
+    {
+      "snapshot": "completed",
+      "contains": [
+        "general-purpose subagent completed"
+      ]
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Reloaded keybindings",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "replayed"
+    }
+  ],
+  "normalize": [
+    {
+      "pattern": "dispatch-\\d{13}-[0-9a-z]{6}",
+      "replace": "dispatch-<ts>-<rand>",
+      "_comment": "the pool task id is Date.now() plus random base36"
+    }
+  ]
+}

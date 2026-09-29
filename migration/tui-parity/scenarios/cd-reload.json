@@ -1,0 +1,209 @@
+{
+  "description": "/cd and /reload: '/cd -' with no previous directory warns; '/cd ' lists ~ and the workspace's directories as argument completions, 'al' narrows to alpha/, Tab accepts, Enter moves to a new session there; '/cd -' goes back; '/cd nowhere' errors; /reload shows the replayed transcript with the listing below and says what it reloaded. --no-session keeps the footer fixed.",
+  "phase": "11.4e4",
+  "terminal": {
+    "cols": 100,
+    "rows": 36
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "files": {
+    "alpha/a.txt": "a\n",
+    "beta/b.txt": "b\n",
+    ".hidden/h.txt": "h\n"
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [
+    {
+      "text": "hi there"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/cd -"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "No previous directory",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "no-previous",
+      "contains": [
+        "No previous directory to return to"
+      ]
+    },
+    {
+      "wait_gone": "No previous directory",
+      "timeout": 30
+    },
+    {
+      "type": "/cd "
+    },
+    {
+      "wait_for": "alpha/",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "completions",
+      "contains": [
+        "alpha/",
+        "beta/"
+      ],
+      "not_contains": [
+        ".hidden"
+      ]
+    },
+    {
+      "type": "al"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Tab"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "accepted",
+      "contains": [
+        "/cd alpha/"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Working directory",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "moved",
+      "contains": [
+        "Working directory",
+        "alpha"
+      ]
+    },
+    {
+      "type": "/cd -"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "reopens the session you left in <WORK>/alpha|reopens the session you left in .*alpha",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "back"
+    },
+    {
+      "type": "/cd nowhere"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "No such directory",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "missing",
+      "contains": [
+        "No such directory"
+      ]
+    },
+    {
+      "type": "hello"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "hi there",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Reloaded keybindings",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "reloaded",
+      "contains": [
+        "Reloaded keybindings, extensions, skills, prompts, themes",
+        "hi there"
+      ]
+    }
+  ]
+}

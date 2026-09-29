@@ -13,6 +13,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+cortexcode-agent-types = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-code-agent-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }
@@ -26,6 +27,7 @@ cortexcode-code-tui-keybindings = { workspace = true }
 cortexcode-code-tui-theme = { workspace = true }
 cortexcode-tui-components = { workspace = true }
 cortexcode-tui-images = { workspace = true }
+cortexcode-tui-keys = { workspace = true }
 cortexcode-tui-render = { workspace = true }
 cortexcode-tui-util = { workspace = true }
 once_cell = "1"

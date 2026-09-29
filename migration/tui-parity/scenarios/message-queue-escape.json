@@ -1,0 +1,17 @@
+{
+  "description": "Escape while the agent works with a steering message queued: the queued text comes back into the prompt (ahead of anything typed) and the run is aborted. --no-session keeps the footer fixed.",
+  "phase": "11.4g",
+  "terminal": {"cols": 100, "rows": 32},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model", "--no-session"],
+  "llm": [{"text": "Too slow.", "delay_s": 8}],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "first question"}, {"keys": ["Enter"]}, {"wait_for": "first question", "timeout": 20}, {"sleep": 0.5},
+    {"type": "steer this way"}, {"keys": ["Enter"]}, {"wait_for": "Steering: steer this way", "timeout": 20},
+    {"type": "draft"},
+    {"keys": ["Escape"]}, {"wait_gone": "Steering:", "timeout": 20}, {"wait_stable": 1.5, "timeout": 20},
+    {"snapshot": "restored", "contains": ["steer this way", "draft"]}
+  ]
+}

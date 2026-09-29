@@ -396,6 +396,14 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
         p = work / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content)
+    # Links into the pinned hoocode package (read-only), e.g. so a scenario can
+    # point HOOCODE_PACKAGE_DIR at a dir with its own CHANGELOG.md and still
+    # have the pin's package.json and themes. `{HOOCODE_PKG}` is that package.
+    pin_pkg = Path(os.environ.get("HOOCODE_PIN_DIR", ROOT / "target" / "hoocode-pin")) / "packages/coding-agent"
+    for rel, target in (sc.get("symlinks") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.symlink_to(target.replace("{HOOCODE_PKG}", str(pin_pkg)))
     if sc.get("git"):
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=work, check=True)
 
@@ -412,7 +420,11 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "TZ": "UTC",
-        **(sc.get("env") or {}),
+        # `{WORK}`, `{HOME}` and `{TMP}` in a value name this run's temp dirs.
+        **{
+            k: v.replace("{WORK}", str(work)).replace("{HOME}", str(home)).replace("{TMP}", str(tmp))
+            for k, v in (sc.get("env") or {}).items()
+        },
     }
     argv = app_cmd(app) + list(sc.get("args", ["--offline", "--provider", "mock", "--model", "mock-model"]))
     normalizer = Normalizer.load(sc.get("normalize"), {"HOME": str(home), "WORK": str(work), "TMP": str(tmp)})

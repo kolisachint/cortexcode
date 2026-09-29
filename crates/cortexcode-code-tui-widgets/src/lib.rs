@@ -4,6 +4,7 @@
 mod assistant_message;
 pub mod bash_execution;
 pub mod brand;
+pub mod custom_message;
 pub mod diff;
 pub mod dynamic_border;
 pub mod input_frame;
@@ -13,6 +14,7 @@ pub mod read_output;
 pub mod render_utils;
 pub mod selected_row_list;
 pub mod session_chip;
+pub mod task_panel;
 pub mod tool_chain;
 pub mod tool_chain_summary;
 pub mod tool_execution;

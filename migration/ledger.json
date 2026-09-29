@@ -1505,7 +1505,7 @@
    "id": "9.2b",
    "title": "Auto-compaction thresholds + /compact in the coding agent (agent-session-compaction.ts)",
    "phase": 9,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "9.2a",
     "10.3b"
@@ -1556,6 +1556,12 @@
      "commit": "5a99df8",
      "kind": "note",
      "text": "Ported both TS files (suite in 10.3b; e2e cases on the faux provider in tests/compaction_e2e.rs). compact-command scenario written + selfcheck stable; L2 waits on the interactive app (11.1+: slash menu, compaction loader, [compaction] block, footer auto@N%). Stopgap loop accepts /compact [instructions]."
+    },
+    {
+     "at": "2026-09-29T06:12:22Z",
+     "commit": "0f53ae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=pass"
     }
    ]
   },
@@ -5117,7 +5123,7 @@
    "id": "11.3f",
    "title": "Login: login-dialog, oauth-selector, login-controller",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3f1",
     "11.3f2"
@@ -5149,6 +5155,18 @@
      "commit": "ec74f8e",
      "kind": "note",
      "text": "Split into 11.3f1 (components + oauth-selector.test.ts) and 11.3f2 (LoginController wiring for /login and /logout, L2 login-api-key, after 11.4). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:04:09Z",
+     "commit": "5480dc2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:05:55Z",
+     "commit": "5480dc2",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5246,7 +5264,7 @@
    "id": "11.3",
    "title": "Selectors and dialogs: new crate code-tui-selectors (model, session, tree, settings, thinking, theme, login, ask-options)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a",
     "11.3b",
@@ -5289,6 +5307,18 @@
      "commit": "887d6e8",
      "kind": "note",
      "text": "Split into 11.3a (session selector, L2 session-resume), 11.3b (model selector, L2 model-selector; needs /model from 11.4), 11.3c (small selectors), 11.3d (settings), 11.3e (tree), 11.3f (login). This card closes as a container (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:06:02Z",
+     "commit": "5480dc2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:06:05Z",
+     "commit": "5480dc2",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5296,14 +5326,15 @@
    "id": "11.4",
    "title": "Input: slash command executor, @file autocomplete, ! bash, clipboard (arboard) + image paste (code-media)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a",
     "11.4b",
     "11.4c",
     "11.4d",
     "11.4e",
-    "11.4f"
+    "11.4f",
+    "11.4g"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5323,6 +5354,18 @@
      "commit": "74147ea",
      "kind": "note",
      "text": "Split into 11.4a (dispatch + slash autocomplete + commands with existing UI, L2 slash-commands), 11.4b (@file, L2 file-autocomplete), 11.4c (! bash), 11.4d (clipboard/copy/paste), 11.4e (remaining commands). Container closes when all are done; its L2 list moved to 11.4a/11.4b (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:32:35Z",
+     "commit": "819c373",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:32:43Z",
+     "commit": "819c373",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5372,7 +5415,7 @@
    "id": "11.4b",
    "title": "@file autocomplete (fd path from the managed tools / PATH)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5394,6 +5437,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:11:08Z",
+     "commit": "6c2dc4c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:11:53Z",
+     "commit": "6c2dc4c",
+     "kind": "verify",
+     "text": "L1 pass; L2 file-autocomplete=pass"
     }
    ]
   },
@@ -5401,7 +5456,7 @@
    "id": "11.4c",
    "title": "! and !! bash from the prompt (bash-execution-controller.ts)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5413,7 +5468,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "bash-command"
+   ],
    "notes": "",
    "log": [
     {
@@ -5421,6 +5478,124 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:16:37Z",
+     "commit": "69e1d78",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:16:51Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-29T04:17:04Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-29T04:17:44Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 pass; L2 bash-command=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4d1",
+   "title": "Copy: /copy and app.clipboard.copyMessage (clipboard, rich-clipboard, markdown-to-html)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard.ts",
+    "packages/coding-agent/src/utils/rich-clipboard.ts",
+    "packages/coding-agent/src/utils/markdown-to-html.ts",
+    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/clipboard.test.ts",
+    "packages/coding-agent/test/copy-structure.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "copy-command"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:41:00Z",
+     "commit": "f1091e0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:41:44Z",
+     "commit": "f1091e0",
+     "kind": "verify",
+     "text": "L1 pass; L2 copy-command=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4d2",
+   "title": "Image paste: clipboard-image, clipboard-native (app.clipboard.pasteImage)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard-image.ts",
+    "packages/coding-agent/src/utils/clipboard-native.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/clipboard-image.test.ts",
+    "packages/coding-agent/test/clipboard-image-bmp-conversion.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "paste-image-empty"
+   ],
+   "notes": "arboard in the adapter crate per the dependency firewall.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:48:28Z",
+     "commit": "8946788",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:49:12Z",
+     "commit": "8946788",
+     "kind": "verify",
+     "text": "L1 pass; L2 paste-image-empty=pass"
     }
    ]
   },
@@ -5428,9 +5603,10 @@
    "id": "11.4d",
    "title": "Clipboard: /copy (rich-clipboard, markdown-to-html), image paste (clipboard-image/native)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "11.4a"
+    "11.4d1",
+    "11.4d2"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5453,14 +5629,79 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:25:57Z",
+     "commit": "f1091e0",
+     "kind": "note",
+     "text": "Split into 11.4d1 (text copy, /copy) and 11.4d2 (image paste). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:49:12Z",
+     "commit": "8946788",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:49:18Z",
+     "commit": "8946788",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
   {
-   "id": "11.4e",
-   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "id": "11.4e1",
+   "title": "Info commands: /hotkeys /changelog /debug, and the startup What's New",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/utils/changelog.ts",
+    "packages/coding-agent/src/modes/interactive/startup-checks.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "info-commands",
+    "changelog-command",
+    "changelog-startup",
+    "changelog-startup-collapsed"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:03:23Z",
+     "commit": "98a52d2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:04:27Z",
+     "commit": "98a52d2",
+     "kind": "verify",
+     "text": "L1 pass; L2 info-commands=pass, changelog-command=pass, changelog-startup=pass, changelog-startup-collapsed=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e2",
+   "title": "/chrome, /color (session colour selector) and the alt+c colour dial",
+   "phase": 11,
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5473,14 +5714,259 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
-   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks.",
+   "l2": [
+    "color-chrome"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:19:04Z",
+     "commit": "eb1c479",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:19:56Z",
+     "commit": "eb1c479",
+     "kind": "verify",
+     "text": "L1 pass; L2 color-chrome=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e3",
+   "title": "/fork (user message selector) and /clone",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/user-message-selector.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "fork-clone",
+    "fork-clone-persisted"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:23:27Z",
+     "commit": "d7e1900",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:24:43Z",
+     "commit": "d7e1900",
+     "kind": "verify",
+     "text": "L1 pass; L2 fork-clone=pass, fork-clone-persisted=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e4",
+   "title": "/cd (with argument completions) and /reload",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "cd-reload"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:29:21Z",
+     "commit": "85eaffb",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:29:57Z",
+     "commit": "85eaffb",
+     "kind": "verify",
+     "text": "L1 pass; L2 cd-reload=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e5",
+   "title": "/export (jsonl) and /import",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "export-import"
+   ],
+   "notes": "The HTML export (and /share) is export-html, owned by 12.7 (deferred): /export without .jsonl keeps a clear 'not available' until then.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:32:19Z",
+     "commit": "67e91f0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:33:04Z",
+     "commit": "67e91f0",
+     "kind": "verify",
+     "text": "L1 pass; L2 export-import=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e6",
+   "title": "/subagent <mode> <task>; custom and branch-summary messages in the transcript",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/components/custom-message.ts",
+    "packages/coding-agent/src/modes/interactive/components/branch-summary-message.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "subagent-command"
+   ],
+   "notes": "custom-message.ts and branch-summary-message.ts had no owner; ported here (the /subagent answer is a custom message).",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:38:49Z",
+     "commit": "6c24a95",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:39:38Z",
+     "commit": "6c24a95",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-command=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e",
+   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4e1",
+    "11.4e2",
+    "11.4e3",
+    "11.4e4",
+    "11.4e5",
+    "11.4e6"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "model-completions"
+   ],
+   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks. /share and the HTML half of /export belong to 12.7 (export-html/share, deferred).",
    "log": [
     {
      "at": "2026-09-28T07:31:24Z",
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:52:00Z",
+     "commit": "98a52d2",
+     "kind": "note",
+     "text": "Split into 11.4e1..11.4e6; /share + HTML export stay with 12.7 (deferred by user). Container closes when the six are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:30:07Z",
+     "commit": "85eaffb",
+     "kind": "note",
+     "text": "Leftover seen in 11.4e4: '/model <prefix>' argument completions (createBaseAutocompleteProvider's modelCommand.getArgumentCompletions, fuzzy over scoped/available models) are not wired; do it before closing 11.4e."
+    },
+    {
+     "at": "2026-09-29T06:00:05Z",
+     "commit": "6c24a95",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:00:32Z",
+     "commit": "6c24a95",
+     "kind": "verify",
+     "text": "L1 pass; L2 model-completions=pass"
     }
    ]
   },
@@ -5488,7 +5974,7 @@
    "id": "11.4f",
    "title": "Compaction in the transcript: compaction_start/end loader and status, CompactionSummaryMessageComponent, chat rebuild after compaction",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5503,7 +5989,9 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "compact-command"
+    "compact-command",
+    "compact-empty",
+    "compact-cancel"
    ],
    "notes": "/compact dispatches since 11.4a; nothing draws the compaction events yet. compact-command is also 9.2b's L2.",
    "log": [
@@ -5512,6 +6000,154 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping): the compaction UI had no owner."
+    },
+    {
+     "at": "2026-09-29T05:29:21Z",
+     "commit": "85eaffb",
+     "kind": "note",
+     "text": "/reload's 'Wait for compaction to finish' guard needs an is_compacting on AgentSession; add it with the compaction UI."
+    },
+    {
+     "at": "2026-09-29T06:10:31Z",
+     "commit": "0f53ae9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:11:40Z",
+     "commit": "0f53ae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=pass, compact-empty=pass, compact-cancel=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4g",
+   "title": "Message queue: steer/follow-up while streaming, pending-messages display, dequeue, compaction queue",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4f"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/message-queue-controller.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/interactive-mode-compaction.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "message-queue",
+    "message-queue-escape",
+    "compact-queue"
+   ],
+   "notes": "Found unowned while doing 11.4f: submissions during streaming/compaction (steer, app.message.followUp, app.message.dequeue, restore on Escape) and compaction_end's flushCompactionQueue. interactive-mode-compaction.test.ts drives handleEvent on a fake `this`; its assertions (rebuild, appended summary, flushCompactionQueue) are covered by L2 compact-command and compact-queue.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added (bookkeeping): message-queue-controller.ts had no owner."
+    },
+    {
+     "at": "2026-09-29T06:27:44Z",
+     "commit": "819c373",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:32:35Z",
+     "commit": "819c373",
+     "kind": "verify",
+     "text": "L1 pass; L2 message-queue=pass, message-queue-escape=pass, compact-queue=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.5a",
+   "title": "TaskPanelComponent (task-panel.ts): lenses, grouping, team roster focus",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2",
+    "10.9f"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/task-panel.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/task-panel.test.ts",
+    "packages/coding-agent/test/task-panel-team-focus.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.5 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:39:12Z",
+     "commit": "ec1626a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:39:22Z",
+     "commit": "ec1626a",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.5b",
+   "title": "Task panel in the app: tasks slot, alt+l lens cycle, store subscription, chrome/mid-turn density",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.5a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "todo-write"
+   ],
+   "notes": "todo-write is 10.2f's L2; it waits on this panel.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.5 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:42:00Z",
+     "commit": "a43df0f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:42:24Z",
+     "commit": "a43df0f",
+     "kind": "verify",
+     "text": "L1 pass; L2 todo-write=pass"
     }
    ]
   },
@@ -5519,10 +6155,10 @@
    "id": "11.5",
    "title": "Task panel + subagent progress",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
-    "11.2",
-    "10.9f"
+    "11.5a",
+    "11.5b"
    ],
    "crates": [
     "cortexcode-code-tui-widgets"
@@ -5537,7 +6173,26 @@
     "subagent-task"
    ],
    "notes": "task-store.ts was ported in 10.2f (crate cortexcode-code-task-store); this task renders it.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T06:34:34Z",
+     "commit": "ec1626a",
+     "kind": "note",
+     "text": "Split into 11.5a (component + its tests) and 11.5b (app wiring, L2 todo-write). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:42:24Z",
+     "commit": "a43df0f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:42:37Z",
+     "commit": "a43df0f",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-task=pass"
+    }
+   ]
   },
   {
    "id": "12.1",
@@ -5557,7 +6212,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.2",
@@ -5577,7 +6239,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.3",
@@ -5621,6 +6290,18 @@
      "commit": "3608e70",
      "kind": "note",
      "text": "10.4b: sdk.ts falls back to hoo-config.json llm.default_provider/default_model (extensions/core/config.ts readConfig) when settings have no defaultProvider; services.rs find_initial_model does not read it yet. AuthStorage.login and the registry's OAuth modifyModels pass exist; registerProvider oauth still to port."
+    },
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    },
+    {
+     "at": "2026-09-29T06:09:30Z",
+     "commit": "0f53ae9",
+     "kind": "note",
+     "text": "When extension hooks land: the pin's 'cancels in-progress manual compaction when abortCompaction is called' test cancels via session_before_compact → 'Compaction cancelled'; port it as written then (the current Rust test covers the no-extension path)."
     }
    ]
   },
@@ -5642,7 +6323,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting. From 10.2d: implement cortexcode_code_tool_search::EmbsearchService with the daemon client; port search/eval*.ts + search-eval.test.ts + the eval-scoring cases of hybrid-search.test.ts, and native-search.ts collectEntries (+ native-search.test.ts) for repo-scan.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.5",
@@ -5662,7 +6350,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting. From 10.2f: port the '/loop auto flips ask_options into non-blocking mode' case of ask-options-loop.test.ts; drive AskOptionsHost::auto_loop_active/halt_loop from the loop.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.6",
@@ -5682,7 +6377,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.7",
@@ -5708,6 +6410,18 @@
      "commit": "821deb9",
      "kind": "note",
      "text": "From 10.1 split (2026-09-26): config.ts detectInstallMethod / getSelfUpdateCommand / getUpdateInstruction (config.test.ts) belong with the version check; npm/pnpm/bun install detection needs a cortex (binary/cargo) equivalent."
+    },
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    },
+    {
+     "at": "2026-09-29T04:52:00Z",
+     "commit": "98a52d2",
+     "kind": "note",
+     "text": "Owns /share and the HTML half of /export (split out of 11.4e)."
     }
    ]
   },

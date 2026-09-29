@@ -1,0 +1,105 @@
+{
+  "description": "/compact with a slow summary request, then Escape: the pin reports the aborted summary as 'Compaction failed: Summarization produced an empty summary' (not 'Compaction cancelled') and leaves the transcript as it was. keepRecentTokens is 1 as in compact-command.",
+  "phase": "11.4f",
+  "terminal": {
+    "cols": 100,
+    "rows": 34
+  },
+  "settings": {
+    "compaction": {
+      "keepRecentTokens": 1
+    }
+  },
+  "llm": [
+    {
+      "text": "First answer."
+    },
+    {
+      "text": "Second answer."
+    },
+    {
+      "text": "## Goal\nslow",
+      "delay_s": 6
+    },
+    {
+      "text": "## Goal\nslow",
+      "delay_s": 6
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "First answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Second answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/compact"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Compacting context",
+      "timeout": 30
+    },
+    {
+      "sleep": 0.5
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_for": "Compaction (cancelled|failed)",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "cancelled",
+      "contains": [
+        "Compaction failed"
+      ]
+    }
+  ]
+}

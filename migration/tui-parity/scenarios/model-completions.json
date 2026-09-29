@@ -1,0 +1,22 @@
+{
+  "description": "/model argument completions: '/model ' lists the available models as provider/id completions (label the id, description the provider), 'big' narrows fuzzily, Tab accepts the provider/id value. --no-session keeps the footer fixed.",
+  "phase": "11.4e",
+  "terminal": {"cols": 100, "rows": 30},
+  "settings": {"enableSemanticIndex": false},
+  "models": [
+    {"id": "mock-model", "name": "Mock Model", "contextWindow": 128000, "maxTokens": 4096},
+    {"id": "mock-big", "name": "Mock Big", "contextWindow": 200000, "maxTokens": 8192}
+  ],
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model", "--no-session"],
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/model "}, {"wait_for": "mock-big", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "all", "contains": ["mock-model", "mock-big"]},
+    {"type": "big"}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "narrowed", "contains": ["mock-big"]},
+    {"keys": ["Tab"]}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "accepted", "contains": ["/model mock/mock-big"]}
+  ]
+}
