@@ -1,0 +1,18 @@
+{
+  "description": "ctrl+v (app.clipboard.pasteImage) with no clipboard to read (no display in the harness): the key is taken by the paste handler, which finds no image and leaves the prompt as it was. --no-session keeps the footer fixed.",
+  "phase": "11.4d2",
+  "terminal": {"cols": 100, "rows": 30},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model", "--no-session"],
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "look at "},
+    {"keys": ["C-v"]},
+    {"wait_stable": 1.5, "timeout": 20},
+    {"type": "this"},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "after-paste", "contains": ["look at this"]}
+  ]
+}

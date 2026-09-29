@@ -2,10 +2,11 @@
 //!
 //! Ports hoocode's `utils/mime.ts` (format sniffing) and `utils/image-resize.ts`
 //! (fit an image within the model's inline limits), and the clipboard: `utils/clipboard.ts`,
-//! `utils/rich-clipboard.ts` and `utils/markdown-to-html.ts`. This crate owns the `image`
+//! `utils/rich-clipboard.ts`, `utils/markdown-to-html.ts` and `utils/clipboard-image.ts`. This crate owns the `image`
 //! dependency; callers only see base64 strings and plain structs.
 
 pub mod clipboard;
+pub mod clipboard_image;
 pub mod markdown_to_html;
 pub mod rich_clipboard;
 

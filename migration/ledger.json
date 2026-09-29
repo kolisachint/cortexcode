@@ -5538,7 +5538,7 @@
    "id": "11.4d2",
    "title": "Image paste: clipboard-image, clipboard-native (app.clipboard.pasteImage)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5555,7 +5555,9 @@
     "packages/coding-agent/test/clipboard-image-bmp-conversion.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "paste-image-empty"
+   ],
    "notes": "arboard in the adapter crate per the dependency firewall.",
    "log": [
     {
@@ -5563,6 +5565,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:48:28Z",
+     "commit": "8946788",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:49:12Z",
+     "commit": "8946788",
+     "kind": "verify",
+     "text": "L1 pass; L2 paste-image-empty=pass"
     }
    ]
   },
@@ -5570,7 +5584,7 @@
    "id": "11.4d",
    "title": "Clipboard: /copy (rich-clipboard, markdown-to-html), image paste (clipboard-image/native)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4d1",
     "11.4d2"
@@ -5602,6 +5616,18 @@
      "commit": "f1091e0",
      "kind": "note",
      "text": "Split into 11.4d1 (text copy, /copy) and 11.4d2 (image paste). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:49:12Z",
+     "commit": "8946788",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:49:18Z",
+     "commit": "8946788",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },

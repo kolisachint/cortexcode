@@ -29,6 +29,10 @@ use cortexcode_code_agent_session::{
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
 use cortexcode_code_media::clipboard::{NativeWriter, SystemClipboardHost};
+use cortexcode_code_media::clipboard_image::{
+    extension_for_image_mime_type, read_clipboard_image, rgba_to_png, ClipboardImage,
+    SystemClipboardImageHost,
+};
 use cortexcode_code_media::markdown_to_html::markdown_to_html;
 use cortexcode_code_media::rich_clipboard::{copy_rich_to_clipboard, CopyFlavour, RichPayload};
 use cortexcode_code_models::{
@@ -251,6 +255,8 @@ enum Action {
     EditorChanged(String),
     /// `app.clipboard.copyMessage`: `/copy` with no argument.
     CopyMessage,
+    /// `app.clipboard.pasteImage`.
+    PasteImage,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -306,6 +312,10 @@ impl Component for CustomEditor {
             return;
         }
         let kb = get_keybindings();
+        if kb.matches(data, "app.clipboard.pasteImage") {
+            self.actions.borrow_mut().push(Action::PasteImage);
+            return;
+        }
         if kb.matches(data, "app.interrupt") {
             if !self.editor.is_showing_autocomplete() {
                 self.actions.borrow_mut().push(Action::Interrupt);
@@ -362,6 +372,8 @@ enum AppEvent {
     BashDone(Result<BashResult, String>),
     /// A `/copy` write ended: what was copied, and the flavour that landed.
     CopyDone(String, Result<CopyFlavour, String>),
+    /// The clipboard image read ended.
+    PastedImage(Option<ClipboardImage>),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -414,10 +426,9 @@ fn truncated_marker(content: &str) -> TruncationResult {
     }
 }
 
-/// The native clipboard write (`clipboard-native.ts`): only where a display
-/// is available, and not used on Linux, where the platform tools keep
-/// selection ownership and the native library does not.
-#[cfg(not(target_os = "linux"))]
+/// The native clipboard write (`clipboard-native.ts`), only where a display
+/// is available. `copy_to_clipboard` never uses it on Linux, where the
+/// platform tools keep selection ownership and the native library does not.
 fn native_clipboard_writer() -> Option<NativeWriter> {
     SystemClipboardHost::has_native_display().then(|| {
         Box::new(|text: &str| {
@@ -428,9 +439,18 @@ fn native_clipboard_writer() -> Option<NativeWriter> {
     })
 }
 
-#[cfg(target_os = "linux")]
-fn native_clipboard_writer() -> Option<NativeWriter> {
-    None
+/// The native clipboard's image as PNG (`clipboard.getImageBinary`).
+fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
+    SystemClipboardHost::has_native_display().then(|| {
+        Box::new(|| {
+            let image = arboard::Clipboard::new().ok()?.get_image().ok()?;
+            rgba_to_png(
+                image.width as u32,
+                image.height as u32,
+                image.bytes.into_owned(),
+            )
+        }) as Box<dyn Fn() -> Option<Vec<u8>>>
+    })
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -3033,6 +3053,37 @@ impl Mode {
         }
     }
 
+    /// `handleClipboardImagePaste`: read the clipboard's image off the UI
+    /// thread; [`Self::insert_pasted_image`] puts its path in the prompt.
+    fn handle_clipboard_image_paste(&mut self) {
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let host = SystemClipboardImageHost {
+                native: native_clipboard_image_reader(),
+            };
+            let _ = tx.send(AppEvent::PastedImage(read_clipboard_image(&host)));
+        });
+    }
+
+    /// Write the pasted image to a temp file and insert its path at the
+    /// cursor. Failures are silent (no clipboard access, no image).
+    fn insert_pasted_image(&mut self, image: Option<ClipboardImage>) {
+        let Some(image) = image else {
+            return;
+        };
+        let ext = extension_for_image_mime_type(&image.mime_type).unwrap_or("png");
+        let file_name = format!("{APP_NAME}-clipboard-{}.{ext}", uuid::Uuid::new_v4());
+        let path = std::env::temp_dir().join(file_name);
+        if std::fs::write(&path, &image.bytes).is_err() {
+            return;
+        }
+        self.editor
+            .borrow_mut()
+            .editor
+            .insert_text_at_cursor(&path.to_string_lossy());
+        self.dirty.set(true);
+    }
+
     /// `handleName`.
     fn handle_name_command(&mut self, text: &str) {
         let name = text.strip_prefix("/name").unwrap_or("").trim();
@@ -3747,6 +3798,7 @@ impl Mode {
             Action::ResumeSession => self.show_session_selector(),
             Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::CopyMessage => self.handle_copy_command(""),
+            Action::PasteImage => self.handle_clipboard_image_paste(),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -3933,6 +3985,7 @@ impl Mode {
                     }
                     AppEvent::BashDone(result) => self.finish_bash_command(result),
                     AppEvent::CopyDone(subject, result) => self.finish_copy(&subject, result),
+                    AppEvent::PastedImage(image) => self.insert_pasted_image(image),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();

@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4d2 (image paste), 11.4e (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4e (remaining commands), 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4d2 image paste; 11.4d closed
+- `cortexcode-code-media::clipboard_image` (readClipboardImage behind `ClipboardImageHost`:
+  wl-paste → xclip on Wayland/WSL, PowerShell on WSL, native on X11/macOS/Windows; non-model
+  formats such as BMP re-encoded to PNG via `image`, bmp feature on). Ported
+  clipboard-image.test.ts + clipboard-image-bmp-conversion.test.ts.
+- App: ctrl+v (`app.clipboard.pasteImage`) reads off the UI thread, writes
+  `$TMPDIR/cortexcode-clipboard-<uuid>.<ext>` and inserts the path at the cursor. arboard
+  (image-data) is now a plain dep of code-tui-app; RGBA → PNG via `rgba_to_png`. Shares the one
+  `image` 0.25 in the tree.
+- L2 `paste-image-empty` (no clipboard in tmux: ctrl+v leaves the prompt alone): stable, pass.
+  A real image paste can't be exercised in the harness.
+- Next: `ledger.py next` (11.4e remaining slash commands).
 
 ### 2026-09-29 · 11.4d split; 11.4d1 /copy
 - 11.4d split into 11.4d1 (text copy) and 11.4d2 (image paste: clipboard-image*.ts + tests).
