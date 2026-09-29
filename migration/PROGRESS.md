@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.5 (task panel) (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.5b (task panel in the app) (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.5 split; 11.5a TaskPanelComponent
+- 11.5 split into 11.5a (component + tests) and 11.5b (app wiring; L2 todo-write, which is
+  10.2f's gate and waits on the panel).
+- `code-tui-widgets::task_panel`: lenses (flat plan with linked runs nested / subagents forest /
+  teams roster), tab strip with per-lens counts and key hints, rail colour, rows with tags,
+  usage, live activity + run clock, ⚠ notes, summary density, team focus (↑/↓, n, a, q/esc as
+  `TaskPanelEvent`s). The pin's per-version row memo is an optimization and isn't reproduced;
+  its 1s run clock is `ticking()` for the app to poll.
+- Ported task-panel.test.ts + task-panel-team-focus.test.ts (45 tests; a static lock serializes
+  the global store). Not ported: the two console.warn store tests (Rust store is silent).
+- Next: 11.5b (mount in the tasks slot, alt+l cycle, store subscription → re-render, chrome
+  summary density and mid-turn collapse, team focus).
 
 ### 2026-09-29 · 11.4g message queue; 11.4 closed
 - Enter while streaming steers (`prompt` with `StreamingBehavior::Steer`, no turn of its own to

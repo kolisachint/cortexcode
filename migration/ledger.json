@@ -6068,13 +6068,85 @@
    ]
   },
   {
+   "id": "11.5a",
+   "title": "TaskPanelComponent (task-panel.ts): lenses, grouping, team roster focus",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.2",
+    "10.9f"
+   ],
+   "crates": [
+    "cortexcode-code-tui-widgets"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/components/task-panel.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/task-panel.test.ts",
+    "packages/coding-agent/test/task-panel-team-focus.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.5 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:39:12Z",
+     "commit": "ec1626a",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:39:22Z",
+     "commit": "ec1626a",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
+    }
+   ]
+  },
+  {
+   "id": "11.5b",
+   "title": "Task panel in the app: tasks slot, alt+l lens cycle, store subscription, chrome/mid-turn density",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.5a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "todo-write"
+   ],
+   "notes": "todo-write is 10.2f's L2; it waits on this panel.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.5 (bookkeeping)."
+    }
+   ]
+  },
+  {
    "id": "11.5",
    "title": "Task panel + subagent progress",
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.2",
-    "10.9f"
+    "11.5a",
+    "11.5b"
    ],
    "crates": [
     "cortexcode-code-tui-widgets"
@@ -6089,7 +6161,14 @@
     "subagent-task"
    ],
    "notes": "task-store.ts was ported in 10.2f (crate cortexcode-code-task-store); this task renders it.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T06:34:34Z",
+     "commit": "ec1626a",
+     "kind": "note",
+     "text": "Split into 11.5a (component + its tests) and 11.5b (app wiring, L2 todo-write). Container closes when both are done (bookkeeping)."
+    }
+   ]
   },
   {
    "id": "12.1",
