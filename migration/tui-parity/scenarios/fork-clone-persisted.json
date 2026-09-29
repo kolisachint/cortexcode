@@ -1,0 +1,193 @@
+{
+  "description": "/fork and /clone on a persisted session (each fork and clone writes a new session file): same steps as fork-clone without --no-session.",
+  "phase": "11.4e3",
+  "terminal": {
+    "cols": 100,
+    "rows": 36
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model"
+  ],
+  "llm": [
+    {
+      "text": "answer one"
+    },
+    {
+      "text": "answer two"
+    },
+    {
+      "text": "answer three"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/fork"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "No messages to fork from",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "nothing",
+      "contains": [
+        "No messages to fork from"
+      ]
+    },
+    {
+      "wait_gone": "No messages to fork from",
+      "timeout": 30
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "answer one",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "answer two",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/fork"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "fork from message",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "picker",
+      "contains": [
+        "first question",
+        "second question"
+      ]
+    },
+    {
+      "keys": [
+        "Up"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Forked to new session",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "forked",
+      "contains": [
+        "Forked to new session",
+        "first question"
+      ],
+      "not_contains": [
+        "answer one"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "answer three",
+      "timeout": 20
+    },
+    {
+      "wait_gone": "Forked to new session",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/clone"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Cloned to new session",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "cloned",
+      "contains": [
+        "Cloned to new session",
+        "answer three"
+      ]
+    }
+  ]
+}

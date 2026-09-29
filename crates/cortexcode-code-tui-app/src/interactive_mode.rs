@@ -23,8 +23,8 @@ use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, 
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
-    AgentSession, AgentSessionEvent, AgentSessionRuntime, NavigateTreeOptions, NavigateTreeResult,
-    NewSessionRequest, PromptOptions, TranscriptSelection,
+    AgentSession, AgentSessionEvent, AgentSessionRuntime, ForkPosition, NavigateTreeOptions,
+    NavigateTreeResult, NewSessionRequest, PromptOptions, TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
@@ -72,6 +72,9 @@ use cortexcode_code_tui_selectors::settings_selector::{
 };
 use cortexcode_code_tui_selectors::small_selectors::session_color_selector;
 use cortexcode_code_tui_selectors::tree_selector::{TreeEvent, TreeSelectorComponent};
+use cortexcode_code_tui_selectors::user_message_selector::{
+    UserMessageEvent, UserMessageItem, UserMessageSelectorComponent,
+};
 use cortexcode_code_tui_theme::get_available_themes;
 use cortexcode_code_tui_theme::{apply_block_fill, BlockFill};
 use cortexcode_code_tui_theme::{
@@ -712,6 +715,8 @@ struct Mode {
     pending_bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
     /// Every `!` row in the transcript, for the expand sweep.
     bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
+    /// The open `/fork` message picker.
+    fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
 }
 
 impl Mode {
@@ -981,6 +986,7 @@ impl Mode {
             bash_component: None,
             pending_bash_components: Vec::new(),
             bash_components: Vec::new(),
+            fork_selector: None,
         }
     }
 
@@ -3010,6 +3016,8 @@ impl Mode {
                 }
             }
             BuiltinCommand::Chrome => self.handle_chrome_command(text),
+            BuiltinCommand::Fork => self.show_user_message_selector(),
+            BuiltinCommand::Clone => self.handle_clone_command(),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3392,6 +3400,84 @@ impl Mode {
         self.session.settings().set_chrome_density(density);
         self.dirty.set(true);
         self.show_status(&format!("Chrome: {density}"));
+    }
+
+    /// `showUserMessageSelector`: `/fork` picks a user message; the branch
+    /// before it becomes a new session and its text returns to the prompt.
+    fn show_user_message_selector(&mut self) {
+        let messages = self.session.get_user_messages_for_forking();
+        let Some(last) = messages.last() else {
+            self.show_status("No messages to fork from");
+            return;
+        };
+        let initial = last.entry_id.clone();
+        let items = messages
+            .into_iter()
+            .map(|m| UserMessageItem {
+                id: m.entry_id,
+                text: m.text,
+                timestamp: None,
+            })
+            .collect();
+        let selector = handle(UserMessageSelectorComponent::new(items, Some(&initial)));
+        self.show_in_editor_slot(as_component(&selector));
+        self.fork_selector = Some(selector);
+    }
+
+    fn poll_fork_selector(&mut self) {
+        let Some(selector) = &self.fork_selector else {
+            return;
+        };
+        let Some(event) = selector
+            .borrow_mut()
+            .poll(Instant::now())
+            .into_iter()
+            .next()
+        else {
+            return;
+        };
+        self.fork_selector = None;
+        self.restore_editor();
+        if let UserMessageEvent::Select(entry_id) = event {
+            self.fork_session(&entry_id, ForkPosition::Before);
+        }
+    }
+
+    /// `runtimeHost.fork`, then the new session's transcript. `Before` puts
+    /// the forked message's text back in the prompt (`/fork`); `At` copies
+    /// the branch whole (`/clone`).
+    fn fork_session(&mut self, entry_id: &str, position: ForkPosition) {
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.fork(entry_id, position)) {
+            Ok(result) if result.cancelled => self.dirty.set(true),
+            Ok(result) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.editor
+                    .borrow_mut()
+                    .editor
+                    .set_text(result.selected_text.as_deref().unwrap_or(""));
+                self.show_status(if position == ForkPosition::At {
+                    "Cloned to new session"
+                } else {
+                    "Forked to new session"
+                });
+            }
+            Err(error) => self.show_error(&error.to_string()),
+        }
+    }
+
+    /// `handleClone`: the whole current branch into a new session.
+    fn handle_clone_command(&mut self) {
+        let leaf = self.session.session_manager().leaf_id().map(str::to_string);
+        match leaf {
+            Some(leaf) => self.fork_session(&leaf, ForkPosition::At),
+            None => self.show_status("Nothing to clone yet"),
+        }
     }
 
     /// `handleName`.
@@ -4153,6 +4239,13 @@ impl Mode {
             wait = wait.min(deadline.saturating_duration_since(now));
         }
         if let Some(deadline) = self
+            .fork_selector
+            .as_ref()
+            .and_then(|s| s.borrow().deadline())
+        {
+            wait = wait.min(deadline.saturating_duration_since(now));
+        }
+        if let Some(deadline) = self
             .tree_selector
             .as_ref()
             .and_then(|(s, _)| s.borrow().deadline())
@@ -4343,6 +4436,7 @@ impl Mode {
             }
             self.poll_cwd_prompt();
             self.poll_tree_selector();
+            self.poll_fork_selector();
             self.poll_model_selectors();
             self.poll_login();
             self.poll_settings_selector();
@@ -4424,6 +4518,8 @@ enum BuiltinCommand {
     Debug,
     Color,
     Chrome,
+    Fork,
+    Clone,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4450,6 +4546,8 @@ impl BuiltinCommand {
             "debug" => Self::Debug,
             "color" => Self::Color,
             "chrome" => Self::Chrome,
+            "fork" => Self::Fork,
+            "clone" => Self::Clone,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)

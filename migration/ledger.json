@@ -5724,7 +5724,7 @@
    "id": "11.4e3",
    "title": "/fork (user message selector) and /clone",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5738,7 +5738,10 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "fork-clone",
+    "fork-clone-persisted"
+   ],
    "notes": "",
    "log": [
     {
@@ -5746,6 +5749,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:23:27Z",
+     "commit": "d7e1900",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:24:43Z",
+     "commit": "d7e1900",
+     "kind": "verify",
+     "text": "L1 pass; L2 fork-clone=pass, fork-clone-persisted=pass"
     }
    ]
   },

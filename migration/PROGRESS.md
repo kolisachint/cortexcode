@@ -41,6 +41,13 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 11.4e3 /fork, /clone
+- `/fork` opens `UserMessageSelectorComponent` (polled like the tree selector) on the latest
+  user message; selecting forks before it through `AgentSessionRuntime::fork(.., Before)`,
+  rebinds, redraws, and puts the message text back in the prompt. `/clone` forks `At` the leaf.
+- L2 `fork-clone` (in memory) and `fork-clone-persisted` (new, stable, pass).
+- Next: `ledger.py next` (11.4e4 /cd /reload).
+
 ### 2026-09-29 · 11.4e2 /color, /chrome, colour dial
 - `/color <slot|name>` (chip line in the chat, usage warning), bare `/color` opens
   `session_color_selector` in the prompt's slot with live chip preview (Esc restores the real
