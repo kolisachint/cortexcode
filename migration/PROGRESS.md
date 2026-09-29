@@ -51,6 +51,9 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   (done after a clean stop, else cancelled; skipped while messages are queued).
 - Team focus (alt+n, nudge/attach) is not wired: role agents come from hooteams `--team` (12.7).
 - L2 `todo-write` passes (stable). 10.2f still needs `print-todo-write` (default-bundle prompt).
+- Full L2 after 11.5b: 53 pass; the known 9 default-bundle/mode scenarios fail, plus `subagent-task`
+  once (the parent timed out waiting on the child at 60 s). It passed on the next two reruns and
+  selfchecks stable. If it recurs, look at child start-up time under load.
 
 ### 2026-09-29 · 11.5 split; 11.5a TaskPanelComponent
 - 11.5 split into 11.5a (component + tests) and 11.5b (app wiring; L2 todo-write, which is
