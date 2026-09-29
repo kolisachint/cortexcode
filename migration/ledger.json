@@ -6517,11 +6517,65 @@
    ]
   },
   {
+   "id": "13.4a",
+   "title": "TS test port ledger tooling: migration/ts_tests.py classifies all 400 TS test files (ledger ownership, Rust citations, curated overrides) into migration/ts-tests.json",
+   "phase": 13,
+   "status": "done",
+   "depends": [],
+   "crates": [],
+   "sources": [
+    "packages/*/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py generate --check-fresh"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T17:15:46Z",
+     "commit": "1ca310c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T17:16:53Z",
+     "commit": "1ca310c",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "13.4b",
+   "title": "TS test port ledger review: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/*/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": []
+  },
+  {
    "id": "13.4",
    "title": "TS test port ledger: every one of the 400 TS test files marked ported/equivalent/n.a.",
    "phase": 13,
    "status": "todo",
-   "depends": [],
+   "depends": [
+    "13.4a",
+    "13.4b"
+   ],
    "crates": [],
    "sources": [
     "packages/*/test/"
@@ -6529,7 +6583,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a: bookkeeping",
-   "notes": "",
+   "notes": "Split 2026-09-29: 13.4a tooling + automatic/curated classification, 13.4b manual review of what is left.",
    "log": []
   }
  ]

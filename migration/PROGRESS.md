@@ -44,6 +44,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 13.4 split; 13.4a TS test port ledger tooling
+- 13.4 split into 13.4a (tooling + automatic/curated classification) and 13.4b (review).
+- `migration/ts_tests.py generate` writes `migration/ts-tests.json`, one entry per TS test
+  file at the pin (400). Rules, first match wins: curated rule in `ts-tests-overrides.json`,
+  then an owning ledger task (`ts_tests`) that is done/l1_done → ported (else pending), then a
+  Rust file under crates/ citing the file → ported, else `review`.
+- Now: ported 233, pending 79 (deferred phase 12, 9.1, 10.2e, 10.11), n.a. 3, review 85
+  (`ts_tests.py list review`: 64 coding-agent, 19 tui, 1 agent, 1 ai).
+- When a Rust test is ported from a TS file, cite the file name in the test (the generator
+  counts citations), then re-run `generate`. 13.4a's gate fails if the JSON is stale.
+- Next: 13.4b. For each `review` file, find the Rust counterpart, then port the missing
+  cases (citing the TS file), or add an override rule (`equivalent` or `n.a.`) with a reason.
+
 ### 2026-09-29 · 13.3 parity smoke
 - `scripts/parity_test.sh` is now a smoke test: `--version`/`--help`, the 13.2 replay test,
   and the L2 `print-basic` scenario when the pinned hoocode is built. The old grep checks
