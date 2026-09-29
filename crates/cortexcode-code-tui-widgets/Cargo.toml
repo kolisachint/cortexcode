@@ -13,6 +13,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+cortexcode-agent-types = { workspace = true }
 cortexcode-ai-types = { workspace = true }
 cortexcode-code-agent-session = { workspace = true }
 cortexcode-code-paths = { workspace = true }

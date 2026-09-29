@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4e2..e6 (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,21 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4e6 /subagent; 11.4e closed (+ /model completions)
+- `/subagent <mode> <task>`: usage / unknown-type status, "Spawning …", `get_subagent_pool`
+  (made inside the runtime task: its lifeguard needs the Tokio context) + `dispatch` with
+  `force_agent`; the summary is appended to the session file as a displayed `subagent` custom
+  message.
+- New widgets `custom_message.rs`: `CustomMessageComponent`, `BranchSummaryMessageComponent`
+  (had no owner); the transcript draws `custom` and `branchSummary` messages.
+- Fix: the app now calls `set_terminal_owned_by_tui(true/false)` around the TUI (agent-log.ts), so
+  `[DISPATCH]` lines no longer write over the screen.
+- `/reload` replays from `SessionManager::build_context()` like the pin.
+- `/model <prefix>` argument completions (fuzzy over scoped else available models); L2
+  `model-completions` gates the 11.4e container.
+- L2 `subagent-command`, `model-completions` (new, stable, pass). Full L2: only the known 11.
+- Next: `ledger.py next` (11.4f compaction UI; also add the /reload is_compacting guard).
 
 ### 2026-09-29 · 11.4e5 /export (jsonl), /import
 - `/export <file.jsonl>` via `AgentSession::export_to_jsonl` (record line); any other target

@@ -5850,28 +5850,45 @@
   },
   {
    "id": "11.4e6",
-   "title": "/subagent <mode> <task>",
+   "title": "/subagent <mode> <task>; custom and branch-summary messages in the transcript",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
    "crates": [
-    "cortexcode-code-tui-app"
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tui-widgets"
    ],
    "sources": [
-    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/components/custom-message.ts",
+    "packages/coding-agent/src/modes/interactive/components/branch-summary-message.ts"
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
-   "notes": "",
+   "l2": [
+    "subagent-command"
+   ],
+   "notes": "custom-message.ts and branch-summary-message.ts had no owner; ported here (the /subagent answer is a custom message).",
    "log": [
     {
      "at": "2026-09-29T00:00:00Z",
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:38:49Z",
+     "commit": "6c24a95",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:39:38Z",
+     "commit": "6c24a95",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-command=pass"
     }
    ]
   },
@@ -5879,7 +5896,7 @@
    "id": "11.4e",
    "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4e1",
     "11.4e2",
@@ -5897,7 +5914,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "model-completions"
+   ],
    "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks. /share and the HTML half of /export belong to 12.7 (export-html/share, deferred).",
    "log": [
     {
@@ -5917,6 +5936,18 @@
      "commit": "85eaffb",
      "kind": "note",
      "text": "Leftover seen in 11.4e4: '/model <prefix>' argument completions (createBaseAutocompleteProvider's modelCommand.getArgumentCompletions, fuzzy over scoped/available models) are not wired; do it before closing 11.4e."
+    },
+    {
+     "at": "2026-09-29T06:00:05Z",
+     "commit": "6c24a95",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:00:32Z",
+     "commit": "6c24a95",
+     "kind": "verify",
+     "text": "L1 pass; L2 model-completions=pass"
     }
    ]
   },

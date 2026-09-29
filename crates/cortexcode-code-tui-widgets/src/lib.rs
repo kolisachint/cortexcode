@@ -4,6 +4,7 @@
 mod assistant_message;
 pub mod bash_execution;
 pub mod brand;
+pub mod custom_message;
 pub mod diff;
 pub mod dynamic_border;
 pub mod input_frame;

@@ -14,8 +14,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cortexcode_agent_types::{AgentEvent, AgentMessage};
-use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
+use cortexcode_agent_types::{AgentEvent, AgentMessage, CustomMessage};
+use cortexcode_ai_types::{AssistantMessage, Content, StopReason, UserContent};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
 use cortexcode_ai_util::is_long_retry_delay_error;
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
@@ -39,6 +39,7 @@ use cortexcode_code_models::{
     find_exact_model_reference_match, parse_thinking_level, resolve_model_scope,
 };
 use cortexcode_code_paths::{APP_NAME, APP_TITLE, VERSION};
+use cortexcode_code_resources::agent_registry::{load_agent_registry, LoadAgentRegistryOptions};
 use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::identity::{
     cycle_session_color_slot, parse_session_color_slot, session_color_name,
@@ -47,6 +48,9 @@ use cortexcode_code_session::identity::{
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
+use cortexcode_code_subagents::agent_log::set_terminal_owned_by_tui;
+use cortexcode_code_subagents::instance::get_subagent_pool;
+use cortexcode_code_subagents::pool::DispatchOptions;
 use cortexcode_code_tool_api::{truncate_tail, TruncationOptions, TruncationResult};
 use cortexcode_code_tool_bash::BashResult;
 use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_path};
@@ -82,6 +86,9 @@ use cortexcode_code_tui_theme::{
     set_theme, theme, ThinkingBorderLevel,
 };
 use cortexcode_code_tui_widgets::bash_execution::BashExecutionComponent;
+use cortexcode_code_tui_widgets::custom_message::{
+    BranchSummaryMessageComponent, CustomMessageComponent,
+};
 use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
@@ -414,6 +421,8 @@ enum AppEvent {
     CopyDone(String, Result<CopyFlavour, String>),
     /// The clipboard image read ended.
     PastedImage(Option<ClipboardImage>),
+    /// A `/subagent` run ended: its mode, and its summary or error.
+    SubagentDone(String, Result<Option<String>, String>),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -491,6 +500,38 @@ fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
             )
         }) as Box<dyn Fn() -> Option<Vec<u8>>>
     })
+}
+
+/// `/model <prefix>` completions: the scoped models, else the available
+/// ones, fuzzy-matched on id and provider (so "opus anthropic" matches).
+fn model_argument_completions(
+    session: &AgentSession,
+    prefix: &str,
+) -> Option<Vec<AutocompleteItem>> {
+    let scoped = session.scoped_models();
+    let models: Vec<Model> = if scoped.is_empty() {
+        session.get_available_models()
+    } else {
+        scoped.into_iter().map(|s| s.model).collect()
+    };
+    if models.is_empty() {
+        return None;
+    }
+    let filtered =
+        cortexcode_tui_fuzzy::fuzzy_filter(&models, prefix, |m| format!("{} {}", m.id, m.provider));
+    if filtered.is_empty() {
+        return None;
+    }
+    Some(
+        filtered
+            .into_iter()
+            .map(|m| AutocompleteItem {
+                value: format!("{}/{}", m.provider, m.id),
+                label: m.id,
+                description: Some(m.provider),
+            })
+            .collect(),
+    )
 }
 
 /// `getPathArgument`: the first argument after `command`, quoted or not.
@@ -855,6 +896,8 @@ struct Mode {
     pending_bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
     /// Every `!` row in the transcript, for the expand sweep.
     bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
+    /// Every branch summary in the transcript, for the expand sweep.
+    branch_summaries: Vec<Rc<RefCell<BranchSummaryMessageComponent>>>,
     /// The open `/fork` message picker.
     fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
     /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
@@ -1132,6 +1175,7 @@ impl Mode {
             bash_component: None,
             pending_bash_components: Vec::new(),
             bash_components: Vec::new(),
+            branch_summaries: Vec::new(),
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
@@ -1448,6 +1492,24 @@ impl Mode {
                     DEFAULT_HIDDEN_THINKING_LABEL,
                 ));
                 self.assistant_components.push(component.clone());
+                self.add_to_chat(as_component(&component));
+            }
+            AgentMessage::Custom(custom) => {
+                if custom.display {
+                    let mut component =
+                        CustomMessageComponent::new(custom.clone(), self.markdown_theme());
+                    component.set_expanded(self.expanded);
+                    self.add_to_chat(as_component(&handle(component)));
+                }
+            }
+            AgentMessage::BranchSummary(summary) => {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                let component = handle(BranchSummaryMessageComponent::new(
+                    summary.clone(),
+                    self.markdown_theme(),
+                ));
+                component.borrow_mut().set_expanded(self.expanded);
+                self.branch_summaries.push(component.clone());
                 self.add_to_chat(as_component(&component));
             }
             AgentMessage::BashExecution(bash) => {
@@ -3097,19 +3159,26 @@ impl Mode {
                     name: c.name.to_string(),
                     description: Some(c.description.to_string()),
                     argument_hint: (c.name == "cd").then(|| "<path>".to_string()),
-                    get_argument_completions: (c.name == "cd").then(|| {
+                    get_argument_completions: if c.name == "model" {
                         let session = self.session.clone();
-                        let previous = self.previous_cwd.clone();
-                        Box::new(move |prefix: &str| {
-                            let completions = change_directory_completions(
-                                session.cwd(),
-                                previous.borrow().as_deref(),
-                                &home_dir(),
-                                prefix,
-                            );
-                            (!completions.is_empty()).then_some(completions)
-                        }) as ArgumentCompletionsFn
-                    }),
+                        Some(Box::new(move |prefix: &str| {
+                            model_argument_completions(&session, prefix)
+                        }) as ArgumentCompletionsFn)
+                    } else {
+                        (c.name == "cd").then(|| {
+                            let session = self.session.clone();
+                            let previous = self.previous_cwd.clone();
+                            Box::new(move |prefix: &str| {
+                                let completions = change_directory_completions(
+                                    session.cwd(),
+                                    previous.borrow().as_deref(),
+                                    &home_dir(),
+                                    prefix,
+                                );
+                                (!completions.is_empty()).then_some(completions)
+                            }) as ArgumentCompletionsFn
+                        })
+                    },
                 })
             })
             .collect();
@@ -3182,6 +3251,7 @@ impl Mode {
             BuiltinCommand::Reload => self.handle_reload_command(),
             BuiltinCommand::Export => self.handle_export_command(text),
             BuiltinCommand::Import => self.handle_import_command(text),
+            BuiltinCommand::Subagent => self.handle_subagent_command(text),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3750,7 +3820,9 @@ impl Mode {
         self.update_editor_border_color();
         self.setup_autocomplete_provider();
         self.reset_transcript_view();
-        let messages = self.session.messages();
+        // From the session file, as the pin replays it: messages recorded
+        // only there (a `/subagent` answer) show too.
+        let messages = self.session.session_manager().build_context().messages;
         self.render_session_context(&messages, false);
         self.restore_editor();
         // Below the replayed transcript: /reload is asked for to see what
@@ -3854,6 +3926,90 @@ impl Mode {
             }
         }
         self.dirty.set(true);
+    }
+
+    /// `handleSubagent`: `/subagent <mode> <task>` runs one subagent of that
+    /// type off the UI thread; [`Self::finish_subagent`] reports it.
+    fn handle_subagent_command(&mut self, text: &str) {
+        const USAGE: &str = "Usage: /subagent <mode> <task>";
+        let args = text.strip_prefix("/subagent ").map_or("", str::trim);
+        let Some((mode, task)) = args.split_once(' ') else {
+            self.show_status(USAGE);
+            return;
+        };
+        let (mode, task) = (mode.trim().to_string(), task.trim().to_string());
+        if task.is_empty() {
+            self.show_status(USAGE);
+            return;
+        }
+        let cwd = self.session.cwd().to_path_buf();
+        let registry = load_agent_registry(&LoadAgentRegistryOptions::new(
+            cwd.to_string_lossy().into_owned(),
+        ));
+        let valid: Vec<String> = registry.list().iter().map(|a| a.name.clone()).collect();
+        if !valid.contains(&mode) {
+            self.show_status(&format!(
+                "Unknown subagent_type: {mode}. Available: {}",
+                valid.join(", ")
+            ));
+            return;
+        }
+
+        self.show_status(&format!("Spawning {mode} subagent..."));
+        let available = self.session.get_available_models();
+        let model = self.session.model();
+        let options = DispatchOptions {
+            force_agent: Some(mode.clone()),
+            model: model.as_ref().map(|m| m.id.clone()),
+            provider: model.as_ref().map(|m| m.provider.clone()),
+            ..Default::default()
+        };
+        let tx = self.tx.clone();
+        self.runtime.spawn(async move {
+            // The pool's lifeguard runs on this runtime, so it is made here.
+            let pool = get_subagent_pool(&cwd, &available);
+            let outcome = match pool.dispatch(&task, options).await {
+                Ok(dispatched) => match dispatched.result {
+                    Some(result) if result.ok => Ok(result
+                        .result_data
+                        .as_ref()
+                        .and_then(|data| data.get("summary"))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)),
+                    result => Err(format!(
+                        "Subagent ({mode}) failed: {}",
+                        result
+                            .and_then(|r| r.error)
+                            .unwrap_or_else(|| "unknown error".into())
+                    )),
+                },
+                Err(error) => Err(error.to_string()),
+            };
+            let _ = tx.send(AppEvent::SubagentDone(mode, outcome));
+        });
+    }
+
+    /// A `/subagent` run ended. Its answer joins the session as a displayed
+    /// custom message (seen when the transcript is next drawn).
+    fn finish_subagent(&mut self, mode: &str, result: Result<Option<String>, String>) {
+        match result {
+            Ok(summary) => {
+                self.show_status(&format!("{mode} subagent completed"));
+                let summary = summary
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "(no output)".into());
+                self.session
+                    .session_manager()
+                    .append_message(AgentMessage::Custom(CustomMessage {
+                        custom_type: "subagent".into(),
+                        content: UserContent::Text(summary),
+                        display: true,
+                        details: None,
+                        timestamp: cortexcode_ai_types::now_ms(),
+                    }));
+            }
+            Err(error) => self.show_error(&error),
+        }
     }
 
     /// `handleName`.
@@ -4133,6 +4289,7 @@ impl Mode {
         self.chains.clear();
         self.assistant_components.clear();
         self.bash_components.clear();
+        self.branch_summaries.clear();
         self.last_status = None;
     }
 
@@ -4239,6 +4396,9 @@ impl Mode {
             self.expanded = expanded;
             self.header.borrow_mut().set_expanded(expanded);
             for component in &self.bash_components {
+                component.borrow_mut().set_expanded(expanded);
+            }
+            for component in &self.branch_summaries {
                 component.borrow_mut().set_expanded(expanded);
             }
         }
@@ -4648,6 +4808,9 @@ impl Mode {
         options_initial: (Option<String>, Vec<String>, Option<String>),
     ) -> Result<(), String> {
         let input = self.tui.start();
+        // From here the TUI owns the terminal: the agent's operational log
+        // lines (dispatch, warm fallback, lifeguard) must not write to it.
+        set_terminal_owned_by_tui(true);
         self.subscription = Some(self.subscribe());
 
         // Everything the chrome shows about the session.
@@ -4784,6 +4947,7 @@ impl Mode {
                     AppEvent::BashDone(result) => self.finish_bash_command(result),
                     AppEvent::CopyDone(subject, result) => self.finish_copy(&subject, result),
                     AppEvent::PastedImage(image) => self.insert_pasted_image(image),
+                    AppEvent::SubagentDone(mode, result) => self.finish_subagent(&mode, result),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -4872,6 +5036,7 @@ impl Mode {
         cortexcode_code_tui_theme::stop_theme_watcher();
         self.notifications.borrow_mut().stop();
         self.tui.stop();
+        set_terminal_owned_by_tui(false);
         let session = self.session.clone();
         if session.is_streaming() {
             self.runtime.block_on(async move { session.abort().await });
@@ -4908,6 +5073,7 @@ enum BuiltinCommand {
     Reload,
     Export,
     Import,
+    Subagent,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4940,6 +5106,7 @@ impl BuiltinCommand {
             "reload" => Self::Reload,
             "export" => Self::Export,
             "import" => Self::Import,
+            "subagent" => Self::Subagent,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -4958,8 +5125,9 @@ impl BuiltinCommand {
             | Self::Chrome
             | Self::Cd
             | Self::Export
-            | Self::Import => true,
-            Self::Pending(name) => matches!(name, "subagent"),
+            | Self::Import
+            | Self::Subagent => true,
+            Self::Pending(_) => false,
             _ => false,
         }
     }
