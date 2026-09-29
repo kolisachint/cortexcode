@@ -154,7 +154,7 @@ fn text_result(text: String) -> AgentToolResult {
 
 /// The `ask_options` tool definition.
 pub fn create_ask_options_tool_definition(host: Arc<dyn AskOptionsHost>) -> ToolDefinition {
-    ToolDefinition { background_when: None,
+    ToolDefinition { ordered_start: false, background_when: None,
         name: "ask_options".into(),
         label: "Ask the user".into(),
         description: "Ask the user to make one or more decisions before continuing. Each question is presented in an interactive options pane where the user selects an option (or types a custom answer). Use this when you genuinely need input to proceed and cannot reasonably decide yourself. Returns the user's answer for each question; if the user skips, no answers are returned.".into(),

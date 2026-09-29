@@ -1,0 +1,11 @@
+{
+  "scenario": "print-error",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-k2j3c7xe/home",
+    "WORK": "/tmp/replay-k2j3c7xe/work",
+    "TMP": "/tmp/replay-k2j3c7xe"
+  },
+  "exit_status": 1,
+  "files": {}
+}

@@ -1,0 +1,296 @@
+---
+source: crates/cortexcode-code-main/tests/replay.rs
+description: "recorded from hoocode a6cd96e7 by harness.py record; never accept cortex output here"
+expression: json-subagent-child
+---
+## exit
+0
+
+## stdout (jsonl)
+{"ping":true}
+{"type":"session","version":3,"id":"<masked>","timestamp":"<masked>","cwd":"<masked>"}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"read notes.txt"}],"timestamp":"<masked>"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Let me read it."},{"type":"toolCall","id":"<masked>","name":"read","arguments":{"path":"notes.txt","limit":2}}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":"<masked>","responseId":"chatcmpl-mock"}}
+{"type":"tool_execution_start","toolCallId":"call_read_1","toolName":"read","args":{"path":"notes.txt","limit":2}}
+{"type":"tool_execution_end","toolCallId":"call_read_1","toolName":"read","result":{"content":[{"type":"text","text":"alpha\nbeta\n\n[2 more lines in file. Use offset=3 to continue.]"}]},"isError":false}
+{"type":"message_end","message":{"role":"toolResult","toolCallId":"call_read_1","toolName":"read","content":[{"type":"text","text":"alpha\nbeta\n\n[2 more lines in file. Use offset=3 to continue.]"}],"isError":false,"timestamp":"<masked>"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Let me read it."},{"type":"toolCall","id":"<masked>","name":"read","arguments":{"path":"notes.txt","limit":2}}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":"<masked>","responseId":"chatcmpl-mock"},"toolResults":[{"role":"toolResult","toolCallId":"call_read_1","toolName":"read","content":[{"type":"text","text":"alpha\nbeta\n\n[2 more lines in file. Use offset=3 to continue.]"}],"isError":false,"timestamp":"<masked>"}]}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Summary: the file starts with alpha and beta."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":"<masked>","responseId":"chatcmpl-mock"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Summary: the file starts with alpha and beta."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":"<masked>","responseId":"chatcmpl-mock"},"toolResults":[]}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"You are at turn 1 of your 2-turn limit. Stop investigating or making changes now and write your final summary of findings and results in your next message."}],"timestamp":"<masked>"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"aborted","timestamp":"<masked>","errorMessage":"Request was aborted."}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"aborted","timestamp":"<masked>","errorMessage":"Request was aborted."},"toolResults":[]}
+
+## stderr
+
+
+## requests
+[
+ {
+  "messages": [
+   {
+    "content": "You are a coding agent. Use the tools to read, edit, and write files and run shell commands.\nSearch with bash (rg/find/ls). Prefer edit for changes; write for new files.\nBe concise. No preamble.\n\nCurrent date: 2026-09-29\nCurrent working directory: <WORK>",
+    "role": "system"
+   },
+   {
+    "content": [
+     {
+      "text": "read notes.txt",
+      "type": "text"
+     }
+    ],
+    "role": "user"
+   }
+  ],
+  "model": "mock-model",
+  "tools": [
+   {
+    "function": {
+     "description": "Read a file. args: path, offset?, limit?",
+     "name": "read",
+     "parameters": {
+      "properties": {
+       "limit": {
+        "type": "number"
+       },
+       "offset": {
+        "type": "number"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Write file (overwrites). args: path, content",
+     "name": "write",
+     "parameters": {
+      "properties": {
+       "content": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "content"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Replace exact text. args: path, oldText, newText",
+     "name": "edit",
+     "parameters": {
+      "properties": {
+       "newText": {
+        "type": "string"
+       },
+       "oldText": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "oldText",
+       "newText"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Run a shell command. args: command, timeout?",
+     "name": "bash",
+     "parameters": {
+      "properties": {
+       "command": {
+        "type": "string"
+       },
+       "timeout": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "command"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   }
+  ]
+ },
+ {
+  "messages": [
+   {
+    "content": "You are a coding agent. Use the tools to read, edit, and write files and run shell commands.\nSearch with bash (rg/find/ls). Prefer edit for changes; write for new files.\nBe concise. No preamble.\n\nCurrent date: 2026-09-29\nCurrent working directory: <WORK>",
+    "role": "system"
+   },
+   {
+    "content": [
+     {
+      "text": "read notes.txt",
+      "type": "text"
+     }
+    ],
+    "role": "user"
+   },
+   {
+    "content": "Let me read it.",
+    "role": "assistant",
+    "tool_calls": [
+     {
+      "function": {
+       "arguments": "{\"path\":\"notes.txt\",\"limit\":2}",
+       "name": "read"
+      },
+      "id": "call_read_1",
+      "type": "function"
+     }
+    ]
+   },
+   {
+    "content": "alpha\nbeta\n\n[2 more lines in file. Use offset=3 to continue.]",
+    "role": "tool",
+    "tool_call_id": "call_read_1"
+   }
+  ],
+  "model": "mock-model",
+  "tools": [
+   {
+    "function": {
+     "description": "Read a file. args: path, offset?, limit?",
+     "name": "read",
+     "parameters": {
+      "properties": {
+       "limit": {
+        "type": "number"
+       },
+       "offset": {
+        "type": "number"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Write file (overwrites). args: path, content",
+     "name": "write",
+     "parameters": {
+      "properties": {
+       "content": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "content"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Replace exact text. args: path, oldText, newText",
+     "name": "edit",
+     "parameters": {
+      "properties": {
+       "newText": {
+        "type": "string"
+       },
+       "oldText": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "oldText",
+       "newText"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Run a shell command. args: command, timeout?",
+     "name": "bash",
+     "parameters": {
+      "properties": {
+       "command": {
+        "type": "string"
+       },
+       "timeout": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "command"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   }
+  ]
+ }
+]
+
+## session 1/1
+{"type":"session","version":3,"id":"<id-1>","timestamp":"<masked>","cwd":"<WORK>"}
+{"type":"model_change","id":"<id-2>","parentId":null,"timestamp":"<masked>","provider":"mock","modelId":"mock-model"}
+{"type":"thinking_level_change","id":"<id-3>","parentId":"<id-2>","timestamp":"<masked>","thinkingLevel":"off"}
+{"type":"message","id":"<id-4>","parentId":"<id-3>","timestamp":"<masked>","message":{"role":"user","content":[{"type":"text","text":"read notes.txt"}],"timestamp":"<masked>"}}
+{"type":"message","id":"<id-5>","parentId":"<id-4>","timestamp":"<masked>","message":{"role":"assistant","content":[{"type":"text","text":"Let me read it."},{"type":"toolCall","id":"call_read_1","name":"read","arguments":{"path":"notes.txt","limit":2}}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":"<masked>","responseId":"chatcmpl-mock"}}
+{"type":"message","id":"<id-6>","parentId":"<id-5>","timestamp":"<masked>","message":{"role":"toolResult","toolCallId":"call_read_1","toolName":"read","content":[{"type":"text","text":"alpha\nbeta\n\n[2 more lines in file. Use offset=3 to continue.]"}],"isError":false,"timestamp":"<masked>"}}
+{"type":"message","id":"<id-7>","parentId":"<id-6>","timestamp":"<masked>","message":{"role":"assistant","content":[{"type":"text","text":"Summary: the file starts with alpha and beta."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":"<masked>","responseId":"chatcmpl-mock"}}
+{"type":"message","id":"<id-8>","parentId":"<id-7>","timestamp":"<masked>","message":{"role":"user","content":[{"type":"text","text":"You are at turn 1 of your 2-turn limit. Stop investigating or making changes now and write your final summary of findings and results in your next message."}],"timestamp":"<masked>"}}
+{"type":"message","id":"<id-9>","parentId":"<id-8>","timestamp":"<masked>","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"aborted","timestamp":"<masked>","errorMessage":"Request was aborted."}}
+
+## file {config}/dispatch/t1/result.json
+{"summary":"Summary: the file starts with alpha and beta.","files_changed":[],"confidence":0.6,"status":"partial","usage":{"input":200,"output":40,"cacheRead":0,"cacheWrite":0,"cost":0}}

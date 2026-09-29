@@ -590,7 +590,7 @@ pub fn create_task_tool_definition(cwd: &Path) -> ToolDefinition {
     let background_agents = Arc::new(collect_background_agent_names(cwd));
     let predicate_agents = background_agents.clone();
     let default_cwd = cwd.to_path_buf();
-    ToolDefinition {
+    ToolDefinition { ordered_start: false,
         name: TASK_TOOL_NAME.into(),
         label: TASK_TOOL_NAME.into(),
         description: "Delegate a focused task to a specialized subagent that runs in a fresh, isolated context (it cannot see this conversation). Choose one of the available agents (listed in the system prompt) via `subagent_type` and pass everything it needs via `prompt`; the subagent returns only its final answer.".into(),
@@ -1044,7 +1044,7 @@ fn task_output_parameters() -> Value {
 
 /// `createTaskOutputToolDefinition`.
 pub fn create_task_output_tool_definition() -> ToolDefinition {
-    ToolDefinition {
+    ToolDefinition { ordered_start: false,
         name: "TaskOutput".into(),
         label: "TaskOutput".into(),
         description: [

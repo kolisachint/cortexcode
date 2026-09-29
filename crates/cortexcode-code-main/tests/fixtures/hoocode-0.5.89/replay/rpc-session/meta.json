@@ -1,0 +1,11 @@
+{
+  "scenario": "rpc-session",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-esm5ca8_/home",
+    "WORK": "/tmp/replay-esm5ca8_/work",
+    "TMP": "/tmp/replay-esm5ca8_"
+  },
+  "exit_status": 0,
+  "files": {}
+}

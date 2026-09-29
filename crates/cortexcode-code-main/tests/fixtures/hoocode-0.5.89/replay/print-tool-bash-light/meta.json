@@ -1,0 +1,11 @@
+{
+  "scenario": "print-tool-bash-light",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-a8oa8nja/home",
+    "WORK": "/tmp/replay-a8oa8nja/work",
+    "TMP": "/tmp/replay-a8oa8nja"
+  },
+  "exit_status": 0,
+  "files": {}
+}

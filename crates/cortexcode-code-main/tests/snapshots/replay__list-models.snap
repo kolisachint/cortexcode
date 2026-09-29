@@ -1,0 +1,21 @@
+---
+source: crates/cortexcode-code-main/tests/replay.rs
+description: "recorded from hoocode a6cd96e7 by harness.py record; never accept cortex output here"
+expression: list-models
+---
+## exit
+0
+
+## stdout
+
+
+## stderr
+provider  model                         context  max-out  thinking  images
+groq      llama-3.1-8b-instant          131.1K   131.1K   no        no
+groq      llama-3.3-70b-versatile       131.1K   32.8K    no        no
+groq      openai/gpt-oss-120b           131.1K   65.5K    yes       no
+groq      openai/gpt-oss-20b            131.1K   65.5K    yes       no
+groq      openai/gpt-oss-safeguard-20b  131.1K   65.5K    yes       no
+groq      qwen/qwen3.6-27b              131.1K   16.4K    yes       yes
+groq      qwen/qwen3.8-27b              131.0K   16.4K    yes       yes
+mock      mock-model                    128K     4.1K     no        no

@@ -1,0 +1,305 @@
+---
+source: crates/cortexcode-code-main/tests/replay.rs
+description: "recorded from hoocode a6cd96e7 by harness.py record; never accept cortex output here"
+expression: print-tool-bash-light
+---
+## exit
+0
+
+## stdout
+Sorted, failed with 3, and timed out.
+
+## stderr
+
+
+## requests
+[
+ {
+  "messages": [
+   {
+    "content": "You are a coding agent. Use the tools to read, edit, and write files and run shell commands.\nSearch with bash (rg/find/ls). Prefer edit for changes; write for new files.\nBe concise. No preamble.\n\nCurrent date: 2026-09-29\nCurrent working directory: <WORK>",
+    "role": "system"
+   },
+   {
+    "content": [
+     {
+      "text": "run the commands",
+      "type": "text"
+     }
+    ],
+    "role": "user"
+   }
+  ],
+  "tools": [
+   {
+    "function": {
+     "description": "Read a file. args: path, offset?, limit?",
+     "name": "read",
+     "parameters": {
+      "properties": {
+       "limit": {
+        "type": "number"
+       },
+       "offset": {
+        "type": "number"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Write file (overwrites). args: path, content",
+     "name": "write",
+     "parameters": {
+      "properties": {
+       "content": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "content"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Replace exact text. args: path, oldText, newText",
+     "name": "edit",
+     "parameters": {
+      "properties": {
+       "newText": {
+        "type": "string"
+       },
+       "oldText": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "oldText",
+       "newText"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Run a shell command. args: command, timeout?",
+     "name": "bash",
+     "parameters": {
+      "properties": {
+       "command": {
+        "type": "string"
+       },
+       "timeout": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "command"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   }
+  ]
+ },
+ {
+  "messages": [
+   {
+    "content": "You are a coding agent. Use the tools to read, edit, and write files and run shell commands.\nSearch with bash (rg/find/ls). Prefer edit for changes; write for new files.\nBe concise. No preamble.\n\nCurrent date: 2026-09-29\nCurrent working directory: <WORK>",
+    "role": "system"
+   },
+   {
+    "content": [
+     {
+      "text": "run the commands",
+      "type": "text"
+     }
+    ],
+    "role": "user"
+   },
+   {
+    "content": "Running them.",
+    "role": "assistant",
+    "tool_calls": [
+     {
+      "function": {
+       "arguments": "{\"command\":\"printf 'alpha\\\\nbeta\\\\ngamma\\\\n' | sort -r\"}",
+       "name": "bash"
+      },
+      "id": "call_bash_1",
+      "type": "function"
+     },
+     {
+      "function": {
+       "arguments": "{\"command\":\"echo boom; exit 3\"}",
+       "name": "bash"
+      },
+      "id": "call_bash_2",
+      "type": "function"
+     },
+     {
+      "function": {
+       "arguments": "{\"command\":\"echo waiting; sleep 5\",\"timeout\":1}",
+       "name": "bash"
+      },
+      "id": "call_bash_3",
+      "type": "function"
+     }
+    ]
+   },
+   {
+    "content": "gamma\nbeta\nalpha\n",
+    "role": "tool",
+    "tool_call_id": "call_bash_1"
+   },
+   {
+    "content": "boom\n\n\nCommand exited with code 3",
+    "role": "tool",
+    "tool_call_id": "call_bash_2"
+   },
+   {
+    "content": "waiting\n\n\nCommand timed out after 1 seconds",
+    "role": "tool",
+    "tool_call_id": "call_bash_3"
+   }
+  ],
+  "tools": [
+   {
+    "function": {
+     "description": "Read a file. args: path, offset?, limit?",
+     "name": "read",
+     "parameters": {
+      "properties": {
+       "limit": {
+        "type": "number"
+       },
+       "offset": {
+        "type": "number"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Write file (overwrites). args: path, content",
+     "name": "write",
+     "parameters": {
+      "properties": {
+       "content": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "content"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Replace exact text. args: path, oldText, newText",
+     "name": "edit",
+     "parameters": {
+      "properties": {
+       "newText": {
+        "type": "string"
+       },
+       "oldText": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "oldText",
+       "newText"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   },
+   {
+    "function": {
+     "description": "Run a shell command. args: command, timeout?",
+     "name": "bash",
+     "parameters": {
+      "properties": {
+       "command": {
+        "type": "string"
+       },
+       "timeout": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "command"
+      ],
+      "type": "object"
+     },
+     "strict": false
+    },
+    "type": "function"
+   }
+  ]
+ }
+]
+
+## session 1/1
+{"type":"session","version":3,"id":"<id-1>","timestamp":"<masked>","cwd":"<WORK>"}
+{"type":"model_change","id":"<id-2>","parentId":null,"timestamp":"<masked>","provider":"mock","modelId":"mock-model"}
+{"type":"thinking_level_change","id":"<id-3>","parentId":"<id-2>","timestamp":"<masked>","thinkingLevel":"off"}
+{"type":"message","id":"<id-4>","parentId":"<id-3>","timestamp":"<masked>","message":{"role":"user","content":[{"type":"text","text":"run the commands"}],"timestamp":"<masked>"}}
+{"type":"message","id":"<id-5>","parentId":"<id-4>","timestamp":"<masked>","message":{"role":"assistant","content":[{"type":"text","text":"Running them."},{"type":"toolCall","id":"call_bash_1","name":"bash","arguments":{"command":"printf 'alpha\\nbeta\\ngamma\\n' | sort -r"}},{"type":"toolCall","id":"call_bash_2","name":"bash","arguments":{"command":"echo boom; exit 3"}},{"type":"toolCall","id":"call_bash_3","name":"bash","arguments":{"command":"echo waiting; sleep 5","timeout":1}}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":"<masked>","responseId":"chatcmpl-mock"}}
+{"type":"message","id":"<id-6>","parentId":"<id-5>","timestamp":"<masked>","message":{"role":"toolResult","toolCallId":"call_bash_1","toolName":"bash","content":[{"type":"text","text":"gamma\nbeta\nalpha\n"}],"isError":false,"timestamp":"<masked>"}}
+{"type":"message","id":"<id-7>","parentId":"<id-6>","timestamp":"<masked>","message":{"role":"toolResult","toolCallId":"call_bash_2","toolName":"bash","content":[{"type":"text","text":"boom\n\n\nCommand exited with code 3"}],"details":{},"isError":true,"timestamp":"<masked>"}}
+{"type":"message","id":"<id-8>","parentId":"<id-7>","timestamp":"<masked>","message":{"role":"toolResult","toolCallId":"call_bash_3","toolName":"bash","content":[{"type":"text","text":"waiting\n\n\nCommand timed out after 1 seconds"}],"details":{},"isError":true,"timestamp":"<masked>"}}
+{"type":"message","id":"<id-9>","parentId":"<id-8>","timestamp":"<masked>","message":{"role":"assistant","content":[{"type":"text","text":"Sorted, failed with 3, and timed out."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":"<masked>","responseId":"chatcmpl-mock"}}

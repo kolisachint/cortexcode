@@ -446,6 +446,45 @@ pub struct AgentTool {
     /// hoocode builds with TypeBox: validation then applies
     /// `coerceWithJsonSchema` instead of TypeBox `Value.Convert`.
     pub plain_json_schema: bool,
+    /// The start of `execute` must run in tool-call order within a parallel
+    /// batch, as a JS `execute` runs synchronously up to its first `await`:
+    /// the call begins only once the previous such call reached
+    /// [`dispatch::dispatch_point`] (or finished). Edit/write take their
+    /// file-mutation ticket there, so same-file mutations apply in call order.
+    pub ordered_start: bool,
+}
+
+/// Ordered starts for parallel tool calls (see [`AgentTool::ordered_start`]).
+pub mod dispatch {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static HOOK: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+    }
+
+    /// Called by a tool once the order-sensitive part of its start is done
+    /// (e.g. a file-mutation ticket is taken): lets the next ordered call in
+    /// the batch begin. A no-op outside an ordered call, and after the first.
+    pub fn dispatch_point() {
+        if let Some(release) = HOOK.with(|h| h.borrow_mut().take()) {
+            release();
+        }
+    }
+
+    /// Run `f` (a tool's `execute`) with `release` as this thread's dispatch
+    /// hook. `release` runs at the first [`dispatch_point`], or when `f`
+    /// returns or unwinds without reaching one.
+    pub fn with_dispatch_hook<T>(release: Box<dyn FnOnce()>, f: impl FnOnce() -> T) -> T {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                dispatch_point();
+            }
+        }
+        HOOK.with(|h| *h.borrow_mut() = Some(release));
+        let _reset = Reset;
+        f()
+    }
 }
 
 impl std::fmt::Debug for AgentTool {
@@ -519,6 +558,7 @@ impl AgentTool {
     ) -> Self {
         let name = name.into();
         Self {
+            ordered_start: false,
             name: name.clone(),
             description: description.into(),
             label: name,
@@ -544,6 +584,7 @@ impl AgentTool {
 impl Clone for AgentTool {
     fn clone(&self) -> Self {
         Self {
+            ordered_start: self.ordered_start,
             name: self.name.clone(),
             description: self.description.clone(),
             label: self.label.clone(),

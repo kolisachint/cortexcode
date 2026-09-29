@@ -44,6 +44,48 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 13.4 split; 13.4a TS test port ledger tooling
+- 13.4 split into 13.4a (tooling + automatic/curated classification) and 13.4b (review).
+- `migration/ts_tests.py generate` writes `migration/ts-tests.json`, one entry per TS test
+  file at the pin (400). Rules, first match wins: curated rule in `ts-tests-overrides.json`,
+  then an owning ledger task (`ts_tests`) that is done/l1_done → ported (else pending), then a
+  Rust file under crates/ citing the file → ported, else `review`.
+- Now: ported 233, pending 79 (deferred phase 12, 9.1, 10.2e, 10.11), n.a. 3, review 85
+  (`ts_tests.py list review`: 64 coding-agent, 19 tui, 1 agent, 1 ai).
+- When a Rust test is ported from a TS file, cite the file name in the test (the generator
+  counts citations), then re-run `generate`. 13.4a's gate fails if the JSON is stale.
+- Next: 13.4b. For each `review` file, find the Rust counterpart, then port the missing
+  cases (citing the TS file), or add an override rule (`equivalent` or `n.a.`) with a reason.
+
+### 2026-09-29 · 13.3 parity smoke
+- `scripts/parity_test.sh` is now a smoke test: `--version`/`--help`, the 13.2 replay test,
+  and the L2 `print-basic` scenario when the pinned hoocode is built. The old grep checks
+  (a nonexistent `code-main/src/runtime.rs`, a hard-coded model count) are gone.
+- CI already runs 13.2 via `cargo test --workspace`. The nightly/manual L2 workflow is still
+  only staged (`migration/ci/tui-parity.yml`); the user has to copy it into `.github/workflows/`.
+- Next: 13.4 (TS test port ledger).
+
+### 2026-09-29 · 13.2 Level-1 fixture replay
+- `harness.py record <scenario|all>` runs the terminal-free scenarios in
+  `migration/tui-parity/replay.json` against hoocode headless (stdin a pipe or /dev/null,
+  stdout/stderr to files), twice, and keeps the recording only if both runs match. Output:
+  raw files in `crates/cortexcode-code-main/tests/fixtures/hoocode-0.5.89/replay/<name>/` plus
+  the normalized insta snapshot `tests/snapshots/replay__<name>.snap` (exit, stdout, stderr,
+  requests if `compare_requests`, session files with ids remapped to `<id-N>`, work files).
+- `crates/cortexcode-code-main/tests/replay.rs` replays them against `cortex` using a Rust port
+  of `mockllm.py` and of the harness normalizer. Each test first re-renders hoocode's raw
+  recording to check the Rust normalizer matches the Python one. 14 scenarios.
+- The replay found 2 real differences that L2 couldn't see, both fixed:
+  - hoocode's `takeOverStdout`: outside interactive mode (`-p`/json/rpc, or piped stdin),
+    `--version`/`--help`/`--list-models` print to stderr (`code-cli/src/lib.rs`).
+  - Parallel same-file edits ran in thread-race order (the edit diffs showed it). New
+    `AgentTool/ToolDefinition::ordered_start` (edit/write): in a parallel batch such calls
+    start in call order, up to `agent_types::dispatch::dispatch_point()`. The mutation queue
+    calls that once it holds its ticket. Unit test in agent-loop.
+- The 8 default-bundle print scenarios aren't in replay.json yet; add them (then
+  `harness.py record <name>`) once their L2 passes (12.4).
+- Next: `ledger.py next` (13.3 or 13.4).
+
 ### 2026-09-29 · 11.5b task panel in the app; 11.5 closed; phase 11 complete
 - `TaskPanelComponent` mounted in the tasks slot (chrome density → full/summary), task-store
   subscription → re-render, 1s run-clock tick, alt+l / shift+alt+l lens cycle with dial steps,

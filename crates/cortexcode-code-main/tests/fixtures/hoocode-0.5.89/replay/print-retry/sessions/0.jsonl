@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"01a0ee16-f9c5-771a-8f37-6f0dd9706707","timestamp":"2026-09-29T16:54:38.278Z","cwd":"/tmp/replay-9yyr9mp7/work"}
+{"type":"model_change","id":"0bef6ba6","parentId":null,"timestamp":"2026-09-29T16:54:38.314Z","provider":"mock","modelId":"mock-model"}
+{"type":"thinking_level_change","id":"161b6b89","parentId":"0bef6ba6","timestamp":"2026-09-29T16:54:38.314Z","thinkingLevel":"off"}
+{"type":"message","id":"dde3a3f9","parentId":"161b6b89","timestamp":"2026-09-29T16:54:38.339Z","message":{"role":"user","content":[{"type":"text","text":"say hello"}],"timestamp":1790700878333}}
+{"type":"message","id":"a357d0a9","parentId":"dde3a3f9","timestamp":"2026-09-29T16:54:38.870Z","message":{"role":"assistant","content":[{"type":"text","text":"Hello after retry."}],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":100,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":120,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1790700878370,"responseId":"chatcmpl-mock"}}

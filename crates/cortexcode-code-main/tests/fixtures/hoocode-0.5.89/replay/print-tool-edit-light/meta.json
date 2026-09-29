@@ -1,0 +1,11 @@
+{
+  "scenario": "print-tool-edit-light",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-vy_sqgqd/home",
+    "WORK": "/tmp/replay-vy_sqgqd/work",
+    "TMP": "/tmp/replay-vy_sqgqd"
+  },
+  "exit_status": 0,
+  "files": {}
+}

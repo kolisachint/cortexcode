@@ -27,6 +27,7 @@ Usage::
     harness.py run <scenario|all> [--app both|hoocode|cortex] [--keep]
     harness.py selfcheck <scenario|all>  # run hoocode twice; scenario must be deterministic
     harness.py png <scenario>            # render report.html to report.png (needs playwright)
+    harness.py record <scenario|all>     # Level-1 replay fixtures from hoocode (replay.json)
 
 Scenario format: see ``scenarios/README.md``.
 """
@@ -595,6 +596,223 @@ def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: 
 
 
 # ---------------------------------------------------------------------------
+# Level-1 fixture recording (13.2): headless replay of non-interactive scenarios
+# ---------------------------------------------------------------------------
+#
+# `record` runs hoocode for each scenario in `replay.json` WITHOUT tmux: stdin is a
+# pipe (or /dev/null), stdout/stderr go to files. The Rust integration test
+# `crates/cortexcode-code-main/tests/replay.rs` runs `cortex` the same way against
+# a port of `mockllm.py` and must render the same text. The recording keeps
+# hoocode's raw output plus the rendered (normalized) text as an insta snapshot;
+# the Rust test re-normalizes the raw output to check its normalizer agrees with
+# this one.
+
+REPLAY = HERE / "replay.json"
+FIXTURES = ROOT / "crates" / "cortexcode-code-main" / "tests" / "fixtures" / "hoocode-0.5.89" / "replay"
+SNAPSHOTS = ROOT / "crates" / "cortexcode-code-main" / "tests" / "snapshots"
+REPLAY_STEPS = {"type", "keys", "wait_stdout", "wait_exit", "snapshot", "sleep"}
+REPLAY_KEYS = {"Enter": "\n"}
+
+
+def replay_manifest() -> dict:
+    return json.loads(REPLAY.read_text())
+
+
+def pin_commit() -> str:
+    return tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["metadata"]["cortex"]["source"]["hoocode-commit"]
+
+
+def run_headless(app: str, sc: dict, keep: bool = False) -> dict:
+    """Run a scenario's replayable steps with pipes instead of a terminal.
+
+    Returns the raw artifacts: exit status, stdout, stderr, request log lines,
+    session files, work files, and the run's temp paths (for normalization)."""
+    tmp = Path(tempfile.mkdtemp(prefix="replay-"))
+    home, work = tmp / "home", tmp / "work"
+    home.mkdir()
+    work.mkdir()
+    for rel, content in (sc.get("files") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+    if sc.get("symlinks") or sc.get("git"):
+        raise StepError("symlinks/git scenarios are not replayable")
+    mock, port, log = start_mock(sc.get("llm", []), tmp)
+    write_models_json(home, port, sc)
+    env = {
+        "HOME": str(home),
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "TERM": "xterm-256color",
+        "COLORTERM": "truecolor",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TZ": "UTC",
+        **{
+            k: v.replace("{WORK}", str(work)).replace("{HOME}", str(home)).replace("{TMP}", str(tmp))
+            for k, v in (sc.get("env") or {}).items()
+        },
+    }
+    steps = sc["steps"]
+    for step in steps:
+        kind = next(k for k in step if k not in ("timeout", "contains", "not_contains", "history"))
+        if kind not in REPLAY_STEPS:
+            raise StepError(f"step {kind!r} is not replayable")
+    interactive = any("type" in s or "keys" in s for s in steps)
+    out_path, err_path = tmp / "stdout", tmp / "stderr"
+    try:
+        for pre in sc.get("pre_runs") or []:
+            done = subprocess.run(app_cmd(app) + list(pre), cwd=work, env=env, stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=120)
+            if done.returncode != 0:
+                raise StepError(f"pre_run {pre} exited {done.returncode}: {done.stderr[-2000:]}")
+        argv = app_cmd(app) + list(sc.get("args", ["--offline", "--provider", "mock", "--model", "mock-model"]))
+        with open(out_path, "wb") as out_f, open(err_path, "wb") as err_f:
+            proc = subprocess.Popen(argv, cwd=work, env=env, stdout=out_f, stderr=err_f,
+                                    stdin=subprocess.PIPE if interactive else subprocess.DEVNULL)
+            try:
+                for i, step in enumerate(steps):
+                    timeout = float(step.get("timeout", 15))
+                    if "type" in step:
+                        proc.stdin.write(step["type"].encode())
+                        proc.stdin.flush()
+                    elif "keys" in step:
+                        for key in step["keys"] if isinstance(step["keys"], list) else [step["keys"]]:
+                            if key == "C-d":
+                                proc.stdin.close()
+                            elif key in REPLAY_KEYS:
+                                proc.stdin.write(REPLAY_KEYS[key].encode())
+                                proc.stdin.flush()
+                            else:
+                                raise StepError(f"key {key!r} is not replayable")
+                    elif "wait_stdout" in step:
+                        pattern = re.compile(step["wait_stdout"], re.M)
+                        deadline = time.time() + timeout
+                        while not pattern.search(out_path.read_text(errors="replace")):
+                            if time.time() > deadline or proc.poll() is not None and not pattern.search(out_path.read_text(errors="replace")):
+                                raise StepError(f"step {i}: stdout did not match {step['wait_stdout']!r}")
+                            time.sleep(0.05)
+                    elif "wait_exit" in step:
+                        proc.wait(timeout=timeout)
+                    elif "sleep" in step:
+                        time.sleep(float(step["sleep"]))
+                    # `snapshot` is a screen capture: Level 2 only.
+                status = proc.wait(timeout=30)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.wait()
+    finally:
+        mock.send_signal(signal.SIGTERM)
+        mock.wait(timeout=5)
+    config = CONFIG_DIRS[app]
+    sessions = [p.read_text() for p in sorted((home / config / "sessions").rglob("*.jsonl"))] if (home / config / "sessions").exists() else []
+    files = {}
+    for rel in sc.get("work_files") or {}:
+        path = work / rel.format(config=config)
+        files[rel] = path.read_text() if path.exists() else None
+    result = {
+        "paths": {"HOME": str(home), "WORK": str(work), "TMP": str(tmp)},
+        "exit_status": status,
+        "stdout": out_path.read_text(),
+        "stderr": err_path.read_text(),
+        "requests": log.read_text().splitlines() if log.exists() else [],
+        "sessions": sessions,
+        "files": files,
+    }
+    if keep:
+        print(f"kept {tmp}")
+    else:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return result
+
+
+def normalize_session(raw: str, normalizer: "Normalizer", opts: dict) -> str:
+    """A session JSONL file: random entry ids become `<id-N>` by first appearance
+    (so the tree shape is still compared), then the usual JSON-lines masking."""
+    ids: dict[str, str] = {}
+    remap = opts.get("remap_keys", [])
+    lines = []
+    for line in raw.splitlines():
+        value = json.loads(line)
+        for key in remap:
+            if isinstance(value.get(key), str):
+                value[key] = ids.setdefault(value[key], f"<id-{len(ids) + 1}>")
+        lines.append(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+    return normalize_jsonl("\n".join(lines), normalizer, opts)
+
+
+def render_replay(sc: dict, raw: dict, manifest: dict) -> str:
+    """The text both apps must agree on: exit status, stdout, stderr, the model
+    requests (when the scenario compares them), session files and work files."""
+    normalizer = Normalizer.load(sc.get("normalize"), raw["paths"])
+    parts = [f"## exit\n{raw['exit_status']}\n"]
+    if sc.get("stdout_jsonl") is not None:
+        parts.append("## stdout (jsonl)\n" + normalize_jsonl(raw["stdout"], normalizer, sc["stdout_jsonl"]))
+    else:
+        parts.append("## stdout\n" + normalizer.apply_text(raw["stdout"]))
+    parts.append("## stderr\n" + normalizer.apply_text(raw["stderr"]))
+    if sc.get("compare_requests"):
+        reqs = []
+        for line in raw["requests"]:
+            body = json.loads(line)["body"]
+            reqs.append({k: body.get(k) for k in (sc.get("request_fields") or DEFAULT_REQUEST_FIELDS) if k in body})
+        parts.append("## requests\n" + normalizer.apply_text(json.dumps(reqs, indent=1, sort_keys=True, ensure_ascii=False)))
+    sessions = sorted(normalize_session(s, normalizer, manifest["session"]) for s in raw["sessions"])
+    for i, s in enumerate(sessions):
+        parts.append(f"## session {i + 1}/{len(sessions)}\n{s}")
+    for rel, text in raw["files"].items():
+        body = "<missing>\n" if text is None else normalize_jsonl(json.dumps(json.loads(text)), normalizer, sc["work_files"][rel] or {})
+        parts.append(f"## file {rel}\n{body}")
+    return "\n".join(parts)
+
+
+def snap_file(name: str) -> Path:
+    return SNAPSHOTS / f"replay__{name}.snap"
+
+
+def cmd_record(names: list[str]) -> int:
+    """Record hoocode fixtures for the Level-1 replay test (never run with cortex)."""
+    manifest = replay_manifest()
+    commit = pin_commit()
+    for name in names:
+        sc = load_scenario(name)
+        raw = run_headless("hoocode", sc)
+        rendered = render_replay(sc, raw, manifest)
+        again = render_replay(sc, run_headless("hoocode", sc), manifest)
+        if again != rendered:
+            diff = difflib.unified_diff(rendered.splitlines(), again.splitlines(), "run1", "run2", lineterm="")
+            print(f"unstable {name}: two hoocode runs render differently\n" + "\n".join(list(diff)[:60]))
+            return 1
+        d = FIXTURES / name
+        shutil.rmtree(d, ignore_errors=True)
+        (d / "sessions").mkdir(parents=True)
+        (d / "meta.json").write_text(json.dumps({
+            "scenario": name,
+            "hoocode_commit": commit,
+            "paths": raw["paths"],
+            "exit_status": raw["exit_status"],
+            "files": {rel: (None if t is None else f"file-{i}") for i, (rel, t) in enumerate(raw["files"].items())},
+        }, indent=2) + "\n")
+        (d / "stdout").write_text(raw["stdout"])
+        (d / "stderr").write_text(raw["stderr"])
+        (d / "requests.jsonl").write_text("".join(l + "\n" for l in raw["requests"]))
+        for i, s in enumerate(raw["sessions"]):
+            (d / "sessions" / f"{i}.jsonl").write_text(s)
+        for i, (rel, t) in enumerate(raw["files"].items()):
+            if t is not None:
+                (d / f"file-{i}").write_text(t)
+        SNAPSHOTS.mkdir(parents=True, exist_ok=True)
+        header = (
+            "---\nsource: crates/cortexcode-code-main/tests/replay.rs\n"
+            f"description: \"recorded from hoocode {commit[:8]} by harness.py record; never accept cortex output here\"\n"
+            f"expression: {name}\n---\n"
+        )
+        snap_file(name).write_text(header + rendered)
+        print(f"recorded {name}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Comparison + reports
 # ---------------------------------------------------------------------------
 
@@ -795,6 +1013,8 @@ def main() -> int:
     r.add_argument("--keep", action="store_true", help="keep the temp HOME/workspace for debugging")
     sc = sub.add_parser("selfcheck")
     sc.add_argument("scenario")
+    rec = sub.add_parser("record", help="record hoocode fixtures for the Level-1 replay test (replay.json)")
+    rec.add_argument("scenario")
     p = sub.add_parser("png")
     p.add_argument("scenario")
     args = ap.parse_args()
@@ -807,6 +1027,8 @@ def main() -> int:
         return 0
     if args.cmd == "png":
         return cmd_png(args.scenario)
+    if args.cmd == "record":
+        return cmd_record(replay_manifest()["scenarios"] if args.scenario == "all" else [args.scenario])
     names = all_scenarios() if args.scenario == "all" else [args.scenario]
     if args.cmd == "selfcheck":
         return cmd_selfcheck(names)

@@ -1,0 +1,11 @@
+{
+  "scenario": "print-tool-invalid-light",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-v2sxxxpy/home",
+    "WORK": "/tmp/replay-v2sxxxpy/work",
+    "TMP": "/tmp/replay-v2sxxxpy"
+  },
+  "exit_status": 0,
+  "files": {}
+}

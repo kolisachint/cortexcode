@@ -217,6 +217,7 @@ where
     F: Fn(serde_json::Value) -> AgentToolResult + Send + Sync + 'static,
 {
     ToolDefinition {
+        ordered_start: false,
         background_when: None,
         name: name.into(),
         label: name.into(),

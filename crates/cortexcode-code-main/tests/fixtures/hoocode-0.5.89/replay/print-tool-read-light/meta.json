@@ -1,0 +1,11 @@
+{
+  "scenario": "print-tool-read-light",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-7f51jrt3/home",
+    "WORK": "/tmp/replay-7f51jrt3/work",
+    "TMP": "/tmp/replay-7f51jrt3"
+  },
+  "exit_status": 0,
+  "files": {}
+}

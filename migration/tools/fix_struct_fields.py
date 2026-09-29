@@ -46,6 +46,8 @@ FIELD_DEFAULTS = {
     ("AgentTool", "plain_json_schema"): "false",
     ("AgentTool", "background_when"): "None",
     ("ToolDefinition", "background_when"): "None",
+    ("AgentTool", "ordered_start"): "false",
+    ("ToolDefinition", "ordered_start"): "false",
     ("ToolContext", "cwd"): "None",
     ("ToolContext", "available_models"): "Vec::new()",
     ("ToolContext", "session_file"): "None",

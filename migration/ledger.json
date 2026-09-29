@@ -6445,33 +6445,125 @@
    "id": "13.2",
    "title": "Level-1 fixture replay: insta snapshot tests over hoocode-recorded sessions/json/rpc transcripts",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "7.2"
    ],
-   "crates": [],
+   "crates": [
+    "cortexcode-code-main",
+    "cortexcode-agent-loop",
+    "cortexcode-code-cli",
+    "cortexcode-code-tools-fs"
+   ],
    "sources": [
     "migration/tui-parity/"
    ],
    "ts_tests": [],
-   "l1_cmds": [],
+   "l1_cmds": [
+    "cargo test -p cortexcode-code-main --test replay"
+   ],
    "l2": "n/a: test infra",
-   "notes": "",
-   "log": []
+   "notes": "harness.py record <scenario|all> (scenarios in migration/tui-parity/replay.json) -> crates/cortexcode-code-main/tests/{fixtures/hoocode-0.5.89/replay,snapshots}; tests/replay.rs replays against cortex. Default-bundle print scenarios join after 12.4.",
+   "log": [
+    {
+     "at": "2026-09-29T16:59:10Z",
+     "commit": "f09b699",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T16:59:10Z",
+     "commit": "f09b699",
+     "kind": "note",
+     "text": "WIP: harness.py record + replay.json + 14 hoocode fixtures/snapshots + tests/replay.rs written; replay test not yet built/run (Bash permission checks were failing)."
+    },
+    {
+     "at": "2026-09-29T17:13:21Z",
+     "commit": "868e45f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.3",
    "title": "Replace scripts/parity_test.sh (--help greps) with harness smoke; CI workflow tui-parity (manual/nightly)",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8a"
    ],
    "crates": [],
    "sources": [],
    "ts_tests": [],
-   "l1_cmds": [],
+   "l1_cmds": [
+    "scripts/parity_test.sh"
+   ],
    "l2": "n/a: test infra",
+   "notes": "scripts/parity_test.sh = smoke (version/help, 13.2 replay, L2 print-basic when hoocode-pin is built). Workflow staged in migration/ci/tui-parity.yml (token cannot push workflows; user applies).",
+   "log": [
+    {
+     "at": "2026-09-29T17:14:07Z",
+     "commit": "d1a6312",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T17:14:30Z",
+     "commit": "d1a6312",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "13.4a",
+   "title": "TS test port ledger tooling: migration/ts_tests.py classifies all 400 TS test files (ledger ownership, Rust citations, curated overrides) into migration/ts-tests.json",
+   "phase": 13,
+   "status": "done",
+   "depends": [],
+   "crates": [],
+   "sources": [
+    "packages/*/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py generate --check-fresh"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T17:15:46Z",
+     "commit": "1ca310c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T17:16:53Z",
+     "commit": "1ca310c",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "13.4b",
+   "title": "TS test port ledger review: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/*/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check"
+   ],
+   "l2": "n/a: bookkeeping",
    "notes": "",
    "log": []
   },
@@ -6480,7 +6572,10 @@
    "title": "TS test port ledger: every one of the 400 TS test files marked ported/equivalent/n.a.",
    "phase": 13,
    "status": "todo",
-   "depends": [],
+   "depends": [
+    "13.4a",
+    "13.4b"
+   ],
    "crates": [],
    "sources": [
     "packages/*/test/"
@@ -6488,7 +6583,7 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": "n/a: bookkeeping",
-   "notes": "",
+   "notes": "Split 2026-09-29: 13.4a tooling + automatic/curated classification, 13.4b manual review of what is left.",
    "log": []
   }
  ]
