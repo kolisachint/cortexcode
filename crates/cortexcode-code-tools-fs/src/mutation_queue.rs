@@ -43,6 +43,9 @@ pub fn with_file_mutation_queue<T>(file_path: &Path, f: impl FnOnce() -> T) -> T
     drop(queues);
     let ticket = state.0;
     state.0 += 1;
+    // The ticket fixes this call's place in the queue: the next ordered tool
+    // call of the batch may start (JS registers in call order, synchronously).
+    cortexcode_agent_types::dispatch::dispatch_point();
     while state.1 != ticket {
         state = queue.turn.wait(state).unwrap_or_else(|e| e.into_inner());
     }

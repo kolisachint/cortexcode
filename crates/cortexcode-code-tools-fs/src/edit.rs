@@ -238,7 +238,7 @@ pub fn create_edit_tool_definition(
         .operations
         .unwrap_or_else(|| Arc::new(LocalEditOperations));
     let prepare: PrepareArgumentsFn = Arc::new(prepare_edit_arguments);
-    ToolDefinition { background_when: None,
+    ToolDefinition { background_when: None, ordered_start: true,
         name: "edit".into(),
         label: "edit".into(),
         description: "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file, unless that edit sets replaceAll: true to replace all of its occurrences. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.".into(),

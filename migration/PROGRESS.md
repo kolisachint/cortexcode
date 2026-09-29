@@ -44,6 +44,27 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 13.2 Level-1 fixture replay
+- `harness.py record <scenario|all>` runs the terminal-free scenarios in
+  `migration/tui-parity/replay.json` against hoocode headless (stdin a pipe or /dev/null,
+  stdout/stderr to files), twice, and keeps the recording only if both runs match. Output:
+  raw files in `crates/cortexcode-code-main/tests/fixtures/hoocode-0.5.89/replay/<name>/` plus
+  the normalized insta snapshot `tests/snapshots/replay__<name>.snap` (exit, stdout, stderr,
+  requests if `compare_requests`, session files with ids remapped to `<id-N>`, work files).
+- `crates/cortexcode-code-main/tests/replay.rs` replays them against `cortex` using a Rust port
+  of `mockllm.py` and of the harness normalizer. Each test first re-renders hoocode's raw
+  recording to check the Rust normalizer matches the Python one. 14 scenarios.
+- The replay found 2 real differences that L2 couldn't see, both fixed:
+  - hoocode's `takeOverStdout`: outside interactive mode (`-p`/json/rpc, or piped stdin),
+    `--version`/`--help`/`--list-models` print to stderr (`code-cli/src/lib.rs`).
+  - Parallel same-file edits ran in thread-race order (the edit diffs showed it). New
+    `AgentTool/ToolDefinition::ordered_start` (edit/write): in a parallel batch such calls
+    start in call order, up to `agent_types::dispatch::dispatch_point()`. The mutation queue
+    calls that once it holds its ticket. Unit test in agent-loop.
+- The 8 default-bundle print scenarios aren't in replay.json yet; add them (then
+  `harness.py record <name>`) once their L2 passes (12.4).
+- Next: `ledger.py next` (13.3 or 13.4).
+
 ### 2026-09-29 · 11.5b task panel in the app; 11.5 closed; phase 11 complete
 - `TaskPanelComponent` mounted in the tasks slot (chrome density → full/summary), task-store
   subscription → re-render, 1s run-clock tick, alt+l / shift+alt+l lens cycle with dial steps,

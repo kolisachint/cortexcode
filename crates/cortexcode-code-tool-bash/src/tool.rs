@@ -345,6 +345,7 @@ pub fn create_bash_tool_definition(
         "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last {max_lines} lines or {kb}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds."
     );
     ToolDefinition {
+        ordered_start: false,
         background_when: None,
         name: "bash".into(),
         label: "bash".into(),

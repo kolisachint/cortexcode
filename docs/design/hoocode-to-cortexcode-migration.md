@@ -1232,7 +1232,7 @@ Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with 
 ### Phase 13 — Parity verification (runs alongside Phases 7–11)
 
 - [x] **13.1 Fixture recorder.** *(Level-2 harness built: `migration/tui-parity/`; recording of session/json/rpc fixtures for 13.2 uses `harness.py run --keep`.)* A script that checks out hoocode at the pin, runs scripted scenarios with the **faux provider**, and records the session JSONL, `--mode json` event streams and RPC transcripts into `tests/fixtures/hoocode-0.5.89/`, stamped with the pin.
-- [ ] **13.2 Replay harness.** Rust integration tests drive `cortex` with the same faux script and compare normalized output (ids, timestamps and paths masked) using `insta`.
+- [x] **13.2 Replay harness.** Rust integration tests drive `cortex` with the same faux script and compare normalized output (ids, timestamps and paths masked) using `insta`. *(Done: `harness.py record` runs the terminal-free scenarios in `migration/tui-parity/replay.json` headless against hoocode into `crates/cortexcode-code-main/tests/fixtures/hoocode-0.5.89/replay/` plus insta snapshots; `cargo test -p cortexcode-code-main --test replay` replays them against `cortex` with a Rust port of `mockllm.py`, comparing exit status, stdout/stderr, requests, session files and work files.)*
 - [ ] **13.3 Replace `scripts/parity_test.sh`.** Its `--help` grep checks become a smoke test only. CI runs 13.2.
 - [ ] **13.4 TS test port ledger.** A table in this doc listing each of the 400 TS test files as ported, equivalent or not applicable, updated per PR.
 

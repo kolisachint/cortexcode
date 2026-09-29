@@ -6445,18 +6445,25 @@
    "id": "13.2",
    "title": "Level-1 fixture replay: insta snapshot tests over hoocode-recorded sessions/json/rpc transcripts",
    "phase": 13,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "7.2"
    ],
-   "crates": [],
+   "crates": [
+    "cortexcode-code-main",
+    "cortexcode-agent-loop",
+    "cortexcode-code-cli",
+    "cortexcode-code-tools-fs"
+   ],
    "sources": [
     "migration/tui-parity/"
    ],
    "ts_tests": [],
-   "l1_cmds": [],
+   "l1_cmds": [
+    "cargo test -p cortexcode-code-main --test replay"
+   ],
    "l2": "n/a: test infra",
-   "notes": "",
+   "notes": "harness.py record <scenario|all> (scenarios in migration/tui-parity/replay.json) -> crates/cortexcode-code-main/tests/{fixtures/hoocode-0.5.89/replay,snapshots}; tests/replay.rs replays against cortex. Default-bundle print scenarios join after 12.4.",
    "log": [
     {
      "at": "2026-09-29T16:59:10Z",
@@ -6469,6 +6476,12 @@
      "commit": "f09b699",
      "kind": "note",
      "text": "WIP: harness.py record + replay.json + 14 hoocode fixtures/snapshots + tests/replay.rs written; replay test not yet built/run (Bash permission checks were failing)."
+    },
+    {
+     "at": "2026-09-29T17:13:21Z",
+     "commit": "868e45f",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

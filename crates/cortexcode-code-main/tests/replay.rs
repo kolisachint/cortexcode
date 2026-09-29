@@ -79,9 +79,8 @@ fn py_splitlines(text: &str) -> Vec<&str> {
                     i + 1
                 }
             }
-            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}' | '\u{2029}' => {
-                i + c.len_utf8()
-            }
+            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
+            | '\u{2029}' => i + c.len_utf8(),
             _ => continue,
         };
         out.push(&text[start..i]);
@@ -178,7 +177,10 @@ fn sort_keys(value: &Value) -> Value {
 fn pretty_sorted(value: &Value) -> String {
     use serde::Serialize;
     let mut buf = Vec::new();
-    let mut ser = serde_json::Serializer::with_formatter(&mut buf, serde_json::ser::PrettyFormatter::with_indent(b" "));
+    let mut ser = serde_json::Serializer::with_formatter(
+        &mut buf,
+        serde_json::ser::PrettyFormatter::with_indent(b" "),
+    );
     sort_keys(value).serialize(&mut ser).expect("serialize");
     String::from_utf8(buf).expect("utf8")
 }
@@ -260,7 +262,11 @@ fn py_template(template: &str) -> String {
 fn strs(value: &Value) -> Vec<String> {
     value
         .as_array()
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -272,7 +278,10 @@ fn normalize_jsonl(raw: &str, normalizer: &Normalizer, opts: &Value) -> String {
         Some(keys) => strs(keys),
         None => vec!["timestamp".to_string()],
     };
-    let fields = opts.get("mask_fields").cloned().unwrap_or(Value::Object(Map::new()));
+    let fields = opts
+        .get("mask_fields")
+        .cloned()
+        .unwrap_or(Value::Object(Map::new()));
 
     fn walk(v: &Value, mask: &[String]) -> Value {
         match v {
@@ -280,7 +289,14 @@ fn normalize_jsonl(raw: &str, normalizer: &Normalizer, opts: &Value) -> String {
                 map.iter()
                     .map(|(k, x)| {
                         let masked = mask.contains(k) && !x.is_object() && !x.is_array();
-                        (k.clone(), if masked { Value::from("<masked>") } else { walk(x, mask) })
+                        (
+                            k.clone(),
+                            if masked {
+                                Value::from("<masked>")
+                            } else {
+                                walk(x, mask)
+                            },
+                        )
                     })
                     .collect(),
             ),
@@ -296,24 +312,25 @@ fn normalize_jsonl(raw: &str, normalizer: &Normalizer, opts: &Value) -> String {
             continue;
         };
         if value.is_object() {
-            let ty = value.get("type").and_then(Value::as_str).unwrap_or_default().to_string();
+            let ty = value
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             for path in strs(fields.get(&ty).unwrap_or(&Value::Null)) {
-                let parts: Vec<&str> = path.split('.').collect();
-                let mut cur = &mut value;
-                for key in &parts[..parts.len() - 1] {
-                    match cur.get_mut(*key) {
-                        Some(next) => cur = next,
-                        None => break,
-                    }
-                }
-                if let Some(slot) = cur.as_object_mut().and_then(|m| m.get_mut(parts[parts.len() - 1])) {
+                let pointer: String = path.split('.').map(|key| format!("/{key}")).collect();
+                if let Some(slot) = value.pointer_mut(&pointer) {
                     *slot = Value::from("<masked>");
                 }
             }
         }
         lines.push(compact(&walk(&value, &mask)));
     }
-    let joined = if lines.is_empty() { String::new() } else { format!("{}\n", lines.join("\n")) };
+    let joined = if lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", lines.join("\n"))
+    };
     normalizer.apply_text(&joined)
 }
 
@@ -354,20 +371,32 @@ struct RawRun {
 }
 
 fn render(sc: &Value, raw: &RawRun) -> String {
-    let paths: Vec<(&str, &str)> = raw.paths.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let paths: Vec<(&str, &str)> = raw
+        .paths
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     let normalizer = Normalizer::load(sc.get("normalize"), &paths);
     let mut parts = vec![format!("## exit\n{}\n", raw.exit_status)];
     match sc.get("stdout_jsonl") {
-        Some(opts) if !opts.is_null() => {
-            parts.push(format!("## stdout (jsonl)\n{}", normalize_jsonl(&raw.stdout, &normalizer, opts)))
-        }
+        Some(opts) if !opts.is_null() => parts.push(format!(
+            "## stdout (jsonl)\n{}",
+            normalize_jsonl(&raw.stdout, &normalizer, opts)
+        )),
         _ => parts.push(format!("## stdout\n{}", normalizer.apply_text(&raw.stdout))),
     }
     parts.push(format!("## stderr\n{}", normalizer.apply_text(&raw.stderr)));
-    if sc.get("compare_requests").and_then(Value::as_bool).unwrap_or(false) {
+    if sc
+        .get("compare_requests")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         let fields: Vec<String> = match sc.get("request_fields") {
             Some(f) if !f.is_null() => strs(f),
-            _ => DEFAULT_REQUEST_FIELDS.iter().map(|s| s.to_string()).collect(),
+            _ => DEFAULT_REQUEST_FIELDS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         };
         let reqs: Vec<Value> = raw
             .requests
@@ -384,11 +413,17 @@ fn render(sc: &Value, raw: &RawRun) -> String {
                 Value::Object(picked)
             })
             .collect();
-        parts.push(format!("## requests\n{}", normalizer.apply_text(&pretty_sorted(&Value::Array(reqs)))));
+        parts.push(format!(
+            "## requests\n{}",
+            normalizer.apply_text(&pretty_sorted(&Value::Array(reqs)))
+        ));
     }
     let session_opts = manifest()["session"].clone();
-    let mut sessions: Vec<String> =
-        raw.sessions.iter().map(|s| normalize_session(s, &normalizer, &session_opts)).collect();
+    let mut sessions: Vec<String> = raw
+        .sessions
+        .iter()
+        .map(|s| normalize_session(s, &normalizer, &session_opts))
+        .collect();
     sessions.sort();
     for (i, s) in sessions.iter().enumerate() {
         parts.push(format!("## session {}/{}\n{s}", i + 1, sessions.len()));
@@ -410,10 +445,17 @@ fn render(sc: &Value, raw: &RawRun) -> String {
 fn load_recording(name: &str, sc: &Value) -> RawRun {
     let dir = fixtures_dir().join(name);
     let meta = read_json(&dir.join("meta.json"));
-    let read = |rel: &str| fs::read_to_string(dir.join(rel)).unwrap_or_else(|e| panic!("{name}/{rel}: {e}"));
+    let read = |rel: &str| {
+        fs::read_to_string(dir.join(rel)).unwrap_or_else(|e| panic!("{name}/{rel}: {e}"))
+    };
     let paths = ["HOME", "WORK", "TMP"]
         .iter()
-        .map(|k| (k.to_string(), meta["paths"][*k].as_str().expect("path").to_string()))
+        .map(|k| {
+            (
+                k.to_string(),
+                meta["paths"][*k].as_str().expect("path").to_string(),
+            )
+        })
         .collect();
     let mut sessions = Vec::new();
     for i in 0.. {
@@ -426,7 +468,7 @@ fn load_recording(name: &str, sc: &Value) -> RawRun {
     let files = work_file_keys(sc)
         .into_iter()
         .map(|rel| {
-            let text = meta["files"][&rel].as_str().map(|f| read(f));
+            let text = meta["files"][&rel].as_str().map(&read);
             (rel, text)
         })
         .collect();
@@ -442,13 +484,18 @@ fn load_recording(name: &str, sc: &Value) -> RawRun {
 }
 
 fn work_file_keys(sc: &Value) -> Vec<String> {
-    sc.get("work_files").and_then(Value::as_object).map(|m| m.keys().cloned().collect()).unwrap_or_default()
+    sc.get("work_files")
+        .and_then(Value::as_object)
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// The snapshot body (what follows the insta header).
 fn snapshot_body(name: &str) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/snapshots/replay__{name}.snap"));
-    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e} (run harness.py record {name})", path.display()));
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/snapshots/replay__{name}.snap"));
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{}: {e} (run harness.py record {name})", path.display()));
     let rest = text.strip_prefix("---\n").expect("insta header");
     let end = rest.find("\n---\n").expect("insta header end");
     rest[end + 5..].to_string()
@@ -518,7 +565,11 @@ fn serve(stream: TcpStream, log: &Mutex<Vec<String>>, turns: &Turns) -> std::io:
         let trimmed = path.trim_end_matches('/');
         if method == "GET" {
             if trimmed.ends_with("/models") {
-                send_json(&mut out, 200, &serde_json::json!({"object": "list", "data": [{"id": "mock-model", "object": "model"}]}))?;
+                send_json(
+                    &mut out,
+                    200,
+                    &serde_json::json!({"object": "list", "data": [{"id": "mock-model", "object": "model"}]}),
+                )?;
             } else {
                 send_json(&mut out, 404, &serde_json::json!({"error": "not found"}))?;
             }
@@ -527,17 +578,27 @@ fn serve(stream: TcpStream, log: &Mutex<Vec<String>>, turns: &Turns) -> std::io:
         let body: Value = if raw.is_empty() {
             Value::Object(Map::new())
         } else {
-            serde_json::from_slice(&raw)
-                .unwrap_or_else(|_| serde_json::json!({"_unparseable": String::from_utf8_lossy(&raw)}))
+            serde_json::from_slice(&raw).unwrap_or_else(
+                |_| serde_json::json!({"_unparseable": String::from_utf8_lossy(&raw)}),
+            )
         };
-        log.lock().expect("log").push(compact(&serde_json::json!({"path": path, "body": body})));
+        log.lock()
+            .expect("log")
+            .push(compact(&serde_json::json!({"path": path, "body": body})));
         if !trimmed.ends_with("/chat/completions") {
-            send_json(&mut out, 404, &serde_json::json!({"error": format!("unsupported path {path}")}))?;
+            send_json(
+                &mut out,
+                404,
+                &serde_json::json!({"error": format!("unsupported path {path}")}),
+            )?;
             continue;
         }
         let turn = {
             let mut t = turns.lock().expect("turns");
-            let turn = t.0.get(t.1).cloned().unwrap_or_else(|| serde_json::json!({"text": "[mockllm: script exhausted]"}));
+            let turn =
+                t.0.get(t.1)
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({"text": "[mockllm: script exhausted]"}));
             t.1 += 1;
             turn
         };
@@ -546,11 +607,19 @@ fn serve(stream: TcpStream, log: &Mutex<Vec<String>>, turns: &Turns) -> std::io:
         }
         if let Some(error) = turn.get("error").and_then(Value::as_str) {
             let status = turn.get("status").and_then(Value::as_u64).unwrap_or(500) as u16;
-            send_json(&mut out, status, &serde_json::json!({"error": {"message": error}}))?;
+            send_json(
+                &mut out,
+                status,
+                &serde_json::json!({"error": {"message": error}}),
+            )?;
             continue;
         }
         if !body.get("stream").and_then(Value::as_bool).unwrap_or(false) {
-            send_json(&mut out, 400, &serde_json::json!({"error": {"message": "mockllm only supports stream=true"}}))?;
+            send_json(
+                &mut out,
+                400,
+                &serde_json::json!({"error": {"message": "mockllm only supports stream=true"}}),
+            )?;
             continue;
         }
         stream_turn(&mut out, &turn, &body)?;
@@ -572,7 +641,10 @@ fn chunks(text: &str) -> Vec<String> {
     if chars.is_empty() {
         return vec![String::new()];
     }
-    chars.chunks(CHUNK_SIZE).map(|c| c.iter().collect()).collect()
+    chars
+        .chunks(CHUNK_SIZE)
+        .map(|c| c.iter().collect())
+        .collect()
 }
 
 fn stream_turn(out: &mut TcpStream, turn: &Value, body: &Value) -> std::io::Result<()> {
@@ -580,7 +652,10 @@ fn stream_turn(out: &mut TcpStream, turn: &Value, body: &Value) -> std::io::Resu
         out,
         "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\n\r\n"
     )?;
-    let model = body.get("model").cloned().unwrap_or(Value::from("mock-model"));
+    let model = body
+        .get("model")
+        .cloned()
+        .unwrap_or(Value::from("mock-model"));
     let delta = |d: Value, finish: Value| {
         serde_json::json!({"id": "chatcmpl-mock", "object": "chat.completion.chunk", "created": 0, "model": model,
             "choices": [{"index": 0, "delta": d, "finish_reason": finish}]})
@@ -592,31 +667,53 @@ fn stream_turn(out: &mut TcpStream, turn: &Value, body: &Value) -> std::io::Resu
         thread::sleep(CHUNK_DELAY);
         Ok(())
     };
-    send(compact(&delta(serde_json::json!({"role": "assistant", "content": ""}), Value::Null)))?;
+    send(compact(&delta(
+        serde_json::json!({"role": "assistant", "content": ""}),
+        Value::Null,
+    )))?;
     for (key, field) in [("thinking", "reasoning_content"), ("text", "content")] {
-        if let Some(text) = turn.get(key).and_then(Value::as_str).filter(|t| !t.is_empty()) {
+        if let Some(text) = turn
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|t| !t.is_empty())
+        {
             for part in chunks(text) {
-                send(compact(&delta(serde_json::json!({ field: part }), Value::Null)))?;
+                send(compact(&delta(
+                    serde_json::json!({ field: part }),
+                    Value::Null,
+                )))?;
             }
         }
     }
-    let calls = turn.get("tool_calls").and_then(Value::as_array).cloned().unwrap_or_default();
+    let calls = turn
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     for (i, call) in calls.iter().enumerate() {
-        let id = call.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or(format!("call_{i}"));
+        let id = call
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or(format!("call_{i}"));
         let args = py_dumps(call.get("arguments").unwrap_or(&Value::Object(Map::new())));
         let start = serde_json::json!({"tool_calls": [{"index": i, "id": id, "type": "function",
             "function": {"name": call["name"], "arguments": ""}}]});
         send(compact(&delta(start, Value::Null)))?;
         for part in chunks(&args) {
-            let d = serde_json::json!({"tool_calls": [{"index": i, "function": {"arguments": part}}]});
+            let d =
+                serde_json::json!({"tool_calls": [{"index": i, "function": {"arguments": part}}]});
             send(compact(&delta(d, Value::Null)))?;
         }
     }
-    let usage = turn
-        .get("usage")
-        .cloned()
-        .unwrap_or(serde_json::json!({"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}));
-    let finish = if calls.is_empty() { "stop" } else { "tool_calls" };
+    let usage = turn.get("usage").cloned().unwrap_or(
+        serde_json::json!({"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}),
+    );
+    let finish = if calls.is_empty() {
+        "stop"
+    } else {
+        "tool_calls"
+    };
     let mut last = delta(Value::Object(Map::new()), Value::from(finish));
     last["usage"] = usage;
     send(compact(&last))?;
@@ -662,7 +759,10 @@ fn wait_child(child: &mut Child, timeout: Duration) -> Option<i32> {
 }
 
 fn run_cortex(sc: &Value) -> RawRun {
-    let tmp = tempfile::Builder::new().prefix("replay-").tempdir().expect("tempdir");
+    let tmp = tempfile::Builder::new()
+        .prefix("replay-")
+        .tempdir()
+        .expect("tempdir");
     let (home, work) = (tmp.path().join("home"), tmp.path().join("work"));
     fs::create_dir_all(&home).expect("home");
     fs::create_dir_all(&work).expect("work");
@@ -673,7 +773,12 @@ fn run_cortex(sc: &Value) -> RawRun {
             fs::write(p, content.as_str().expect("file content")).expect("seed file");
         }
     }
-    let mock = MockLlm::start(sc.get("llm").and_then(Value::as_array).cloned().unwrap_or_default());
+    let mock = MockLlm::start(
+        sc.get("llm")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
     let models = sc.get("models").cloned().unwrap_or(serde_json::json!([
         {"id": "mock-model", "name": "Mock Model", "contextWindow": 128000, "maxTokens": 4096}
     ]));
@@ -682,10 +787,17 @@ fn run_cortex(sc: &Value) -> RawRun {
         "api": "openai-completions", "apiKey": "mock-key", "models": models}}});
     for dir in [".hoocode", APP_CONFIG_DIR] {
         fs::create_dir_all(home.join(dir)).expect("config dir");
-        fs::write(home.join(dir).join("models.json"), serde_json::to_string_pretty(&doc).expect("json")).expect("models");
+        fs::write(
+            home.join(dir).join("models.json"),
+            serde_json::to_string_pretty(&doc).expect("json"),
+        )
+        .expect("models");
         if let Some(settings) = sc.get("settings") {
-            fs::write(home.join(dir).join("settings.json"), serde_json::to_string_pretty(settings).expect("json"))
-                .expect("settings");
+            fs::write(
+                home.join(dir).join("settings.json"),
+                serde_json::to_string_pretty(settings).expect("json"),
+            )
+            .expect("settings");
         }
     }
     let (home_s, work_s, tmp_s) = (
@@ -695,7 +807,10 @@ fn run_cortex(sc: &Value) -> RawRun {
     );
     let mut env: Vec<(String, String)> = vec![
         ("HOME".into(), home_s.clone()),
-        ("PATH".into(), std::env::var("PATH").unwrap_or("/usr/bin:/bin".into())),
+        (
+            "PATH".into(),
+            std::env::var("PATH").unwrap_or("/usr/bin:/bin".into()),
+        ),
         ("TERM".into(), "xterm-256color".into()),
         ("COLORTERM".into(), "truecolor".into()),
         ("LANG".into(), "C.UTF-8".into()),
@@ -705,25 +820,57 @@ fn run_cortex(sc: &Value) -> RawRun {
     if let Some(extra) = sc.get("env").and_then(Value::as_object) {
         for (k, v) in extra {
             let v = v.as_str().expect("env value");
-            env.push((k.clone(), v.replace("{WORK}", &work_s).replace("{HOME}", &home_s).replace("{TMP}", &tmp_s)));
+            env.push((
+                k.clone(),
+                v.replace("{WORK}", &work_s)
+                    .replace("{HOME}", &home_s)
+                    .replace("{TMP}", &tmp_s),
+            ));
         }
     }
     let bin = env!("CARGO_BIN_EXE_cortex");
     let command = |args: &[Value]| {
         let mut cmd = Command::new(bin);
-        cmd.args(args.iter().map(|a| a.as_str().expect("arg"))).current_dir(&work).env_clear().envs(env.clone());
+        cmd.args(args.iter().map(|a| a.as_str().expect("arg")))
+            .current_dir(&work)
+            .env_clear()
+            .envs(env.clone());
         cmd
     };
-    for pre in sc.get("pre_runs").and_then(Value::as_array).cloned().unwrap_or_default() {
-        let out = command(pre.as_array().expect("pre_run args")).stdin(Stdio::null()).output().expect("pre_run");
-        assert!(out.status.success(), "pre_run {pre} failed: {}", String::from_utf8_lossy(&out.stderr));
+    for pre in sc
+        .get("pre_runs")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
+        let out = command(pre.as_array().expect("pre_run args"))
+            .stdin(Stdio::null())
+            .output()
+            .expect("pre_run");
+        assert!(
+            out.status.success(),
+            "pre_run {pre} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
-    let default_args = serde_json::json!(["--offline", "--provider", "mock", "--model", "mock-model"]);
-    let args = sc.get("args").unwrap_or(&default_args).as_array().expect("args").clone();
+    let default_args =
+        serde_json::json!(["--offline", "--provider", "mock", "--model", "mock-model"]);
+    let args = sc
+        .get("args")
+        .unwrap_or(&default_args)
+        .as_array()
+        .expect("args")
+        .clone();
     let steps = sc["steps"].as_array().expect("steps").clone();
-    let interactive = steps.iter().any(|s| s.get("type").is_some() || s.get("keys").is_some());
+    let interactive = steps
+        .iter()
+        .any(|s| s.get("type").is_some() || s.get("keys").is_some());
     let mut child = command(&args)
-        .stdin(if interactive { Stdio::piped() } else { Stdio::null() })
+        .stdin(if interactive {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -732,13 +879,17 @@ fn run_cortex(sc: &Value) -> RawRun {
     let stderr = capture(child.stderr.take().expect("stderr"));
     let mut stdin = child.stdin.take();
     for (i, step) in steps.iter().enumerate() {
-        let timeout = Duration::from_secs_f64(step.get("timeout").and_then(Value::as_f64).unwrap_or(15.0));
+        let timeout =
+            Duration::from_secs_f64(step.get("timeout").and_then(Value::as_f64).unwrap_or(15.0));
         if let Some(text) = step.get("type").and_then(Value::as_str) {
             let pipe = stdin.as_mut().expect("stdin open");
             pipe.write_all(text.as_bytes()).expect("write stdin");
             pipe.flush().expect("flush stdin");
         } else if let Some(keys) = step.get("keys") {
-            let keys = keys.as_array().cloned().unwrap_or_else(|| vec![keys.clone()]);
+            let keys = keys
+                .as_array()
+                .cloned()
+                .unwrap_or_else(|| vec![keys.clone()]);
             for key in keys {
                 match key.as_str() {
                     Some("C-d") => drop(stdin.take()),
@@ -751,7 +902,10 @@ fn run_cortex(sc: &Value) -> RawRun {
                 }
             }
         } else if let Some(pattern) = step.get("wait_stdout").and_then(Value::as_str) {
-            let regex = regex::RegexBuilder::new(pattern).multi_line(true).build().expect("wait_stdout regex");
+            let regex = regex::RegexBuilder::new(pattern)
+                .multi_line(true)
+                .build()
+                .expect("wait_stdout regex");
             let deadline = Instant::now() + timeout;
             while !regex.is_match(&text_of(&stdout)) {
                 let exited = child.try_wait().expect("try_wait").is_some();
@@ -768,7 +922,10 @@ fn run_cortex(sc: &Value) -> RawRun {
         } else if step.get("wait_exit").is_some() {
             if wait_child(&mut child, timeout).is_none() {
                 let _ = child.kill();
-                panic!("step {i}: cortex did not exit within {timeout:?}\nstderr:\n{}", text_of(&stderr));
+                panic!(
+                    "step {i}: cortex did not exit within {timeout:?}\nstderr:\n{}",
+                    text_of(&stderr)
+                );
             }
         } else if let Some(secs) = step.get("sleep").and_then(Value::as_f64) {
             thread::sleep(Duration::from_secs_f64(secs));
@@ -796,18 +953,27 @@ fn run_cortex(sc: &Value) -> RawRun {
         })
         .collect();
     RawRun {
-        paths: vec![("HOME".into(), home_s), ("WORK".into(), work_s), ("TMP".into(), tmp_s)],
+        paths: vec![
+            ("HOME".into(), home_s),
+            ("WORK".into(), work_s),
+            ("TMP".into(), tmp_s),
+        ],
         exit_status,
         stdout: text_of(&stdout),
         stderr: text_of(&stderr),
         requests: mock.requests(),
-        sessions: session_paths.iter().map(|p| fs::read_to_string(p).expect("session")).collect(),
+        sessions: session_paths
+            .iter()
+            .map(|p| fs::read_to_string(p).expect("session"))
+            .collect(),
         files,
     }
 }
 
 fn collect_jsonl(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -874,6 +1040,10 @@ fn py_template_converts_groups() {
 
 #[test]
 fn py_dumps_matches_python_defaults() {
-    let v: Value = serde_json::from_str(r#"{"path":"notes.txt","limit":2,"s":"é\n"}"#).unwrap();
-    assert_eq!(py_dumps(&v), r#"{"path": "notes.txt", "limit": 2, "s": "é\n"}"#);
+    let v: Value =
+        serde_json::from_str("{\"path\":\"notes.txt\",\"limit\":2,\"s\":\"\u{e9}\\n\"}").unwrap();
+    assert_eq!(
+        py_dumps(&v),
+        "{\"path\": \"notes.txt\", \"limit\": 2, \"s\": \"\\u00e9\\n\"}"
+    );
 }

@@ -590,6 +590,43 @@ async fn forces_sequential_execution_when_one_of_several_tools_is_sequential() {
     assert!(order.contains(&"fast:b".to_string()));
 }
 
+/// `ordered_start` tools begin in call order (a JS `execute` runs synchronously
+/// up to its first `await`): "second" starts only once "first" reached its
+/// dispatch point, even though "first" is slow to get there, and the two
+/// still overlap afterwards.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ordered_start_tools_begin_in_call_order_and_then_overlap() {
+    let order = Arc::new(Mutex::new(Vec::<String>::new()));
+    let o = order.clone();
+    let mut echo = tool("echo", move |args| {
+        let value = value_of(&args);
+        if value == "first" {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        o.lock().unwrap().push(format!("{value}:start"));
+        cortexcode_agent_types::dispatch::dispatch_point();
+        if value == "first" {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        o.lock().unwrap().push(format!("{value}:end"));
+        Ok(echo_result("echoed: ", &args))
+    });
+    echo.ordered_start = true;
+    let mut config = identity_config();
+    config.tool_execution = ToolExecutionMode::Parallel;
+    mock_stream(&mut config, first_and_second("echo"));
+    collect(agent_loop(
+        vec![user("echo both")],
+        context_with(vec![echo]),
+        config,
+    ))
+    .await;
+    assert_eq!(
+        *order.lock().unwrap(),
+        ["first:start", "second:start", "second:end", "first:end"]
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn allows_parallel_execution_when_all_tools_are_parallel() {
     let (mut echo, parallel) = gated_tool("echo", Duration::from_secs(10));

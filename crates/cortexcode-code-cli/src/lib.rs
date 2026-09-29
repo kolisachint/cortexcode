@@ -193,9 +193,14 @@ pub fn run(
     }
 
     let app_mode = resolve_app_mode(parsed, env.stdin_is_tty);
+    // `takeOverStdout`: outside interactive mode stdout is reserved for the
+    // mode's own output, so what main.ts `console.log`s before the mode runs
+    // (--version, --help, --list-models) goes to stderr.
+    let take_over_stdout = app_mode != AppMode::Interactive;
 
     if parsed.version == Some(true) {
-        writeln!(output, "{VERSION}")?;
+        let console: &mut dyn Write = if take_over_stdout { err } else { output };
+        writeln!(console, "{VERSION}")?;
         return Ok(0);
     }
 
@@ -221,7 +226,8 @@ pub fn run(
     }
 
     if parsed.help == Some(true) {
-        print_help(output, env.color)?;
+        let console: &mut dyn Write = if take_over_stdout { err } else { output };
+        print_help(console, env.color)?;
         return Ok(0);
     }
 
@@ -267,7 +273,13 @@ pub fn run(
             ListModels::Search(pattern) => Some(pattern.as_str()),
             ListModels::All => None,
         };
-        list_models::list_models(&registry, auth.as_ref(), search, env.color, output, err)?;
+        if take_over_stdout {
+            let mut table = Vec::new();
+            list_models::list_models(&registry, auth.as_ref(), search, env.color, &mut table, err)?;
+            err.write_all(&table)?;
+        } else {
+            list_models::list_models(&registry, auth.as_ref(), search, env.color, output, err)?;
+        }
         return Ok(0);
     }
 
@@ -346,6 +358,21 @@ mod tests {
             run_with(&["--version", "--help"], TTY),
             (0, format!("{VERSION}\n"), String::new())
         );
+    }
+
+    #[test]
+    fn early_exit_output_goes_to_stderr_outside_interactive_mode() {
+        let piped = Env {
+            stdin_is_tty: false,
+            color: false,
+        };
+        assert_eq!(
+            run_with(&["--version"], piped),
+            (0, String::new(), format!("{VERSION}\n"))
+        );
+        let (code, out, err) = run_with(&["--mode", "json", "-h"], TTY);
+        assert_eq!((code, out.as_str()), (0, ""));
+        assert!(err.contains("Usage:"));
     }
 
     #[test]

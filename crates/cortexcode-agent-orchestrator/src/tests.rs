@@ -429,6 +429,7 @@ async fn tool_hooks_can_block_calls_and_the_context_hook_sees_messages() {
     .into();
     let (_faux, model) = faux(vec![tool_call_reply, reply("done")]);
     let tool = AgentTool {
+        ordered_start: false,
         background_when: None,
         name: "echo".into(),
         description: "Echo".into(),

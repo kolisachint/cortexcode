@@ -695,6 +695,8 @@ async fn execute_tool_calls_parallel(
     let mut prepared_calls: Vec<Option<Box<PreparedToolCall>>> = Vec::new();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let running = FuturesUnordered::new();
+    let turnstile = Arc::new(Turnstile::default());
+    let mut ordered_starts = 0usize;
 
     for (index, tool_call) in tool_calls.iter().enumerate() {
         emit_tool_execution_start(tool_call, emit);
@@ -711,8 +713,12 @@ async fn execute_tool_calls_parallel(
                 let args = prepared.args.clone();
                 let signal = config.signal.clone();
                 let tx = tx.clone();
+                let order = tool.ordered_start.then(|| {
+                    ordered_starts += 1;
+                    (turnstile.clone(), ordered_starts - 1)
+                });
                 running.push(async move {
-                    let executed = run_tool(tool, tool_call, args, signal, Some(tx)).await;
+                    let executed = run_tool(tool, tool_call, args, signal, Some(tx), order).await;
                     (index, executed)
                 });
                 prepared_calls.push(Some(prepared));
@@ -846,18 +852,44 @@ async fn execute_prepared_tool_call(
         prepared.args.clone(),
         signal,
         updates,
+        None,
     )
     .await
 }
 
+/// Start order of a parallel batch's `ordered_start` calls: call `n` begins
+/// once `next == n`, and moves `next` on at its dispatch point.
+#[derive(Default)]
+struct Turnstile {
+    next: std::sync::Mutex<usize>,
+    turn: std::sync::Condvar,
+}
+
+impl Turnstile {
+    fn wait_for(&self, seq: usize) {
+        let mut next = self.next.lock().unwrap_or_else(|e| e.into_inner());
+        while *next != seq {
+            next = self.turn.wait(next).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+
+    fn release(&self, seq: usize) {
+        *self.next.lock().unwrap_or_else(|e| e.into_inner()) = seq + 1;
+        self.turn.notify_all();
+    }
+}
+
 /// Run a tool's synchronous `execute` on the blocking pool. Its `onUpdate`
 /// partial results go to `updates` as `tool_execution_update` events.
+/// `order` (an `ordered_start` call in a parallel batch) holds the start until
+/// the earlier ordered calls reached their dispatch point.
 async fn run_tool(
     tool: AgentTool,
     tool_call: AgentToolCall,
     args: serde_json::Value,
     signal: Option<AbortSignal>,
     updates: Option<UpdateSender>,
+    order: Option<(Arc<Turnstile>, usize)>,
 ) -> ExecutedOutcome {
     let on_update: AgentToolUpdateCallback = {
         let tool_call = tool_call.clone();
@@ -874,9 +906,18 @@ async fn run_tool(
     };
     let execute = tool.execute.clone();
     let id = tool_call.id.clone();
-    let outcome = tokio::task::spawn_blocking(move || execute(id, args, signal, Some(on_update)))
-        .await
-        .unwrap_or_else(|e| Err(format!("tool task failed: {e}").into()));
+    let outcome = tokio::task::spawn_blocking(move || match order {
+        Some((turnstile, seq)) => {
+            turnstile.wait_for(seq);
+            let release = Box::new(move || turnstile.release(seq));
+            cortexcode_agent_types::dispatch::with_dispatch_hook(release, || {
+                execute(id, args, signal, Some(on_update))
+            })
+        }
+        None => execute(id, args, signal, Some(on_update)),
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("tool task failed: {e}").into()));
     match outcome {
         Ok(result) => ExecutedOutcome {
             result,
@@ -1121,7 +1162,7 @@ impl BackgroundTaskManager {
         let args = prepared.args.clone();
         tokio::spawn(async move {
             // Background tools own their lifecycle: no update events.
-            let task = tokio::spawn(run_tool(tool, tool_call, args, signal, None));
+            let task = tokio::spawn(run_tool(tool, tool_call, args, signal, None, None));
             let outcome = match task.await {
                 Ok(executed) => SettledBackgroundTask::Executed {
                     prepared,
