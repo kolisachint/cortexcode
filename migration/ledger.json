@@ -5396,7 +5396,7 @@
    "id": "11.4b",
    "title": "@file autocomplete (fd path from the managed tools / PATH)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5418,6 +5418,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:11:08Z",
+     "commit": "6c2dc4c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:11:53Z",
+     "commit": "6c2dc4c",
+     "kind": "verify",
+     "text": "L1 pass; L2 file-autocomplete=pass"
     }
    ]
   },

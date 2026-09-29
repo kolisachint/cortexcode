@@ -35,7 +35,7 @@ use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
-use cortexcode_code_tools::external_tools::describe_external_tools;
+use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_path};
 use cortexcode_code_tools::light::{measure_prompt_surface, measure_tool_schema_tokens};
 use cortexcode_code_tools_optin::AskQuestion;
 use cortexcode_code_tui_keybindings::{
@@ -2653,7 +2653,11 @@ impl Mode {
     }
 
     /// `createBaseAutocompleteProvider` + `setupAutocompleteProvider`: the
-    /// built-in commands, then prompt templates, then skill commands.
+    /// built-in commands, then prompt templates, then skill commands. `@`
+    /// file completion walks with `fd` (`ensureTool("fd")` at init): an
+    /// override, the managed copy or `fd`/`fdfind` on PATH. Downloading a
+    /// missing `fd` is not ported, so without one `@` completion stays off,
+    /// as in hoocode when the download fails.
     fn setup_autocomplete_provider(&mut self) {
         let mut commands: Vec<CommandEntry> = BUILTIN_SLASH_COMMANDS
             .iter()
@@ -2678,8 +2682,9 @@ impl Mode {
                 get_argument_completions: None,
             }));
         }
+        let fd_path = get_tool_path("fd").map(std::path::PathBuf::from);
         let provider =
-            CombinedAutocompleteProvider::new(commands, self.session.cwd().to_path_buf(), None);
+            CombinedAutocompleteProvider::new(commands, self.session.cwd().to_path_buf(), fd_path);
         self.editor
             .borrow_mut()
             .editor

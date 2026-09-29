@@ -9,6 +9,11 @@ DEST="${HOOCODE_PIN_DIR:-$ROOT/target/hoocode-pin}"
 COMMIT="$(python3 -c "import tomllib;print(tomllib.load(open('$ROOT/Cargo.toml','rb'))['workspace']['metadata']['cortex']['source']['hoocode-commit'])")"
 REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode}"
 
+# The file-autocomplete scenario walks files with fd; --offline never downloads it.
+if ! command -v fd >/dev/null && ! command -v fdfind >/dev/null; then
+  echo "warning: fd not on PATH (apt-get install fd-find); L2 file-autocomplete will fail" >&2
+fi
+
 if [[ -f "$DEST/.built-$COMMIT" ]]; then
   echo "hoocode $COMMIT already built at $DEST"
   exit 0

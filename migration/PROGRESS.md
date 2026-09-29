@@ -9,10 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Stopped 2026-09-28 (end of day). Phase 11 is 34/43 done. `ledger.py next` says START 11.3f: the
-  login parent task, whose subtasks 11.3f1/11.3f2 are done, so it should need only `start` +
-  `verify`. Then the open phase-11 tasks: 11.4b (@file autocomplete, L2 file-autocomplete),
-  11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -43,6 +40,15 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.3f, 11.3 closed; 11.4b @file autocomplete
+- User decision: phase 12 stays deferred (noted on 12.1..12.7); skip it and keep going.
+- 11.3f and 11.3 were containers with all subtasks done: `start` + `verify` only.
+- 11.4b: `setup_autocomplete_provider` passes `get_tool_path("fd")` (override, managed copy,
+  `fd`/`fdfind` on PATH) to `CombinedAutocompleteProvider`. Downloading fd is not ported.
+- L2 `file-autocomplete` ('@rs' menu, Down, Tab): needs fd on the host (`apt-get install
+  fd-find`; `setup_hoocode.sh` warns when missing). Stable, passes.
+- Next: `python3 migration/ledger.py next` (11.4c `!` bash).
 
 ### 2026-09-28 · 11.3f2 /login and /logout
 - `crates/cortexcode-code-tui-app/src/login_controller.rs`: provider option lists, post-login
