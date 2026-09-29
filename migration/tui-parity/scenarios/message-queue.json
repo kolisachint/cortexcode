@@ -1,0 +1,213 @@
+{
+  "description": "Queueing while the agent works: during a slow answer, Enter queues a steering message and alt+Enter a follow-up (listed above the prompt with the dequeue hint); alt+Up brings both back into the prompt. On a second slow turn a steer and a follow-up are queued and delivered: the steer as the next request, the follow-up after it; the model requests are compared. --no-session keeps the footer fixed.",
+  "phase": "11.4g",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [
+    {
+      "text": "Slow first answer.",
+      "delay_s": 5
+    },
+    {
+      "text": "Second answer.",
+      "delay_s": 4
+    },
+    {
+      "text": "Answer after steering."
+    },
+    {
+      "text": "Answer to the follow-up."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "first question",
+      "timeout": 20
+    },
+    {
+      "sleep": 0.5
+    },
+    {
+      "type": "steer this way"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Steering: steer this way",
+      "timeout": 20
+    },
+    {
+      "type": "and then this"
+    },
+    {
+      "keys": [
+        "M-Enter"
+      ]
+    },
+    {
+      "wait_for": "Follow-up: and then this",
+      "timeout": 20
+    },
+    {
+      "sleep": 0.3
+    },
+    {
+      "snapshot": "queued",
+      "contains": [
+        "Steering: steer this way",
+        "Follow-up: and then this",
+        "to edit all queued messages"
+      ]
+    },
+    {
+      "keys": [
+        "M-Up"
+      ]
+    },
+    {
+      "wait_gone": "Follow-up: and then this",
+      "timeout": 20
+    },
+    {
+      "sleep": 0.3
+    },
+    {
+      "snapshot": "dequeued",
+      "contains": [
+        "steer this way",
+        "and then this"
+      ],
+      "not_contains": [
+        "Steering:"
+      ]
+    },
+    {
+      "keys": [
+        "C-u"
+      ]
+    },
+    {
+      "keys": [
+        "C-u"
+      ]
+    },
+    {
+      "keys": [
+        "C-u"
+      ]
+    },
+    {
+      "keys": [
+        "C-u"
+      ]
+    },
+    {
+      "keys": [
+        "C-u"
+      ]
+    },
+    {
+      "wait_for": "Slow first answer",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "first-done"
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "second question",
+      "timeout": 20
+    },
+    {
+      "sleep": 0.5
+    },
+    {
+      "type": "steer now"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Steering: steer now",
+      "timeout": 20
+    },
+    {
+      "type": "follow now"
+    },
+    {
+      "keys": [
+        "M-Enter"
+      ]
+    },
+    {
+      "wait_for": "Follow-up: follow now",
+      "timeout": 20
+    },
+    {
+      "wait_for": "Answer to the follow-up",
+      "timeout": 40
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "delivered",
+      "history": true,
+      "contains": [
+        "Answer after steering.",
+        "Answer to the follow-up."
+      ]
+    }
+  ],
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ]
+}

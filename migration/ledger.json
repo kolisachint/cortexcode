@@ -5326,7 +5326,7 @@
    "id": "11.4",
    "title": "Input: slash command executor, @file autocomplete, ! bash, clipboard (arboard) + image paste (code-media)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a",
     "11.4b",
@@ -5354,6 +5354,18 @@
      "commit": "74147ea",
      "kind": "note",
      "text": "Split into 11.4a (dispatch + slash autocomplete + commands with existing UI, L2 slash-commands), 11.4b (@file, L2 file-autocomplete), 11.4c (! bash), 11.4d (clipboard/copy/paste), 11.4e (remaining commands). Container closes when all are done; its L2 list moved to 11.4a/11.4b (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:32:35Z",
+     "commit": "819c373",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:32:43Z",
+     "commit": "819c373",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -6013,7 +6025,7 @@
    "id": "11.4g",
    "title": "Message queue: steer/follow-up while streaming, pending-messages display, dequeue, compaction queue",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4f"
    ],
@@ -6028,14 +6040,30 @@
     "packages/coding-agent/test/interactive-mode-compaction.test.ts"
    ],
    "l1_cmds": [],
-   "l2": [],
-   "notes": "Found unowned while doing 11.4f: submissions during streaming/compaction (steer, app.message.followUp, app.message.dequeue, restore on Escape) and compaction_end's flushCompactionQueue.",
+   "l2": [
+    "message-queue",
+    "message-queue-escape",
+    "compact-queue"
+   ],
+   "notes": "Found unowned while doing 11.4f: submissions during streaming/compaction (steer, app.message.followUp, app.message.dequeue, restore on Escape) and compaction_end's flushCompactionQueue. interactive-mode-compaction.test.ts drives handleEvent on a fake `this`; its assertions (rebuild, appended summary, flushCompactionQueue) are covered by L2 compact-command and compact-queue.",
    "log": [
     {
      "at": "2026-09-29T00:00:00Z",
      "commit": "",
      "kind": "note",
      "text": "Added (bookkeeping): message-queue-controller.ts had no owner."
+    },
+    {
+     "at": "2026-09-29T06:27:44Z",
+     "commit": "819c373",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:32:35Z",
+     "commit": "819c373",
+     "kind": "verify",
+     "text": "L1 pass; L2 message-queue=pass, message-queue-escape=pass, compact-queue=pass"
     }
    ]
   },

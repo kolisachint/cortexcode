@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4g (message queue), then the 11.4 container (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.5 (task panel) (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4g message queue; 11.4 closed
+- Enter while streaming steers (`prompt` with `StreamingBehavior::Steer`, no turn of its own to
+  settle); alt+Enter queues a follow-up; alt+Up (`app.message.dequeue`) restores every queued message
+  into the prompt; Escape while streaming restores then aborts; the pending-messages area lists
+  "Steering:/Follow-up:" rows plus the dequeue hint (on `QueueUpdate` and each user message).
+- Compaction queue: text typed during a compaction is held ("Queued message for after
+  compaction") and flushed on `compaction_end` (first as the prompt, the rest steer/follow-up;
+  all queued when a retry is pending; failures put them back).
+- L2 (new, stable, pass): message-queue (with request comparison), message-queue-escape,
+  compact-queue. 11.4 container verified.
+- Next: `ledger.py next` (11.5 task panel, L2 subagent-task).
 
 ### 2026-09-29 · 11.4f compaction UI; 9.2b done; 11.4g added
 - `compaction_start`: spinner with "(Esc to cancel)" in the status row, terminal progress; Escape

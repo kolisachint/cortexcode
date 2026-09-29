@@ -25,7 +25,8 @@ use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTo
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
     AgentSession, AgentSessionEvent, AgentSessionRuntime, CompactionReason, ForkPosition,
-    NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, PromptOptions, TranscriptSelection,
+    NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, PromptOptions, StreamingBehavior,
+    TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
@@ -103,6 +104,7 @@ use cortexcode_code_tui_widgets::{
     AssistantMessageComponent, ThinkingDisplay, UserMessageComponent,
 };
 use cortexcode_tui_components::BoxComponent;
+use cortexcode_tui_components::TruncatedText;
 use cortexcode_tui_components::{
     ArgumentCompletionsFn, AutocompleteItem, CombinedAutocompleteProvider, CommandEntry, Editor,
     EditorHost, EditorOptions, FrameBorderStyle, Loader, Markdown, MarkdownTheme, SelectItem,
@@ -291,6 +293,10 @@ enum Action {
     ChangeDirectoryPrefill,
     /// `app.session.fork`: `/fork`.
     ForkOpen,
+    /// `app.message.followUp`: queue the prompt as a follow-up.
+    FollowUp,
+    /// `app.message.dequeue`: every queued message back to the prompt.
+    Dequeue,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -307,7 +313,9 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 19] = [
+const EDITOR_ACTIONS: [(&str, Action); 21] = [
+    ("app.message.followUp", Action::FollowUp),
+    ("app.message.dequeue", Action::Dequeue),
     (
         "app.session.changeDirectory",
         Action::ChangeDirectoryPrefill,
@@ -424,6 +432,10 @@ enum AppEvent {
     PastedImage(Option<ClipboardImage>),
     /// A `/subagent` run ended: its mode, and its summary or error.
     SubagentDone(String, Result<Option<String>, String>),
+    /// Queued messages sent after a compaction failed; they go back.
+    CompactionQueueFailed(Vec<(String, StreamingBehavior)>, String),
+    /// A message typed while streaming could not be queued.
+    QueueError(String),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -903,6 +915,8 @@ struct Mode {
     compaction_summaries: Vec<Rc<RefCell<CompactionSummaryMessageComponent>>>,
     /// The compaction spinner (`autoCompactionLoader`).
     compaction_loader: Option<Rc<RefCell<Loader>>>,
+    /// Messages typed while a compaction runs (`compactionQueuedMessages`).
+    compaction_queue: Vec<(String, StreamingBehavior)>,
     /// The open `/fork` message picker.
     fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
     /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
@@ -1183,6 +1197,7 @@ impl Mode {
             branch_summaries: Vec::new(),
             compaction_summaries: Vec::new(),
             compaction_loader: None,
+            compaction_queue: Vec::new(),
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
@@ -1421,9 +1436,18 @@ impl Mode {
                 return;
             }
         }
-        if !self.session.is_streaming() {
-            self.flush_pending_bash_components();
+        // Typed during a compaction: held until it ends.
+        if self.session.is_compacting() {
+            self.queue_compaction_message(text, StreamingBehavior::Steer);
+            return;
         }
+        // Typed while the agent works: steers the current run.
+        if self.session.is_streaming() {
+            self.editor.borrow_mut().editor.add_to_history(&text);
+            self.queue_prompt(text, StreamingBehavior::Steer);
+            return;
+        }
+        self.flush_pending_bash_components();
         self.editor.borrow_mut().editor.add_to_history(&text);
         self.prompt(text);
     }
@@ -4504,13 +4528,17 @@ impl Mode {
             AgentSessionEvent::Agent(event) => self.handle_agent_event(event),
             AgentSessionEvent::ThinkingLevelChanged { .. } => self.update_editor_border_color(),
             AgentSessionEvent::CompactionStart { reason } => self.on_compaction_start(reason),
+            AgentSessionEvent::QueueUpdate { .. } => self.update_pending_messages_display(),
             AgentSessionEvent::CompactionEnd {
                 reason,
                 result,
                 aborted,
+                will_retry,
                 error_message,
-                ..
-            } => self.on_compaction_end(reason, result, aborted, error_message),
+            } => {
+                self.on_compaction_end(reason, result, aborted, error_message);
+                self.flush_compaction_queue(will_retry);
+            }
             AgentSessionEvent::SessionInfoChanged { .. } => {
                 self.update_session_chip();
                 self.update_terminal_title();
@@ -4518,6 +4546,189 @@ impl Mode {
             _ => {}
         }
         self.dirty.set(true);
+    }
+
+    /// `session.prompt(text, {streamingBehavior})` for a message typed while
+    /// the agent works: it only queues, so it has no turn of its own to settle.
+    fn queue_prompt(&mut self, text: String, behavior: StreamingBehavior) {
+        let session = self.session.clone();
+        let tx = self.tx.clone();
+        self.runtime.spawn(async move {
+            let result = session
+                .prompt(
+                    &text,
+                    PromptOptions {
+                        expand_prompt_templates: true,
+                        streaming_behavior: Some(behavior),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            if let Err(error) = result {
+                let _ = tx.send(AppEvent::QueueError(error.to_string()));
+            }
+        });
+        self.update_pending_messages_display();
+    }
+
+    /// `updatePendingMessagesDisplay`: the queued steering and follow-up
+    /// messages above the prompt, with the dequeue hint.
+    fn update_pending_messages_display(&mut self) {
+        let mut steering = self.session.get_steering_messages();
+        let mut follow_up = self.session.get_follow_up_messages();
+        for (text, behavior) in &self.compaction_queue {
+            match behavior {
+                StreamingBehavior::Steer => steering.push(text.clone()),
+                StreamingBehavior::FollowUp => follow_up.push(text.clone()),
+            }
+        }
+        let mut pending = self.pending_messages.borrow_mut();
+        pending.clear();
+        if steering.is_empty() && follow_up.is_empty() {
+            self.dirty.set(true);
+            return;
+        }
+        let t = theme();
+        pending.add_child(as_component(&handle(Spacer::new(1))));
+        let rows = steering
+            .iter()
+            .map(|m| format!("Steering: {m}"))
+            .chain(follow_up.iter().map(|m| format!("Follow-up: {m}")))
+            .chain(std::iter::once(format!(
+                "↳ {} to edit all queued messages",
+                key_display_text("app.message.dequeue")
+            )));
+        for row in rows {
+            pending.add_child(as_component(&handle(TruncatedText::new(
+                t.fg("dim", &row),
+                1,
+                0,
+            ))));
+        }
+        self.dirty.set(true);
+    }
+
+    /// `restoreQueuedMessagesToEditor`: every queued message, oldest first,
+    /// back into the prompt ahead of what is typed; `abort` then stops the run.
+    fn restore_queued_messages_to_editor(&mut self, abort: bool) -> usize {
+        let (steering, follow_up) = self.session.clear_queue();
+        let mut queued: Vec<String> = steering;
+        let mut compaction_follow_up = Vec::new();
+        for (text, behavior) in std::mem::take(&mut self.compaction_queue) {
+            match behavior {
+                StreamingBehavior::Steer => queued.push(text),
+                StreamingBehavior::FollowUp => compaction_follow_up.push(text),
+            }
+        }
+        queued.extend(follow_up);
+        queued.extend(compaction_follow_up);
+        let count = queued.len();
+        if count > 0 {
+            let current = self.editor.borrow().editor.get_text();
+            let combined = [queued.join("\n\n"), current]
+                .into_iter()
+                .filter(|t| !t.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            self.editor.borrow_mut().editor.set_text(&combined);
+        }
+        self.update_pending_messages_display();
+        if abort {
+            self.session.agent().abort();
+        }
+        count
+    }
+
+    /// `queueCompactionMessage`.
+    fn queue_compaction_message(&mut self, text: String, behavior: StreamingBehavior) {
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.add_to_history(&text);
+            editor.editor.set_text("");
+        }
+        self.compaction_queue.push((text, behavior));
+        self.update_pending_messages_display();
+        self.show_status("Queued message for after compaction");
+    }
+
+    /// `flushCompactionQueue`: once a compaction ends, the first held message
+    /// becomes the prompt and the rest queue behind it (all of them queue
+    /// when a retry is pending).
+    fn flush_compaction_queue(&mut self, will_retry: bool) {
+        if self.compaction_queue.is_empty() {
+            return;
+        }
+        let queued = std::mem::take(&mut self.compaction_queue);
+        self.update_pending_messages_display();
+        let queue_rest = |session: &AgentSession, rest: &[(String, StreamingBehavior)]| {
+            for (text, behavior) in rest {
+                let queued = match behavior {
+                    StreamingBehavior::FollowUp => session.follow_up(text, &[]),
+                    StreamingBehavior::Steer => session.steer(text, &[]),
+                };
+                queued.map_err(|e| e.to_string())?;
+            }
+            Ok::<(), String>(())
+        };
+        let failed = |error: String, count: usize| {
+            format!(
+                "Failed to send queued message{}: {error}",
+                if count > 1 { "s" } else { "" }
+            )
+        };
+        if will_retry {
+            if let Err(error) = queue_rest(&self.session, &queued) {
+                let count = queued.len();
+                let _ = self.tx.send(AppEvent::CompactionQueueFailed(
+                    queued,
+                    failed(error, count),
+                ));
+            }
+            self.update_pending_messages_display();
+            return;
+        }
+        let (first, rest) = (queued[0].0.clone(), queued[1..].to_vec());
+        self.prompt(first);
+        if let Err(error) = queue_rest(&self.session, &rest) {
+            let count = queued.len();
+            let _ = self.tx.send(AppEvent::CompactionQueueFailed(
+                queued,
+                failed(error, count),
+            ));
+        }
+        self.update_pending_messages_display();
+    }
+
+    /// `handleFollowUp`: alt+enter queues the prompt as a follow-up while the
+    /// agent works (held during a compaction), else submits it.
+    fn handle_follow_up(&mut self) {
+        let text = self.editor.borrow().editor.get_text().trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        if self.session.is_compacting() {
+            self.queue_compaction_message(text, StreamingBehavior::FollowUp);
+            return;
+        }
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.set_text("");
+        }
+        if self.session.is_streaming() {
+            self.editor.borrow_mut().editor.add_to_history(&text);
+            self.queue_prompt(text, StreamingBehavior::FollowUp);
+        } else {
+            self.submit(text);
+        }
+    }
+
+    /// `handleDequeue`.
+    fn handle_dequeue(&mut self) {
+        match self.restore_queued_messages_to_editor(false) {
+            0 => self.show_status("No queued messages to restore"),
+            1 => self.show_status("Restored 1 queued message to editor"),
+            n => self.show_status(&format!("Restored {n} queued messages to editor")),
+        }
     }
 
     /// `compaction_start`: the spinner with its cancel hint; Escape aborts
@@ -4608,6 +4819,7 @@ impl Mode {
                     startup_progress::clear();
                     self.turn_stop_reason = None;
                     self.add_message_to_chat(&message, false);
+                    self.update_pending_messages_display();
                 }
                 AgentMessage::Custom(_) => self.add_message_to_chat(&message, false),
                 AgentMessage::Assistant(assistant) => {
@@ -4776,8 +4988,8 @@ impl Mode {
                 } else if self.compaction_loader.is_some() {
                     self.session.abort_compaction();
                 } else if self.session.is_streaming() {
-                    let session = self.session.clone();
-                    self.runtime.spawn(async move { session.abort().await });
+                    // Queued messages come back to the prompt, then the run stops.
+                    self.restore_queued_messages_to_editor(true);
                 } else if self.session.is_bash_running() {
                     self.session.abort_bash();
                 } else if self.is_bash_mode {
@@ -4853,6 +5065,8 @@ impl Mode {
                 self.dirty.set(true);
             }
             Action::ForkOpen => self.show_user_message_selector(),
+            Action::FollowUp => self.handle_follow_up(),
+            Action::Dequeue => self.handle_dequeue(),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -5057,6 +5271,13 @@ impl Mode {
                     AppEvent::CopyDone(subject, result) => self.finish_copy(&subject, result),
                     AppEvent::PastedImage(image) => self.insert_pasted_image(image),
                     AppEvent::SubagentDone(mode, result) => self.finish_subagent(&mode, result),
+                    AppEvent::CompactionQueueFailed(queued, error) => {
+                        self.session.clear_queue();
+                        self.compaction_queue = queued;
+                        self.update_pending_messages_display();
+                        self.show_error(&error);
+                    }
+                    AppEvent::QueueError(error) => self.show_error(&error),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
