@@ -493,6 +493,22 @@ fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
     })
 }
 
+/// `getPathArgument`: the first argument after `command`, quoted or not.
+fn command_path_argument(text: &str, command: &str) -> Option<String> {
+    let args = text.strip_prefix(command)?.strip_prefix(' ')?.trim_start();
+    let first = args.chars().next()?;
+    if first == '"' || first == '\'' {
+        let rest = &args[1..];
+        return rest.find(first).map(|end| rest[..end].to_string());
+    }
+    Some(
+        args.split(char::is_whitespace)
+            .next()
+            .unwrap_or(args)
+            .to_string(),
+    )
+}
+
 /// `os.homedir()`.
 fn home_dir() -> PathBuf {
     std::env::var_os("HOME")
@@ -844,6 +860,9 @@ struct Mode {
     /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
     /// completions.
     previous_cwd: Rc<RefCell<Option<PathBuf>>>,
+    /// An `/import` waiting on a confirm: the input path, the fallback cwd
+    /// once the stored one turned out missing, and where the answer arrives.
+    pending_import: Option<(String, Option<String>, mpsc::Receiver<Option<String>>)>,
 }
 
 impl Mode {
@@ -1115,6 +1134,7 @@ impl Mode {
             bash_components: Vec::new(),
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
+            pending_import: None,
         }
     }
 
@@ -3160,6 +3180,8 @@ impl Mode {
             BuiltinCommand::Clone => self.handle_clone_command(),
             BuiltinCommand::Cd => self.handle_change_directory(text),
             BuiltinCommand::Reload => self.handle_reload_command(),
+            BuiltinCommand::Export => self.handle_export_command(text),
+            BuiltinCommand::Import => self.handle_import_command(text),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3739,6 +3761,99 @@ impl Mode {
             self.show_error(&format!("models.json error: {error}"));
         }
         self.show_status("Reloaded keybindings, extensions, skills, prompts, themes");
+    }
+
+    /// `handleExport`: `/export <path.jsonl>` writes the branch as JSONL.
+    /// The HTML export (every other path) is export-html, owned by 12.7.
+    fn handle_export_command(&mut self, text: &str) {
+        let output = command_path_argument(text, "/export");
+        match output.as_deref() {
+            Some(path) if path.ends_with(".jsonl") => {
+                match self.session.export_to_jsonl(Some(Path::new(path))) {
+                    Ok(file) => {
+                        self.show_record(&format!("Session exported to: {}", file.display()))
+                    }
+                    Err(error) => {
+                        self.show_error(&format!("Failed to export session: {error}"))
+                    }
+                }
+            }
+            _ => self.show_error(
+                "Failed to export session: HTML export is not available yet; use /export <file.jsonl>",
+            ),
+        }
+    }
+
+    /// `handleImport`: `/import <path.jsonl>` replaces the session, after a
+    /// confirm.
+    fn handle_import_command(&mut self, text: &str) {
+        let Some(input) = command_path_argument(text, "/import") else {
+            self.show_error("Usage: /import <path.jsonl>");
+            return;
+        };
+        let (reply, answer) = mpsc::channel();
+        self.show_selector(
+            &format!("Import session\nReplace current session with {input}?"),
+            vec!["Yes".into(), "No".into()],
+            reply,
+        );
+        self.pending_import = Some((input, None, answer));
+    }
+
+    /// An `/import` confirm answered.
+    fn poll_import_confirm(&mut self) {
+        let Some((_, _, answer)) = &self.pending_import else {
+            return;
+        };
+        let confirmed = match answer.try_recv() {
+            Ok(choice) => choice.as_deref() == Some("Yes"),
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => false,
+        };
+        let Some((input, fallback, _)) = self.pending_import.take() else {
+            return;
+        };
+        if confirmed {
+            self.import_session(input, fallback);
+        } else {
+            self.show_status("Import cancelled");
+        }
+    }
+
+    /// `runtimeHost.importFromJsonl`; a stored cwd that is gone asks first.
+    fn import_session(&mut self, input: String, cwd_override: Option<String>) {
+        self.stop_working_loader();
+        let overridden = cwd_override.is_some();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.import_from_jsonl(Path::new(&input), cwd_override)) {
+            Ok(result) if result.cancelled => self.show_status("Import cancelled"),
+            Ok(_) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.show_record(&format!("Session imported from: {input}"));
+            }
+            Err(RuntimeError::MissingSessionCwd(issue)) if !overridden => {
+                let (reply, answer) = mpsc::channel();
+                let title = format!(
+                    "Session cwd not found\n{}",
+                    format_missing_session_cwd_prompt(&issue)
+                );
+                self.show_selector(&title, vec!["Yes".into(), "No".into()], reply);
+                self.pending_import = Some((input, Some(issue.fallback_cwd), answer));
+            }
+            Err(error @ RuntimeError::ImportFileNotFound(_)) => {
+                self.show_error(&format!("Failed to import session: {error}"))
+            }
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!("Failed to import session: {error}"));
+                self.exit_requested = true;
+            }
+        }
+        self.dirty.set(true);
     }
 
     /// `handleName`.
@@ -4703,6 +4818,7 @@ impl Mode {
                 self.dirty.set(true);
             }
             self.poll_cwd_prompt();
+            self.poll_import_confirm();
             self.poll_tree_selector();
             self.poll_fork_selector();
             self.poll_model_selectors();
@@ -4790,6 +4906,8 @@ enum BuiltinCommand {
     Clone,
     Cd,
     Reload,
+    Export,
+    Import,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4820,6 +4938,8 @@ impl BuiltinCommand {
             "clone" => Self::Clone,
             "cd" => Self::Cd,
             "reload" => Self::Reload,
+            "export" => Self::Export,
+            "import" => Self::Import,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -4836,8 +4956,10 @@ impl BuiltinCommand {
             | Self::Copy
             | Self::Color
             | Self::Chrome
-            | Self::Cd => true,
-            Self::Pending(name) => matches!(name, "export" | "import" | "subagent"),
+            | Self::Cd
+            | Self::Export
+            | Self::Import => true,
+            Self::Pending(name) => matches!(name, "subagent"),
             _ => false,
         }
     }

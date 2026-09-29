@@ -1,0 +1,28 @@
+{
+  "description": "/export <file.jsonl> writes the branch and says where; '/import' alone shows the usage error; '/import out.jsonl' asks first (No cancels, Yes replaces the session and replays its transcript); '/import missing.jsonl' reports the missing file. The HTML export is 12.7's and not exercised.",
+  "phase": "11.4e5",
+  "terminal": {"cols": 100, "rows": 36},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model"],
+  "llm": [{"text": "exported answer"}],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "remember this"}, {"keys": ["Enter"]}, {"wait_for": "exported answer", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/export out.jsonl"}, {"keys": ["Enter"]}, {"wait_for": "Session exported to", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "exported", "contains": ["Session exported to: <WORK>/out.jsonl"]},
+    {"type": "/new"}, {"keys": ["Enter"]}, {"wait_for": "New session started", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/import"}, {"keys": ["Enter"]}, {"wait_for": "Usage: /import", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "usage", "contains": ["Usage: /import <path.jsonl>"]},
+    {"type": "/import out.jsonl"}, {"keys": ["Enter"]}, {"wait_for": "Replace current session", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "confirm", "contains": ["Replace current session with out.jsonl?"]},
+    {"keys": ["Down"]}, {"keys": ["Enter"]}, {"wait_for": "Import cancelled", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "cancelled", "contains": ["Import cancelled"]},
+    {"type": "/import out.jsonl"}, {"keys": ["Enter"]}, {"wait_for": "Replace current session", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"keys": ["Enter"]}, {"wait_for": "Session imported from", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "imported", "contains": ["Session imported from: out.jsonl", "remember this", "exported answer"]},
+    {"type": "/import missing.jsonl"}, {"keys": ["Enter"]}, {"wait_for": "Replace current session", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"keys": ["Enter"]}, {"wait_for": "File not found", "timeout": 20}, {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "missing", "contains": ["Failed to import session: File not found"]}
+  ]
+}

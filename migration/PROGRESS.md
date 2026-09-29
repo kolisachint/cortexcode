@@ -41,6 +41,13 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 11.4e5 /export (jsonl), /import
+- `/export <file.jsonl>` via `AgentSession::export_to_jsonl` (record line); any other target
+  reports that the HTML export isn't available yet (export-html is 12.7, deferred).
+- `/import <path>`: Yes/No confirm in the prompt slot, `AgentSessionRuntime::import_from_jsonl`,
+  the missing-cwd confirm on a second pass, file-not-found error; `getPathArgument` quoting.
+- L2 `export-import` (new, stable, pass). Next: `ledger.py next` (11.4e6 /subagent).
+
 ### 2026-09-29 · 11.4e4 /cd, /reload
 - `/cd [path|~|-]` through `AgentSessionRuntime::change_directory` (new session there, "✓ Working
   directory" note), `previous_cwd` for `/cd -`, `/cd` argument completions

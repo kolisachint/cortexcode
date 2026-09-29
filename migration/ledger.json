@@ -5810,7 +5810,7 @@
    "id": "11.4e5",
    "title": "/export (jsonl) and /import",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5823,7 +5823,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "export-import"
+   ],
    "notes": "The HTML export (and /share) is export-html, owned by 12.7 (deferred): /export without .jsonl keeps a clear 'not available' until then.",
    "log": [
     {
@@ -5831,6 +5833,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:32:19Z",
+     "commit": "67e91f0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:33:04Z",
+     "commit": "67e91f0",
+     "kind": "verify",
+     "text": "L1 pass; L2 export-import=pass"
     }
    ]
   },
