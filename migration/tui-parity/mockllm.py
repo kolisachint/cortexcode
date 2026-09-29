@@ -98,6 +98,9 @@ def make_handler(state: State):
                 return
 
             turn = state.next_turn()
+            # A slow model: hold the response back (e.g. to cancel mid-request).
+            if turn.get("delay_s"):
+                time.sleep(float(turn["delay_s"]))
             if turn.get("error"):
                 self._json(int(turn.get("status", 500)), {"error": {"message": turn["error"]}})
                 return

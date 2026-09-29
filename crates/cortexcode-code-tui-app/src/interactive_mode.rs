@@ -14,7 +14,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cortexcode_agent_types::{AgentEvent, AgentMessage, CustomMessage};
+use cortexcode_agent_compaction::CompactionResult;
+use cortexcode_agent_types::{AgentEvent, AgentMessage, CompactionSummaryMessage, CustomMessage};
 use cortexcode_ai_types::{AssistantMessage, Content, StopReason, UserContent};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
 use cortexcode_ai_util::is_long_retry_delay_error;
@@ -23,8 +24,8 @@ use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, 
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
-    AgentSession, AgentSessionEvent, AgentSessionRuntime, ForkPosition, NavigateTreeOptions,
-    NavigateTreeResult, NewSessionRequest, PromptOptions, TranscriptSelection,
+    AgentSession, AgentSessionEvent, AgentSessionRuntime, CompactionReason, ForkPosition,
+    NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, PromptOptions, TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
@@ -87,7 +88,7 @@ use cortexcode_code_tui_theme::{
 };
 use cortexcode_code_tui_widgets::bash_execution::BashExecutionComponent;
 use cortexcode_code_tui_widgets::custom_message::{
-    BranchSummaryMessageComponent, CustomMessageComponent,
+    BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomMessageComponent,
 };
 use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
@@ -898,6 +899,10 @@ struct Mode {
     bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
     /// Every branch summary in the transcript, for the expand sweep.
     branch_summaries: Vec<Rc<RefCell<BranchSummaryMessageComponent>>>,
+    /// Every compaction summary in the transcript, for the expand sweep.
+    compaction_summaries: Vec<Rc<RefCell<CompactionSummaryMessageComponent>>>,
+    /// The compaction spinner (`autoCompactionLoader`).
+    compaction_loader: Option<Rc<RefCell<Loader>>>,
     /// The open `/fork` message picker.
     fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
     /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
@@ -1176,6 +1181,8 @@ impl Mode {
             pending_bash_components: Vec::new(),
             bash_components: Vec::new(),
             branch_summaries: Vec::new(),
+            compaction_summaries: Vec::new(),
+            compaction_loader: None,
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
@@ -1501,6 +1508,16 @@ impl Mode {
                     component.set_expanded(self.expanded);
                     self.add_to_chat(as_component(&handle(component)));
                 }
+            }
+            AgentMessage::CompactionSummary(summary) => {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                let component = handle(CompactionSummaryMessageComponent::new(
+                    summary.clone(),
+                    self.markdown_theme(),
+                ));
+                component.borrow_mut().set_expanded(self.expanded);
+                self.compaction_summaries.push(component.clone());
+                self.add_to_chat(as_component(&component));
             }
             AgentMessage::BranchSummary(summary) => {
                 self.add_to_chat(as_component(&handle(Spacer::new(1))));
@@ -3782,11 +3799,14 @@ impl Mode {
     }
 
     /// `handleReloadCommand`: re-read keybindings, settings, resources and
-    /// themes, then replay the transcript with the listing below it. (The
-    /// compaction guard arrives with the compaction UI, 11.4f.)
+    /// themes, then replay the transcript with the listing below it.
     fn handle_reload_command(&mut self) {
         if self.session.is_streaming() {
             self.show_warning("Wait for the current response to finish before reloading.");
+            return;
+        }
+        if self.session.is_compacting() {
+            self.show_warning("Wait for compaction to finish before reloading.");
             return;
         }
         let t = theme();
@@ -4290,6 +4310,7 @@ impl Mode {
         self.assistant_components.clear();
         self.bash_components.clear();
         self.branch_summaries.clear();
+        self.compaction_summaries.clear();
         self.last_status = None;
     }
 
@@ -4401,6 +4422,9 @@ impl Mode {
             for component in &self.branch_summaries {
                 component.borrow_mut().set_expanded(expanded);
             }
+            for component in &self.compaction_summaries {
+                component.borrow_mut().set_expanded(expanded);
+            }
         }
         self.dirty.set(true);
     }
@@ -4479,6 +4503,14 @@ impl Mode {
         match event {
             AgentSessionEvent::Agent(event) => self.handle_agent_event(event),
             AgentSessionEvent::ThinkingLevelChanged { .. } => self.update_editor_border_color(),
+            AgentSessionEvent::CompactionStart { reason } => self.on_compaction_start(reason),
+            AgentSessionEvent::CompactionEnd {
+                reason,
+                result,
+                aborted,
+                error_message,
+                ..
+            } => self.on_compaction_end(reason, result, aborted, error_message),
             AgentSessionEvent::SessionInfoChanged { .. } => {
                 self.update_session_chip();
                 self.update_terminal_title();
@@ -4486,6 +4518,81 @@ impl Mode {
             _ => {}
         }
         self.dirty.set(true);
+    }
+
+    /// `compaction_start`: the spinner with its cancel hint; Escape aborts
+    /// the compaction meanwhile.
+    fn on_compaction_start(&mut self, reason: CompactionReason) {
+        if self.session.settings().show_terminal_progress() {
+            self.tui.terminal.set_progress(true);
+        }
+        self.status.borrow_mut().clear();
+        let cancel_hint = format!("({} to cancel)", key_text("app.interrupt"));
+        let label = match reason {
+            CompactionReason::Manual => format!("Compacting context... {cancel_hint}"),
+            CompactionReason::Overflow => {
+                format!("Context overflow detected, Auto-compacting... {cancel_hint}")
+            }
+            CompactionReason::Threshold => format!("Auto-compacting... {cancel_hint}"),
+        };
+        let mut loader = Loader::new(
+            Box::new(|s: &str| theme().fg("accent", s)),
+            Box::new(|s: &str| theme().fg("muted", s)),
+            &label,
+            None,
+        );
+        loader.start();
+        let loader = handle(loader);
+        self.status.borrow_mut().add_child(as_component(&loader));
+        self.compaction_loader = Some(loader);
+    }
+
+    /// `compaction_end`: the chat rebuilt around the summary, or why not.
+    fn on_compaction_end(
+        &mut self,
+        reason: CompactionReason,
+        result: Option<CompactionResult>,
+        aborted: bool,
+        error_message: Option<String>,
+    ) {
+        if self.session.settings().show_terminal_progress() {
+            self.tui.terminal.set_progress(false);
+        }
+        if let Some(loader) = self.compaction_loader.take() {
+            loader.borrow_mut().stop();
+            self.status.borrow_mut().clear();
+        }
+        let manual = reason == CompactionReason::Manual;
+        if aborted {
+            if manual {
+                self.show_error("Compaction cancelled");
+            } else {
+                self.show_status("Auto-compaction cancelled");
+            }
+        } else if let Some(result) = result {
+            self.reset_transcript_view();
+            let messages = self.session.session_manager().build_context().messages;
+            self.render_session_context(&messages, false);
+            let summary = AgentMessage::CompactionSummary(CompactionSummaryMessage {
+                summary: result.summary,
+                tokens_before: result.tokens_before,
+                tokens_after: result.tokens_after,
+                timestamp: cortexcode_ai_types::now_ms(),
+            });
+            self.add_message_to_chat(&summary, false);
+            self.footer.borrow_mut().invalidate();
+        } else if let Some(error) = error_message {
+            if manual {
+                self.show_error(&error);
+            } else {
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                self.add_to_chat(as_component(&handle(Text::new(
+                    theme().fg("error", &error),
+                    1,
+                    0,
+                ))));
+            }
+        }
     }
 
     fn handle_agent_event(&mut self, event: AgentEvent) {
@@ -4666,6 +4773,8 @@ impl Mode {
                 if self.tree_navigation.is_some() {
                     // Escape cancels a branch summary while it runs.
                     self.session.abort_branch_summary();
+                } else if self.compaction_loader.is_some() {
+                    self.session.abort_compaction();
                 } else if self.session.is_streaming() {
                     let session = self.session.clone();
                     self.runtime.spawn(async move { session.abort().await });
@@ -4992,6 +5101,13 @@ impl Mode {
             self.poll_tree_instructions();
             self.poll_tree_navigation();
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
+                self.dirty.set(true);
+            }
+            if self
+                .compaction_loader
+                .as_ref()
+                .is_some_and(|l| l.borrow_mut().tick())
+            {
                 self.dirty.set(true);
             }
             if self

@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4g (message queue), then the 11.4 container (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4f compaction UI; 9.2b done; 11.4g added
+- `compaction_start`: spinner with "(Esc to cancel)" in the status row, terminal progress; Escape
+  aborts the compaction. `compaction_end`: transcript rebuilt from the session file plus the
+  appended `CompactionSummaryMessageComponent` (new widget), or the cancel/error line.
+  `/reload` now refuses during a compaction.
+- Session semantics fixed to the pin: a manual compaction awaits the summary request instead of
+  racing the abort signal (`tokio::select!`). An abort before any text fails as "Compaction failed:
+  Summarization produced an empty summary", which is what the pinned TUI shows. The adapted Rust test
+  now asserts that. The pin's own test cancels via a `session_before_compact` extension (ledger
+  note on 12.3).
+- mockllm: per-response `delay_s` (README). New L2 `compact-empty` (the pin compacts an empty
+  session and draws the block twice; matched), `compact-cancel`; `compact-command` passes, so
+  9.2b is done. Known failures are now 10.
+- New task 11.4g: message-queue-controller.ts had no owner (steer/follow-up while streaming,
+  pending display, dequeue, compaction queue). 11.4 now depends on it. Its code is drafted in
+  `/tmp` only; start from the pin source.
+- cd-reload: waits for the first warning to clear (it lingered under load).
+- Next: `ledger.py next` (11.4g).
 
 ### 2026-09-29 · 11.4e6 /subagent; 11.4e closed (+ /model completions)
 - `/subagent <mode> <task>`: usage / unknown-type status, "Spawning …", `get_subagent_pool`

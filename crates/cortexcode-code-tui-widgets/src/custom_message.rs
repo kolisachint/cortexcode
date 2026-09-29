@@ -1,10 +1,11 @@
-//! `components/custom-message.ts` and `components/branch-summary-message.ts`:
-//! the message kinds drawn on the custom-message fill.
+//! `components/custom-message.ts`, `components/branch-summary-message.ts`
+//! and `components/compaction-summary-message.ts`: the message kinds drawn on
+//! the custom-message fill.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use cortexcode_agent_types::{BranchSummaryMessage, CustomMessage};
+use cortexcode_agent_types::{BranchSummaryMessage, CompactionSummaryMessage, CustomMessage};
 use cortexcode_ai_types::{Content, UserContent};
 use cortexcode_code_tui_keybindings::key_text;
 use cortexcode_code_tui_theme::{apply_block_fill, message_label, theme, BlockFill};
@@ -151,6 +152,103 @@ impl BranchSummaryMessageComponent {
 }
 
 impl Component for BranchSummaryMessageComponent {
+    fn render(&mut self, width: u16) -> Vec<String> {
+        self.sheet.render(width)
+    }
+
+    fn invalidate(&mut self) {
+        self.update_display();
+    }
+}
+
+/// `toLocaleString()` for a token count: grouped with commas.
+fn group_digits(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// `CompactionSummaryMessageComponent`: what a compaction kept, folded to
+/// its token line until expanded.
+pub struct CompactionSummaryMessageComponent {
+    message: CompactionSummaryMessage,
+    markdown_theme: Rc<dyn Fn() -> MarkdownTheme>,
+    expanded: bool,
+    sheet: BoxComponent,
+}
+
+impl CompactionSummaryMessageComponent {
+    pub fn new(
+        message: CompactionSummaryMessage,
+        markdown_theme: Rc<dyn Fn() -> MarkdownTheme>,
+    ) -> Self {
+        let mut this = Self {
+            message,
+            markdown_theme,
+            expanded: false,
+            sheet: BoxComponent::new(1, 1, None),
+        };
+        this.update_display();
+        this
+    }
+
+    pub fn set_expanded(&mut self, expanded: bool) {
+        self.expanded = expanded;
+        self.update_display();
+    }
+
+    fn update_display(&mut self) {
+        let t = theme();
+        let before = self.message.tokens_before;
+        let summary_text = match self.message.tokens_after {
+            Some(after) if before > 0 => {
+                let saved = before.saturating_sub(after);
+                let pct = (saved as f64 / before as f64 * 100.0).round();
+                format!(
+                    "Compacted {} → {} tokens (saved {pct}%)",
+                    group_digits(before),
+                    group_digits(after)
+                )
+            }
+            _ => format!("Compacted from {} tokens", group_digits(before)),
+        };
+        let mut sheet = BoxComponent::new(1, 1, None);
+        apply_block_fill(&mut sheet, BlockFill::CustomMessageBg);
+        sheet.add_child(Rc::new(RefCell::new(Text::new(
+            message_label("compaction"),
+            0,
+            0,
+        ))));
+        sheet.add_child(Rc::new(RefCell::new(Spacer::new(1))));
+        if self.expanded {
+            let text = format!("**{summary_text}**\n\n{}", self.message.summary);
+            sheet.add_child(Rc::new(RefCell::new(custom_text_markdown(
+                &text,
+                (self.markdown_theme)(),
+            ))));
+        } else {
+            sheet.add_child(Rc::new(RefCell::new(Text::new(
+                format!(
+                    "{}{}{}",
+                    t.fg("customMessageText", &format!("{summary_text} (")),
+                    t.fg("dim", &key_text("app.tools.expand")),
+                    t.fg("customMessageText", " to expand)")
+                ),
+                0,
+                0,
+            ))));
+        }
+        self.sheet = sheet;
+    }
+}
+
+impl Component for CompactionSummaryMessageComponent {
     fn render(&mut self, width: u16) -> Vec<String> {
         self.sheet.render(width)
     }

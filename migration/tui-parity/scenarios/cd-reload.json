@@ -59,6 +59,10 @@
       ]
     },
     {
+      "wait_gone": "No previous directory",
+      "timeout": 30
+    },
+    {
       "type": "/cd "
     },
     {

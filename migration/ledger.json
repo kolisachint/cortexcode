@@ -1505,7 +1505,7 @@
    "id": "9.2b",
    "title": "Auto-compaction thresholds + /compact in the coding agent (agent-session-compaction.ts)",
    "phase": 9,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "9.2a",
     "10.3b"
@@ -1556,6 +1556,12 @@
      "commit": "5a99df8",
      "kind": "note",
      "text": "Ported both TS files (suite in 10.3b; e2e cases on the faux provider in tests/compaction_e2e.rs). compact-command scenario written + selfcheck stable; L2 waits on the interactive app (11.1+: slash menu, compaction loader, [compaction] block, footer auto@N%). Stopgap loop accepts /compact [instructions]."
+    },
+    {
+     "at": "2026-09-29T06:12:22Z",
+     "commit": "0f53ae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=pass"
     }
    ]
   },
@@ -5327,7 +5333,8 @@
     "11.4c",
     "11.4d",
     "11.4e",
-    "11.4f"
+    "11.4f",
+    "11.4g"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5955,7 +5962,7 @@
    "id": "11.4f",
    "title": "Compaction in the transcript: compaction_start/end loader and status, CompactionSummaryMessageComponent, chat rebuild after compaction",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5970,7 +5977,9 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [
-    "compact-command"
+    "compact-command",
+    "compact-empty",
+    "compact-cancel"
    ],
    "notes": "/compact dispatches since 11.4a; nothing draws the compaction events yet. compact-command is also 9.2b's L2.",
    "log": [
@@ -5985,6 +5994,48 @@
      "commit": "85eaffb",
      "kind": "note",
      "text": "/reload's 'Wait for compaction to finish' guard needs an is_compacting on AgentSession; add it with the compaction UI."
+    },
+    {
+     "at": "2026-09-29T06:10:31Z",
+     "commit": "0f53ae9",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:11:40Z",
+     "commit": "0f53ae9",
+     "kind": "verify",
+     "text": "L1 pass; L2 compact-command=pass, compact-empty=pass, compact-cancel=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4g",
+   "title": "Message queue: steer/follow-up while streaming, pending-messages display, dequeue, compaction queue",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4f"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/message-queue-controller.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/interactive-mode-compaction.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "Found unowned while doing 11.4f: submissions during streaming/compaction (steer, app.message.followUp, app.message.dequeue, restore on Escape) and compaction_end's flushCompactionQueue.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Added (bookkeeping): message-queue-controller.ts had no owner."
     }
    ]
   },
@@ -6114,6 +6165,12 @@
      "commit": "5480dc2",
      "kind": "note",
      "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    },
+    {
+     "at": "2026-09-29T06:09:30Z",
+     "commit": "0f53ae9",
+     "kind": "note",
+     "text": "When extension hooks land: the pin's 'cancels in-progress manual compaction when abortCompaction is called' test cancels via session_before_compact → 'Compaction cancelled'; port it as written then (the current Rust test covers the no-extension path)."
     }
    ]
   },

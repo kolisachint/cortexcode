@@ -15,7 +15,8 @@ Each `*.json` file is one scenario, run against the real hoocode (pinned build i
   "settings": {},                                 // written to ~/.hoocode and ~/.cortexcode settings.json
   "env": {},                                      // extra env (API keys are never inherited); {WORK}/{HOME}/{TMP} expand to the run's dirs
   "llm": [ {"text": "...", "thinking": "...", "tool_calls": [{"id": "...", "name": "read", "arguments": {}}]},
-           {"error": "boom", "status": 500} ],     // one entry per model request, see mockllm.py
+           {"error": "boom", "status": 500},       // one entry per model request, see mockllm.py
+           {"text": "...", "delay_s": 5} ],         // delay_s: wait before answering
   "compare": "style",                             // "style" (default: text + colors/attrs) or "text"
   "compare_requests": false,                      // also require identical model requests
   "request_fields": ["messages", "tools"],        // subset compared when compare_requests
