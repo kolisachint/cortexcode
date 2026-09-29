@@ -17,16 +17,20 @@ use std::time::{Duration, Instant};
 use cortexcode_agent_types::{AgentEvent, AgentMessage};
 use cortexcode_ai_types::{AssistantMessage, Content, StopReason};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
+use cortexcode_ai_util::is_long_retry_delay_error;
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
 use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, RuntimeError};
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
     AgentSession, AgentSessionEvent, AgentSessionRuntime, NavigateTreeOptions, NavigateTreeResult,
-    NewSessionRequest, PromptOptions,
+    NewSessionRequest, PromptOptions, TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
+use cortexcode_code_media::clipboard::{NativeWriter, SystemClipboardHost};
+use cortexcode_code_media::markdown_to_html::markdown_to_html;
+use cortexcode_code_media::rich_clipboard::{copy_rich_to_clipboard, CopyFlavour, RichPayload};
 use cortexcode_code_models::{
     find_exact_model_reference_match, parse_thinking_level, resolve_model_scope,
 };
@@ -245,6 +249,8 @@ enum Action {
     EditorDialogDone(EditorOutcome),
     /// The prompt text changed (`onChange`).
     EditorChanged(String),
+    /// `app.clipboard.copyMessage`: `/copy` with no argument.
+    CopyMessage,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -261,7 +267,8 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 13] = [
+const EDITOR_ACTIONS: [(&str, Action); 14] = [
+    ("app.clipboard.copyMessage", Action::CopyMessage),
     ("app.view.cycleForward", Action::ViewForward),
     ("app.view.cycleBackward", Action::ViewBackward),
     ("app.clear", Action::Clear),
@@ -353,6 +360,8 @@ enum AppEvent {
     BashChunk(String),
     /// The `!` command ended.
     BashDone(Result<BashResult, String>),
+    /// A `/copy` write ended: what was copied, and the flavour that landed.
+    CopyDone(String, Result<CopyFlavour, String>),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -403,6 +412,25 @@ fn truncated_marker(content: &str) -> TruncationResult {
         truncated: true,
         ..truncate_tail(content, TruncationOptions::default())
     }
+}
+
+/// The native clipboard write (`clipboard-native.ts`): only where a display
+/// is available, and not used on Linux, where the platform tools keep
+/// selection ownership and the native library does not.
+#[cfg(not(target_os = "linux"))]
+fn native_clipboard_writer() -> Option<NativeWriter> {
+    SystemClipboardHost::has_native_display().then(|| {
+        Box::new(|text: &str| {
+            arboard::Clipboard::new()
+                .and_then(|mut clipboard| clipboard.set_text(text.to_string()))
+                .map_err(|e| e.to_string())
+        }) as NativeWriter
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn native_clipboard_writer() -> Option<NativeWriter> {
+    None
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -1033,13 +1061,18 @@ impl Mode {
         self.dirty.set(true);
     }
 
+    /// `showError`: a filled error block in the chat, headline over detail.
     fn show_error(&mut self, message: &str) {
-        self.add_to_chat(as_component(&handle(Spacer::new(1))));
-        self.add_to_chat(as_component(&handle(Text::new(
-            theme().fg("error", message),
-            1,
-            0,
-        ))));
+        let mut lines = message.split('\n');
+        let title = format!("Error: {}", lines.next().unwrap_or(""));
+        let mut body: Vec<&str> = lines.collect();
+        // A wait measured in days is a dead end: say what to do about it.
+        if is_long_retry_delay_error(Some(message)) {
+            body.push(
+                "Switch to another model with /model, or wait for the provider's quota to reset.",
+            );
+        }
+        self.show_block(BlockFill::ToolErrorBg, "error", &title, &body);
     }
 
     /// The startup/reload listing and the session's own state.
@@ -1690,11 +1723,16 @@ impl Mode {
     /// `showNotice`: a filled warning block in the chat, for warnings that
     /// cost money if ignored (`showBlock`).
     fn show_notice(&mut self, title: &str, body: &[&str]) {
+        self.show_block(BlockFill::WarningBg, "warning", title, body);
+    }
+
+    /// `showBlock`: a filled block in the chat, bold title over muted lines.
+    fn show_block(&mut self, fill: BlockFill, fg: &str, title: &str, body: &[&str]) {
         let t = theme();
         let mut block = BoxComponent::new(1, 1, None);
-        apply_block_fill(&mut block, BlockFill::WarningBg);
+        apply_block_fill(&mut block, fill);
         block.add_child(as_component(&handle(Text::new(
-            t.bold(&t.fg("warning", title)),
+            t.bold(&t.fg(fg, title)),
             0,
             0,
         ))));
@@ -2901,8 +2939,9 @@ impl Mode {
             BuiltinCommand::Settings => self.show_settings_selector(),
             BuiltinCommand::Login => self.show_oauth_selector(LoginMode::Login),
             BuiltinCommand::Logout => self.show_oauth_selector(LoginMode::Logout),
+            BuiltinCommand::Copy => self.handle_copy_command(text),
             BuiltinCommand::Pending(name) => {
-                // Wired by its own ledger task (see 11.4d/11.4e).
+                // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
             }
         }
@@ -2917,6 +2956,81 @@ impl Mode {
         )
         .map(|chip| chip.styled)
         .unwrap_or_else(|| self.session.display_name())
+    }
+
+    /// `handleCopy`: the last agent message, the last n turns, or the whole
+    /// session, as markdown plus (where the platform can carry it) HTML. The
+    /// write runs off the UI thread; [`Self::finish_copy`] reports it.
+    fn handle_copy_command(&mut self, text: &str) {
+        let argument = text
+            .strip_prefix("/copy")
+            .unwrap_or(text)
+            .trim()
+            .to_lowercase();
+        // `/copy 0` is a typo, not a request for nothing.
+        let turns = (!argument.is_empty() && argument.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| argument.parse::<usize>().unwrap_or(usize::MAX).max(1));
+        let whole = argument == "all" || argument == "session";
+        if !argument.is_empty() && !whole && turns.is_none() {
+            self.show_warning("Usage: /copy [all|<number of turns>]");
+            return;
+        }
+
+        let markdown = if whole || turns.is_some() {
+            Some(self.session.get_transcript_markdown(&TranscriptSelection {
+                turns,
+                user_label: None,
+                agent_label: Some(APP_TITLE.to_string()),
+            }))
+        } else {
+            self.session.get_last_assistant_text()
+        };
+        let Some(markdown) = markdown.filter(|m| !m.is_empty()) else {
+            self.show_error(if whole || turns.is_some() {
+                "Nothing in this session to copy yet."
+            } else {
+                "No agent messages to copy yet."
+            });
+            return;
+        };
+
+        let subject = if whole {
+            "session transcript".to_string()
+        } else if let Some(turns) = turns {
+            format!("last {turns} turn{}", if turns > 1 { "s" } else { "" })
+        } else {
+            "last agent message".to_string()
+        };
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let host = SystemClipboardHost {
+                native: native_clipboard_writer(),
+            };
+            let payload = RichPayload {
+                html: markdown_to_html(&markdown),
+                text: markdown,
+            };
+            let result = copy_rich_to_clipboard(&host, &payload);
+            let _ = tx.send(AppEvent::CopyDone(subject, result));
+        });
+    }
+
+    /// The end of a `/copy`: name the flavour that landed, since "copied"
+    /// meaning markdown on one machine and formatted text on another is how
+    /// this gets reported as broken.
+    fn finish_copy(&mut self, subject: &str, result: Result<CopyFlavour, String>) {
+        match result {
+            Ok(flavour) => {
+                let as_ = match flavour {
+                    CopyFlavour::Rich => "markdown + formatted text",
+                    CopyFlavour::Text => "markdown",
+                };
+                self.show_status(&format!("Copied {subject} as {as_}"));
+            }
+            Err(reason) => self.show_error(&format!(
+                "Could not copy the {subject}: {reason}. /export writes it to a file instead."
+            )),
+        }
     }
 
     /// `handleName`.
@@ -3632,6 +3746,7 @@ impl Mode {
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
             Action::EditorChanged(text) => self.on_editor_change(&text),
+            Action::CopyMessage => self.handle_copy_command(""),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -3817,6 +3932,7 @@ impl Mode {
                         }
                     }
                     AppEvent::BashDone(result) => self.finish_bash_command(result),
+                    AppEvent::CopyDone(subject, result) => self.finish_copy(&subject, result),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -3927,6 +4043,7 @@ enum BuiltinCommand {
     Settings,
     Login,
     Logout,
+    Copy,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -3947,6 +4064,7 @@ impl BuiltinCommand {
             "settings" => Self::Settings,
             "login" => Self::Login,
             "logout" => Self::Logout,
+            "copy" => Self::Copy,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -3957,10 +4075,10 @@ impl BuiltinCommand {
     /// Commands that also match "/name <args>".
     fn with_args(self) -> bool {
         match self {
-            Self::Name | Self::Compact | Self::Model => true,
+            Self::Name | Self::Compact | Self::Model | Self::Copy => true,
             Self::Pending(name) => matches!(
                 name,
-                "export" | "import" | "copy" | "color" | "chrome" | "cd" | "subagent"
+                "export" | "import" | "color" | "chrome" | "cd" | "subagent"
             ),
             _ => false,
         }

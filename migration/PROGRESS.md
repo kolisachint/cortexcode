@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4d2 (image paste), 11.4e (remaining commands), 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4d split; 11.4d1 /copy
+- 11.4d split into 11.4d1 (text copy) and 11.4d2 (image paste: clipboard-image*.ts + tests).
+- `cortexcode-code-media`: `clipboard` (copyToClipboard behind a `ClipboardHost` trait:
+  native off Linux, pbcopy/clip/termux/wl-copy/xclip/xsel, OSC 52 when remote or nothing else
+  worked), `rich_clipboard` (JXA / PowerShell CF_HTML, `wrap_cf_html`), `markdown_to_html`
+  (fancy-regex, pin's JS patterns). Ported clipboard.test.ts + copy-structure.test.ts, plus
+  golden outputs recorded from the pin's dist `markdownToHtml`.
+- App: `/copy [all|n]` and `app.clipboard.copyMessage` (write off the UI thread, flavour on the
+  band). arboard (default-features off) is a non-Linux target dep of code-tui-app, like the pin
+  which skips the native addon on Linux; its snippet was `cargo check`ed for x86_64-apple-darwin.
+- Parity fix: `show_error` is now hoocode's filled "Error: ..." block (`show_block`), with the
+  long-retry-delay hint. Full L2: only the known 11 fail.
+- L2 `copy-command` (new): stable, passes. Next: `ledger.py next` (11.4d2 image paste).
 
 ### 2026-09-29 · 11.4c ! and !! bash
 - `interactive_mode.rs`: bash mode (`onChange` → `!` prompt prefix + bash-mode border; Escape

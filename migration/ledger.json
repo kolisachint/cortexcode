@@ -5487,12 +5487,93 @@
    ]
   },
   {
+   "id": "11.4d1",
+   "title": "Copy: /copy and app.clipboard.copyMessage (clipboard, rich-clipboard, markdown-to-html)",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard.ts",
+    "packages/coding-agent/src/utils/rich-clipboard.ts",
+    "packages/coding-agent/src/utils/markdown-to-html.ts",
+    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/clipboard.test.ts",
+    "packages/coding-agent/test/copy-structure.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "copy-command"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4d (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:41:00Z",
+     "commit": "f1091e0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:41:44Z",
+     "commit": "f1091e0",
+     "kind": "verify",
+     "text": "L1 pass; L2 copy-command=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4d2",
+   "title": "Image paste: clipboard-image, clipboard-native (app.clipboard.pasteImage)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app",
+    "cortexcode-code-media"
+   ],
+   "sources": [
+    "packages/coding-agent/src/utils/clipboard-image.ts",
+    "packages/coding-agent/src/utils/clipboard-native.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/clipboard-image.test.ts",
+    "packages/coding-agent/test/clipboard-image-bmp-conversion.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "arboard in the adapter crate per the dependency firewall.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4d (bookkeeping)."
+    }
+   ]
+  },
+  {
    "id": "11.4d",
    "title": "Clipboard: /copy (rich-clipboard, markdown-to-html), image paste (clipboard-image/native)",
    "phase": 11,
    "status": "todo",
    "depends": [
-    "11.4a"
+    "11.4d1",
+    "11.4d2"
    ],
    "crates": [
     "cortexcode-code-tui-app",
@@ -5515,6 +5596,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:25:57Z",
+     "commit": "f1091e0",
+     "kind": "note",
+     "text": "Split into 11.4d1 (text copy, /copy) and 11.4d2 (image paste). Container closes when both are done (bookkeeping)."
     }
    ]
   },
