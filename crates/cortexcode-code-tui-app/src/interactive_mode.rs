@@ -40,6 +40,10 @@ use cortexcode_code_models::{
 };
 use cortexcode_code_paths::{APP_NAME, APP_TITLE, VERSION};
 use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
+use cortexcode_code_session::identity::{
+    cycle_session_color_slot, parse_session_color_slot, session_color_name,
+    session_color_name_list, CycleDirection as SessionCycleDirection, SESSION_COLOR_SLOTS,
+};
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
@@ -66,6 +70,7 @@ use cortexcode_code_tui_selectors::session_selector::{
 use cortexcode_code_tui_selectors::settings_selector::{
     SettingsChange, SettingsConfig, SettingsSelectorComponent, ToolGroupInfo, ToolToggleInfo,
 };
+use cortexcode_code_tui_selectors::small_selectors::session_color_selector;
 use cortexcode_code_tui_selectors::tree_selector::{TreeEvent, TreeSelectorComponent};
 use cortexcode_code_tui_theme::get_available_themes;
 use cortexcode_code_tui_theme::{apply_block_fill, BlockFill};
@@ -89,7 +94,7 @@ use cortexcode_code_tui_widgets::{
 use cortexcode_tui_components::BoxComponent;
 use cortexcode_tui_components::{
     CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
-    FrameBorderStyle, Loader, Markdown, MarkdownTheme, SlashCommand, Spacer, Text,
+    FrameBorderStyle, Loader, Markdown, MarkdownTheme, SelectItem, SlashCommand, Spacer, Text,
 };
 use cortexcode_tui_images::get_capabilities;
 use cortexcode_tui_keys::get_keybindings;
@@ -263,6 +268,13 @@ enum Action {
     PasteImage,
     /// `app.hotkeys.open`: `/hotkeys`.
     HotkeysOpen,
+    /// `app.session.color.cycleForward` / `cycleBackward`.
+    SessionColorForward,
+    SessionColorBackward,
+    /// The colour picker moved to this slot (live preview).
+    SessionColorPreview(u8),
+    /// The colour picker closed: the chosen slot, or `None` when cancelled.
+    SessionColorDone(Option<u8>),
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -279,7 +291,15 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 15] = [
+const EDITOR_ACTIONS: [(&str, Action); 17] = [
+    (
+        "app.session.color.cycleForward",
+        Action::SessionColorForward,
+    ),
+    (
+        "app.session.color.cycleBackward",
+        Action::SessionColorBackward,
+    ),
     ("app.hotkeys.open", Action::HotkeysOpen),
     ("app.clipboard.copyMessage", Action::CopyMessage),
     ("app.view.cycleForward", Action::ViewForward),
@@ -2982,6 +3002,14 @@ impl Mode {
             BuiltinCommand::Hotkeys => self.handle_hotkeys_command(),
             BuiltinCommand::Changelog => self.handle_changelog_command(),
             BuiltinCommand::Debug => self.handle_debug_command(),
+            BuiltinCommand::Color => {
+                // An argument sets the slot outright; bare `/color` opens the
+                // swatches.
+                if !self.handle_color_command(text) {
+                    self.show_session_color_selector();
+                }
+            }
+            BuiltinCommand::Chrome => self.handle_chrome_command(text),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3239,6 +3267,131 @@ impl Mode {
             1,
             0,
         ))));
+    }
+
+    /// `handleColor`: `/color <slot|name>`; false for a bare `/color`.
+    fn handle_color_command(&mut self, text: &str) -> bool {
+        let arg = text.strip_prefix("/color").unwrap_or(text).trim();
+        if arg.is_empty() {
+            return false;
+        }
+        let Some(slot) = parse_session_color_slot(arg) else {
+            self.show_warning(&format!(
+                "Usage: /color <1-{SESSION_COLOR_SLOTS}> or /color <{}> (first letter works too), or /color on its own to pick one",
+                session_color_name_list().join("|")
+            ));
+            return true;
+        };
+        self.session.set_session_color(slot);
+        let t = theme();
+        let name = session_color_name(slot)
+            .map(|name| format!("  {}", t.fg("dim", name)))
+            .unwrap_or_default();
+        let line = format!(
+            "{} {}{name}",
+            t.fg("dim", "Session color set:"),
+            self.current_chip()
+        );
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+        true
+    }
+
+    /// `cycleSessionColor`: one step on the colour dial.
+    fn cycle_session_color(&mut self, forward: bool) {
+        let direction = if forward {
+            SessionCycleDirection::Forward
+        } else {
+            SessionCycleDirection::Backward
+        };
+        let slot =
+            cycle_session_color_slot(f64::from(self.session.session_color_slot()), direction);
+        self.session.set_session_color(slot);
+        let name = session_color_name(slot).map_or_else(|| slot.to_string(), str::to_string);
+        self.show_dial_step(
+            "app.session.color.cycleBackward",
+            &format!("Session color: {name}"),
+        );
+    }
+
+    /// `showSessionColorSelector`: swatches in the prompt's slot; moving
+    /// through them repaints the live chip.
+    fn show_session_color_selector(&mut self) {
+        let original = self.session.session_color_slot();
+        let selector = session_color_selector(&self.session.display_name(), original);
+        {
+            let list = selector.select_list();
+            let mut list = list.borrow_mut();
+            let slot_of = |item: &SelectItem| item.value.parse::<u8>().ok();
+            let sink = self.actions.clone();
+            list.on_selection_change = Some(Box::new(move |item| {
+                if let Some(slot) = slot_of(item) {
+                    sink.borrow_mut().push(Action::SessionColorPreview(slot));
+                }
+            }));
+            let sink = self.actions.clone();
+            list.on_select = Some(Box::new(move |item| {
+                sink.borrow_mut()
+                    .push(Action::SessionColorDone(slot_of(item)));
+            }));
+            let sink = self.actions.clone();
+            list.on_cancel = Some(Box::new(move || {
+                sink.borrow_mut().push(Action::SessionColorDone(None));
+            }));
+        }
+        self.show_in_editor_slot(as_component(&handle(selector)));
+    }
+
+    /// Paint the prompt's chip in `slot` without saving it.
+    fn preview_session_color(&mut self, slot: u8) {
+        let chip = render_session_chip(&self.session.display_name(), i64::from(slot));
+        self.editor.borrow_mut().editor.top_border_label = chip;
+        self.dirty.set(true);
+    }
+
+    /// The colour picker closed: save the choice, or put back the colour
+    /// the session actually has.
+    fn close_session_color_selector(&mut self, slot: Option<u8>) {
+        self.restore_editor();
+        match slot {
+            Some(slot) => {
+                self.session.set_session_color(slot);
+                let name =
+                    session_color_name(slot).map_or_else(|| slot.to_string(), str::to_string);
+                self.show_status(&format!("Session color: {name}"));
+            }
+            None => self.update_session_chip(),
+        }
+    }
+
+    /// `handleChromeCommand`: `/chrome` names the stop, `/chrome <stop>`
+    /// sets it (the dial's only way in where alt never arrives).
+    fn handle_chrome_command(&mut self, text: &str) {
+        let argument = text
+            .strip_prefix("/chrome")
+            .unwrap_or(text)
+            .trim()
+            .to_lowercase();
+        let all: Vec<&str> = ChromeDensity::ALL.iter().map(|d| d.as_str()).collect();
+        if argument.is_empty() {
+            self.show_status(&format!(
+                "Chrome: {} — {}",
+                self.chrome.density(),
+                all.join(" · ")
+            ));
+            return;
+        }
+        let Some(density) = ChromeDensity::parse(&argument) else {
+            self.show_error(&format!(
+                "Unknown chrome density \"{argument}\". Try: {}",
+                all.join(", ")
+            ));
+            return;
+        };
+        self.chrome.set_density(density);
+        self.session.settings().set_chrome_density(density);
+        self.dirty.set(true);
+        self.show_status(&format!("Chrome: {density}"));
     }
 
     /// `handleName`.
@@ -3957,6 +4110,11 @@ impl Mode {
             Action::CopyMessage => self.handle_copy_command(""),
             Action::PasteImage => self.handle_clipboard_image_paste(),
             Action::HotkeysOpen => self.handle_hotkeys_command(),
+            Action::SessionColorForward | Action::SessionColorBackward => {
+                self.cycle_session_color(action == Action::SessionColorForward)
+            }
+            Action::SessionColorPreview(slot) => self.preview_session_color(slot),
+            Action::SessionColorDone(slot) => self.close_session_color_selector(slot),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -4264,6 +4422,8 @@ enum BuiltinCommand {
     Hotkeys,
     Changelog,
     Debug,
+    Color,
+    Chrome,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4288,6 +4448,8 @@ impl BuiltinCommand {
             "hotkeys" => Self::Hotkeys,
             "changelog" => Self::Changelog,
             "debug" => Self::Debug,
+            "color" => Self::Color,
+            "chrome" => Self::Chrome,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -4298,11 +4460,10 @@ impl BuiltinCommand {
     /// Commands that also match "/name <args>".
     fn with_args(self) -> bool {
         match self {
-            Self::Name | Self::Compact | Self::Model | Self::Copy => true,
-            Self::Pending(name) => matches!(
-                name,
-                "export" | "import" | "color" | "chrome" | "cd" | "subagent"
-            ),
+            Self::Name | Self::Compact | Self::Model | Self::Copy | Self::Color | Self::Chrome => {
+                true
+            }
+            Self::Pending(name) => matches!(name, "export" | "import" | "cd" | "subagent"),
             _ => false,
         }
     }

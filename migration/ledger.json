@@ -5680,9 +5680,9 @@
   },
   {
    "id": "11.4e2",
-   "title": "/chrome and /color (session colour selector)",
+   "title": "/chrome, /color (session colour selector) and the alt+c colour dial",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5695,7 +5695,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "color-chrome"
+   ],
    "notes": "",
    "log": [
     {
@@ -5703,6 +5705,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:19:04Z",
+     "commit": "eb1c479",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:19:56Z",
+     "commit": "eb1c479",
+     "kind": "verify",
+     "text": "L1 pass; L2 color-chrome=pass"
     }
    ]
   },

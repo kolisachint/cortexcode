@@ -1,0 +1,205 @@
+{
+  "description": "/color and /chrome: '/name parity' and '/color 3' pin the chip (the auto name and slot derive from the random session id; the /name notice, drawn in the random slot, is let go first); '/color bogus' warns with the usage; bare /color opens the swatch picker, Down previews the next slot on the live chip, Enter keeps it; alt+c steps the colour dial; '/chrome' names the stop, '/chrome compact' sets it, '/chrome nope' errors. --no-session keeps the footer fixed.",
+  "phase": "11.4e2",
+  "terminal": {
+    "cols": 100,
+    "rows": 36
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "/name parity"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "wait_gone": "Session name set",
+      "timeout": 30
+    },
+    {
+      "type": "/color 3"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Session color set",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "set",
+      "contains": [
+        "Session color set:"
+      ]
+    },
+    {
+      "type": "/color bogus"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Usage: /color",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "usage",
+      "contains": [
+        "Usage: /color"
+      ]
+    },
+    {
+      "type": "/color"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "session colou?r",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "picker"
+    },
+    {
+      "keys": [
+        "Down"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "preview"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "picked"
+    },
+    {
+      "keys": [
+        "M-c"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "dial"
+    },
+    {
+      "type": "/chrome"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Chrome:",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "chrome-status",
+      "contains": [
+        "Chrome: full"
+      ]
+    },
+    {
+      "type": "/chrome compact"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "chrome-compact"
+    },
+    {
+      "type": "/chrome nope"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Unknown chrome density",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "chrome-error",
+      "contains": [
+        "Unknown chrome density"
+      ]
+    }
+  ]
+}

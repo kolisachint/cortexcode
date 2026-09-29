@@ -41,6 +41,12 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 11.4e2 /color, /chrome, colour dial
+- `/color <slot|name>` (chip line in the chat, usage warning), bare `/color` opens
+  `session_color_selector` in the prompt's slot with live chip preview (Esc restores the real
+  colour), alt+c / shift+alt+c step the colour dial, `/chrome [full|compact|bare]`.
+- L2 `color-chrome` (new, stable, pass). Next: `ledger.py next` (11.4e3 /fork /clone).
+
 ### 2026-09-29 · 11.4e split; 11.4e1 /hotkeys /changelog /debug + startup What's New
 - 11.4e split into 11.4e1..e6 (info; /chrome /color; /fork /clone; /cd /reload; /export jsonl +
   /import; /subagent). /share and the HTML half of /export stay with 12.7 (deferred).
