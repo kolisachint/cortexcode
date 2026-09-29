@@ -5117,7 +5117,7 @@
    "id": "11.3f",
    "title": "Login: login-dialog, oauth-selector, login-controller",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3f1",
     "11.3f2"
@@ -5149,6 +5149,18 @@
      "commit": "ec74f8e",
      "kind": "note",
      "text": "Split into 11.3f1 (components + oauth-selector.test.ts) and 11.3f2 (LoginController wiring for /login and /logout, L2 login-api-key, after 11.4). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:04:09Z",
+     "commit": "5480dc2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:05:55Z",
+     "commit": "5480dc2",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5246,7 +5258,7 @@
    "id": "11.3",
    "title": "Selectors and dialogs: new crate code-tui-selectors (model, session, tree, settings, thinking, theme, login, ask-options)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.3a",
     "11.3b",
@@ -5289,6 +5301,18 @@
      "commit": "887d6e8",
      "kind": "note",
      "text": "Split into 11.3a (session selector, L2 session-resume), 11.3b (model selector, L2 model-selector; needs /model from 11.4), 11.3c (small selectors), 11.3d (settings), 11.3e (tree), 11.3f (login). This card closes as a container (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:06:02Z",
+     "commit": "5480dc2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:06:05Z",
+     "commit": "5480dc2",
+     "kind": "verify",
+     "text": "L1 pass; L2 "
     }
    ]
   },
@@ -5557,7 +5581,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.2",
@@ -5577,7 +5608,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.3",
@@ -5621,6 +5659,12 @@
      "commit": "3608e70",
      "kind": "note",
      "text": "10.4b: sdk.ts falls back to hoo-config.json llm.default_provider/default_model (extensions/core/config.ts readConfig) when settings have no defaultProvider; services.rs find_initial_model does not read it yet. AuthStorage.login and the registry's OAuth modifyModels pass exist; registerProvider oauth still to port."
+    },
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
     }
    ]
   },
@@ -5642,7 +5686,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting. From 10.2d: implement cortexcode_code_tool_search::EmbsearchService with the daemon client; port search/eval*.ts + search-eval.test.ts + the eval-scoring cases of hybrid-search.test.ts, and native-search.ts collectEntries (+ native-search.test.ts) for repo-scan.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.5",
@@ -5662,7 +5713,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting. From 10.2f: port the '/loop auto flips ask_options into non-blocking mode' case of ask-options-loop.test.ts; drive AskOptionsHost::auto_loop_active/halt_loop from the loop.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.6",
@@ -5682,7 +5740,14 @@
    "l1_cmds": [],
    "l2": "n/a",
    "notes": "Needs a go/no-go decision from the user before starting.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    }
+   ]
   },
   {
    "id": "12.7",
@@ -5708,6 +5773,12 @@
      "commit": "821deb9",
      "kind": "note",
      "text": "From 10.1 split (2026-09-26): config.ts detectInstallMethod / getSelfUpdateCommand / getUpdateInstruction (config.test.ts) belong with the version check; npm/pnpm/bun install detection needs a cortex (binary/cargo) equivalent."
+    },
+    {
+     "at": "2026-09-29T04:03:39Z",
+     "commit": "5480dc2",
+     "kind": "note",
+     "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
     }
    ]
   },
