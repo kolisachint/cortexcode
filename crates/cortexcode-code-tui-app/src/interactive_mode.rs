@@ -53,7 +53,7 @@ use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_pa
 use cortexcode_code_tools::light::{measure_prompt_surface, measure_tool_schema_tokens};
 use cortexcode_code_tools_optin::AskQuestion;
 use cortexcode_code_tui_keybindings::{
-    app_key_label, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
+    app_key_label, key_display_text, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
 };
 use cortexcode_code_tui_selectors::ask_options::{AskOptionsComponent, AskOptionsOptions};
 use cortexcode_code_tui_selectors::login_dialog::{LoginDialogComponent, LoginDialogEvent};
@@ -96,8 +96,9 @@ use cortexcode_code_tui_widgets::{
 };
 use cortexcode_tui_components::BoxComponent;
 use cortexcode_tui_components::{
-    CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
-    FrameBorderStyle, Loader, Markdown, MarkdownTheme, SelectItem, SlashCommand, Spacer, Text,
+    ArgumentCompletionsFn, AutocompleteItem, CombinedAutocompleteProvider, CommandEntry, Editor,
+    EditorHost, EditorOptions, FrameBorderStyle, Loader, Markdown, MarkdownTheme, SelectItem,
+    SlashCommand, Spacer, Text,
 };
 use cortexcode_tui_images::get_capabilities;
 use cortexcode_tui_keys::get_keybindings;
@@ -278,6 +279,10 @@ enum Action {
     SessionColorPreview(u8),
     /// The colour picker closed: the chosen slot, or `None` when cancelled.
     SessionColorDone(Option<u8>),
+    /// `app.session.changeDirectory`: prefill `/cd `.
+    ChangeDirectoryPrefill,
+    /// `app.session.fork`: `/fork`.
+    ForkOpen,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -294,7 +299,12 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 17] = [
+const EDITOR_ACTIONS: [(&str, Action); 19] = [
+    (
+        "app.session.changeDirectory",
+        Action::ChangeDirectoryPrefill,
+    ),
+    ("app.session.fork", Action::ForkOpen),
     (
         "app.session.color.cycleForward",
         Action::SessionColorForward,
@@ -481,6 +491,120 @@ fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
             )
         }) as Box<dyn Fn() -> Option<Vec<u8>>>
     })
+}
+
+/// `os.homedir()`.
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"))
+}
+
+/// `path.resolve(base, path)`: absolute and normalized, without touching
+/// the filesystem.
+fn resolve_path(base: &Path, path: &Path) -> PathBuf {
+    let joined = base.join(path);
+    let mut out = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// `getChangeDirectoryCompletions`: directories for `/cd <prefix>`, plus
+/// `-` and `~` when nothing is typed yet. At most 50.
+fn change_directory_completions(
+    cwd: &Path,
+    previous_cwd: Option<&Path>,
+    home: &Path,
+    prefix: &str,
+) -> Vec<AutocompleteItem> {
+    let expanded = match prefix.strip_prefix("~/") {
+        Some(rest) => format!("{}/{rest}", home.to_string_lossy()),
+        None => prefix.to_string(),
+    };
+    let ends_with_sep = expanded.ends_with('/') || expanded.ends_with(std::path::MAIN_SEPARATOR);
+    let (base, partial) = if ends_with_sep {
+        (expanded.clone(), String::new())
+    } else {
+        let path = Path::new(&expanded);
+        let base = match path.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p.to_string_lossy().into_owned(),
+            _ if expanded.starts_with('/') => "/".to_string(),
+            _ => ".".to_string(),
+        };
+        let partial = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        (base, partial)
+    };
+    let search_dir = if Path::new(&base).is_absolute() {
+        PathBuf::from(&base)
+    } else {
+        resolve_path(cwd, Path::new(if base.is_empty() { "." } else { &base }))
+    };
+
+    let mut completions = Vec::new();
+    if prefix.is_empty() {
+        if let Some(previous) = previous_cwd {
+            completions.push(AutocompleteItem {
+                value: "-".into(),
+                label: format!("- ({})", previous.display()),
+                description: None,
+            });
+        }
+        completions.push(AutocompleteItem {
+            value: "~".into(),
+            label: format!("~ ({})", home.display()),
+            description: None,
+        });
+    }
+    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+        return completions;
+    };
+    // Node's readdirSync (libuv scandir) returns names sorted.
+    let mut dirs: Vec<String> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|t| t.is_dir()))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    dirs.sort();
+    for name in dirs {
+        if !partial.is_empty() && !name.starts_with(&partial) {
+            continue;
+        }
+        if partial.is_empty() && name.starts_with('.') {
+            continue;
+        }
+        let joined = if !ends_with_sep {
+            let dir = Path::new(prefix)
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match dir.as_str() {
+                "" | "." => name.clone(),
+                "/" => format!("/{name}"),
+                _ => format!("{dir}/{name}"),
+            }
+        } else {
+            format!("{prefix}{name}")
+        };
+        completions.push(AutocompleteItem {
+            value: format!("{joined}/"),
+            label: format!("{name}/"),
+            description: None,
+        });
+    }
+    completions.truncate(50);
+    completions
 }
 
 /// The first version header in a changelog excerpt.
@@ -717,6 +841,9 @@ struct Mode {
     bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
     /// The open `/fork` message picker.
     fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
+    /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
+    /// completions.
+    previous_cwd: Rc<RefCell<Option<PathBuf>>>,
 }
 
 impl Mode {
@@ -987,6 +1114,7 @@ impl Mode {
             pending_bash_components: Vec::new(),
             bash_components: Vec::new(),
             fork_selector: None,
+            previous_cwd: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -2949,7 +3077,19 @@ impl Mode {
                     name: c.name.to_string(),
                     description: Some(c.description.to_string()),
                     argument_hint: (c.name == "cd").then(|| "<path>".to_string()),
-                    get_argument_completions: None,
+                    get_argument_completions: (c.name == "cd").then(|| {
+                        let session = self.session.clone();
+                        let previous = self.previous_cwd.clone();
+                        Box::new(move |prefix: &str| {
+                            let completions = change_directory_completions(
+                                session.cwd(),
+                                previous.borrow().as_deref(),
+                                &home_dir(),
+                                prefix,
+                            );
+                            (!completions.is_empty()).then_some(completions)
+                        }) as ArgumentCompletionsFn
+                    }),
                 })
             })
             .collect();
@@ -3018,6 +3158,8 @@ impl Mode {
             BuiltinCommand::Chrome => self.handle_chrome_command(text),
             BuiltinCommand::Fork => self.show_user_message_selector(),
             BuiltinCommand::Clone => self.handle_clone_command(),
+            BuiltinCommand::Cd => self.handle_change_directory(text),
+            BuiltinCommand::Reload => self.handle_reload_command(),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3478,6 +3620,125 @@ impl Mode {
             Some(leaf) => self.fork_session(&leaf, ForkPosition::At),
             None => self.show_status("Nothing to clone yet"),
         }
+    }
+
+    /// `handleChangeDirectory`: `/cd [path|~|-]` moves the runtime to a new
+    /// session in the target directory.
+    fn handle_change_directory(&mut self, text: &str) {
+        let raw = text.strip_prefix("/cd").unwrap_or(text).trim();
+        let previous_cwd = self.session.cwd().to_path_buf();
+        let home = home_dir();
+        let target = if raw.is_empty() || raw == "~" {
+            home.clone()
+        } else if raw == "-" {
+            let Some(previous) = self.previous_cwd.borrow().clone() else {
+                self.show_warning("No previous directory to return to");
+                return;
+            };
+            previous
+        } else {
+            let expanded = match raw.strip_prefix("~/") {
+                Some(rest) => home.join(rest),
+                None => PathBuf::from(raw),
+            };
+            resolve_path(&previous_cwd, &expanded)
+        };
+        if resolve_path(Path::new("/"), &target) == resolve_path(Path::new("/"), &previous_cwd) {
+            self.show_status(&format!("Already in {}", target.display()));
+            return;
+        }
+
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.change_directory(&target)) {
+            Ok(result) if result.cancelled => {}
+            Ok(result) => {
+                *self.previous_cwd.borrow_mut() = Some(previous_cwd.clone());
+                self.rebind_current_session();
+                self.render_current_session_state();
+                let t = theme();
+                let line = format!(
+                    "{} {}\n{}",
+                    t.fg("accent", "✓ Working directory"),
+                    t.fg("muted", &result.cwd.to_string_lossy()),
+                    t.fg(
+                        "dim",
+                        &format!(
+                            "New session started here. {} reopens the session you left in {}.",
+                            key_display_text("app.session.resume"),
+                            previous_cwd.display()
+                        )
+                    )
+                );
+                self.add_to_chat(as_component(&handle(Spacer::new(1))));
+                self.add_to_chat(as_component(&handle(Text::new(line, 1, 0))));
+            }
+            Err(RuntimeError::ChangeDirectory { message, .. }) => self.show_error(&message),
+            Err(error) => {
+                // `handleFatalRuntimeError`.
+                self.show_error(&format!(
+                    "Failed to change directory to {}: {error}",
+                    target.display()
+                ));
+                self.exit_requested = true;
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// `handleReloadCommand`: re-read keybindings, settings, resources and
+    /// themes, then replay the transcript with the listing below it. (The
+    /// compaction guard arrives with the compaction UI, 11.4f.)
+    fn handle_reload_command(&mut self) {
+        if self.session.is_streaming() {
+            self.show_warning("Wait for the current response to finish before reloading.");
+            return;
+        }
+        let t = theme();
+        let mut reload_box = Container::new();
+        reload_box.add_child(as_component(&handle(DynamicBorder::new(Some(Box::new(
+            |s: &str| theme().fg("border", s),
+        ))))));
+        reload_box.add_child(as_component(&handle(Text::new(
+            t.fg(
+                "muted",
+                "Reloading keybindings, extensions, skills, prompts, themes...",
+            ),
+            1,
+            0,
+        ))));
+        reload_box.add_child(as_component(&handle(DynamicBorder::new(Some(Box::new(
+            |s: &str| theme().fg("border", s),
+        ))))));
+        self.show_in_editor_slot(as_component(&handle(reload_box)));
+        self.tui.request_render(true);
+
+        let session = self.session.clone();
+        self.runtime.block_on(async move { session.reload().await });
+        AppKeybindingsManager::create(None).install();
+        let theme_name = self.session.settings().theme();
+        if let Some(name) = theme_name {
+            if let Err(error) = set_theme(&name, true) {
+                self.show_error(&format!("Failed to load theme \"{name}\": {error}"));
+            }
+        }
+        self.update_editor_border_color();
+        self.setup_autocomplete_provider();
+        self.reset_transcript_view();
+        let messages = self.session.messages();
+        self.render_session_context(&messages, false);
+        self.restore_editor();
+        // Below the replayed transcript: /reload is asked for to see what
+        // just loaded.
+        self.render_resources();
+        self.update_available_provider_count();
+        if let Some(error) = self.session.model_registry().error() {
+            self.show_error(&format!("models.json error: {error}"));
+        }
+        self.show_status("Reloaded keybindings, extensions, skills, prompts, themes");
     }
 
     /// `handleName`.
@@ -4201,6 +4462,13 @@ impl Mode {
             }
             Action::SessionColorPreview(slot) => self.preview_session_color(slot),
             Action::SessionColorDone(slot) => self.close_session_color_selector(slot),
+            Action::ChangeDirectoryPrefill => {
+                // Prefill rather than act: the editor's path completion is the
+                // way to name the target.
+                self.editor.borrow_mut().editor.set_text("/cd ");
+                self.dirty.set(true);
+            }
+            Action::ForkOpen => self.show_user_message_selector(),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -4520,6 +4788,8 @@ enum BuiltinCommand {
     Chrome,
     Fork,
     Clone,
+    Cd,
+    Reload,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4548,6 +4818,8 @@ impl BuiltinCommand {
             "chrome" => Self::Chrome,
             "fork" => Self::Fork,
             "clone" => Self::Clone,
+            "cd" => Self::Cd,
+            "reload" => Self::Reload,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)
@@ -4558,10 +4830,14 @@ impl BuiltinCommand {
     /// Commands that also match "/name <args>".
     fn with_args(self) -> bool {
         match self {
-            Self::Name | Self::Compact | Self::Model | Self::Copy | Self::Color | Self::Chrome => {
-                true
-            }
-            Self::Pending(name) => matches!(name, "export" | "import" | "cd" | "subagent"),
+            Self::Name
+            | Self::Compact
+            | Self::Model
+            | Self::Copy
+            | Self::Color
+            | Self::Chrome
+            | Self::Cd => true,
+            Self::Pending(name) => matches!(name, "export" | "import" | "subagent"),
             _ => false,
         }
     }

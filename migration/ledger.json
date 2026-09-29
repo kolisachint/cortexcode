@@ -5768,7 +5768,7 @@
    "id": "11.4e4",
    "title": "/cd (with argument completions) and /reload",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5781,7 +5781,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "cd-reload"
+   ],
    "notes": "",
    "log": [
     {
@@ -5789,6 +5791,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:29:21Z",
+     "commit": "85eaffb",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:29:57Z",
+     "commit": "85eaffb",
+     "kind": "verify",
+     "text": "L1 pass; L2 cd-reload=pass"
     }
    ]
   },
@@ -5883,6 +5897,12 @@
      "commit": "98a52d2",
      "kind": "note",
      "text": "Split into 11.4e1..11.4e6; /share + HTML export stay with 12.7 (deferred by user). Container closes when the six are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:30:07Z",
+     "commit": "85eaffb",
+     "kind": "note",
+     "text": "Leftover seen in 11.4e4: '/model <prefix>' argument completions (createBaseAutocompleteProvider's modelCommand.getArgumentCompletions, fuzzy over scoped/available models) are not wired; do it before closing 11.4e."
     }
    ]
   },
@@ -5914,6 +5934,12 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping): the compaction UI had no owner."
+    },
+    {
+     "at": "2026-09-29T05:29:21Z",
+     "commit": "85eaffb",
+     "kind": "note",
+     "text": "/reload's 'Wait for compaction to finish' guard needs an is_compacting on AgentSession; add it with the compaction UI."
     }
    ]
   },

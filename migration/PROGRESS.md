@@ -41,6 +41,17 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 11.4e4 /cd, /reload
+- `/cd [path|~|-]` through `AgentSessionRuntime::change_directory` (new session there, "✓ Working
+  directory" note), `previous_cwd` for `/cd -`, `/cd` argument completions
+  (getChangeDirectoryCompletions; names sorted like libuv's scandir), alt+… `app.session.
+  changeDirectory` prefills `/cd `, `app.session.fork` opens /fork.
+- `/reload`: reload box in the prompt slot, `session.reload()`, keybindings/theme re-read, the
+  transcript replayed with the listing below, "Reloaded …" status. The compaction guard waits on
+  11.4f (ledger note).
+- Leftover (noted on 11.4e): `/model <prefix>` argument completions aren't wired.
+- L2 `cd-reload` (new, stable, pass). Next: `ledger.py next` (11.4e5 /export jsonl, /import).
+
 ### 2026-09-29 · 11.4e3 /fork, /clone
 - `/fork` opens `UserMessageSelectorComponent` (polled like the tree selector) on the latest
   user message; selecting forks before it through `AgentSessionRuntime::fork(.., Before)`,
