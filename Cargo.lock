@@ -1175,6 +1175,7 @@ version = "0.0.1"
 dependencies = [
  "arboard",
  "chrono",
+ "cortexcode-agent-compaction",
  "cortexcode-agent-types",
  "cortexcode-ai-oauth",
  "cortexcode-ai-types",
@@ -1188,6 +1189,7 @@ dependencies = [
  "cortexcode-code-resources",
  "cortexcode-code-session",
  "cortexcode-code-settings",
+ "cortexcode-code-subagents",
  "cortexcode-code-task-store",
  "cortexcode-code-tool-api",
  "cortexcode-code-tool-bash",
@@ -1198,6 +1200,7 @@ dependencies = [
  "cortexcode-code-tui-theme",
  "cortexcode-code-tui-widgets",
  "cortexcode-tui-components",
+ "cortexcode-tui-fuzzy",
  "cortexcode-tui-images",
  "cortexcode-tui-keys",
  "cortexcode-tui-render",
@@ -1266,6 +1269,7 @@ dependencies = [
 name = "cortexcode-code-tui-widgets"
 version = "0.0.1"
 dependencies = [
+ "cortexcode-agent-types",
  "cortexcode-ai-types",
  "cortexcode-code-agent-session",
  "cortexcode-code-paths",
@@ -1279,6 +1283,7 @@ dependencies = [
  "cortexcode-code-tui-theme",
  "cortexcode-tui-components",
  "cortexcode-tui-images",
+ "cortexcode-tui-keys",
  "cortexcode-tui-render",
  "cortexcode-tui-util",
  "once_cell",
