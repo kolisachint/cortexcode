@@ -53,10 +53,12 @@ use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, 
 use cortexcode_code_subagents::agent_log::set_terminal_owned_by_tui;
 use cortexcode_code_subagents::instance::get_subagent_pool;
 use cortexcode_code_subagents::pool::DispatchOptions;
+use cortexcode_code_task_store::{task_store, TaskStatus};
 use cortexcode_code_tool_api::{truncate_tail, TruncationOptions, TruncationResult};
 use cortexcode_code_tool_bash::BashResult;
 use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_path};
 use cortexcode_code_tools::light::{measure_prompt_surface, measure_tool_schema_tokens};
+use cortexcode_code_tools_optin::todo::settle_dangling_main_tasks;
 use cortexcode_code_tools_optin::AskQuestion;
 use cortexcode_code_tui_keybindings::{
     app_key_label, key_display_text, key_hint, key_text, raw_key_hint, AppKeybindingsManager,
@@ -92,6 +94,9 @@ use cortexcode_code_tui_widgets::custom_message::{
     BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomMessageComponent,
 };
 use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
+use cortexcode_code_tui_widgets::task_panel::{
+    TaskPanelComponent, TaskPanelDensity, TaskPanelView,
+};
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
 use cortexcode_code_tui_widgets::tool_execution::{ToolExecutionComponent, ToolExecutionOptions};
@@ -120,7 +125,7 @@ use cortexcode_tui_util::visible_width;
 
 use crate::changelog::{changelog_for_display, changelog_path, parse_changelog};
 use crate::chrome_layout::{
-    ChromeLayoutController, ChromeSurfaces, FooterLayout, SMALL_TERMINAL_ROWS,
+    ChromeLayoutController, ChromeSurfaces, FooterLayout, TasksLayout, SMALL_TERMINAL_ROWS,
 };
 use crate::dialog_bridge::{set_dialog_sink, DialogRequest};
 use crate::expandable_text::{Expandable, ExpandableText};
@@ -297,6 +302,9 @@ enum Action {
     FollowUp,
     /// `app.message.dequeue`: every queued message back to the prompt.
     Dequeue,
+    /// `app.tasks.cycleForward` / `cycleBackward`: step the task panel lens.
+    TasksForward,
+    TasksBackward,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -313,7 +321,9 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 21] = [
+const EDITOR_ACTIONS: [(&str, Action); 23] = [
+    ("app.tasks.cycleForward", Action::TasksForward),
+    ("app.tasks.cycleBackward", Action::TasksBackward),
     ("app.message.followUp", Action::FollowUp),
     ("app.message.dequeue", Action::Dequeue),
     (
@@ -917,6 +927,10 @@ struct Mode {
     compaction_loader: Option<Rc<RefCell<Loader>>>,
     /// Messages typed while a compaction runs (`compactionQueuedMessages`).
     compaction_queue: Vec<(String, StreamingBehavior)>,
+    /// The task ledger above the prompt.
+    task_panel: Rc<RefCell<TaskPanelComponent>>,
+    /// Re-renders on task-store changes.
+    task_store_subscription: Option<cortexcode_code_task_store::Subscription<'static>>,
     /// The open `/fork` message picker.
     fork_selector: Option<Rc<RefCell<UserMessageSelectorComponent>>>,
     /// Where `/cd -` returns to (`previousCwd`), shared with the `/cd`
@@ -1031,7 +1045,9 @@ impl Mode {
         footer.set_tool_output_view(tool_output_view);
         let footer = handle(footer);
         let footer_slot = handle(Slot::new(as_component(&footer)));
-        let tasks_slot = handle(Slot::new(as_component(&handle(Container::new()))));
+        let task_panel = handle(TaskPanelComponent::new());
+        let tasks_slot = handle(Slot::new(as_component(&task_panel)));
+        let panel_for_density = task_panel.clone();
         let footer_for_density = footer.clone();
         let density = chrome_density.unwrap_or(if size.get().1 < SMALL_TERMINAL_ROWS {
             ChromeDensity::Compact
@@ -1051,7 +1067,15 @@ impl Mode {
                             FooterDensity::Full
                         })
                 }),
-                set_tasks_density: Box::new(|_| {}),
+                set_tasks_density: Box::new(move |d| {
+                    panel_for_density
+                        .borrow_mut()
+                        .set_density(if d == TasksLayout::Summary {
+                            TaskPanelDensity::Summary
+                        } else {
+                            TaskPanelDensity::Full
+                        })
+                }),
             },
             density,
         );
@@ -1198,6 +1222,8 @@ impl Mode {
             compaction_summaries: Vec::new(),
             compaction_loader: None,
             compaction_queue: Vec::new(),
+            task_panel,
+            task_store_subscription: None,
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
@@ -4731,6 +4757,23 @@ impl Mode {
         }
     }
 
+    /// `settleDanglingPlanItems`: plan rows the model left in progress settle
+    /// once the request is over: done after a clean stop, else cancelled.
+    /// Skipped while messages are queued (the request continues).
+    fn settle_dangling_plan_items(&mut self) {
+        if self.session.pending_message_count() > 0 {
+            return;
+        }
+        let outcome = if self.turn_stop_reason == Some(StopReason::Stop) {
+            TaskStatus::Done
+        } else {
+            TaskStatus::Cancelled
+        };
+        if settle_dangling_main_tasks(task_store(), outcome) > 0 {
+            self.dirty.set(true);
+        }
+    }
+
     /// `compaction_start`: the spinner with its cancel hint; Escape aborts
     /// the compaction meanwhile.
     fn on_compaction_start(&mut self, reason: CompactionReason) {
@@ -4816,6 +4859,8 @@ impl Mode {
             }
             AgentEvent::MessageStart { message } => match &message {
                 AgentMessage::User(_) => {
+                    // A new turn drops the finished tasks of the last one.
+                    task_store().reset();
                     startup_progress::clear();
                     self.turn_stop_reason = None;
                     self.add_message_to_chat(&message, false);
@@ -5067,6 +5112,23 @@ impl Mode {
             Action::ForkOpen => self.show_user_message_selector(),
             Action::FollowUp => self.handle_follow_up(),
             Action::Dequeue => self.handle_dequeue(),
+            Action::TasksForward | Action::TasksBackward => {
+                let forward = action == Action::TasksForward;
+                let view = self.task_panel.borrow_mut().cycle_view(forward);
+                let label = match view {
+                    TaskPanelView::Flat => "tasks",
+                    TaskPanelView::Subagents => "subagents",
+                    TaskPanelView::Teams => "teams",
+                };
+                self.show_dial_step(
+                    if forward {
+                        "app.tasks.cycleBackward"
+                    } else {
+                        "app.tasks.cycleForward"
+                    },
+                    &format!("Task panel: {label}"),
+                );
+            }
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -5134,6 +5196,10 @@ impl Mode {
         // From here the TUI owns the terminal: the agent's operational log
         // lines (dispatch, warm fallback, lifeguard) must not write to it.
         set_terminal_owned_by_tui(true);
+        let tx = self.tx.clone();
+        self.task_store_subscription = Some(task_store().subscribe(move || {
+            let _ = tx.send(AppEvent::Rerender);
+        }));
         self.subscription = Some(self.subscribe());
 
         // Everything the chrome shows about the session.
@@ -5242,6 +5308,7 @@ impl Mode {
                         };
                         self.close_open_chain(outcome);
                         self.show_turn_cost();
+                        self.settle_dangling_plan_items();
                         if let Err(error) = result {
                             self.show_error(&error);
                         }
@@ -5297,6 +5364,9 @@ impl Mode {
             }
             if self.last_tool_tick.elapsed() >= Duration::from_secs(1) {
                 self.last_tool_tick = Instant::now();
+                if self.task_panel.borrow().ticking() {
+                    self.dirty.set(true);
+                }
                 for block in self.pending_tools.values() {
                     if block.borrow().is_ticking() {
                         block.borrow_mut().invalidate();
@@ -5372,6 +5442,10 @@ impl Mode {
         self.footer_data.dispose();
         cortexcode_code_tui_theme::stop_theme_watcher();
         self.notifications.borrow_mut().stop();
+        if let Some(subscription) = self.task_store_subscription.take() {
+            subscription.unsubscribe();
+        }
+        self.task_panel.borrow_mut().dispose();
         self.tui.stop();
         set_terminal_owned_by_tui(false);
         let session = self.session.clone();

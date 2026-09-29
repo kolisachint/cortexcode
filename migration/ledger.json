@@ -6114,7 +6114,7 @@
    "id": "11.5b",
    "title": "Task panel in the app: tasks slot, alt+l lens cycle, store subscription, chrome/mid-turn density",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.5a"
    ],
@@ -6136,6 +6136,18 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.5 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:42:00Z",
+     "commit": "a43df0f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:42:24Z",
+     "commit": "a43df0f",
+     "kind": "verify",
+     "text": "L1 pass; L2 todo-write=pass"
     }
    ]
   },
@@ -6143,7 +6155,7 @@
    "id": "11.5",
    "title": "Task panel + subagent progress",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.5a",
     "11.5b"
@@ -6167,6 +6179,18 @@
      "commit": "ec1626a",
      "kind": "note",
      "text": "Split into 11.5a (component + its tests) and 11.5b (app wiring, L2 todo-write). Container closes when both are done (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T06:42:24Z",
+     "commit": "a43df0f",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T06:42:37Z",
+     "commit": "a43df0f",
+     "kind": "verify",
+     "text": "L1 pass; L2 subagent-task=pass"
     }
    ]
   },

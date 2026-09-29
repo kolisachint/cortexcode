@@ -9,8 +9,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.5b (task panel in the app) (compaction UI, L2
-  compact-command); 12.3 extension runner is deferred.
+- Phase 12 is deferred by user decision (2026-09-29). Phase 11 is complete (2026-09-29).
+  What's left outside phase 12: the phase-10 `l1_done` tasks whose L2 is the default-bundle
+  prompt (10.2a/b/c/d/f/g, 10.4c, 10.5, 10.5b). That prompt includes SearchHooCode from the
+  self-knowledge extension (12.4, deferred), so they can't reach L2 until 12.4 or a user
+  decision. Also 9.1/10.2e (blocked on decisions), 10.11 (needs 9.1), and phase 13.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
   8.4a/8.4b/8.4c/8.7; openrouter-cache-write-repro by the new 8.8 onPayload/onResponse task;
@@ -40,6 +43,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.5b task panel in the app; 11.5 closed; phase 11 complete
+- `TaskPanelComponent` mounted in the tasks slot (chrome density → full/summary), task-store
+  subscription → re-render, 1s run-clock tick, alt+l / shift+alt+l lens cycle with dial steps,
+  `task_store().reset()` on each user message, `settle_dangling_main_tasks` when a request settles
+  (done after a clean stop, else cancelled; skipped while messages are queued).
+- Team focus (alt+n, nudge/attach) is not wired: role agents come from hooteams `--team` (12.7).
+- L2 `todo-write` passes (stable). 10.2f still needs `print-todo-write` (default-bundle prompt).
 
 ### 2026-09-29 · 11.5 split; 11.5a TaskPanelComponent
 - 11.5 split into 11.5a (component + tests) and 11.5b (app wiring; L2 todo-write, which is
