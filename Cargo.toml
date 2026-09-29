@@ -184,3 +184,13 @@ cortexcode-tui-util = { path = "crates/cortexcode-tui-util" }
 repository = "https://github.com/kolisachint/hoocode"
 hoocode-version = "0.5.89"
 hoocode-commit = "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
+
+# Regex compilation is very slow unoptimized: the markdown renderer's rules
+# (tens of patterns) took ~1 s to build on first use in dev builds, which
+# delayed the first frame whenever it held markdown. Optimize just these.
+[profile.dev.package.regex-automata]
+opt-level = 3
+[profile.dev.package.regex-syntax]
+opt-level = 3
+[profile.dev.package.fancy-regex]
+opt-level = 3

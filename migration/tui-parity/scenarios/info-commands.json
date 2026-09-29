@@ -1,0 +1,25 @@
+{
+  "description": "/hotkeys draws the Keyboard Shortcuts page with the effective keys (the whole page, through the scrollback), alt+k opens it too, and /debug writes the debug log and says where. --no-session keeps the footer fixed.",
+  "phase": "11.4e1",
+  "terminal": {"cols": 110, "rows": 40},
+  "settings": {"enableSemanticIndex": false},
+  "args": ["--offline", "--light", "--provider", "mock", "--model", "mock-model", "--no-session"],
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "/hotkeys"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Undo / redo", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "hotkeys", "contains": ["Keyboard Shortcuts", "Undo / redo"], "history": true},
+    {"keys": ["M-k"]},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "hotkeys-again", "contains": ["Undo / redo"]},
+    {"type": "/debug"},
+    {"keys": ["Enter"]},
+    {"wait_for": "Debug log written", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "debug", "contains": ["Debug log written"]}
+  ]
+}

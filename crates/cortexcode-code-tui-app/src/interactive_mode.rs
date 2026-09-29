@@ -38,7 +38,7 @@ use cortexcode_code_media::rich_clipboard::{copy_rich_to_clipboard, CopyFlavour,
 use cortexcode_code_models::{
     find_exact_model_reference_match, parse_thinking_level, resolve_model_scope,
 };
-use cortexcode_code_paths::{APP_NAME, APP_TITLE};
+use cortexcode_code_paths::{APP_NAME, APP_TITLE, VERSION};
 use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
@@ -74,6 +74,7 @@ use cortexcode_code_tui_theme::{
     set_theme, theme, ThinkingBorderLevel,
 };
 use cortexcode_code_tui_widgets::bash_execution::BashExecutionComponent;
+use cortexcode_code_tui_widgets::dynamic_border::DynamicBorder;
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
 use cortexcode_code_tui_widgets::tool_execution::{ToolExecutionComponent, ToolExecutionOptions};
@@ -88,7 +89,7 @@ use cortexcode_code_tui_widgets::{
 use cortexcode_tui_components::BoxComponent;
 use cortexcode_tui_components::{
     CombinedAutocompleteProvider, CommandEntry, Editor, EditorHost, EditorOptions,
-    FrameBorderStyle, Loader, MarkdownTheme, SlashCommand, Spacer, Text,
+    FrameBorderStyle, Loader, Markdown, MarkdownTheme, SlashCommand, Spacer, Text,
 };
 use cortexcode_tui_images::get_capabilities;
 use cortexcode_tui_keys::get_keybindings;
@@ -96,7 +97,9 @@ use cortexcode_tui_render::{
     Component, ComponentHandle, Container, FlexSpacer, Slot, Tui, TuiEvent,
 };
 use cortexcode_tui_terminal::Terminal;
+use cortexcode_tui_util::visible_width;
 
+use crate::changelog::{changelog_for_display, changelog_path, parse_changelog};
 use crate::chrome_layout::{
     ChromeLayoutController, ChromeSurfaces, FooterLayout, SMALL_TERMINAL_ROWS,
 };
@@ -106,6 +109,7 @@ use crate::extension_editor::{EditorOutcome, ExtensionEditorComponent};
 use crate::extension_selector::{ExtensionSelectorComponent, SelectorOutcome};
 use crate::footer::{FooterComponent, FooterDensity, FooterModel, FooterSource};
 use crate::footer_data::FooterDataProvider;
+use crate::hotkeys::hotkeys_markdown;
 use crate::input_frame::set_input_frame_border;
 use crate::login_controller::{
     action_label, logged_out_message, login_provider_options, logout_provider_options,
@@ -257,6 +261,8 @@ enum Action {
     CopyMessage,
     /// `app.clipboard.pasteImage`.
     PasteImage,
+    /// `app.hotkeys.open`: `/hotkeys`.
+    HotkeysOpen,
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -273,7 +279,8 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 14] = [
+const EDITOR_ACTIONS: [(&str, Action); 15] = [
+    ("app.hotkeys.open", Action::HotkeysOpen),
     ("app.clipboard.copyMessage", Action::CopyMessage),
     ("app.view.cycleForward", Action::ViewForward),
     ("app.view.cycleBackward", Action::ViewBackward),
@@ -451,6 +458,18 @@ fn native_clipboard_image_reader() -> Option<Box<dyn Fn() -> Option<Vec<u8>>>> {
             )
         }) as Box<dyn Fn() -> Option<Vec<u8>>>
     })
+}
+
+/// The first version header in a changelog excerpt.
+static CHANGELOG_VERSION: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"##\s+\[?(\d+\.\d+\.\d+)\]?").expect("static pattern")
+});
+
+/// `new Date().toISOString()`.
+fn iso_now() -> String {
+    chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string()
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -2960,6 +2979,9 @@ impl Mode {
             BuiltinCommand::Login => self.show_oauth_selector(LoginMode::Login),
             BuiltinCommand::Logout => self.show_oauth_selector(LoginMode::Logout),
             BuiltinCommand::Copy => self.handle_copy_command(text),
+            BuiltinCommand::Hotkeys => self.handle_hotkeys_command(),
+            BuiltinCommand::Changelog => self.handle_changelog_command(),
+            BuiltinCommand::Debug => self.handle_debug_command(),
             BuiltinCommand::Pending(name) => {
                 // Wired by its own ledger task (see 11.4e).
                 self.show_status(&format!("/{name} is not available yet"));
@@ -3082,6 +3104,141 @@ impl Mode {
             .editor
             .insert_text_at_cursor(&path.to_string_lossy());
         self.dirty.set(true);
+    }
+
+    /// A bordered page in the chat: accent title over markdown
+    /// (`handleHotkeys`, `handleChangelog`, the startup "What's New").
+    fn show_bordered_markdown(&mut self, title: &str, markdown: &str) {
+        let t = theme();
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+        self.add_to_chat(as_component(&handle(Text::new(
+            t.bold(&t.fg("accent", title)),
+            1,
+            0,
+        ))));
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Markdown::new(
+            markdown,
+            1,
+            0,
+            (self.markdown_theme())(),
+            None,
+        ))));
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+    }
+
+    /// `handleHotkeys`.
+    fn handle_hotkeys_command(&mut self) {
+        self.show_bordered_markdown("Keyboard Shortcuts", &hotkeys_markdown());
+    }
+
+    /// `handleChangelog`: every entry, oldest first.
+    fn handle_changelog_command(&mut self) {
+        let entries = parse_changelog(&changelog_path());
+        if entries.is_empty() {
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+            self.add_to_chat(as_component(&handle(Text::new(
+                theme().fg("dim", "No changelog entries found."),
+                1,
+                0,
+            ))));
+            return;
+        }
+        let markdown = entries
+            .iter()
+            .rev()
+            .map(|e| e.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        self.show_bordered_markdown("What's New", &markdown);
+    }
+
+    /// `showStartupNoticesIfNeeded`: the entries new since the last run,
+    /// in full or as one line when the changelog is collapsed.
+    fn show_startup_notices(&mut self, changelog: Option<String>) {
+        let Some(markdown) = changelog.filter(|m| !m.trim().is_empty()) else {
+            return;
+        };
+        let has_rows = !self.chat.borrow().children.is_empty();
+        if has_rows {
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        }
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+        let t = theme();
+        let collapse = self.session.settings().collapse_changelog();
+        if collapse {
+            let latest = CHANGELOG_VERSION
+                .captures(&markdown)
+                .map_or_else(|| VERSION.to_string(), |c| c[1].to_string());
+            self.add_to_chat(as_component(&handle(Text::new(
+                format!(
+                    "Updated to v{latest}. Use {} to view full changelog.",
+                    t.bold("/changelog")
+                ),
+                1,
+                0,
+            ))));
+        } else {
+            self.add_to_chat(as_component(&handle(Text::new(
+                t.bold(&t.fg("accent", "What's New")),
+                1,
+                0,
+            ))));
+            self.add_to_chat(as_component(&handle(Spacer::new(1))));
+            self.add_to_chat(as_component(&handle(Markdown::new(
+                markdown.trim(),
+                1,
+                0,
+                (self.markdown_theme())(),
+                None,
+            ))));
+        }
+        self.add_to_chat(as_component(&handle(DynamicBorder::new(None))));
+    }
+
+    /// `handleDebug`: every rendered line with its width, and the messages
+    /// as JSON lines, written to the debug log.
+    fn handle_debug_command(&mut self) {
+        let (width, height) = self.size.get();
+        let lines = self.tui.render(width);
+        let mut data = vec![
+            format!("Debug output at {}", iso_now()),
+            format!("Terminal: {width}x{height}"),
+            format!("Total lines: {}", lines.len()),
+            String::new(),
+            "=== All rendered lines with visible widths ===".to_string(),
+        ];
+        for (idx, line) in lines.iter().enumerate() {
+            let escaped = serde_json::to_string(line).unwrap_or_default();
+            data.push(format!("[{idx}] (w={}) {escaped}", visible_width(line)));
+        }
+        data.push(String::new());
+        data.push("=== Agent messages (JSONL) ===".to_string());
+        for message in self.session.messages() {
+            data.push(serde_json::to_string(&message).unwrap_or_default());
+        }
+        data.push(String::new());
+
+        let path = cortexcode_code_paths::debug_log_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(error) = std::fs::write(&path, data.join("\n")) {
+            self.show_error(&format!("Failed to write debug log: {error}"));
+            return;
+        }
+        let t = theme();
+        self.add_to_chat(as_component(&handle(Spacer::new(1))));
+        self.add_to_chat(as_component(&handle(Text::new(
+            format!(
+                "{}\n{}",
+                t.fg("accent", "✓ Debug log written"),
+                t.fg("muted", &path.to_string_lossy())
+            ),
+            1,
+            0,
+        ))));
     }
 
     /// `handleName`.
@@ -3799,6 +3956,7 @@ impl Mode {
             Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::CopyMessage => self.handle_copy_command(""),
             Action::PasteImage => self.handle_clipboard_image_paste(),
+            Action::HotkeysOpen => self.handle_hotkeys_command(),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -3870,7 +4028,13 @@ impl Mode {
                 ));
             }
         }
+        let changelog = {
+            let has_messages = !self.session.messages().is_empty();
+            let mut settings = self.session.settings();
+            changelog_for_display(has_messages, &mut settings, VERSION)
+        };
         self.render_resources();
+        self.show_startup_notices(changelog);
         // Messages after the resource listing, as the pin orders them.
         self.render_initial_messages();
         self.setup_autocomplete_provider();
@@ -4097,6 +4261,9 @@ enum BuiltinCommand {
     Login,
     Logout,
     Copy,
+    Hotkeys,
+    Changelog,
+    Debug,
     /// A built-in whose handler lands with a later task.
     Pending(&'static str),
 }
@@ -4118,6 +4285,9 @@ impl BuiltinCommand {
             "login" => Self::Login,
             "logout" => Self::Logout,
             "copy" => Self::Copy,
+            "hotkeys" => Self::Hotkeys,
+            "changelog" => Self::Changelog,
+            "debug" => Self::Debug,
             _ => {
                 let builtin = BUILTIN_SLASH_COMMANDS.iter().find(|c| c.name == name)?;
                 Self::Pending(builtin.name)

@@ -1,0 +1,52 @@
+{
+  "description": "Startup notice: last seen 0.1.0, so the 0.2.0 entry shows as the one-line 'Updated to v0.2.0. Use /changelog ...' (the global version normalization masks the number) (collapseChangelog) below the resource listing. Same seeded package dir as changelog-command.",
+  "phase": "11.4e1",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false,
+    "lastChangelogVersion": "0.1.0",
+    "collapseChangelog": true
+  },
+  "env": {
+    "HOOCODE_PACKAGE_DIR": "{WORK}/pkg"
+  },
+  "files": {
+    "pkg/CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n\n- not yet\n\n## [0.2.0] - 2026-02-01\n\n### Added\n- **Two** things\n- `code` too\n\n## [0.1.0] - 2026-01-01\n\n- First release\n"
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "startup",
+      "contains": [
+        "Use /changelog to view full changelog"
+      ],
+      "not_contains": [
+        "First release"
+      ]
+    }
+  ],
+  "symlinks": {
+    "pkg/package.json": "{HOOCODE_PKG}/package.json",
+    "pkg/dist": "{HOOCODE_PKG}/dist"
+  }
+}

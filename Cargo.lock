@@ -1174,6 +1174,7 @@ name = "cortexcode-code-tui-app"
 version = "0.0.1"
 dependencies = [
  "arboard",
+ "chrono",
  "cortexcode-agent-types",
  "cortexcode-ai-oauth",
  "cortexcode-ai-types",
@@ -1202,6 +1203,7 @@ dependencies = [
  "cortexcode-tui-render",
  "cortexcode-tui-terminal",
  "cortexcode-tui-util",
+ "regex",
  "serde_json",
  "tempfile",
  "tokio",

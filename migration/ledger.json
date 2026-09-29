@@ -5632,8 +5632,55 @@
    ]
   },
   {
-   "id": "11.4e",
-   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "id": "11.4e1",
+   "title": "Info commands: /hotkeys /changelog /debug, and the startup What's New",
+   "phase": 11,
+   "status": "done",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/utils/changelog.ts",
+    "packages/coding-agent/src/modes/interactive/startup-checks.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "info-commands",
+    "changelog-command",
+    "changelog-startup",
+    "changelog-startup-collapsed"
+   ],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T05:03:23Z",
+     "commit": "98a52d2",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T05:04:27Z",
+     "commit": "98a52d2",
+     "kind": "verify",
+     "text": "L1 pass; L2 info-commands=pass, changelog-command=pass, changelog-startup=pass, changelog-startup-collapsed=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.4e2",
+   "title": "/chrome and /color (session colour selector)",
    "phase": 11,
    "status": "todo",
    "depends": [
@@ -5649,13 +5696,164 @@
    "ts_tests": [],
    "l1_cmds": [],
    "l2": [],
-   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks.",
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e3",
+   "title": "/fork (user message selector) and /clone",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/interactive/components/user-message-selector.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e4",
+   "title": "/cd (with argument completions) and /reload",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e5",
+   "title": "/export (jsonl) and /import",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "The HTML export (and /share) is export-html, owned by 12.7 (deferred): /export without .jsonl keeps a clear 'not available' until then.",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e6",
+   "title": "/subagent <mode> <task>",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4a"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "",
+   "log": [
+    {
+     "at": "2026-09-29T00:00:00Z",
+     "commit": "",
+     "kind": "note",
+     "text": "Split from 11.4e (bookkeeping)."
+    }
+   ]
+  },
+  {
+   "id": "11.4e",
+   "title": "Slash commands II: /hotkeys /changelog /debug /cd /chrome /color /fork /clone /reload /export /import /share /subagent",
+   "phase": 11,
+   "status": "todo",
+   "depends": [
+    "11.4e1",
+    "11.4e2",
+    "11.4e3",
+    "11.4e4",
+    "11.4e5",
+    "11.4e6"
+   ],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/command-executor.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [],
+   "notes": "/model, /scoped-models (11.3b), /settings (11.3d2), /login and /logout (11.3f2) are wired by their own tasks. /share and the HTML half of /export belong to 12.7 (export-html/share, deferred).",
    "log": [
     {
      "at": "2026-09-28T07:31:24Z",
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:52:00Z",
+     "commit": "98a52d2",
+     "kind": "note",
+     "text": "Split into 11.4e1..11.4e6; /share + HTML export stay with 12.7 (deferred by user). Container closes when the six are done (bookkeeping)."
     }
    ]
   },
@@ -5930,6 +6128,12 @@
      "commit": "5480dc2",
      "kind": "note",
      "text": "User (2026-09-29) confirmed: phase 12 stays deferred; do later."
+    },
+    {
+     "at": "2026-09-29T04:52:00Z",
+     "commit": "98a52d2",
+     "kind": "note",
+     "text": "Owns /share and the HTML half of /export (split out of 11.4e)."
     }
    ]
   },

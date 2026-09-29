@@ -1,0 +1,68 @@
+{
+  "description": "/changelog: every entry of the package's CHANGELOG.md, oldest first, in a bordered What's New page. HOOCODE_PACKAGE_DIR points both apps at a dir with a seeded changelog (hoocode's package.json and dist are linked in from the pin for its themes). A fresh install shows no startup notice; it only records the latest version.",
+  "phase": "11.4e1",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "env": {
+    "HOOCODE_PACKAGE_DIR": "{WORK}/pkg"
+  },
+  "files": {
+    "pkg/CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n\n- not yet\n\n## [0.2.0] - 2026-02-01\n\n### Added\n- **Two** things\n- `code` too\n\n## [0.1.0] - 2026-01-01\n\n- First release\n"
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "startup"
+    },
+    {
+      "type": "/changelog"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "What's New",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "changelog",
+      "contains": [
+        "What's New",
+        "0.1.0",
+        "0.2.0"
+      ]
+    }
+  ],
+  "symlinks": {
+    "pkg/package.json": "{HOOCODE_PKG}/package.json",
+    "pkg/dist": "{HOOCODE_PKG}/dist"
+  }
+}

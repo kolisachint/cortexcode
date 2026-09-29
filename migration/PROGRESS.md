@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4e (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4e2..e6 (remaining commands), 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4e split; 11.4e1 /hotkeys /changelog /debug + startup What's New
+- 11.4e split into 11.4e1..e6 (info; /chrome /color; /fork /clone; /cd /reload; /export jsonl +
+  /import; /subagent). /share and the HTML half of /export stay with 12.7 (deferred).
+- `code-tui-app`: `hotkeys.rs` (the pin's page, generated from command-executor.ts with every
+  key looked up live), `changelog.rs` (parseChangelog, getNewEntries, getChangelogPath,
+  getChangelogForDisplay), `/hotkeys` + alt+k, `/changelog`, `/debug` (`Tui::render` is now pub),
+  startup "What's New" / collapsed "Updated to v…" after the resource listing.
+- Harness: env values expand `{WORK}`/`{HOME}`/`{TMP}`; new `symlinks` (with `{HOOCODE_PKG}`)
+  so HOOCODE_PACKAGE_DIR can point at a seeded CHANGELOG.md while hoocode keeps its package.json
+  and themes. README updated.
+- Perf: first markdown render took ~1 s in dev builds (markdown rules' regexes compiled
+  unoptimized), which delayed the first frame. Root `Cargo.toml` now builds regex-automata,
+  regex-syntax and fancy-regex at opt-level 3 in dev: ~0.13 s.
+- L2 (new, stable, pass): info-commands (whole /hotkeys page via scrollback), changelog-command,
+  changelog-startup, changelog-startup-collapsed. Full L2: only the known 11 fail.
+- Next: `ledger.py next` (11.4e2 /chrome /color).
 
 ### 2026-09-29 · 11.4d2 image paste; 11.4d closed
 - `cortexcode-code-media::clipboard_image` (readClipboardImage behind `ClipboardImageHost`:
