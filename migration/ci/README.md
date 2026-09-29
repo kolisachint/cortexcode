@@ -10,3 +10,8 @@ cp migration/ci/tui-parity.yml .github/workflows/       # manual/nightly Level-2
 ```
 
 Tracked by ledger tasks 7.1 (CI gates) and 13.3 (parity workflow).
+
+Level 1 parity (13.2, `crates/cortexcode-code-main/tests/replay.rs`) needs no workflow
+change: it runs in the existing `cargo test --workspace` step. `scripts/parity_test.sh` is a
+local smoke test (binary starts, the replay test, and one Level-2 scenario when the pinned
+hoocode is built).

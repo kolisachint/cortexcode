@@ -44,6 +44,14 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-29 · 13.3 parity smoke
+- `scripts/parity_test.sh` is now a smoke test: `--version`/`--help`, the 13.2 replay test,
+  and the L2 `print-basic` scenario when the pinned hoocode is built. The old grep checks
+  (a nonexistent `code-main/src/runtime.rs`, a hard-coded model count) are gone.
+- CI already runs 13.2 via `cargo test --workspace`. The nightly/manual L2 workflow is still
+  only staged (`migration/ci/tui-parity.yml`); the user has to copy it into `.github/workflows/`.
+- Next: 13.4 (TS test port ledger).
+
 ### 2026-09-29 · 13.2 Level-1 fixture replay
 - `harness.py record <scenario|all>` runs the terminal-free scenarios in
   `migration/tui-parity/replay.json` against hoocode headless (stdin a pipe or /dev/null,

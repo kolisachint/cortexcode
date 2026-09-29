@@ -6489,17 +6489,32 @@
    "id": "13.3",
    "title": "Replace scripts/parity_test.sh (--help greps) with harness smoke; CI workflow tui-parity (manual/nightly)",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.8a"
    ],
    "crates": [],
    "sources": [],
    "ts_tests": [],
-   "l1_cmds": [],
+   "l1_cmds": [
+    "scripts/parity_test.sh"
+   ],
    "l2": "n/a: test infra",
-   "notes": "",
-   "log": []
+   "notes": "scripts/parity_test.sh = smoke (version/help, 13.2 replay, L2 print-basic when hoocode-pin is built). Workflow staged in migration/ci/tui-parity.yml (token cannot push workflows; user applies).",
+   "log": [
+    {
+     "at": "2026-09-29T17:14:07Z",
+     "commit": "d1a6312",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T17:14:30Z",
+     "commit": "d1a6312",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.4",
