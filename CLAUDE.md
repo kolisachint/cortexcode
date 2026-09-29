@@ -8,6 +8,8 @@ Never modify hoocode; it is the reference.
 - Plan and rationale: `docs/design/hoocode-to-cortexcode-migration.md`.
 - Task status (source of truth): `migration/ledger.json` via `python3 migration/ledger.py`.
 - Handoff log: `migration/PROGRESS.md`.
+- Build speed / agent loop design (profiles, nextest, test layout, hooks, CI):
+  `docs/design/build-speed.md`. Its §4.3 rules join this file as they are implemented.
 - Done = Level 1 (cargo fmt/clippy/test + `migration/check_dep_firewall.py`) + Level 2
   (`migration/tui-parity/harness.py`: real hoocode vs real cortex rendered in tmux against
   one mock LLM). `ledger.py verify <id>` runs both.
