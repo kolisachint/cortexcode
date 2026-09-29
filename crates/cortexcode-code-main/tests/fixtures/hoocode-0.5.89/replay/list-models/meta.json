@@ -1,0 +1,11 @@
+{
+  "scenario": "list-models",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-gi3vwb8u/home",
+    "WORK": "/tmp/replay-gi3vwb8u/work",
+    "TMP": "/tmp/replay-gi3vwb8u"
+  },
+  "exit_status": 0,
+  "files": {}
+}

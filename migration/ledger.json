@@ -6445,7 +6445,7 @@
    "id": "13.2",
    "title": "Level-1 fixture replay: insta snapshot tests over hoocode-recorded sessions/json/rpc transcripts",
    "phase": 13,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "7.2"
    ],
@@ -6457,7 +6457,20 @@
    "l1_cmds": [],
    "l2": "n/a: test infra",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-29T16:59:10Z",
+     "commit": "f09b699",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T16:59:10Z",
+     "commit": "f09b699",
+     "kind": "note",
+     "text": "WIP: harness.py record + replay.json + 14 hoocode fixtures/snapshots + tests/replay.rs written; replay test not yet built/run (Bash permission checks were failing)."
+    }
+   ]
   },
   {
    "id": "13.3",

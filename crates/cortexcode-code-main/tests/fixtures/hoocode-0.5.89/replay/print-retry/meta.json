@@ -1,0 +1,11 @@
+{
+  "scenario": "print-retry",
+  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a",
+  "paths": {
+    "HOME": "/tmp/replay-9yyr9mp7/home",
+    "WORK": "/tmp/replay-9yyr9mp7/work",
+    "TMP": "/tmp/replay-9yyr9mp7"
+  },
+  "exit_status": 0,
+  "files": {}
+}

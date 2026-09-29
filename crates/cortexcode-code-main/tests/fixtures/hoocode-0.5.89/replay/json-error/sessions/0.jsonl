@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"01a0ee16-ba10-71f6-a950-19e8c3795d5c","timestamp":"2026-09-29T16:54:21.969Z","cwd":"/tmp/replay-1mm6r1r7/work"}
+{"type":"model_change","id":"2e59535a","parentId":null,"timestamp":"2026-09-29T16:54:21.987Z","provider":"mock","modelId":"mock-model"}
+{"type":"thinking_level_change","id":"e342f5f2","parentId":"2e59535a","timestamp":"2026-09-29T16:54:21.987Z","thinkingLevel":"off"}
+{"type":"message","id":"038b2740","parentId":"e342f5f2","timestamp":"2026-09-29T16:54:22.011Z","message":{"role":"user","content":[{"type":"text","text":"say hello"}],"timestamp":1790700862000}}
+{"type":"message","id":"57809a01","parentId":"038b2740","timestamp":"2026-09-29T16:54:22.071Z","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"mock","model":"mock-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1790700862037,"errorMessage":"400 invalid request: mock rejects this"}}
