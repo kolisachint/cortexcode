@@ -1154,6 +1154,8 @@ dependencies = [
  "cortexcode-code-session",
  "cortexcode-code-settings",
  "cortexcode-code-task-store",
+ "cortexcode-code-tool-api",
+ "cortexcode-code-tool-bash",
  "cortexcode-code-tools",
  "cortexcode-code-tools-optin",
  "cortexcode-code-tui-keybindings",

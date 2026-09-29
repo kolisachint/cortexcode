@@ -1,0 +1,138 @@
+{
+  "description": "! and !! from the prompt: typing '!' turns the prompt into bash mode ('!' prefix, bash-mode border); '!echo hello' runs in the transcript with its output; '!!printf quiet' runs excluded from context (dim); Escape clears a half-typed bash-mode prompt; the next prompt's request carries the '!' output and not the '!!' one. --no-session keeps the footer fixed.",
+  "phase": "11.4c",
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "args": [
+    "--offline",
+    "--light",
+    "--provider",
+    "mock",
+    "--model",
+    "mock-model",
+    "--no-session"
+  ],
+  "llm": [
+    {
+      "text": "ok"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "!echo hello"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "bash-mode",
+      "contains": [
+        "echo hello"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "\\$ echo hello",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "ran",
+      "contains": [
+        "$ echo hello",
+        "hello"
+      ]
+    },
+    {
+      "type": "!!printf quiet"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "\\$ printf quiet",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "excluded",
+      "contains": [
+        "$ printf quiet"
+      ]
+    },
+    {
+      "type": "!ls"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "escaped",
+      "not_contains": [
+        "!ls"
+      ]
+    },
+    {
+      "type": "what ran?"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "^ *ok *$",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "prompted",
+      "contains": [
+        "what ran?"
+      ]
+    }
+  ],
+  "compare_requests": true,
+  "request_fields": [
+    "messages"
+  ]
+}

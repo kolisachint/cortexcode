@@ -19,6 +19,8 @@ cortexcode-code-auth = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }
 cortexcode-code-models = { workspace = true }
 cortexcode-code-tools = { workspace = true }
+cortexcode-code-tool-api = { workspace = true }
+cortexcode-code-tool-bash = { workspace = true }
 cortexcode-tui-images = { workspace = true }
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-permissions = { workspace = true }

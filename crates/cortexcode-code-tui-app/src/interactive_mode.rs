@@ -35,6 +35,8 @@ use cortexcode_code_resources::BUILTIN_SLASH_COMMANDS;
 use cortexcode_code_session::SessionManager;
 use cortexcode_code_settings::platform_targets::{get_workspace_platforms, set_platforms};
 use cortexcode_code_settings::{ChromeDensity, DoubleEscapeAction, EditorBorder, ToolOutputView};
+use cortexcode_code_tool_api::{truncate_tail, TruncationOptions, TruncationResult};
+use cortexcode_code_tool_bash::BashResult;
 use cortexcode_code_tools::external_tools::{describe_external_tools, get_tool_path};
 use cortexcode_code_tools::light::{measure_prompt_surface, measure_tool_schema_tokens};
 use cortexcode_code_tools_optin::AskQuestion;
@@ -63,6 +65,7 @@ use cortexcode_code_tui_theme::{
     get_editor_theme, get_markdown_theme, init_theme, on_theme_change, set_registered_themes,
     set_theme, theme, ThinkingBorderLevel,
 };
+use cortexcode_code_tui_widgets::bash_execution::BashExecutionComponent;
 use cortexcode_code_tui_widgets::tool_chain::ToolChainComponent;
 use cortexcode_code_tui_widgets::tool_chain_summary::ChainState;
 use cortexcode_code_tui_widgets::tool_execution::{ToolExecutionComponent, ToolExecutionOptions};
@@ -240,6 +243,8 @@ enum Action {
     AskOptionsDone(Option<Vec<String>>),
     /// The multi-line editor dialog closed.
     EditorDialogDone(EditorOutcome),
+    /// The prompt text changed (`onChange`).
+    EditorChanged(String),
 }
 
 /// A question waiting on a dialog: the tree entry it is about, and where
@@ -344,6 +349,10 @@ enum AppEvent {
     Dialog(DialogRequest),
     /// A step of a running OAuth login.
     Login(LoginUpdate),
+    /// Output from the running `!` command.
+    BashChunk(String),
+    /// The `!` command ended.
+    BashDone(Result<BashResult, String>),
 }
 
 /// A pane's answers, collected by its `on_done`.
@@ -386,6 +395,14 @@ struct OAuthSelect {
     outcomes: Outcomes,
     options: Vec<cortexcode_ai_oauth::OAuthSelectOption>,
     reply: tokio::sync::oneshot::Sender<Option<String>>,
+}
+
+/// A `{ truncated: true }` result for a `!` row: the row only reads the flag.
+fn truncated_marker(content: &str) -> TruncationResult {
+    TruncationResult {
+        truncated: true,
+        ..truncate_tail(content, TruncationOptions::default())
+    }
 }
 
 fn handle<C: Component + 'static>(c: C) -> Rc<RefCell<C>> {
@@ -598,6 +615,16 @@ struct Mode {
     tree_navigation: Option<TreeNavigation>,
     /// The open multi-line editor dialog (`showEditor`).
     editor_dialog: Option<OpenEditorDialog>,
+    /// Rows started while the agent streams, until the next prompt.
+    pending_messages: Rc<RefCell<Container>>,
+    /// The prompt starts with `!` (`isBashMode`).
+    is_bash_mode: bool,
+    /// The running `!` command's row (`bashComponent`).
+    bash_component: Option<Rc<RefCell<BashExecutionComponent>>>,
+    /// `!` rows parked in the pending area (`pendingBashComponents`).
+    pending_bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
+    /// Every `!` row in the transcript, for the expand sweep.
+    bash_components: Vec<Rc<RefCell<BashExecutionComponent>>>,
 }
 
 impl Mode {
@@ -673,6 +700,11 @@ impl Mode {
         let sink = actions.clone();
         editor.on_submit = Some(Box::new(move |text: &str| {
             sink.borrow_mut().push(Action::Submit(text.to_string()))
+        }));
+        let sink = actions.clone();
+        editor.on_change = Some(Box::new(move |text: &str| {
+            sink.borrow_mut()
+                .push(Action::EditorChanged(text.to_string()))
         }));
         let sink = actions.clone();
         editor.on_autocomplete_visibility_change = Some(Box::new(move |visible| {
@@ -778,7 +810,8 @@ impl Mode {
         tui.add_child(as_component(&screen_fill));
         tui.set_flex_spacer(Some(screen_fill.clone()));
         tui.add_child(as_component(&chat));
-        tui.add_child(as_component(&handle(Container::new()))); // pending messages
+        let pending_messages = handle(Container::new());
+        tui.add_child(as_component(&pending_messages));
         let status = handle(Container::new());
         tui.add_child(as_component(&status));
         tui.add_child(as_component(&widget_above));
@@ -856,14 +889,119 @@ impl Mode {
             pending_tree_instructions: None,
             tree_navigation: None,
             editor_dialog: None,
+            pending_messages,
+            is_bash_mode: false,
+            bash_component: None,
+            pending_bash_components: Vec::new(),
+            bash_components: Vec::new(),
         }
     }
 
     fn update_editor_border_color(&mut self) {
-        let level = thinking_border_level(self.session.thinking_level().as_str());
-        self.editor.borrow_mut().editor.border_color =
-            Box::new(move |s: &str| theme().thinking_border(level, s));
+        self.editor.borrow_mut().editor.border_color = if self.is_bash_mode {
+            Box::new(|s: &str| theme().bash_mode_border(s))
+        } else {
+            let level = thinking_border_level(self.session.thinking_level().as_str());
+            Box::new(move |s: &str| theme().thinking_border(level, s))
+        };
         self.dirty.set(true);
+    }
+
+    /// `updateEditorPromptPrefix`: `!` in the bash-mode colour, else `❯`.
+    fn update_editor_prompt_prefix(&mut self) {
+        let mut editor = self.editor.borrow_mut();
+        if self.is_bash_mode {
+            editor.editor.prompt_prefix = "!".into();
+            editor.editor.prompt_color = Box::new(|s: &str| theme().bash_mode_border(s));
+        } else {
+            editor.editor.prompt_prefix = "❯".into();
+            editor.editor.prompt_color = Box::new(|s: &str| s.to_string());
+        }
+        self.dirty.set(true);
+    }
+
+    /// Out of bash mode after the prompt was cleared. The pin's `setText("")`
+    /// already ran `onChange` synchronously; here that change is still queued
+    /// and would see no transition, so the prefix is reset too.
+    fn leave_bash_mode(&mut self) {
+        self.is_bash_mode = false;
+        self.update_editor_border_color();
+        self.update_editor_prompt_prefix();
+    }
+
+    /// The editor's `onChange`: entering or leaving bash mode.
+    fn on_editor_change(&mut self, text: &str) {
+        let was_bash_mode = self.is_bash_mode;
+        self.is_bash_mode = text.trim_start().starts_with('!');
+        if was_bash_mode != self.is_bash_mode {
+            self.update_editor_border_color();
+            self.update_editor_prompt_prefix();
+        }
+    }
+
+    /// `BashExecutionController.handleBashCommand`: run a `!` command
+    /// through the session off the UI thread, streaming into its row. While
+    /// the agent streams the row waits in the pending area. The `user_bash`
+    /// extension hook waits on the extension runner (12.3).
+    fn handle_bash_command(&mut self, command: String, exclude_from_context: bool) {
+        let component = handle(BashExecutionComponent::new(&command, exclude_from_context));
+        if self.session.is_streaming() {
+            self.pending_messages
+                .borrow_mut()
+                .add_child(as_component(&component));
+            self.pending_bash_components.push(component.clone());
+        } else {
+            self.add_to_chat(as_component(&component));
+        }
+        self.bash_components.push(component.clone());
+        self.bash_component = Some(component);
+        self.dirty.set(true);
+
+        let session = self.session.clone();
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let chunks = tx.clone();
+            let mut on_chunk = move |chunk: &str| {
+                let _ = chunks.send(AppEvent::BashChunk(chunk.to_string()));
+            };
+            let result = session
+                .execute_bash(&command, Some(&mut on_chunk), exclude_from_context, None)
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AppEvent::BashDone(result));
+        });
+    }
+
+    /// The `!` command ended: settle its row.
+    fn finish_bash_command(&mut self, result: Result<BashResult, String>) {
+        let component = self.bash_component.take();
+        match result {
+            Ok(result) => {
+                if let Some(component) = component {
+                    component.borrow_mut().set_complete(
+                        result.exit_code,
+                        result.cancelled,
+                        result.truncated.then(|| truncated_marker(&result.output)),
+                        result.full_output_path,
+                    );
+                }
+            }
+            Err(error) => {
+                if let Some(component) = component {
+                    component.borrow_mut().set_complete(None, false, None, None);
+                }
+                self.show_error(&format!("Bash command failed: {error}"));
+            }
+        }
+        self.dirty.set(true);
+    }
+
+    /// `flushPendingBashComponents`: move parked `!` rows into the chat.
+    fn flush_pending_bash_components(&mut self) {
+        for component in std::mem::take(&mut self.pending_bash_components) {
+            let component = as_component(&component);
+            self.pending_messages.borrow_mut().remove_child(&component);
+            self.add_to_chat(component);
+        }
     }
 
     fn update_session_chip(&mut self) {
@@ -963,6 +1101,32 @@ impl Mode {
                 return;
             }
         }
+        // `!` runs bash; `!!` keeps it out of the model's context.
+        if let Some(rest) = text.strip_prefix('!') {
+            let exclude_from_context = rest.starts_with('!');
+            let command = if exclude_from_context {
+                &rest[1..]
+            } else {
+                rest
+            }
+            .trim();
+            if !command.is_empty() {
+                if self.session.is_bash_running() {
+                    self.show_warning(
+                        "A bash command is already running. Press Esc to cancel it first.",
+                    );
+                    self.editor.borrow_mut().editor.set_text(&text);
+                    return;
+                }
+                self.editor.borrow_mut().editor.add_to_history(&text);
+                self.handle_bash_command(command.to_string(), exclude_from_context);
+                self.leave_bash_mode();
+                return;
+            }
+        }
+        if !self.session.is_streaming() {
+            self.flush_pending_bash_components();
+        }
         self.editor.borrow_mut().editor.add_to_history(&text);
         self.prompt(text);
     }
@@ -1038,6 +1202,22 @@ impl Mode {
                     DEFAULT_HIDDEN_THINKING_LABEL,
                 ));
                 self.assistant_components.push(component.clone());
+                self.add_to_chat(as_component(&component));
+            }
+            AgentMessage::BashExecution(bash) => {
+                let exclude = bash.exclude_from_context.unwrap_or(false);
+                let mut component = BashExecutionComponent::new(&bash.command, exclude);
+                if !bash.output.is_empty() {
+                    component.append_output(&bash.output);
+                }
+                component.set_complete(
+                    bash.exit_code.map(|c| c as i32),
+                    bash.cancelled,
+                    bash.truncated.then(|| truncated_marker("")),
+                    bash.full_output_path.clone(),
+                );
+                let component = handle(component);
+                self.bash_components.push(component.clone());
                 self.add_to_chat(as_component(&component));
             }
             _ => {}
@@ -3015,6 +3195,7 @@ impl Mode {
         self.pending_tools.clear();
         self.chains.clear();
         self.assistant_components.clear();
+        self.bash_components.clear();
         self.last_status = None;
     }
 
@@ -3029,17 +3210,21 @@ impl Mode {
     /// `showStatus`: a passing status in the notification band above the
     /// prompt (the first line is the title, the rest its body).
     fn show_status(&mut self, message: &str) {
+        self.notify(NotificationKind::Info, message);
+    }
+
+    /// `showWarning`: on the notification band, not in the transcript.
+    fn show_warning(&mut self, message: &str) {
+        self.notify(NotificationKind::Warning, message);
+    }
+
+    fn notify(&mut self, kind: NotificationKind, message: &str) {
         let mut lines = message.split('\n');
         let title = lines.next().unwrap_or("");
         let body: Vec<&str> = lines.collect();
-        self.notifications.borrow_mut().notify(
-            NotificationKind::Info,
-            title,
-            &body,
-            None,
-            None,
-            None,
-        );
+        self.notifications
+            .borrow_mut()
+            .notify(kind, title, &body, None, None, None);
         self.dirty.set(true);
     }
 
@@ -3116,6 +3301,9 @@ impl Mode {
             // "full" holds nothing back: the header opens with it.
             self.expanded = expanded;
             self.header.borrow_mut().set_expanded(expanded);
+            for component in &self.bash_components {
+                component.borrow_mut().set_expanded(expanded);
+            }
         }
         self.dirty.set(true);
     }
@@ -3384,6 +3572,11 @@ impl Mode {
                 } else if self.session.is_streaming() {
                     let session = self.session.clone();
                     self.runtime.spawn(async move { session.abort().await });
+                } else if self.session.is_bash_running() {
+                    self.session.abort_bash();
+                } else if self.is_bash_mode {
+                    self.editor.borrow_mut().editor.set_text("");
+                    self.leave_bash_mode();
                 } else if self.editor.borrow().editor.get_text().trim().is_empty() {
                     self.handle_double_escape();
                 }
@@ -3438,6 +3631,7 @@ impl Mode {
             Action::SettingsOpen => self.show_settings_selector(),
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
+            Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::AskOptionsDone(answers) => self.hide_ask_options(answers),
             Action::EditorDialogDone(outcome) => self.close_editor_dialog(outcome),
             Action::SessionSelectorDone(path) => {
@@ -3616,6 +3810,13 @@ impl Mode {
                     }
                     AppEvent::Dialog(DialogRequest::HideAskOptions) => self.hide_ask_options(None),
                     AppEvent::Login(update) => self.handle_login_update(update),
+                    AppEvent::BashChunk(chunk) => {
+                        if let Some(component) = &self.bash_component {
+                            component.borrow_mut().append_output(&chunk);
+                            self.dirty.set(true);
+                        }
+                    }
+                    AppEvent::BashDone(result) => self.finish_bash_command(result),
                     AppEvent::ThemeChanged => {
                         self.tui.invalidate();
                         self.update_editor_border_color();
@@ -3658,6 +3859,13 @@ impl Mode {
             self.poll_tree_instructions();
             self.poll_tree_navigation();
             if self.loader.as_ref().is_some_and(|l| l.borrow_mut().tick()) {
+                self.dirty.set(true);
+            }
+            if self
+                .bash_component
+                .as_ref()
+                .is_some_and(|c| c.borrow_mut().tick())
+            {
                 self.dirty.set(true);
             }
             if self.stream_render_pending

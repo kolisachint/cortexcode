@@ -5437,7 +5437,7 @@
    "id": "11.4c",
    "title": "! and !! bash from the prompt (bash-execution-controller.ts)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "11.4a"
    ],
@@ -5449,7 +5449,9 @@
    ],
    "ts_tests": [],
    "l1_cmds": [],
-   "l2": [],
+   "l2": [
+    "bash-command"
+   ],
    "notes": "",
    "log": [
     {
@@ -5457,6 +5459,30 @@
      "commit": "",
      "kind": "note",
      "text": "Split from 11.4 (bookkeeping)."
+    },
+    {
+     "at": "2026-09-29T04:16:37Z",
+     "commit": "69e1d78",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-29T04:16:51Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-29T04:17:04Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-09-29T04:17:44Z",
+     "commit": "69e1d78",
+     "kind": "verify",
+     "text": "L1 pass; L2 bash-command=pass"
     }
    ]
   },

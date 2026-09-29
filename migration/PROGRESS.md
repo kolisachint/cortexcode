@@ -9,7 +9,7 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
   1 GB instead of about 28 GB.
-- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4c (! bash), 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
+- Phase 12 is deferred by user decision (2026-09-29). Open phase-11 tasks: 11.4d (clipboard), 11.4e (remaining commands), 11.4f (compaction UI, L2
   compact-command); 12.3 extension runner is deferred.
 - Next task: run `python3 migration/ledger.py next`. 8.6 is finished (8.6a..8.6e done): every
   ai test file is ported or owned by a task (codex/Copilot/gemini-cli/OAuth files by
@@ -40,6 +40,20 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-09-29 · 11.4c ! and !! bash
+- `interactive_mode.rs`: bash mode (`onChange` → `!` prompt prefix + bash-mode border; Escape
+  aborts a running command, else clears a bash-mode prompt), `handle_bash_command` runs
+  `AgentSession::execute_bash` on a thread and streams `AppEvent::BashChunk`/`BashDone` into a
+  `BashExecutionComponent`; rows started while streaming wait in the pending container and move
+  to the chat on the next idle submit; history renders `bashExecution` messages; the ctrl+o
+  sweep expands `!` rows; `show_warning` (notification band).
+- Not ported: the `user_bash` extension hook (waits on 12.3, deferred).
+- New L2 `bash-command` (added as 11.4c's gate): bash mode, `!echo`, `!!printf`, Escape, and a
+  follow-up prompt whose request carries only the `!` output. Stable, passes.
+- One `cargo test --workspace -q` run exited 101 without a visible failing test; three reruns
+  were clean. If it recurs, capture the full log.
+- Next: `python3 migration/ledger.py next` (11.4d clipboard).
 
 ### 2026-09-29 · 11.3f, 11.3 closed; 11.4b @file autocomplete
 - User decision: phase 12 stays deferred (noted on 12.1..12.7); skip it and keep going.
