@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 290,
+  "ported": 292,
   "equivalent": 2,
   "n.a.": 6,
   "pending": 94,
-  "review": 8
+  "review": 6
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -2268,7 +2268,10 @@
    ]
   },
   "packages/coding-agent/test/subagent-dispatch-tui-output.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-subagents/tests/agent_log_ts.rs"
+   ]
   },
   "packages/coding-agent/test/subagent-events.test.ts": {
    "status": "ported",
@@ -2774,7 +2777,10 @@
    ]
   },
   "packages/coding-agent/test/transcript-thinking-order.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/runtime.rs"
+   ]
   },
   "packages/coding-agent/test/tree-selector.test.ts": {
    "status": "ported",

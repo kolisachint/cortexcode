@@ -1439,4 +1439,174 @@ mod tests {
         assert_eq!(id(&o).as_deref(), Some("mock/mock-model"));
         assert_eq!(o.scoped_models.len(), 2);
     }
+
+    /// Port of the pin's `test/transcript-thinking-order.test.ts`: a thinking
+    /// trace renders above the tool calls it led to. The TS test borrows
+    /// `renderSessionContext` onto a fake mode and counts chain components;
+    /// here the real interactive mode draws a seeded session and the drawn
+    /// transcript is read (a run's chains show as their tool rows).
+    mod transcript_thinking_order {
+        use super::*;
+        use cortexcode_agent_types::AgentMessage;
+        use serde_json::json;
+
+        fn think_then_call(thinking: &str, id: &str, query: &str) -> AgentMessage {
+            serde_json::from_value(json!({
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": thinking, "thinkingSignature": ""},
+                    {"type": "toolCall", "id": id, "name": "SearchCodebase", "arguments": {"query": query}},
+                ],
+                "api": "test-api", "provider": "test-provider", "model": "test-model",
+                "stopReason": "toolUse", "timestamp": 0,
+            }))
+            .unwrap()
+        }
+
+        fn tool_result(id: &str, text: &str) -> AgentMessage {
+            serde_json::from_value(json!({
+                "role": "toolResult", "toolCallId": id, "toolName": "SearchCodebase",
+                "content": [{"type": "text", "text": text}], "isError": false, "timestamp": 0,
+            }))
+            .unwrap()
+        }
+
+        fn two_turns() -> Vec<AgentMessage> {
+            vec![
+                think_then_call("TRACE_ONE, before the first call", "call-1", "QUERY_ONE"),
+                tool_result("call-1", "RESULT_ONE"),
+                think_then_call("TRACE_TWO, before the second call", "call-2", "QUERY_TWO"),
+                tool_result("call-2", "RESULT_TWO"),
+            ]
+        }
+
+        /// The transcript as first drawn, one row per line, ANSI stripped.
+        fn draw(messages: Vec<AgentMessage>, settings: serde_json::Value) -> Vec<String> {
+            let args = crate::args::parse_args(&[]);
+            let agent_dir = tempfile::tempdir().unwrap();
+            let mut manager = SessionManager::in_memory("/w");
+            for message in messages {
+                manager.append_message(message);
+            }
+            let (session, _) = assemble_session(
+                &args,
+                std::path::PathBuf::from("/w"),
+                agent_dir.path().to_path_buf(),
+                SettingsManager::in_memory(settings.as_object().unwrap().clone()),
+                cortexcode_code_models::ModelRegistry::in_memory(),
+                Arc::new(cortexcode_code_models::NoAuth),
+                manager,
+                ModelOptions::default(),
+                None,
+                true,
+            );
+            let output = Arc::new(Mutex::new(String::new()));
+            let terminal = ScriptedTerminal {
+                script: vec![(400, "\x04")],
+                output: output.clone(),
+                title: Arc::new(Mutex::new(String::new())),
+            };
+            cortexcode_code_tui_app::interactive_mode::run_interactive(
+                cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+                    session,
+                    session_runtime: None,
+                    runtime: async_runtime().handle().clone(),
+                    listing: Box::new(resource_listing),
+                    is_oauth: Box::new(|_| false),
+                    auth_storage: Arc::new(AuthStorage::in_memory([])),
+                    version: "0.0.1".into(),
+                    verbose: false,
+                    initial_message: None,
+                    initial_images: Vec::new(),
+                    initial_messages: Vec::new(),
+                    model_fallback_message: None,
+                    terminal: Some(Box::new(terminal)),
+                },
+            )
+            .unwrap();
+            let drawn = cortexcode_tui_util::strip_vt_control_characters(&output.lock().unwrap());
+            drawn
+                .split("\n")
+                .map(|l| l.trim_end_matches('\r').to_string())
+                .collect()
+        }
+
+        fn line_of(lines: &[String], needle: &str) -> Option<usize> {
+            lines.iter().position(|l| l.contains(needle))
+        }
+
+        fn at(lines: &[String], needle: &str) -> usize {
+            line_of(lines, needle)
+                .unwrap_or_else(|| panic!("{needle} not drawn:\n{}", lines.join("\n")))
+        }
+
+        #[test]
+        fn peek_and_full_draw_each_trace_above_the_call_it_led_to() {
+            for view in ["peek", "full"] {
+                let lines = draw(two_turns(), json!({"toolOutputView": view}));
+                // The second trace is above its own call, not below it, and
+                // below the first call: the run is split at the trace.
+                assert!(at(&lines, "TRACE_ONE") < at(&lines, "QUERY_ONE"), "{view}");
+                assert!(at(&lines, "QUERY_ONE") < at(&lines, "TRACE_TWO"), "{view}");
+                assert!(at(&lines, "TRACE_TWO") < at(&lines, "QUERY_TWO"), "{view}");
+            }
+        }
+
+        #[test]
+        fn a_folded_trace_still_ends_the_run() {
+            let lines = draw(two_turns(), json!({"hideThinkingBlock": true}));
+            let labels: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.contains("Thinking..."))
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(labels.len(), 2, "{}", lines.join("\n"));
+            assert!(at(&lines, "QUERY_ONE") < labels[1]);
+            assert!(labels[1] < at(&lines, "QUERY_TWO"));
+        }
+
+        #[test]
+        fn radar_keeps_the_run_whole_because_it_draws_no_trace() {
+            let lines = draw(two_turns(), json!({"toolOutputView": "radar"}));
+            assert_eq!(line_of(&lines, "TRACE_ONE"), None);
+            assert_eq!(line_of(&lines, "TRACE_TWO"), None);
+            // One chain of two calls.
+            assert!(lines[at(&lines, "SearchCodebase ×2")].contains("2 calls"));
+        }
+
+        #[test]
+        fn speaking_is_still_a_boundary_on_its_own() {
+            let spoken: AgentMessage = serde_json::from_value(json!({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "SPOKEN"},
+                    {"type": "toolCall", "id": "call-2", "name": "SearchCodebase", "arguments": {"query": "QUERY_TWO"}},
+                ],
+                "api": "test-api", "provider": "test-provider", "model": "test-model",
+                "stopReason": "toolUse", "timestamp": 0,
+            }))
+            .unwrap();
+            let lines = draw(
+                vec![
+                    think_then_call("TRACE", "call-1", "QUERY_ONE"),
+                    tool_result("call-1", "RESULT"),
+                    spoken,
+                    tool_result("call-2", "RESULT_TWO"),
+                ],
+                json!({"toolOutputView": "radar"}),
+            );
+            // Two chains of one call each, the spoken text between them.
+            assert_eq!(line_of(&lines, "×2"), None, "{}", lines.join("\n"));
+            let spoken_at = at(&lines, "SPOKEN");
+            let calls: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.contains("● SearchCodebase"))
+                .map(|(i, _)| i)
+                .collect();
+            assert!(calls.len() >= 2, "{}", lines.join("\n"));
+            assert!(calls[0] < spoken_at && spoken_at < calls[1]);
+        }
+    }
 }

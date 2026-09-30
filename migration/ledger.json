@@ -6769,6 +6769,12 @@
      "commit": "4d9f04c",
      "kind": "note",
      "text": "part 4: message-block-fill, theme-block-rendering ported"
+    },
+    {
+     "at": "2026-09-30T18:02:01Z",
+     "commit": "b4fad3f",
+     "kind": "note",
+     "text": "part 5: transcript-thinking-order (real interactive mode over a seeded session), subagent-dispatch-tui-output (fd-2 capture; e2e case = L2 subagent-command) ported"
     }
    ]
   },
