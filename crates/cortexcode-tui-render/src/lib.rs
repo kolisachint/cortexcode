@@ -15,6 +15,7 @@ pub use overlay::{
     OverlayOptions, SizeValue,
 };
 pub use tui::{
-    default_scroll_status, HyperlinkHandler, InputListener, InputListenerResult, OverlayHandle,
-    ScrollSearchStatus, ScrollStatus, ScrollStatusFormatter, Tui, TuiEvent, CURSOR_MARKER,
+    default_scroll_status, CanPinScroll, HyperlinkHandler, InputInterceptor, InputListener,
+    InputListenerResult, OverlayHandle, ScrollSearchStatus, ScrollStatus, ScrollStatusFormatter,
+    Tui, TuiEvent, CURSOR_MARKER,
 };

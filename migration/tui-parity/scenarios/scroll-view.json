@@ -1,0 +1,184 @@
+{
+  "description": "The scroll view (11.7): after two long answers, PageUp pins the transcript (alternate screen, themed indicator row), Up steps a line, ctrl+up jumps to the previous user message, '/' opens the search query line and typing fills it (one key at a time, digits only: the random session name on the editor border is in the searched buffer), Enter keeps it, Escape drops the search and a second Escape returns to live.",
+  "phase": "11.7",
+  "terminal": {
+    "cols": 100,
+    "rows": 20
+  },
+  "llm": [
+    {
+      "text": "First answer.\n\n- alpha item 1\n- alpha item 2\n- alpha item 3\n- alpha item 4\n- alpha item 5\n- alpha item 6\n- alpha item 7\n- alpha item 8\n- alpha item 9\n- alpha item 10\n- alpha item 11\n- alpha item 12\n- alpha item 13\n- alpha item 14\n- alpha item 15\n- alpha item 16\n- alpha item 17\n- alpha item 18\n- alpha item 19\n- alpha item 20\n- alpha item 21\n- alpha item 22\n- alpha item 23\n- alpha item 24\n- alpha item 25"
+    },
+    {
+      "text": "Second answer.\n\n- beta item 1\n- beta item 2\n- beta item 3\n- beta item 4\n- beta item 5\n- beta item 6\n- beta item 7\n- beta item 8\n- beta item 9\n- beta item 10\n- beta item 11\n- beta item 12\n- beta item 13\n- beta item 14\n- beta item 15\n- beta item 16\n- beta item 17\n- beta item 18\n- beta item 19\n- beta item 20\n- beta item 21\n- beta item 22\n- beta item 23\n- beta item 24\n- beta item 25"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "first question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "alpha item 25",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "second question"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "beta item 25",
+      "timeout": 20
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "PageUp"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "pinned",
+      "contains": [
+        "page"
+      ]
+    },
+    {
+      "keys": [
+        "Up"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "line-up"
+    },
+    {
+      "keys": [
+        "C-Up"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "previous-message",
+      "contains": [
+        "second question"
+      ]
+    },
+    {
+      "keys": [
+        "C-Up"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "first-message",
+      "contains": [
+        "first question"
+      ]
+    },
+    {
+      "type": "/"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "2"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "5"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "search-typing",
+      "contains": [
+        "search: 25"
+      ]
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "search-kept",
+      "contains": [
+        "search: 25"
+      ]
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "search-dropped"
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "live",
+      "contains": [
+        "❯"
+      ]
+    }
+  ]
+}

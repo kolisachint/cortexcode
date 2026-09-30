@@ -19,6 +19,7 @@ pub mod notification_panel;
 pub mod progress_bar;
 pub mod resource_display;
 pub use cortexcode_code_tui_widgets::session_chip;
+pub mod scroll_view;
 pub mod session_picker;
 pub mod startup_progress;
 pub mod suspend;

@@ -44,6 +44,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 11.7 scroll view (new, found in 13.4e): done
+- The TUI's pinned viewport and search were ported, but nothing installed the app keys:
+  PageUp, ctrl+r, ctrl+up/down, ctrl+home/end did nothing. New `scroll_view.rs` ports
+  scroll-view.ts (prompt pager keys, pinned keys, query line, jump by user message, themed
+  indicator) and InteractiveMode installs it.
+- tui-render: `Tui::set_input_interceptor` (sees input after mouse reports, before listeners,
+  with `&mut Tui`; a listener can't hold its own TUI), `Tui::children`, and `can_pin_scroll`
+  now takes `&Tui` (focus check). UserMessageComponent exposes `as_any`.
+- L2 `scroll-view` (8 snapshots, stable). Its search types one key at a time and searches
+  digits: tmux may deliver "beta" in timing-dependent chunks, and the random session name on
+  the editor border is in the searched buffer.
+
 ### 2026-09-30 · 11.6 tips band: done
 - New `cortexcode-code-tui-app/src/tips.rs`: TIPS (rebranded), `TipRotation` (unseen first,
   star nudge every 6 tips, once a session, 3 ever), `TipsController` (grace 60 s, idle 45 s,

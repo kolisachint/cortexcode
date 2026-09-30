@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 292,
+  "ported": 293,
   "equivalent": 2,
   "n.a.": 6,
   "pending": 94,
-  "review": 6
+  "review": 5
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -2004,7 +2004,13 @@
    "note": "whole-screen layout against the real mode: L2 compares every rendered row with hoocode at a fixed terminal size: startup (banner on row 0, fill, prompt on the floor), chat-basic (prompt stays on the floor after a turn), color-chrome (the /chrome receipt on the painted band above the prompt, not in the transcript)"
   },
   "packages/coding-agent/test/scroll-view-keys.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "tasks": [
+    "11.7"
+   ],
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/scroll_view_keys.rs"
+   ]
   },
   "packages/coding-agent/test/sdk-openrouter-attribution.test.ts": {
    "status": "ported",

@@ -142,6 +142,7 @@ use crate::login_controller::{
 };
 use crate::notification_panel::{NotificationKind, NotificationPanel};
 use crate::resource_display::{format_display_path, show_loaded_resources, ResourceListing};
+use crate::scroll_view::install_scroll_view;
 use crate::session_chip::render_session_chip;
 use crate::session_picker;
 use crate::startup_progress;
@@ -1194,6 +1195,19 @@ impl Mode {
         tui.add_child(as_component(&handle(Container::new()))); // widgets below
         tui.add_child(footer_slot.clone());
         tui.set_focus(Some(as_component(&editor)));
+        // Scrolling the transcript: the prompt's pager keys, and the keys of
+        // the pinned view (`scroll_view.rs`).
+        install_scroll_view(
+            &mut tui,
+            as_component(&editor),
+            chat.clone(),
+            Rc::new(|child: &ComponentHandle| {
+                child
+                    .borrow()
+                    .as_any()
+                    .is_some_and(|any| any.is::<UserMessageComponent>())
+            }),
+        );
 
         let (tx, rx) = mpsc::channel();
         Self {

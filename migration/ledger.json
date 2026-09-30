@@ -6270,6 +6270,36 @@
    ]
   },
   {
+   "id": "11.7",
+   "title": "Scroll view: the app half of the pinned transcript view (scroll-view.ts): prompt pager keys, pinned-view keys, search query line, jump by user message, the themed indicator; wired into InteractiveMode",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-tui-render",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/scroll-view.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/scroll-view-keys.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "scroll-view"
+   ],
+   "notes": "Found in 13.4e: the TUI mechanism (tui.rs scroll viewport, search) was ported, but nothing installed the app's keys: PageUp/ctrl+r/ctrl+up did nothing in cortex. The TUI gained an input interceptor (a Rust listener cannot hold the TUI) and can_pin_scroll takes the TUI (focus check).",
+   "log": [
+    {
+     "at": "2026-09-30T18:12:37Z",
+     "commit": "2145278",
+     "kind": "verify",
+     "text": "L1 pass; L2 scroll-view=pass"
+    }
+   ]
+  },
+  {
    "id": "12.1",
    "title": "Declarative plugins + marketplace (.agents-plugin, claude/copilot formats)",
    "phase": 12,
@@ -6775,6 +6805,12 @@
      "commit": "b4fad3f",
      "kind": "note",
      "text": "part 5: transcript-thinking-order (real interactive mode over a seeded session), subagent-dispatch-tui-output (fd-2 capture; e2e case = L2 subagent-command) ported"
+    },
+    {
+     "at": "2026-09-30T18:07:01Z",
+     "commit": "2145278",
+     "kind": "note",
+     "text": "scroll-view-keys: the app half of the scroll view was missing; new task 11.7 owns it"
     }
    ]
   },
