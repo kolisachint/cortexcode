@@ -4761,13 +4761,10 @@ impl Mode {
     /// once the request is over: done after a clean stop, else cancelled.
     /// Skipped while messages are queued (the request continues).
     fn settle_dangling_plan_items(&mut self) {
-        if self.session.pending_message_count() > 0 {
+        let Some(outcome) =
+            plan_settle_outcome(self.turn_stop_reason, self.session.pending_message_count())
+        else {
             return;
-        }
-        let outcome = if self.turn_stop_reason == Some(StopReason::Stop) {
-            TaskStatus::Done
-        } else {
-            TaskStatus::Cancelled
         };
         if settle_dangling_main_tasks(task_store(), outcome) > 0 {
             self.dirty.set(true);
@@ -5613,6 +5610,23 @@ fn prefix_autocomplete_description(
     Some(match description {
         Some(d) if !d.is_empty() => format!("[{tag}] {d}"),
         _ => format!("[{tag}]"),
+    })
+}
+
+/// What dangling plan rows settle to when a request ends: done after a clean
+/// stop, cancelled after an abort, error or length stop; nothing while
+/// messages are queued (the request continues).
+pub fn plan_settle_outcome(
+    stop_reason: Option<StopReason>,
+    pending_messages: usize,
+) -> Option<TaskStatus> {
+    if pending_messages > 0 {
+        return None;
+    }
+    Some(if stop_reason == Some(StopReason::Stop) {
+        TaskStatus::Done
+    } else {
+        TaskStatus::Cancelled
     })
 }
 

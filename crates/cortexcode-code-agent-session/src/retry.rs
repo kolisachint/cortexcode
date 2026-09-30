@@ -247,4 +247,54 @@ mod tests {
         };
         assert!(!is_retryable_error(&ok, None));
     }
+
+    // Ports of `coding-agent/test/retry-quota-classification.test.ts`. Its
+    // `sleep` half guards a JS timer clamp (setTimeout overflows past 2^31 ms);
+    // tokio's sleep takes such delays as they are, checked below.
+
+    fn describe_429(message: &str, retry_after: &str) -> String {
+        let headers = [("retry-after".to_string(), retry_after.to_string())];
+        cortexcode_ai_util::describe_provider_error(message, Some(&headers), None)
+    }
+
+    #[test]
+    fn does_not_retry_a_quota_that_resets_in_weeks() {
+        let quota = describe_429("429 quota exceeded", "2472352");
+        assert!(!is_retryable_error(&errored(&quota), None), "{quota}");
+    }
+
+    #[test]
+    fn still_retries_a_burst_rate_limit() {
+        let transient = describe_429("429 rate limit exceeded", "30");
+        assert!(is_retryable_error(&errored(&transient), None));
+    }
+
+    #[test]
+    fn still_retries_the_transient_failures_it_always_did() {
+        for text in [
+            "overloaded",
+            "500 internal error",
+            "fetch failed",
+            "socket hang up",
+        ] {
+            assert!(is_retryable_error(&errored(text), None), "{text}");
+        }
+    }
+
+    #[test]
+    fn still_ignores_a_message_that_is_not_an_error() {
+        let ok = AssistantMessage {
+            stop_reason: StopReason::Stop,
+            ..errored("429 quota exceeded")
+        };
+        assert!(!is_retryable_error(&ok, None));
+    }
+
+    #[tokio::test]
+    async fn a_delay_too_large_for_a_js_timer_stays_pending() {
+        let long = tokio::time::sleep(std::time::Duration::from_millis(2_472_352_000));
+        let fired = tokio::time::timeout(std::time::Duration::from_millis(25), long).await;
+        assert!(fired.is_err());
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
 }

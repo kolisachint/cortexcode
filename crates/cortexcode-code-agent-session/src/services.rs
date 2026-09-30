@@ -177,6 +177,24 @@ fn attribution_headers(
     None
 }
 
+type Headers = std::collections::HashMap<String, String>;
+
+/// Attribution defaults, then the provider's (models.json) headers, then the
+/// request's own: later layers win. `None` when there are none at all.
+fn merge_request_headers(
+    attribution: Option<Headers>,
+    provider: Option<Headers>,
+    request: Option<Headers>,
+) -> Option<Headers> {
+    if attribution.is_none() && provider.is_none() && request.is_none() {
+        return None;
+    }
+    let mut headers = attribution.unwrap_or_default();
+    headers.extend(provider.unwrap_or_default());
+    headers.extend(request.unwrap_or_default());
+    Some(headers)
+}
+
 const IMAGE_DISABLED: &str = "Image reading is disabled.";
 
 /// `convertToLlm` with `images.blockImages`: images become a placeholder
@@ -407,15 +425,11 @@ pub fn create_agent_session(
             stream_options.max_retry_delay_ms = stream_options
                 .max_retry_delay_ms
                 .or(Some(retry.max_retry_delay_ms));
-            if attribution.is_some()
-                || request_auth.headers.is_some()
-                || stream_options.headers.is_some()
-            {
-                let mut headers = attribution.unwrap_or_default();
-                headers.extend(request_auth.headers.unwrap_or_default());
-                headers.extend(stream_options.headers.take().unwrap_or_default());
-                stream_options.headers = Some(headers);
-            }
+            stream_options.headers = merge_request_headers(
+                attribution,
+                request_auth.headers,
+                stream_options.headers.take(),
+            );
             base_stream(model, context, stream_options)
         }));
 
@@ -562,5 +576,84 @@ mod tests {
         for v in ["", "0", "no", "on"] {
             assert!(!is_truthy_env_flag(v));
         }
+    }
+
+    // Ports of `coding-agent/test/sdk-openrouter-attribution.test.ts`
+    // (the TS drives the same logic through `createAgentSession`'s streamFn).
+
+    fn model(provider: &str, base_url: &str) -> Model {
+        Model {
+            id: format!("{provider}-test-model"),
+            name: format!("{provider} Test Model"),
+            api: "openai-completions".into(),
+            provider: provider.into(),
+            base_url: base_url.into(),
+            reasoning: false,
+            thinking_level_map: None,
+            input: vec!["text".into()],
+            cost: Default::default(),
+            context_window: 128_000,
+            max_tokens: 4096,
+            headers: None,
+            compat: None,
+        }
+    }
+
+    fn telemetry(enabled: bool) -> SettingsManager {
+        let mut settings = serde_json::Map::new();
+        settings.insert("enableInstallTelemetry".into(), enabled.into());
+        SettingsManager::in_memory(settings)
+    }
+
+    fn assert_default_attribution(headers: Option<Headers>) {
+        let h = headers.expect("attribution headers");
+        assert_eq!(
+            h["HTTP-Referer"],
+            "https://github.com/kolisachint/cortexcode"
+        );
+        assert_eq!(h["X-OpenRouter-Title"], cortexcode_code_paths::APP_NAME);
+        assert_eq!(h["X-OpenRouter-Categories"], "cli-agent");
+    }
+
+    #[test]
+    fn adds_default_attribution_headers_for_openrouter_models() {
+        let m = model("openrouter", "https://openrouter.ai/api/v1");
+        assert_default_attribution(attribution_headers(&m, &telemetry(true)));
+    }
+
+    #[test]
+    fn no_attribution_headers_when_telemetry_is_disabled() {
+        let m = model("openrouter", "https://openrouter.ai/api/v1");
+        assert_eq!(attribution_headers(&m, &telemetry(false)), None);
+    }
+
+    #[test]
+    fn adds_attribution_headers_for_custom_providers_routed_through_openrouter() {
+        let m = model("custom-openrouter", "https://openrouter.ai/api/v1");
+        assert_default_attribution(attribution_headers(&m, &telemetry(true)));
+    }
+
+    #[test]
+    fn provider_and_request_headers_override_the_defaults() {
+        let m = model("openrouter", "https://openrouter.ai/api/v1");
+        let map = |pairs: &[(&str, &str)]| -> Headers {
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        };
+        let h = merge_request_headers(
+            attribution_headers(&m, &telemetry(true)),
+            Some(map(&[
+                ("HTTP-Referer", "https://provider.example"),
+                ("X-OpenRouter-Categories", "provider-category"),
+            ])),
+            Some(map(&[("X-OpenRouter-Title", "request-title")])),
+        )
+        .unwrap();
+        assert_eq!(h["HTTP-Referer"], "https://provider.example");
+        assert_eq!(h["X-OpenRouter-Title"], "request-title");
+        assert_eq!(h["X-OpenRouter-Categories"], "provider-category");
+        assert_eq!(merge_request_headers(None, None, None), None);
     }
 }

@@ -19,7 +19,10 @@ pub fn parse_frontmatter(content: &str) -> Result<(Map<String, Value>, String), 
     };
     let yaml = normalized.get(4..end).unwrap_or("");
     let body = normalized[end + 4..].trim().to_string();
-    let value: Value = serde_yaml_ng::from_str(yaml).map_err(|e| e.to_string())?;
+    // The block ends before the `\n---` line, so its last line has no break.
+    // The `yaml` package still clips a `|` scalar to one trailing newline
+    // there; serde_yaml_ng keeps none unless the break is present.
+    let value: Value = serde_yaml_ng::from_str(&format!("{yaml}\n")).map_err(|e| e.to_string())?;
     let frontmatter = match value {
         Value::Object(map) => map,
         _ => Map::new(),

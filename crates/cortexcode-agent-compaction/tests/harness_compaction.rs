@@ -259,11 +259,52 @@ fn serializes_conversation_with_truncated_tool_results() {
     let result = serialize_conversation(&messages);
     assert!(result.contains("[Tool result]:"));
     assert!(result.contains("[... 3000 more characters truncated]"));
+    assert!(!result.contains(&"x".repeat(3000)));
+    assert!(result.contains(&"x".repeat(2000)));
+}
+
+// The rest of `coding-agent/test/compaction-serialization.test.ts`.
+
+#[test]
+fn serialize_does_not_truncate_short_tool_results() {
+    let short = "x".repeat(1500);
+    let messages = vec![Message::ToolResult(ToolResultMessage {
+        tool_call_id: "tc1".into(),
+        tool_name: "read".into(),
+        content: vec![Content::text(short.clone())],
+        details: None,
+        is_error: false,
+        timestamp: 1,
+    })];
+    assert_eq!(
+        serialize_conversation(&messages),
+        format!("[Tool result]: {short}")
+    );
+}
+
+#[test]
+fn serialize_does_not_truncate_user_or_assistant_messages() {
+    let long = "y".repeat(5000);
+    let messages = vec![
+        Message::User(UserMessage {
+            content: vec![Content::text(long.clone())].into(),
+            timestamp: 1,
+        }),
+        Message::Assistant(AssistantMessage {
+            content: vec![Content::text(long.clone())],
+            stop_reason: StopReason::Stop,
+            ..Default::default()
+        }),
+    ];
+    let result = serialize_conversation(&messages);
+    assert!(!result.contains("truncated"));
+    assert!(result.contains(&long));
 }
 
 /// `(reasoning, api_key)` of each summarization request.
 type Seen = Arc<Mutex<Vec<(Option<ThinkingLevel>, Option<String>)>>>;
 
+/// Also the three cases of `coding-agent/test/compaction-summary-reasoning.test.ts`.
 #[tokio::test]
 async fn passes_reasoning_through_generate_summary_only_for_reasoning_models_with_thinking_enabled()
 {
@@ -308,8 +349,8 @@ async fn passes_reasoning_through_generate_summary_only_for_reasoning_models_wit
         seen[0],
         (Some(ThinkingLevel::Medium), Some("test-key".into()))
     );
-    assert_eq!(seen[1].0, None);
-    assert_eq!(seen[2].0, None);
+    assert_eq!(seen[1], (None, Some("test-key".into())));
+    assert_eq!(seen[2], (None, Some("test-key".into())));
 }
 
 #[tokio::test]

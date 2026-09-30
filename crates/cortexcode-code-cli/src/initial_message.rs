@@ -110,6 +110,38 @@ mod tests {
         assert!(m.is_empty());
     }
 
+    // Ports of `coding-agent/test/initial-message.test.ts`.
+
+    #[test]
+    fn merges_piped_stdin_with_the_first_cli_message() {
+        let mut m = msgs(&["Summarize the text given"]);
+        assert_eq!(
+            build_initial_message(&mut m, None, Some("README contents\n")).as_deref(),
+            Some("README contents\nSummarize the text given")
+        );
+        assert!(m.is_empty());
+    }
+
+    #[test]
+    fn uses_stdin_as_the_initial_prompt_without_a_cli_message() {
+        let mut m = Vec::new();
+        assert_eq!(
+            build_initial_message(&mut m, None, Some("README contents")).as_deref(),
+            Some("README contents")
+        );
+        assert!(m.is_empty());
+    }
+
+    #[test]
+    fn combines_stdin_file_text_and_first_cli_message() {
+        let mut m = msgs(&["Explain it", "Second message"]);
+        assert_eq!(
+            build_initial_message(&mut m, Some("file\n"), Some("stdin\n")).as_deref(),
+            Some("stdin\nfile\nExplain it")
+        );
+        assert_eq!(m, msgs(&["Second message"]));
+    }
+
     #[test]
     fn initial_message_is_none_without_input() {
         assert_eq!(build_initial_message(&mut Vec::new(), Some(""), None), None);

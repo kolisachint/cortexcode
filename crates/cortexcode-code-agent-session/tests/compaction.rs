@@ -1,4 +1,5 @@
-//! Ports `test/suite/agent-session-compaction.test.ts`. The TS cases spy on
+//! Ports `test/suite/agent-session-compaction.test.ts`, whose auto-compaction
+//! cases are also the six of `test/agent-session-auto-compaction-queue.test.ts`. The TS cases spy on
 //! `_runAutoCompaction`; here they assert [`AgentSession::plan_compaction`],
 //! the decision `checkCompaction` acts on. Summaries come from the faux
 //! provider (the `session_before_compact` extension hook is 12.3's).

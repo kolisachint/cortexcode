@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 233,
+  "ported": 280,
   "equivalent": 0,
-  "n.a.": 3,
-  "pending": 79,
-  "review": 85
+  "n.a.": 6,
+  "pending": 97,
+  "review": 17
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -31,7 +31,10 @@
    ]
   },
   "packages/agent/test/e2e.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-core/src/tests.rs"
+   ]
   },
   "packages/agent/test/harness/agent-harness.test.ts": {
    "status": "ported",
@@ -437,7 +440,10 @@
    ]
   },
   "packages/ai/test/images.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-ai-images/tests/images_ts.rs"
+   ]
   },
   "packages/ai/test/interleaved-thinking.test.ts": {
    "status": "ported",
@@ -801,7 +807,10 @@
    ]
   },
   "packages/coding-agent/test/agent-session-auto-compaction-queue.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/compaction.rs"
+   ]
   },
   "packages/coding-agent/test/agent-session-branching.test.ts": {
    "status": "ported",
@@ -829,7 +838,11 @@
    ]
   },
   "packages/coding-agent/test/agent-session-dynamic-provider.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "extensions calling registerProvider (top level, session_start, command) (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/agent-session-dynamic-tools.test.ts": {
    "status": "ported",
@@ -914,7 +927,10 @@
    ]
   },
   "packages/coding-agent/test/background-messages.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-harness/tests/background_messages_ts.rs"
+   ]
   },
   "packages/coding-agent/test/bash-close-hang-windows.test.ts": {
    "status": "n.a.",
@@ -939,7 +955,10 @@
    ]
   },
   "packages/coding-agent/test/block-images.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "10.12"
+   ]
   },
   "packages/coding-agent/test/builtin-skills.test.ts": {
    "status": "ported",
@@ -1124,10 +1143,16 @@
    ]
   },
   "packages/coding-agent/test/compaction-serialization.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+   ]
   },
   "packages/coding-agent/test/compaction-summary-reasoning.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+   ]
   },
   "packages/coding-agent/test/compaction.test.ts": {
    "status": "ported",
@@ -1147,7 +1172,11 @@
    ]
   },
   "packages/coding-agent/test/config.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "install-method detection and self-update commands for `hoocode update` (package manager CLI, deferred)",
+   "tasks": [
+    "12.2"
+   ]
   },
   "packages/coding-agent/test/context-files-user-scope.test.ts": {
    "status": "ported",
@@ -1333,7 +1362,10 @@
    ]
   },
   "packages/coding-agent/test/frontmatter.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-resources/tests/frontmatter_ts.rs"
+   ]
   },
   "packages/coding-agent/test/git-ssh-url.test.ts": {
    "status": "ported",
@@ -1364,7 +1396,11 @@
    ]
   },
   "packages/coding-agent/test/hoocode-user-agent.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "getHooCodeUserAgent's only caller is the version check (deferred)",
+   "tasks": [
+    "12.7"
+   ]
   },
   "packages/coding-agent/test/hybrid-search.test.ts": {
    "status": "ported",
@@ -1376,13 +1412,22 @@
    ]
   },
   "packages/coding-agent/test/image-processing.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-media/tests/image_processing_ts.rs"
+   ]
   },
   "packages/coding-agent/test/image-resize-callers.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "10.12"
+   ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs"
+   ]
   },
   "packages/coding-agent/test/input-surface-frame.test.ts": {
    "status": "ported",
@@ -1577,7 +1622,10 @@
    ]
   },
   "packages/coding-agent/test/native-search.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+   ]
   },
   "packages/coding-agent/test/new-canvas.test.ts": {
    "status": "pending",
@@ -1635,7 +1683,10 @@
    ]
   },
   "packages/coding-agent/test/path-utils.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-api/tests/path_utils_ts.rs"
+   ]
   },
   "packages/coding-agent/test/paths.test.ts": {
    "status": "ported",
@@ -1664,10 +1715,15 @@
    ]
   },
   "packages/coding-agent/test/plan-mode-utils.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "tests examples/extensions/plan-mode, a TS example extension (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/plan-parser.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "src/utils/plan/parser.ts has no caller at the pin (plan mode uses modes.ts parsePlanSections, ported in code-modes)"
   },
   "packages/coding-agent/test/platform-settings-pane.test.ts": {
    "status": "ported",
@@ -1787,7 +1843,11 @@
    ]
   },
   "packages/coding-agent/test/print-mode.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "asserts session_shutdown reaching the extension runner (code extensions, deferred); prompt images are 10.12, exit code 1 on error is the replay print-error scenario",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/progress-bar.test.ts": {
    "status": "ported",
@@ -1796,7 +1856,11 @@
    ]
   },
   "packages/coding-agent/test/prompt-reactive-nudges.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "plugin reuse nudges, gated on the autonomous plugin system (enablePluginTools; plugins deferred)",
+   "tasks": [
+    "12.1"
+   ]
   },
   "packages/coding-agent/test/prompt-templates.test.ts": {
    "status": "ported",
@@ -1848,10 +1912,14 @@
    ]
   },
   "packages/coding-agent/test/restore-sandbox-env.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "works around Bun's empty process.env in sandboxes; a Rust binary reads the real environment"
   },
   "packages/coding-agent/test/retry-quota-classification.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/src/retry.rs"
+   ]
   },
   "packages/coding-agent/test/rpc-client-clone.test.ts": {
    "status": "ported",
@@ -1912,10 +1980,16 @@
    "status": "review"
   },
   "packages/coding-agent/test/sdk-openrouter-attribution.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/src/services.rs"
+   ]
   },
   "packages/coding-agent/test/sdk-session-manager.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/tests/sdk_session_manager_ts.rs"
+   ]
   },
   "packages/coding-agent/test/sdk-skills.test.ts": {
    "status": "ported",
@@ -1966,13 +2040,22 @@
    ]
   },
   "packages/coding-agent/test/session-cwd.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/session_cwd.rs"
+   ]
   },
   "packages/coding-agent/test/session-identity.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/src/identity.rs"
+   ]
   },
   "packages/coding-agent/test/session-info-modified-timestamp.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/tests/session_info_modified_ts.rs"
+   ]
   },
   "packages/coding-agent/test/session-manager/build-context.test.ts": {
    "status": "ported",
@@ -2091,7 +2174,11 @@
    ]
   },
   "packages/coding-agent/test/shipped-prose.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-modes/tests/shipped_prose_ts.rs",
+    "crates/cortexcode-code-subagents/tests/shipped_prose_ts.rs"
+   ]
   },
   "packages/coding-agent/test/skills.test.ts": {
    "status": "ported",
@@ -2118,7 +2205,10 @@
    ]
   },
   "packages/coding-agent/test/stdout-cleanliness.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-main/tests/stdout_cleanliness_ts.rs"
+   ]
   },
   "packages/coding-agent/test/streaming-segmentation.test.ts": {
    "status": "ported",
@@ -2318,31 +2408,61 @@
    ]
   },
   "packages/coding-agent/test/suite/disabled-tools.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/disabled_tools_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/persisted-flags.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "persisted overrides for extension-registered flags (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/read-dedup-guard.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/read_dedup_guard.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2023-queued-slash-command-followup.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension's sendUserMessage and registerCommand (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2753-reload-stale-resource-settings.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-resources/tests/reload_stale_resource_settings_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2781-skill-collision-precedence.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "user/project skills overriding skills from a settings `packages` entry (package manager, deferred)",
+   "tasks": [
+    "12.2"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2791-fswatch-error-crash.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "an unhandled Node FSWatcher error event killing the process; Rust watcher errors are values"
   },
   "packages/coding-agent/test/suite/regressions/2835-tools-allowlist-filters-extension-tools.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "tool allowlist over extension-registered tools (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2860-replaced-session-context.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "extension hoo/ctx rebinding across withSession (new, fork, switch) (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3217-scoped-model-order.test.ts": {
    "status": "ported",
@@ -2351,31 +2471,60 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/3303-find-nested-gitignore.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3317-network-connection-lost-retry.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/retry.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3592-no-builtin-tools-keeps-extension-tools.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "--no-builtin-tools keeping extension-registered tools (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3616-settings-inmemory-reload.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-settings/tests/settings_inmemory_reload_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3686-session-name-event.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "the extension setSessionName case; the AgentSession case is session.rs session_name_and_color_emit_session_info_changes",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3688-tree-cancel-compacting.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension cancelling session_before_tree (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3982-message-end-cost-override.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension replacing message_end (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts": {
    "status": "review"
   },
   "packages/coding-agent/test/suite/regressions/79-stale-todo-settle.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tools-optin/tests/stale_todo_settle_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/stale_todo_settle_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/windows-esm-url-scheme.test.ts": {
    "status": "n.a.",
@@ -2394,7 +2543,10 @@
    ]
   },
   "packages/coding-agent/test/suite/subagent-footer-indicator.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/subagent_footer_indicator_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/subagent-spawn-audit.test.ts": {
    "status": "review"
@@ -2497,7 +2649,10 @@
    ]
   },
   "packages/coding-agent/test/tips.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "11.6"
+   ]
   },
   "packages/coding-agent/test/tls-ca.test.ts": {
    "status": "ported",
@@ -2603,7 +2758,10 @@
    ]
   },
   "packages/coding-agent/test/truncate-to-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/coding-agent/test/user-message.test.ts": {
    "status": "ported",
@@ -2659,7 +2817,10 @@
    ]
   },
   "packages/tui/test/autocomplete.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/autocomplete_ts.rs"
+   ]
   },
   "packages/tui/test/background-fill.test.ts": {
    "status": "ported",
@@ -2668,7 +2829,10 @@
    ]
   },
   "packages/tui/test/bug-regression-isimageline-startswith-bug.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+   ]
   },
   "packages/tui/test/cursor-parking.test.ts": {
    "status": "ported",
@@ -2692,7 +2856,10 @@
    ]
   },
   "packages/tui/test/fuzzy.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-fuzzy/src/lib.rs"
+   ]
   },
   "packages/tui/test/hyperlink-click.test.ts": {
    "status": "ported",
@@ -2708,10 +2875,16 @@
    ]
   },
   "packages/tui/test/keybindings.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-keys/src/keybindings.rs"
+   ]
   },
   "packages/tui/test/keys.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-keys/tests/keys_ts.rs"
+   ]
   },
   "packages/tui/test/list-right-margin.test.ts": {
    "status": "ported",
@@ -2741,13 +2914,22 @@
    ]
   },
   "packages/tui/test/overlay-non-capturing.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_non_capturing_ts.rs"
+   ]
   },
   "packages/tui/test/overlay-options.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_options_ts.rs"
+   ]
   },
   "packages/tui/test/overlay-short-content.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+   ]
   },
   "packages/tui/test/paper-sheet.test.ts": {
    "status": "ported",
@@ -2756,7 +2938,10 @@
    ]
   },
   "packages/tui/test/regression-regional-indicator-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/tui/test/screen-fill.test.ts": {
    "status": "ported",
@@ -2795,34 +2980,66 @@
    ]
   },
   "packages/tui/test/stdin-buffer.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-terminal/src/stdin_buffer.rs"
+   ]
   },
   "packages/tui/test/terminal-image.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/image_component.rs",
+    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+   ]
   },
   "packages/tui/test/terminal.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-terminal/src/lib.rs"
+   ]
   },
   "packages/tui/test/truncate-to-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/tui/test/truncated-text.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/truncated_text_ts.rs"
+   ]
   },
   "packages/tui/test/tui-cell-size-input.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/cell_size_input.rs"
+   ]
   },
   "packages/tui/test/tui-flatcache-stress.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/src/tui.rs",
+    "crates/cortexcode-tui-render/tests/flatcache_stress.rs"
+   ]
   },
   "packages/tui/test/tui-overlay-style-leak.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+   ]
   },
   "packages/tui/test/tui-render.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/tui_render_ts.rs"
+   ]
   },
   "packages/tui/test/wrap-ansi.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/wrap_ansi_ts.rs"
+   ]
   }
  }
 }

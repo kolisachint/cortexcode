@@ -408,3 +408,33 @@ async fn emits_agent_end_for_aborted_runs_and_keeps_the_aborted_message() {
         other => panic!("{other:?}"),
     }
 }
+
+/// `test/suite/regressions/3317-network-connection-lost-retry.test.ts`.
+#[tokio::test(flavor = "multi_thread")]
+async fn issue_3317_retries_network_connection_lost() {
+    let h = harness(retry_settings(true, 3, 1));
+    h.set_responses(vec![
+        error("Network connection lost."),
+        text("recovered after reconnect"),
+    ]);
+    prompt(&h, "test").await;
+    assert_eq!(h.faux.call_count(), 2);
+    let starts: Vec<String> = h
+        .events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|e| match e {
+            AgentSessionEvent::AutoRetryStart { error_message, .. } => Some(error_message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(starts, ["Network connection lost."]);
+    assert_eq!(
+        retry_events(&h).last().map(String::as_str),
+        Some("end:true")
+    );
+    assert!(h
+        .assistant_texts()
+        .contains(&"recovered after reconnect".to_string()));
+}

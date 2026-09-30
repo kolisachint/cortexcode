@@ -12,7 +12,8 @@ Sources, first match wins:
     ts_tests.py generate [--check-fresh]   write migration/ts-tests.json (or fail if stale)
     ts_tests.py status                     counts per status and package
     ts_tests.py list [status]              the files with that status (default review)
-    ts_tests.py check                      fail while any file is `review`
+    ts_tests.py check [glob...]            fail while any file (matching a glob) is `review`
+                                           or ts-tests.json is stale
 
 Needs the pinned hoocode checkout (migration/tui-parity/setup_hoocode.sh).
 """
@@ -141,11 +142,17 @@ def main() -> int:
                 print(p, *(["(" + ", ".join(e.get("tasks", [])) + ")"] if e.get("tasks") else []))
         return 0
     if cmd == "check":
-        review = [p for p, e in doc["tests"].items() if e["status"] == "review"]
-        if review:
-            print(f"{len(review)} TS test files still need review (ts_tests.py list review)")
+        fresh = classify()
+        if render(fresh) != OUT.read_text():
+            print("migration/ts-tests.json is stale: run python3 migration/ts_tests.py generate")
             return 1
-        print("every TS test file is classified")
+        globs = args[1:] or ["*"]
+        review = [p for p, e in fresh["tests"].items() if e["status"] == "review" and any(fnmatch.fnmatch(p, g) for g in globs)]
+        if review:
+            print(f"{len(review)} TS test files still need review:")
+            print("\n".join(f"  {p}" for p in review))
+            return 1
+        print("every matching TS test file is classified")
         return 0
     sys.exit(__doc__)
 

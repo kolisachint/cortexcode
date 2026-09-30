@@ -44,6 +44,58 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 13.4d session/SDK/suite TS test review done; 13.4f split out
+- Ported: initial-message, read-dedup-guard (session test harness gained
+  `real_builtin_tools`), stdout-cleanliness (help half), session-cwd,
+  session-info-modified-timestamp, sdk-session-manager (default-path case; the other two
+  are fixed by the Rust signature), background-messages, disabled-tools,
+  sdk-openrouter-attribution (`merge_request_headers` extracted), subagent-footer-indicator,
+  regressions 79 (`plan_settle_outcome` extracted from InteractiveMode), 2753 (loader +
+  shared settings), 3303, 3317, 3616; auto-compaction-queue was already in compaction.rs.
+- Classified: extension-driven files -> 12.3 (dynamic-provider, persisted-flags, print-mode,
+  2023, 2835, 2860, 3592, 3686, 3688, 3982), package skills 2781 -> 12.2, 2791 n.a.
+- 13.4f (new): subagent-spawn-audit, subagent-visual-tie, session-surface-sync, 4167.
+- Seen once under a full `cargo test --workspace`: `cortexcode-code-rpc --test runtime_host
+  fork_branches_before_a_user_message_and_returns_its_text` timed out (10 s WAIT) on the
+  second prompt; passes 3/3 alone. Not investigated.
+- Next: 13.4e, then 13.4f; 10.12 and 11.6 are ready any time.
+
+### 2026-09-30 · 13.4c agent/ai/coding-agent utility TS test review done
+- Ported, citing the TS files: frontmatter, path-utils, native-search (onto
+  `run_lexical_retriever`; its ignoreCase/literal/single-file flags have no Rust
+  counterpart), retry-quota-classification, coding-agent truncate-to-width,
+  image-processing (TS fixtures verbatim), shipped-prose (plus a byte check of the crates'
+  template copies against the pin), agent e2e (faux provider), ai images (live, `#[ignore]`);
+  session-identity and the two compaction files were uncited near-ports, now completed.
+- Bug fixed: frontmatter `|` block scalars at the end of the block kept no trailing newline
+  (hoocode's `yaml` keeps one).
+- Classified: config (self-update) -> 12.2, plan-mode-utils (example extension) -> 12.3,
+  prompt-reactive-nudges -> 12.1, hoocode-user-agent -> 12.7; plan-parser (no caller at the
+  pin) and restore-sandbox-env (Bun workaround) n.a.
+- New tasks for gaps found: **10.12** image `@file` args are rejected ("not yet supported")
+  and interactive mode ignores `@file` args entirely; **11.6** the tips band (tips.ts,
+  tips-controller.ts) was never ported, only its settings.
+- Next: 13.4d (`ledger.py next`), then 13.4e; 10.12 and 11.6 are ready to take any time.
+
+### 2026-09-30 · 13.4b split; 13.4b tui TS test review done
+- 13.4b (85 `review` files, ~800 cases) split by area: 13.4b tui (19 files), 13.4c agent/ai +
+  coding-agent utility modules (21), 13.4d coding-agent session/SDK/suite (32), 13.4e
+  interactive-mode and transcript rendering (13). Each gates on
+  `ts_tests.py check <globs>`; `check` now also fails when ts-tests.json is stale. 13.4 depends
+  on all four.
+- 13.4b done: every tui file is ported case for case, citing its TS file (new `*_ts.rs` test
+  files in tui-keys/-util/-images/-render/-components, plus citations on existing near-ports in
+  stdin_buffer.rs and terminal lib.rs). Two parity bugs found and fixed: `visible_width` now
+  adds the trailing Thai/Lao AM vowels and halfwidth forms of a cluster (hoocode
+  `graphemeWidth`); the tui-render test terminal now resizes like xterm.js (shrink scrolls
+  into scrollback, grow pulls rows back) instead of vt100's cut-from-bottom.
+- The fd-gated autocomplete cases need `fd` on PATH (Debian: `apt-get install fd-find`, found
+  as `fdfind`); without it they skip, as in the TS suite.
+- Also fixed: the replay snapshots (13.2) held the system prompt's `Current date:`, so they
+  failed on every later day; replay.rs now masks it (replay-only rule, not in normalize.json).
+- Next: 13.4c (`ledger.py next`). Same method: for each file, port missing cases citing the
+  TS file, or add an `equivalent`/`n.a.` override with a reason.
+
 ### 2026-09-29 · 13.4 split; 13.4a TS test port ledger tooling
 - 13.4 split into 13.4a (tooling + automatic/curated classification) and 13.4b (review).
 - `migration/ts_tests.py generate` writes `migration/ts-tests.json`, one entry per TS test

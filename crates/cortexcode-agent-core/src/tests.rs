@@ -712,3 +712,355 @@ async fn abort_reaches_the_provider_stream() {
     agent.abort();
     assert!(!agent.state().is_streaming);
 }
+
+// ---------------------------------------------------------------------------
+// e2e.test.ts (packages/agent): the Agent against the faux provider. Its two
+// `continue()` validation cases are `continue_errors_match_hoocode` above.
+// ---------------------------------------------------------------------------
+
+/// `test/utils/calculate.ts`: evaluates `a <op> b`.
+fn calculate_tool() -> AgentTool {
+    AgentTool::new(
+        "calculate",
+        "Evaluate mathematical expressions",
+        serde_json::json!({"type": "object", "properties": {"expression": {"type": "string"}}, "required": ["expression"]}),
+        Box::new(|_, args, _, _| {
+            let expr = args["expression"].as_str().unwrap_or_default().to_string();
+            let parts: Vec<&str> = expr.split_whitespace().collect();
+            let (a, op, b) = (parts[0].parse::<i64>()?, parts[1], parts[2].parse::<i64>()?);
+            let value = match op {
+                "*" => a * b,
+                "+" => a + b,
+                "-" => a - b,
+                _ => return Err(format!("unsupported operator {op}").into()),
+            };
+            Ok(AgentToolResult {
+                content: vec![Content::text(format!("{expr} = {value}"))],
+                details: serde_json::Value::Null,
+                terminate: false,
+            })
+        }),
+    )
+}
+
+fn faux_agent(faux: &Arc<FauxProvider>, tools: Vec<AgentTool>) -> Agent {
+    Agent::with_options(AgentOptions {
+        initial_state: Some(AgentState {
+            model: faux.get_model(),
+            thinking_level: ThinkingLevel::Off,
+            ..state_with(tools)
+        }),
+        stream_fn: Some(Arc::new(faux.stream_fn())),
+        ..Default::default()
+    })
+}
+
+fn text_of(message: &AgentMessage) -> String {
+    let content = match message {
+        AgentMessage::Assistant(a) => &a.content,
+        AgentMessage::ToolResult(r) => &r.content,
+        other => panic!("no text blocks in {other:?}"),
+    };
+    content
+        .iter()
+        .filter_map(|c| match c {
+            Content::Text(t) => Some(t.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[tokio::test]
+async fn e2e_handles_a_basic_text_prompt() {
+    let faux = FauxProvider::new();
+    faux.set_responses(vec![faux_assistant_message("4", Default::default()).into()]);
+    let agent = faux_agent(&faux, vec![]);
+    agent
+        .prompt("What is 2+2? Answer with just the number.")
+        .await
+        .unwrap();
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert_eq!(roles(&state.messages), ["user", "assistant"]);
+    assert!(text_of(&state.messages[1]).contains('4'));
+}
+
+#[tokio::test]
+async fn e2e_executes_tools_and_tracks_pending_tool_calls() {
+    let faux = FauxProvider::new();
+    faux.set_responses(vec![
+        faux_assistant_message(
+            vec![
+                cortexcode_ai_provider_faux::faux_text("Let me calculate that."),
+                faux_tool_call(
+                    "calculate",
+                    serde_json::json!({"expression": "123 * 456"}),
+                    Some("calc-1".into()),
+                ),
+            ],
+            FauxMessageOptions {
+                stop_reason: Some(StopReason::ToolUse),
+                ..Default::default()
+            },
+        )
+        .into(),
+        faux_assistant_message("The result is 56088.", Default::default()).into(),
+    ]);
+    let agent = Arc::new(faux_agent(&faux, vec![calculate_tool()]));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let (sink, weak) = (seen.clone(), Arc::downgrade(&agent));
+    let _sub = agent.subscribe(move |event, _| {
+        let kind = event_type(event);
+        if kind == "tool_execution_start" || kind == "tool_execution_end" {
+            let mut ids: Vec<String> = weak
+                .upgrade()
+                .map(|a| a.state().pending_tool_calls.into_iter().collect())
+                .unwrap_or_default();
+            ids.sort();
+            sink.lock().unwrap().push((kind, ids));
+        }
+    });
+    agent
+        .prompt("Calculate 123 * 456 using the calculator tool.")
+        .await
+        .unwrap();
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert!(state.messages.len() >= 4);
+    let result = state
+        .messages
+        .iter()
+        .find(|m| m.role() == "toolResult")
+        .expect("a tool result");
+    assert!(text_of(result).contains("123 * 456 = 56088"));
+    assert!(text_of(state.messages.last().unwrap()).contains("56088"));
+    assert!(state.pending_tool_calls.is_empty());
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [
+            ("tool_execution_start", vec!["calc-1".to_string()]),
+            ("tool_execution_end", vec![]),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn e2e_handles_abort_during_streaming() {
+    let faux =
+        FauxProvider::with_options(cortexcode_ai_provider_faux::RegisterFauxProviderOptions {
+            tokens_per_second: Some(20.0),
+            token_size: Some(cortexcode_ai_provider_faux::FauxTokenSize {
+                min: Some(2),
+                max: Some(2),
+            }),
+            ..Default::default()
+        });
+    faux.set_responses(vec![faux_assistant_message(
+        "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen",
+        Default::default(),
+    )
+    .into()]);
+    let agent = Arc::new(faux_agent(&faux, vec![]));
+    let aborter = agent.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        aborter.abort();
+    });
+    agent.prompt("Count slowly from 1 to 20.").await.unwrap();
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert!(state.messages.len() >= 2);
+    match state.messages.last() {
+        Some(AgentMessage::Assistant(a)) => {
+            assert_eq!(a.stop_reason, StopReason::Aborted);
+            assert!(a.error_message.is_some());
+            assert_eq!(state.error_message, a.error_message);
+        }
+        other => panic!("expected an assistant message, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn e2e_emits_lifecycle_updates_while_streaming() {
+    let faux =
+        FauxProvider::with_options(cortexcode_ai_provider_faux::RegisterFauxProviderOptions {
+            token_size: Some(cortexcode_ai_provider_faux::FauxTokenSize {
+                min: Some(1),
+                max: Some(1),
+            }),
+            ..Default::default()
+        });
+    faux.set_responses(vec![faux_assistant_message(
+        "1 2 3 4 5",
+        Default::default(),
+    )
+    .into()]);
+    let agent = faux_agent(&faux, vec![]);
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let sink = events.clone();
+    let _sub = agent.subscribe(move |event, _| sink.lock().unwrap().push(event_type(event)));
+    agent.prompt("Count from 1 to 5.").await.unwrap();
+    let events = events.lock().unwrap().clone();
+    for kind in [
+        "agent_start",
+        "turn_start",
+        "message_start",
+        "message_update",
+        "message_end",
+        "turn_end",
+        "agent_end",
+    ] {
+        assert!(events.contains(&kind), "{kind} in {events:?}");
+    }
+    let first = |k| events.iter().position(|e| *e == k).unwrap();
+    let last = |k| events.iter().rposition(|e| *e == k).unwrap();
+    assert!(first("agent_start") < first("message_start"));
+    assert!(first("message_start") < first("message_end"));
+    assert!(first("message_end") < last("agent_end"));
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert_eq!(state.messages.len(), 2);
+}
+
+#[tokio::test]
+async fn e2e_maintains_context_across_multiple_turns() {
+    let faux = FauxProvider::new();
+    faux.set_responses(vec![
+        faux_assistant_message("Nice to meet you, Alice.", Default::default()).into(),
+        cortexcode_ai_provider_faux::FauxResponseStep::factory(|context, _, _, _| {
+            let has_alice = context.messages.iter().any(|m| match m {
+                ai_types::Message::User(u) => {
+                    serde_json::to_string(&u.content).unwrap().contains("Alice")
+                }
+                _ => false,
+            });
+            Ok(faux_assistant_message(
+                if has_alice {
+                    "Your name is Alice."
+                } else {
+                    "I do not know your name."
+                },
+                Default::default(),
+            ))
+        }),
+    ]);
+    let agent = faux_agent(&faux, vec![]);
+    agent.prompt("My name is Alice.").await.unwrap();
+    assert_eq!(agent.state().messages.len(), 2);
+    agent.prompt("What is my name?").await.unwrap();
+    let state = agent.state();
+    assert_eq!(state.messages.len(), 4);
+    assert!(text_of(&state.messages[3]).to_lowercase().contains("alice"));
+}
+
+#[tokio::test]
+async fn e2e_preserves_thinking_content_blocks() {
+    let faux =
+        FauxProvider::with_options(cortexcode_ai_provider_faux::RegisterFauxProviderOptions {
+            models: vec![cortexcode_ai_provider_faux::FauxModelDefinition {
+                reasoning: Some(true),
+                ..cortexcode_ai_provider_faux::FauxModelDefinition::new("faux-reasoning")
+            }],
+            ..Default::default()
+        });
+    faux.set_responses(vec![faux_assistant_message(
+        vec![
+            cortexcode_ai_provider_faux::faux_thinking("step by step"),
+            cortexcode_ai_provider_faux::faux_text("4"),
+        ],
+        Default::default(),
+    )
+    .into()]);
+    let agent = Agent::with_options(AgentOptions {
+        initial_state: Some(AgentState {
+            model: faux.get_model(),
+            thinking_level: ThinkingLevel::Low,
+            ..state_with(vec![])
+        }),
+        stream_fn: Some(Arc::new(faux.stream_fn())),
+        ..Default::default()
+    });
+    agent.prompt("What is 2+2?").await.unwrap();
+    match &agent.state().messages[1] {
+        AgentMessage::Assistant(a) => assert_eq!(
+            a.content,
+            vec![
+                Content::Thinking(ai_types::ThinkingContent {
+                    thinking: "step by step".into(),
+                    ..Default::default()
+                }),
+                Content::text("4"),
+            ]
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn e2e_continue_gets_a_response_when_last_message_is_user() {
+    let faux = FauxProvider::new();
+    faux.set_responses(vec![faux_assistant_message(
+        "HELLO WORLD",
+        Default::default(),
+    )
+    .into()]);
+    let agent = faux_agent(&faux, vec![]);
+    agent.set_messages(vec![user_text("Say exactly: HELLO WORLD")]);
+    agent.r#continue().await.unwrap();
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert_eq!(roles(&state.messages), ["user", "assistant"]);
+    assert!(text_of(&state.messages[1])
+        .to_uppercase()
+        .contains("HELLO WORLD"));
+}
+
+#[tokio::test]
+async fn e2e_continue_processes_tool_results() {
+    let faux = FauxProvider::new();
+    faux.set_responses(vec![faux_assistant_message(
+        "The answer is 8.",
+        Default::default(),
+    )
+    .into()]);
+    let agent = faux_agent(&faux, vec![calculate_tool()]);
+    let model = faux.get_model();
+    let assistant = AssistantMessage {
+        content: vec![
+            Content::text("Let me calculate that."),
+            Content::ToolCall(ToolCallContent {
+                id: "calc-1".into(),
+                name: "calculate".into(),
+                arguments: serde_json::json!({"expression": "5 + 3"}),
+                ..Default::default()
+            }),
+        ],
+        api: model.api.clone(),
+        provider: model.provider.clone(),
+        model: model.id.clone(),
+        stop_reason: StopReason::ToolUse,
+        timestamp: ai_types::now_ms(),
+        ..Default::default()
+    };
+    let result = ai_types::ToolResultMessage {
+        tool_call_id: "calc-1".into(),
+        tool_name: "calculate".into(),
+        content: vec![Content::text("5 + 3 = 8")],
+        details: None,
+        is_error: false,
+        timestamp: ai_types::now_ms(),
+    };
+    agent.set_messages(vec![
+        user_text("What is 5 + 3?"),
+        AgentMessage::Assistant(assistant),
+        AgentMessage::ToolResult(result),
+    ]);
+    agent.r#continue().await.unwrap();
+    let state = agent.state();
+    assert!(!state.is_streaming);
+    assert!(state.messages.len() >= 4);
+    let last = state.messages.last().unwrap();
+    assert_eq!(last.role(), "assistant");
+    assert!(text_of(last).contains('8'));
+}

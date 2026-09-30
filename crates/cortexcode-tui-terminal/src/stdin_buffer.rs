@@ -398,6 +398,9 @@ impl StdinBuffer {
     }
 }
 
+/// Case-for-case port of `packages/tui/test/stdin-buffer.test.ts`, except
+/// "should handle buffer input" (a Node `Buffer` argument; `process` takes
+/// `&str` here). The TS timer cases run on `poll_timeout`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -791,5 +794,38 @@ mod tests {
         assert!(b.process("\x1b[<35").is_empty());
         b.destroy();
         assert_eq!(b.buffer_contents(), "");
+    }
+
+    #[test]
+    fn kitty_rapid_typing_simulation() {
+        let mut b = StdinBuffer::new(StdinBufferOptions::default());
+        let ev = b.process("\x1b[104u\x1b[104;1:3u\x1b[105u\x1b[105;1:3u");
+        assert_eq!(
+            data_strings(&ev),
+            vec!["\x1b[104u", "\x1b[104;1:3u", "\x1b[105u", "\x1b[105;1:3u"]
+        );
+    }
+
+    #[test]
+    fn emits_flushed_data_via_timeout() {
+        let mut b = StdinBuffer::new(StdinBufferOptions {
+            timeout: Duration::from_millis(10),
+        });
+        assert!(b.process("\x1b[<35").is_empty());
+        assert!(b.poll_timeout(Instant::now()).is_empty());
+        let ev = b.poll_timeout(Instant::now() + Duration::from_millis(15));
+        assert_eq!(data_strings(&ev), vec!["\x1b[<35"]);
+    }
+
+    #[test]
+    fn destroy_clears_pending_timeouts() {
+        let mut b = StdinBuffer::new(StdinBufferOptions {
+            timeout: Duration::from_millis(10),
+        });
+        assert!(b.process("\x1b[<35").is_empty());
+        b.destroy();
+        assert!(b
+            .poll_timeout(Instant::now() + Duration::from_millis(15))
+            .is_empty());
     }
 }
