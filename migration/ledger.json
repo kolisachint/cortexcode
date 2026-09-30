@@ -6751,6 +6751,12 @@
      "commit": "511a45c",
      "kind": "note",
      "text": "part 1: selected-row-list, import-command ported; clone-command equivalent (L2 fork-clone)"
+    },
+    {
+     "at": "2026-09-30T17:55:14Z",
+     "commit": "864e290",
+     "kind": "note",
+     "text": "part 2: message-block-sheets, anthropic-warning ported; screen-anchor equivalent (L2 startup/chat-basic/color-chrome)"
     }
    ]
   },

@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 285,
-  "equivalent": 1,
+  "ported": 287,
+  "equivalent": 2,
   "n.a.": 6,
   "pending": 94,
-  "review": 14
+  "review": 11
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -1445,7 +1445,11 @@
    ]
   },
   "packages/coding-agent/test/interactive-mode-anthropic-warning.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/anthropic_subscription_auth_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/anthropic_warning_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-clone-command.test.ts": {
    "status": "equivalent",
@@ -1583,7 +1587,10 @@
    "status": "review"
   },
   "packages/coding-agent/test/message-block-sheets.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/message_block_sheets.rs"
+   ]
   },
   "packages/coding-agent/test/mode-commands.test.ts": {
    "status": "ported",
@@ -1987,7 +1994,8 @@
    ]
   },
   "packages/coding-agent/test/screen-anchor.test.ts": {
-   "status": "review"
+   "status": "equivalent",
+   "note": "whole-screen layout against the real mode: L2 compares every rendered row with hoocode at a fixed terminal size: startup (banner on row 0, fill, prompt on the floor), chat-basic (prompt stays on the floor after a turn), color-chrome (the /chrome receipt on the painted band above the prompt, not in the transcript)"
   },
   "packages/coding-agent/test/scroll-view-keys.test.ts": {
    "status": "review"

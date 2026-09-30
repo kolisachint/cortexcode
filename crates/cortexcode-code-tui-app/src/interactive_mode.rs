@@ -2163,23 +2163,18 @@ impl Mode {
 
     /// `maybeWarnAboutAnthropicSubscriptionAuth`: once per session.
     fn maybe_warn_about_anthropic_subscription_auth(&mut self, model: Option<Model>) {
-        if self.anthropic_warning_shown {
-            return;
-        }
         let Some(model) = model.or_else(|| self.session.model()) else {
             return;
         };
-        if !self.session.uses_anthropic_subscription_auth(&model) {
-            return;
+        let session = self.session.clone();
+        if claim_anthropic_subscription_warning(&mut self.anthropic_warning_shown, || {
+            session.uses_anthropic_subscription_auth(&model)
+        }) {
+            self.show_notice(
+                ANTHROPIC_SUBSCRIPTION_AUTH_TITLE,
+                ANTHROPIC_SUBSCRIPTION_AUTH_BODY,
+            );
         }
-        self.anthropic_warning_shown = true;
-        self.show_notice(
-            "Anthropic subscription",
-            &[
-                "Billed per token as extra usage, not against plan limits.",
-                "Turn off in /settings → Anthropic extra usage.",
-            ],
-        );
     }
 
     /// `cycleModel`.
@@ -5690,6 +5685,27 @@ fn prefix_autocomplete_description(
         Some(d) if !d.is_empty() => format!("[{tag}] {d}"),
         _ => format!("[{tag}]"),
     })
+}
+
+/// The notice for Anthropic subscription auth (`ANTHROPIC_SUBSCRIPTION_AUTH_*`).
+pub const ANTHROPIC_SUBSCRIPTION_AUTH_TITLE: &str = "Anthropic subscription";
+pub const ANTHROPIC_SUBSCRIPTION_AUTH_BODY: &[&str] = &[
+    "Billed per token as extra usage, not against plan limits.",
+    "Turn off in /settings → Anthropic extra usage.",
+];
+
+/// The once-per-session latch of `maybeWarnAboutAnthropicSubscriptionAuth`:
+/// true when the notice should show now. `uses_subscription_auth` is asked
+/// only while the latch is open, and a `false` leaves it open.
+pub fn claim_anthropic_subscription_warning(
+    shown: &mut bool,
+    uses_subscription_auth: impl FnOnce() -> bool,
+) -> bool {
+    if *shown || !uses_subscription_auth() {
+        return false;
+    }
+    *shown = true;
+    true
 }
 
 /// What dangling plan rows settle to when a request ends: done after a clean
