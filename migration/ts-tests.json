@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 264,
+  "ported": 269,
   "equivalent": 0,
   "n.a.": 5,
-  "pending": 86,
-  "review": 45
+  "pending": 95,
+  "review": 31
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -835,7 +835,11 @@
    ]
   },
   "packages/coding-agent/test/agent-session-dynamic-provider.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "extensions calling registerProvider (top level, session_start, command) (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/agent-session-dynamic-tools.test.ts": {
    "status": "ported",
@@ -1414,7 +1418,10 @@
    ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs"
+   ]
   },
   "packages/coding-agent/test/input-surface-frame.test.ts": {
    "status": "ported",
@@ -2176,7 +2183,10 @@
    ]
   },
   "packages/coding-agent/test/stdout-cleanliness.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-main/tests/stdout_cleanliness_ts.rs"
+   ]
   },
   "packages/coding-agent/test/streaming-segmentation.test.ts": {
    "status": "ported",
@@ -2379,13 +2389,24 @@
    "status": "review"
   },
   "packages/coding-agent/test/suite/persisted-flags.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "persisted overrides for extension-registered flags (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/read-dedup-guard.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/read_dedup_guard.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2023-queued-slash-command-followup.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension's sendUserMessage and registerCommand (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2753-reload-stale-resource-settings.test.ts": {
    "status": "review"
@@ -2397,10 +2418,18 @@
    "status": "review"
   },
   "packages/coding-agent/test/suite/regressions/2835-tools-allowlist-filters-extension-tools.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "tool allowlist over extension-registered tools (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2860-replaced-session-context.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "extension hoo/ctx rebinding across withSession (new, fork, switch) (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3217-scoped-model-order.test.ts": {
    "status": "ported",
@@ -2409,25 +2438,47 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/3303-find-nested-gitignore.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3317-network-connection-lost-retry.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/retry.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3592-no-builtin-tools-keeps-extension-tools.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "--no-builtin-tools keeping extension-registered tools (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3616-settings-inmemory-reload.test.ts": {
    "status": "review"
   },
   "packages/coding-agent/test/suite/regressions/3686-session-name-event.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "the extension setSessionName case; the AgentSession case is session.rs session_name_and_color_emit_session_info_changes",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3688-tree-cancel-compacting.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension cancelling session_before_tree (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3982-message-end-cost-override.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "an extension replacing message_end (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts": {
    "status": "review"

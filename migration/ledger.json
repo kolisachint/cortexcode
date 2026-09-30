@@ -6662,7 +6662,7 @@
    "id": "13.4d",
    "title": "TS test port ledger review, coding-agent session, SDK and suite/regression tests: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "13.4a"
    ],
@@ -6676,7 +6676,14 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T11:15:10Z",
+     "commit": "a08a21e",
+     "kind": "start",
+     "text": "started"
+    }
+   ]
   },
   {
    "id": "13.4e",

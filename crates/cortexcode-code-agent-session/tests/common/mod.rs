@@ -48,6 +48,9 @@ pub struct HarnessOptions {
     pub initial_active_tool_names: Option<Vec<String>>,
     /// Defaults to an in-memory manager rooted at the temp dir.
     pub session_manager: Option<MakeSessionManager>,
+    /// The real built-in tools from settings (`useRealBuiltinTools`) instead
+    /// of `tools`.
+    pub real_builtin_tools: bool,
 }
 
 pub struct Harness {
@@ -113,7 +116,13 @@ impl Harness {
             initial_active_tool_names: options.initial_active_tool_names,
             allowed_tool_names: options.allowed_tool_names,
             disallowed_tool_names: options.disallowed_tool_names,
-            base_tools: BaseTools::Override(options.tools),
+            base_tools: if options.real_builtin_tools {
+                BaseTools::Factory(Arc::new(|ctx| {
+                    cortexcode_code_agent_session::default_base_tools(ctx)
+                }))
+            } else {
+                BaseTools::Override(options.tools)
+            },
             extensions: options.extensions,
             session_start_event: None,
         });
