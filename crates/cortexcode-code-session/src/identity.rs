@@ -138,6 +138,7 @@ pub fn cycle_session_color_slot(current: f64, direction: CycleDirection) -> u8 {
     ((current as u8 - 1 + step) % SESSION_COLOR_SLOTS) + 1
 }
 
+/// Port of `coding-agent/test/session-identity.test.ts`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,6 +241,17 @@ mod tests {
         ] {
             assert_eq!(parse_session_color_slot(a), parse_session_color_slot(b));
         }
+        for (initial, name) in [("g", "green"), ("b", "blue"), ("y", "yellow")] {
+            assert_eq!(
+                parse_session_color_slot(initial),
+                parse_session_color_slot(name)
+            );
+        }
+        let extra = ["red", "r", "g", "b", "y", "m", "orange", "pink", "1", "6"];
+        for spelling in names.iter().copied().chain(extra) {
+            let slot = parse_session_color_slot(spelling).unwrap_or_else(|| panic!("{spelling}"));
+            assert!(is_session_color_slot(f64::from(slot)), "{spelling}");
+        }
         for junk in ["", "   ", "0", "7", "2.5", "-1", "chartreuse", "z"] {
             assert_eq!(parse_session_color_slot(junk), None, "{junk}");
         }
@@ -262,6 +274,11 @@ mod tests {
             let f = cycle_session_color_slot(f64::from(slot), CycleDirection::Forward);
             assert_eq!(
                 cycle_session_color_slot(f64::from(f), CycleDirection::Backward),
+                slot
+            );
+            let b = cycle_session_color_slot(f64::from(slot), CycleDirection::Backward);
+            assert_eq!(
+                cycle_session_color_slot(f64::from(b), CycleDirection::Forward),
                 slot
             );
         }

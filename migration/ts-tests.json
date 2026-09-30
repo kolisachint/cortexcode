@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 253,
+  "ported": 264,
   "equivalent": 0,
-  "n.a.": 3,
-  "pending": 79,
-  "review": 65
+  "n.a.": 5,
+  "pending": 86,
+  "review": 45
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -31,7 +31,10 @@
    ]
   },
   "packages/agent/test/e2e.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-core/src/tests.rs"
+   ]
   },
   "packages/agent/test/harness/agent-harness.test.ts": {
    "status": "ported",
@@ -437,7 +440,10 @@
    ]
   },
   "packages/ai/test/images.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-ai-images/tests/images_ts.rs"
+   ]
   },
   "packages/ai/test/interleaved-thinking.test.ts": {
    "status": "ported",
@@ -939,7 +945,10 @@
    ]
   },
   "packages/coding-agent/test/block-images.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "10.12"
+   ]
   },
   "packages/coding-agent/test/builtin-skills.test.ts": {
    "status": "ported",
@@ -1124,10 +1133,16 @@
    ]
   },
   "packages/coding-agent/test/compaction-serialization.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+   ]
   },
   "packages/coding-agent/test/compaction-summary-reasoning.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+   ]
   },
   "packages/coding-agent/test/compaction.test.ts": {
    "status": "ported",
@@ -1147,7 +1162,11 @@
    ]
   },
   "packages/coding-agent/test/config.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "install-method detection and self-update commands for `hoocode update` (package manager CLI, deferred)",
+   "tasks": [
+    "12.2"
+   ]
   },
   "packages/coding-agent/test/context-files-user-scope.test.ts": {
    "status": "ported",
@@ -1333,7 +1352,10 @@
    ]
   },
   "packages/coding-agent/test/frontmatter.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-resources/tests/frontmatter_ts.rs"
+   ]
   },
   "packages/coding-agent/test/git-ssh-url.test.ts": {
    "status": "ported",
@@ -1364,7 +1386,11 @@
    ]
   },
   "packages/coding-agent/test/hoocode-user-agent.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "getHooCodeUserAgent's only caller is the version check (deferred)",
+   "tasks": [
+    "12.7"
+   ]
   },
   "packages/coding-agent/test/hybrid-search.test.ts": {
    "status": "ported",
@@ -1376,10 +1402,16 @@
    ]
   },
   "packages/coding-agent/test/image-processing.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-media/tests/image_processing_ts.rs"
+   ]
   },
   "packages/coding-agent/test/image-resize-callers.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "10.12"
+   ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {
    "status": "review"
@@ -1577,7 +1609,10 @@
    ]
   },
   "packages/coding-agent/test/native-search.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+   ]
   },
   "packages/coding-agent/test/new-canvas.test.ts": {
    "status": "pending",
@@ -1635,7 +1670,10 @@
    ]
   },
   "packages/coding-agent/test/path-utils.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tool-api/tests/path_utils_ts.rs"
+   ]
   },
   "packages/coding-agent/test/paths.test.ts": {
    "status": "ported",
@@ -1664,10 +1702,15 @@
    ]
   },
   "packages/coding-agent/test/plan-mode-utils.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "tests examples/extensions/plan-mode, a TS example extension (code extensions, deferred)",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/plan-parser.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "src/utils/plan/parser.ts has no caller at the pin (plan mode uses modes.ts parsePlanSections, ported in code-modes)"
   },
   "packages/coding-agent/test/platform-settings-pane.test.ts": {
    "status": "ported",
@@ -1796,7 +1839,11 @@
    ]
   },
   "packages/coding-agent/test/prompt-reactive-nudges.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "plugin reuse nudges, gated on the autonomous plugin system (enablePluginTools; plugins deferred)",
+   "tasks": [
+    "12.1"
+   ]
   },
   "packages/coding-agent/test/prompt-templates.test.ts": {
    "status": "ported",
@@ -1848,10 +1895,14 @@
    ]
   },
   "packages/coding-agent/test/restore-sandbox-env.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "works around Bun's empty process.env in sandboxes; a Rust binary reads the real environment"
   },
   "packages/coding-agent/test/retry-quota-classification.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/src/retry.rs"
+   ]
   },
   "packages/coding-agent/test/rpc-client-clone.test.ts": {
    "status": "ported",
@@ -1969,7 +2020,10 @@
    "status": "review"
   },
   "packages/coding-agent/test/session-identity.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/src/identity.rs"
+   ]
   },
   "packages/coding-agent/test/session-info-modified-timestamp.test.ts": {
    "status": "review"
@@ -2091,7 +2145,11 @@
    ]
   },
   "packages/coding-agent/test/shipped-prose.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-modes/tests/shipped_prose_ts.rs",
+    "crates/cortexcode-code-subagents/tests/shipped_prose_ts.rs"
+   ]
   },
   "packages/coding-agent/test/skills.test.ts": {
    "status": "ported",
@@ -2497,7 +2555,10 @@
    ]
   },
   "packages/coding-agent/test/tips.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "11.6"
+   ]
   },
   "packages/coding-agent/test/tls-ca.test.ts": {
    "status": "ported",

@@ -44,6 +44,23 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 13.4c agent/ai/coding-agent utility TS test review done
+- Ported, citing the TS files: frontmatter, path-utils, native-search (onto
+  `run_lexical_retriever`; its ignoreCase/literal/single-file flags have no Rust
+  counterpart), retry-quota-classification, coding-agent truncate-to-width,
+  image-processing (TS fixtures verbatim), shipped-prose (plus a byte check of the crates'
+  template copies against the pin), agent e2e (faux provider), ai images (live, `#[ignore]`);
+  session-identity and the two compaction files were uncited near-ports, now completed.
+- Bug fixed: frontmatter `|` block scalars at the end of the block kept no trailing newline
+  (hoocode's `yaml` keeps one).
+- Classified: config (self-update) -> 12.2, plan-mode-utils (example extension) -> 12.3,
+  prompt-reactive-nudges -> 12.1, hoocode-user-agent -> 12.7; plan-parser (no caller at the
+  pin) and restore-sandbox-env (Bun workaround) n.a.
+- New tasks for gaps found: **10.12** image `@file` args are rejected ("not yet supported")
+  and interactive mode ignores `@file` args entirely; **11.6** the tips band (tips.ts,
+  tips-controller.ts) was never ported, only its settings.
+- Next: 13.4d (`ledger.py next`), then 13.4e; 10.12 and 11.6 are ready to take any time.
+
 ### 2026-09-30 · 13.4b split; 13.4b tui TS test review done
 - 13.4b (85 `review` files, ~800 cases) split by area: 13.4b tui (19 files), 13.4c agent/ai +
   coding-agent utility modules (21), 13.4d coding-agent session/SDK/suite (32), 13.4e

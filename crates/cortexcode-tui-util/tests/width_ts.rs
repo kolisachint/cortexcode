@@ -131,3 +131,45 @@ fn normalizes_thai_and_lao_am_only_for_terminal_output() {
         visible_width("ຳabc")
     );
 }
+
+// --- coding-agent/test/truncate-to-width.test.ts (default "..." ellipsis)
+
+fn truncate(text: &str, width: usize) -> String {
+    truncate_to_width(text, width, "...", false)
+}
+
+#[test]
+fn coding_agent_truncates_unicode_messages_within_width() {
+    for (message, width) in [
+        (
+            "✔ script to run › dev $ concurrently \"vite\" \"node --import tsx ./",
+            67,
+        ),
+        (
+            "🎉 Celebration! 🚀 Launch 📦 Package ready for deployment now",
+            40,
+        ),
+        ("Hello 世界 Test 你好 More text here that is long", 30),
+    ] {
+        let max = width - 2;
+        assert!(visible_width(&truncate(message, max)) <= max, "{message}");
+    }
+}
+
+#[test]
+fn coding_agent_does_not_truncate_messages_that_fit() {
+    assert_eq!(truncate("Short message", 48), "Short message");
+}
+
+#[test]
+fn coding_agent_adds_ellipsis_when_truncating() {
+    let t = truncate("This is a very long message that needs to be truncated", 28);
+    assert!(t.contains("..."));
+    assert!(visible_width(&t) <= 28);
+}
+
+#[test]
+fn coding_agent_exact_crash_case_from_issue_report() {
+    let message = "✔ script to run › dev $ concurrently \"vite\" \"node --import tsx ./server.ts\"";
+    assert!(visible_width(&truncate(message, 65)) + 2 <= 67);
+}

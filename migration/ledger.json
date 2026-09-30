@@ -3451,6 +3451,30 @@
    ]
   },
   {
+   "id": "10.12",
+   "title": "@file arguments at parity: image @file args (resize, dimension note, \"Image omitted\" text) sent as prompt images, and @file args in interactive mode (prepareInitialMessage feeds both modes)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-cli",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/cli/file-processor.ts",
+    "packages/coding-agent/src/cli/initial-message.ts",
+    "packages/coding-agent/src/main.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/block-images.test.ts",
+    "packages/coding-agent/test/image-resize-callers.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: covered by L1 (file processor output and the prompt request); add a print scenario with an image @file if the mock LLM logs images",
+   "notes": "Found in 13.4c: process_file_arguments rejected image @file args (\"not yet supported\") and run_interactive_mode passed no file text at all.",
+   "log": []
+  },
+  {
    "id": "11.1",
    "title": "Interactive shell on ported TUI: new crates code-tui-app, code-tui-theme (theme.ts + JSON themes), code-tui-keybindings; header/editor/footer idle screen",
    "phase": 11,
@@ -6195,6 +6219,27 @@
    ]
   },
   {
+   "id": "11.6",
+   "title": "Tips band: tips.ts (TIPS, TipRotation, star nudge) and tips-controller.ts (idle/long-turn timing, cooldown, notification-band etiquette), driven by the existing tips.enabled / seen-tips settings",
+   "phase": 11,
+   "status": "todo",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/tips.ts",
+    "packages/coding-agent/src/modes/interactive/tips-controller.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/tips.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": "n/a: time-driven (idle delay, long turn); L1 covers TipsController with a fake clock",
+   "notes": "Found in 13.4c: the settings (tips.enabled, seen tips) and the settings-pane toggle are ported, the band content and controller are not.",
+   "log": []
+  },
+  {
    "id": "12.1",
    "title": "Declarative plugins + marketplace (.agents-plugin, claude/copilot formats)",
    "phase": 12,
@@ -6584,7 +6629,7 @@
    "id": "13.4c",
    "title": "TS test port ledger review, agent, ai and coding-agent utility modules: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6598,7 +6643,20 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T06:18:42Z",
+     "commit": "edc78e7",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T11:11:39Z",
+     "commit": "edc78e7",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.4d",
