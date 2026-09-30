@@ -1224,6 +1224,7 @@ dependencies = [
  "cortexcode-tui-render",
  "cortexcode-tui-terminal",
  "cortexcode-tui-util",
+ "libc",
  "regex",
  "serde_json",
  "tempfile",

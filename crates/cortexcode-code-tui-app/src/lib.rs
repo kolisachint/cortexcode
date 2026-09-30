@@ -21,5 +21,6 @@ pub mod resource_display;
 pub use cortexcode_code_tui_widgets::session_chip;
 pub mod session_picker;
 pub mod startup_progress;
+pub mod suspend;
 pub mod tips;
 pub mod wordmark;

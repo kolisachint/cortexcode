@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 287,
+  "ported": 288,
   "equivalent": 2,
   "n.a.": 6,
   "pending": 94,
-  "review": 11
+  "review": 10
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -1471,7 +1471,10 @@
    "status": "review"
   },
   "packages/coding-agent/test/interactive-mode-suspend.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/suspend_ts.rs"
+   ]
   },
   "packages/coding-agent/test/keybinding-layout.test.ts": {
    "status": "ported",

@@ -145,6 +145,7 @@ use crate::resource_display::{format_display_path, show_loaded_resources, Resour
 use crate::session_chip::render_session_chip;
 use crate::session_picker;
 use crate::startup_progress;
+use crate::suspend::{suspend_to_background, SuspendOps, SuspendOutcome};
 use crate::tips::{
     render_tip, tip_ttl, TipRotation, TipRotationOptions, TipsController, TipsControllerOptions,
 };
@@ -946,6 +947,8 @@ struct Mode {
     /// An `/import` waiting on a confirm: the input path, the fallback cwd
     /// once the stored one turned out missing, and where the answer arrives.
     pending_import: Option<(String, Option<String>, mpsc::Receiver<Option<String>>)>,
+    /// The input channel of a TUI restarted after Ctrl+Z; the loop switches to it.
+    restarted_input: Option<Receiver<TuiEvent>>,
 }
 
 impl Mode {
@@ -1274,6 +1277,7 @@ impl Mode {
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
+            restarted_input: None,
         }
     }
 
@@ -3973,6 +3977,61 @@ impl Mode {
         }
     }
 
+    /// `handleCtrlZ`: suspend to the background; the TUI comes back on `fg`.
+    fn handle_ctrl_z(&mut self) {
+        struct Ops<'a> {
+            tui: &'a mut Tui,
+            input: &'a mut Option<Receiver<TuiEvent>>,
+            #[cfg(unix)]
+            signals: crate::suspend::ProcessSignals,
+        }
+        impl SuspendOps for Ops<'_> {
+            fn stop_ui(&mut self) {
+                self.tui.stop();
+            }
+            fn restart_ui(&mut self) {
+                *self.input = Some(self.tui.start());
+                self.tui.request_render(true);
+            }
+            fn ignore_sigint(&mut self) {
+                #[cfg(unix)]
+                self.signals.ignore_sigint();
+            }
+            fn restore_sigint(&mut self) {
+                #[cfg(unix)]
+                self.signals.restore_sigint();
+            }
+            fn stop_process_group(&mut self) -> Result<(), String> {
+                #[cfg(unix)]
+                return self.signals.stop_process_group();
+                #[cfg(not(unix))]
+                Err("not supported".into())
+            }
+        }
+        let mut ops = Ops {
+            tui: &mut self.tui,
+            input: &mut self.restarted_input,
+            #[cfg(unix)]
+            signals: Default::default(),
+        };
+        match suspend_to_background(&mut ops, cfg!(windows)) {
+            SuspendOutcome::Resumed => {
+                // The terminal may have been resized while stopped.
+                let terminal = &self.tui.terminal;
+                self.size.set((terminal.columns(), terminal.rows()));
+                self.dirty.set(true);
+            }
+            SuspendOutcome::Unsupported(message) => self.show_status(message),
+            SuspendOutcome::Failed(error) => {
+                // hoocode rethrows here; the UI is brought back instead so
+                // the session stays usable.
+                self.restarted_input = Some(self.tui.start());
+                self.tui.request_render(true);
+                self.show_error(&format!("Suspend failed: {error}"));
+            }
+        }
+    }
+
     /// `handleImport`: `/import <path.jsonl>` replaces the session, after a
     /// confirm.
     fn handle_import_command(&mut self, text: &str) {
@@ -5103,7 +5162,7 @@ impl Mode {
                 }
             }
             Action::Exit => self.exit_requested = true,
-            Action::Suspend => {}
+            Action::Suspend => self.handle_ctrl_z(),
             Action::ToolsExpand => self.jump_to_full_view(),
             Action::ViewForward | Action::ViewBackward => {
                 self.cycle_tool_output_view(action == Action::ViewForward)
@@ -5243,7 +5302,7 @@ impl Mode {
             Option<String>,
         ),
     ) -> Result<(), String> {
-        let input = self.tui.start();
+        let mut input = self.tui.start();
         // From here the TUI owns the terminal: the agent's operational log
         // lines (dispatch, warm fallback, lifeguard) must not write to it.
         set_terminal_owned_by_tui(true);
@@ -5354,6 +5413,9 @@ impl Mode {
                 for action in pending {
                     self.handle_action(action);
                 }
+            }
+            if let Some(restarted) = self.restarted_input.take() {
+                input = restarted;
             }
             while let Ok(event) = self.rx.try_recv() {
                 match event {

@@ -6757,6 +6757,12 @@
      "commit": "864e290",
      "kind": "note",
      "text": "part 2: message-block-sheets, anthropic-warning ported; screen-anchor equivalent (L2 startup/chat-basic/color-chrome)"
+    },
+    {
+     "at": "2026-09-30T17:57:29Z",
+     "commit": "c994c53",
+     "kind": "note",
+     "text": "part 3: interactive-mode-suspend ported; Ctrl+Z (app.suspend) was a no-op in cortex, now implemented (suspend.rs, checked by hand in tmux: C-z, jobs, fg, typing)"
     }
    ]
   },
