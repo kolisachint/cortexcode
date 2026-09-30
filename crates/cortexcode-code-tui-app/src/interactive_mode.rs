@@ -145,6 +145,9 @@ use crate::resource_display::{format_display_path, show_loaded_resources, Resour
 use crate::session_chip::render_session_chip;
 use crate::session_picker;
 use crate::startup_progress;
+use crate::tips::{
+    render_tip, tip_ttl, TipRotation, TipRotationOptions, TipsController, TipsControllerOptions,
+};
 use crate::wordmark::{build_compact_wordmark, CompactWordmarkOptions};
 
 /// How the mode is started.
@@ -867,6 +870,8 @@ struct Mode {
     selector: Option<OpenSelector>,
     actions: Rc<RefCell<Vec<Action>>>,
     notifications: Rc<RefCell<NotificationPanel>>,
+    /// Tips on the notification band (`tips.rs`).
+    tips: TipsController,
     footer: Rc<RefCell<FooterComponent>>,
     footer_data: FooterDataProvider,
     chrome: ChromeLayoutController,
@@ -1090,6 +1095,45 @@ impl Mode {
             Some(Box::new(move || (budget.get().1 / 3) as usize)),
         ));
 
+        // Tips: one small thing about cortex, on the band, at a moment that was
+        // being spent anyway. `band_is_free` keeps it the lowest-priority thing
+        // on screen: a tip is dropped rather than queued behind anything.
+        let tips = {
+            let (s1, s2, s3, s4, s5) = (
+                session.clone(),
+                session.clone(),
+                session.clone(),
+                session.clone(),
+                session.clone(),
+            );
+            let (band, show) = (notifications.clone(), notifications.clone());
+            TipsController::new(TipsControllerOptions::new(
+                Box::new(move || s1.settings().tips_enabled()),
+                Box::new(move || band.borrow().showing().is_none()),
+                Box::new(move |tip| {
+                    let rendered = render_tip(tip);
+                    let body: Vec<&str> = rendered.body.iter().map(String::as_str).collect();
+                    show.borrow_mut().notify(
+                        NotificationKind::Info,
+                        &rendered.title,
+                        &body,
+                        rendered.note.as_deref(),
+                        Some(tip_ttl(body.len())),
+                        Some("tip"),
+                    );
+                }),
+                TipRotation::new(
+                    TipRotationOptions {
+                        seen: Box::new(move || s2.settings().seen_tips()),
+                        mark_seen: Box::new(move |id| s3.settings().mark_tip_seen(id)),
+                        star_nudge_count: Box::new(move || s4.settings().star_nudge_count()),
+                        mark_star_nudge: Box::new(move || s5.settings().record_star_nudge()),
+                    },
+                    None,
+                ),
+            ))
+        };
+
         let expanded = options.verbose || tool_output_view == MAX_TOOL_OUTPUT_VIEW;
         let (version, cwd) = (
             options.version.clone(),
@@ -1187,6 +1231,7 @@ impl Mode {
             selector: None,
             actions,
             notifications,
+            tips,
             footer,
             footer_data,
             chrome,
@@ -4856,6 +4901,7 @@ impl Mode {
     fn handle_agent_event(&mut self, event: AgentEvent) {
         match event {
             AgentEvent::AgentStart => {
+                self.tips.on_turn_start();
                 self.stop_working_loader();
                 let loader = self.create_working_loader();
                 self.status.borrow_mut().add_child(as_component(&loader));
@@ -5155,6 +5201,7 @@ impl Mode {
         let mut wait = Duration::from_millis(250);
         let deadlines = [
             self.notifications.borrow().deadline(),
+            self.tips.deadline(),
             self.editor.borrow().editor.autocomplete_deadline(),
         ];
         for deadline in deadlines.into_iter().flatten() {
@@ -5284,12 +5331,20 @@ impl Mode {
         loop {
             match input.recv_timeout(self.next_wakeup()) {
                 Ok(event) => {
+                    // A keystroke that turns out to do nothing is still the
+                    // user being present: it restarts the tips' idle clock.
+                    if let TuiEvent::Input(_) = event {
+                        self.tips.on_activity();
+                    }
                     if let TuiEvent::Resize = event {
                         let terminal = &self.tui.terminal;
                         self.size.set((terminal.columns(), terminal.rows()));
                     }
                     self.tui.process_event(event);
                     while let Ok(event) = input.try_recv() {
+                        if let TuiEvent::Input(_) = event {
+                            self.tips.on_activity();
+                        }
                         self.tui.process_event(event);
                     }
                 }
@@ -5325,6 +5380,7 @@ impl Mode {
                         self.close_open_chain(outcome);
                         self.show_turn_cost();
                         self.settle_dangling_plan_items();
+                        self.tips.on_turn_end();
                         if let Err(error) = result {
                             self.show_error(&error);
                         }
@@ -5369,6 +5425,9 @@ impl Mode {
                 }
             }
             if self.notifications.borrow_mut().poll() {
+                self.dirty.set(true);
+            }
+            if self.tips.poll() {
                 self.dirty.set(true);
             }
             if self
@@ -5457,6 +5516,7 @@ impl Mode {
         self.footer_data.off_branch_change(branch);
         self.footer_data.dispose();
         cortexcode_code_tui_theme::stop_theme_watcher();
+        self.tips.stop();
         self.notifications.borrow_mut().stop();
         if let Some(subscription) = self.task_store_subscription.take() {
             subscription.unsubscribe();

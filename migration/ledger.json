@@ -6239,7 +6239,7 @@
    "id": "11.6",
    "title": "Tips band: tips.ts (TIPS, TipRotation, star nudge) and tips-controller.ts (idle/long-turn timing, cooldown, notification-band etiquette), driven by the existing tips.enabled / seen-tips settings",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-code-tui-app"
@@ -6254,7 +6254,20 @@
    "l1_cmds": [],
    "l2": "n/a: time-driven (idle delay, long turn); L1 covers TipsController with a fake clock",
    "notes": "Found in 13.4c: the settings (tips.enabled, seen tips) and the settings-pane toggle are ported, the band content and controller are not.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:46:21Z",
+     "commit": "9c753a3",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:48:41Z",
+     "commit": "9c753a3",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "12.1",

@@ -44,6 +44,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 11.6 tips band: done
+- New `cortexcode-code-tui-app/src/tips.rs`: TIPS (rebranded), `TipRotation` (unseen first,
+  star nudge every 6 tips, once a session, 3 ever), `TipsController` (grace 60 s, idle 45 s,
+  streaming 20 s, cooldown 3 min, band must be free). Poll-based like the notification band:
+  `poll()` + `deadline()` on an injectable clock instead of timers.
+- Wired into InteractiveMode: keystrokes -> on_activity, agent_start -> on_turn_start,
+  request settled -> on_turn_end; a tip goes on the band as an Info with topic "tip".
+- The rotation leaves out tips for features cortex doesn't ship yet (phase-12 /learn,
+  /plugin, /new-skill, /canvas, /cost, and the `hoo` alias): `UNAVAILABLE_TIP_IDS`.
+  Drop ids from that list as those features land.
+- Ported tips.test.ts (tests/tips.rs).
+
 ### 2026-09-30 · 10.12 @file arguments at parity: done
 - `initial_message.rs`: `process_file_arguments` returns `ProcessedFiles { text, images }`;
   image args are auto-resized (`images.autoResize`), get the dimension note or the
