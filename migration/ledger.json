@@ -6407,6 +6407,12 @@
      "commit": "0f53ae9",
      "kind": "note",
      "text": "When extension hooks land: the pin's 'cancels in-progress manual compaction when abortCompaction is called' test cancels via session_before_compact → 'Compaction cancelled'; port it as written then (the current Rust test covers the no-extension path)."
+    },
+    {
+     "at": "2026-09-30T18:16:42Z",
+     "commit": "6302356",
+     "kind": "note",
+     "text": "interactive-mode-status.test.ts (13.4e): its extension UI context cases (setTheme persistence, addAutocompleteProvider, setupAutocompleteProvider wrapper stacking) are still to port with the extension runtime"
     }
    ]
   },
@@ -6527,6 +6533,12 @@
      "commit": "98a52d2",
      "kind": "note",
      "text": "Owns /share and the HTML half of /export (split out of 11.4e)."
+    },
+    {
+     "at": "2026-09-30T18:16:42Z",
+     "commit": "6302356",
+     "kind": "note",
+     "text": "interactive-mode-status.test.ts (13.4e): the 'counts canvases, and the detail says how to open one' case (real canvas discovery, untrusted workspace) is still to port with canvases"
     }
    ]
   },
@@ -6755,7 +6767,7 @@
    "id": "13.4e",
    "title": "TS test port ledger review, coding-agent interactive-mode and transcript rendering: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6811,6 +6823,18 @@
      "commit": "2145278",
      "kind": "note",
      "text": "scroll-view-keys: the app half of the scroll view was missing; new task 11.7 owns it"
+    },
+    {
+     "at": "2026-09-30T18:16:50Z",
+     "commit": "6302356",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    },
+    {
+     "at": "2026-09-30T18:17:04Z",
+     "commit": "6302356",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },

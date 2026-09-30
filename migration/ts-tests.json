@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 293,
+  "ported": 294,
   "equivalent": 2,
   "n.a.": 6,
   "pending": 94,
-  "review": 5
+  "review": 4
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -1468,7 +1468,12 @@
    ]
   },
   "packages/coding-agent/test/interactive-mode-status.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/runtime.rs",
+    "crates/cortexcode-code-tui-app/src/record_row.rs",
+    "crates/cortexcode-code-tui-app/tests/interactive_mode_status_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-suspend.test.ts": {
    "status": "ported",

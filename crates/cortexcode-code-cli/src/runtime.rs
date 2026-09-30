@@ -1609,4 +1609,108 @@ mod tests {
             assert!(calls[0] < spoken_at && spoken_at < calls[1]);
         }
     }
+
+    /// The `jumpToFullView` / `setToolsExpanded` cases of the pin's
+    /// `test/interactive-mode-status.test.ts`, on the real interactive mode:
+    /// ctrl+o (`app.tools.expand`) and the footer's view stop.
+    mod interactive_mode_status {
+        use super::*;
+        use serde_json::json;
+
+        /// Run the idle mode with `settings`, typing `keys` (then ctrl+d);
+        /// the drawn output and the session (for its settings).
+        fn run(settings: serde_json::Value, keys: &[&'static str]) -> (String, AgentSession) {
+            let args = crate::args::parse_args(&[]);
+            let agent_dir = tempfile::tempdir().unwrap();
+            let (session, _) = assemble_session(
+                &args,
+                std::path::PathBuf::from("/w"),
+                agent_dir.path().to_path_buf(),
+                SettingsManager::in_memory(settings.as_object().unwrap().clone()),
+                cortexcode_code_models::ModelRegistry::in_memory(),
+                Arc::new(cortexcode_code_models::NoAuth),
+                SessionManager::in_memory("/w"),
+                ModelOptions::default(),
+                None,
+                true,
+            );
+            let output = Arc::new(Mutex::new(String::new()));
+            let mut script: Vec<(u64, &'static str)> = vec![(300, "")];
+            script.extend(keys.iter().map(|k| (150, *k)));
+            script.push((300, "\x04"));
+            let terminal = ScriptedTerminal {
+                script,
+                output: output.clone(),
+                title: Arc::new(Mutex::new(String::new())),
+            };
+            cortexcode_code_tui_app::interactive_mode::run_interactive(
+                cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+                    session: session.clone(),
+                    session_runtime: None,
+                    runtime: async_runtime().handle().clone(),
+                    listing: Box::new(resource_listing),
+                    is_oauth: Box::new(|_| false),
+                    auth_storage: Arc::new(AuthStorage::in_memory([])),
+                    version: "0.0.1".into(),
+                    verbose: false,
+                    initial_message: None,
+                    initial_images: Vec::new(),
+                    initial_messages: Vec::new(),
+                    model_fallback_message: None,
+                    terminal: Some(Box::new(terminal)),
+                },
+            )
+            .unwrap();
+            let drawn = cortexcode_tui_util::strip_vt_control_characters(&output.lock().unwrap());
+            (drawn, session)
+        }
+
+        /// Where each needle first appears after `from`, in order.
+        fn in_order(drawn: &str, needles: &[&str]) -> bool {
+            let mut at = 0;
+            for needle in needles {
+                match drawn[at..].find(needle) {
+                    Some(i) => at += i + needle.len(),
+                    None => return false,
+                }
+            }
+            true
+        }
+
+        const CTRL_O: &str = "\x0f";
+
+        #[test]
+        fn lands_on_full_from_any_stop_and_goes_back_to_the_one_it_came_from() {
+            for (start, marker) in [("radar", "◌ radar"), ("peek", "◍ peek")] {
+                let (drawn, _) = run(json!({ "toolOutputView": start }), &[CTRL_O, CTRL_O]);
+                assert!(
+                    in_order(&drawn, &[marker, "◉ full", marker]),
+                    "{start}:\n{drawn}"
+                );
+            }
+        }
+
+        #[test]
+        fn is_never_a_dead_keystroke_when_the_dial_is_already_at_full() {
+            // Nothing to return to: the default stop.
+            let (drawn, _) = run(json!({ "toolOutputView": "full" }), &[CTRL_O]);
+            assert!(in_order(&drawn, &["◉ full", "◍ peek"]), "{drawn}");
+        }
+
+        #[test]
+        fn does_not_save_where_it_lands() {
+            let (_, session) = run(json!({ "toolOutputView": "radar" }), &[CTRL_O]);
+            assert_eq!(session.settings().tool_output_view().as_str(), "radar");
+        }
+
+        #[test]
+        fn the_jump_to_full_expands_the_header_too() {
+            // `setToolsExpanded`: what folds but is not a tool call opens with
+            // the dial's top stop.
+            let (drawn, _) = run(json!({ "toolOutputView": "peek" }), &[CTRL_O]);
+            let collapsed_end = drawn.find("◍ peek").unwrap();
+            assert!(!drawn[..collapsed_end].contains("Compose — the message in your hands"));
+            assert!(drawn[collapsed_end..].contains("Compose — the message in your hands"));
+        }
+    }
 }

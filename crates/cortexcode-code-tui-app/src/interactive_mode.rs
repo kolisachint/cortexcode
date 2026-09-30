@@ -141,6 +141,7 @@ use crate::login_controller::{
     PostLoginModel, API_KEY_LABEL, LOGIN_CANCELLED, NOTHING_TO_LOG_OUT, SUBSCRIPTION_LABEL,
 };
 use crate::notification_panel::{NotificationKind, NotificationPanel};
+use crate::record_row::RecordRows;
 use crate::resource_display::{format_display_path, show_loaded_resources, ResourceListing};
 use crate::scroll_view::install_scroll_view;
 use crate::session_chip::render_session_chip;
@@ -860,7 +861,7 @@ struct Mode {
     chain_closed_for_current_message: bool,
     dial_reverse_taught: HashSet<&'static str>,
     /// The last status line, updated in place when nothing followed it.
-    last_status: Option<(ComponentHandle, Rc<RefCell<Text>>)>,
+    last_status: RecordRows,
     /// When running tool blocks that tick (bash's `Elapsed`) last re-rendered.
     last_tool_tick: Instant,
     show_images: bool,
@@ -1238,7 +1239,7 @@ impl Mode {
             latest_chain: None,
             chain_closed_for_current_message: false,
             dial_reverse_taught: HashSet::new(),
-            last_status: None,
+            last_status: RecordRows::default(),
             last_tool_tick: Instant::now(),
             show_images,
             image_width_cells,
@@ -4481,7 +4482,7 @@ impl Mode {
         self.bash_components.clear();
         self.branch_summaries.clear();
         self.compaction_summaries.clear();
-        self.last_status = None;
+        self.last_status.reset();
     }
 
     /// `renderCurrentSessionState`: the transcript of the session just
@@ -4521,25 +4522,8 @@ impl Mode {
         } else {
             theme().fg("dim", message)
         };
-        if let Some((spacer, text)) = &self.last_status {
-            let chat = self.chat.borrow();
-            let n = chat.children.len();
-            let text_handle = as_component(text);
-            if n >= 2
-                && Rc::ptr_eq(&chat.children[n - 1], &text_handle)
-                && Rc::ptr_eq(&chat.children[n - 2], spacer)
-            {
-                text.borrow_mut().set_text(styled);
-                drop(chat);
-                self.dirty.set(true);
-                return;
-            }
-        }
-        let spacer = as_component(&handle(Spacer::new(1)));
-        let text = handle(Text::new(styled, 1, 0));
-        self.add_to_chat(spacer.clone());
-        self.add_to_chat(as_component(&text));
-        self.last_status = Some((spacer, text));
+        self.last_status.show(&mut self.chat.borrow_mut(), styled);
+        self.dirty.set(true);
     }
 
     /// `showDialStep`: the stop a dial landed on, and (the first time) how to

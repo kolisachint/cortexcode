@@ -44,6 +44,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 13.4e interactive-mode/transcript TS test review: done
+- Ported: selected-row-list, import-command, anthropic-warning (latch + notice extracted),
+  suspend, message-block-sheets, message-block-fill, theme-block-rendering,
+  transcript-thinking-order and interactive-mode-status (jump/expand cases on the real mode
+  via ScriptedTerminal; showRecord via the new `record_row.rs`; showLoadedResources incl.
+  the extension-label inline snapshots), subagent-dispatch-tui-output (fd-2 capture).
+- Equivalent (L2): clone-command (fork-clone), screen-anchor (startup/chat-basic/color-chrome).
+- Gaps found and fixed: Ctrl+Z suspend was a no-op (now `suspend.rs`); the scroll view app
+  layer was missing (new task 11.7, done); `--verbose` didn't keep the resource details open
+  after a dial change (show_loaded_resources now opens them on verbose, as hoocode does).
+- Left for phase 12 (noted on 12.3/12.7): interactive-mode-status's extension UI context and
+  canvas cases.
+- Note: `ledger.py verify` on a task with no crates runs clippy on no package; clippy the
+  crates you touched yourself.
+- Next: `python3 migration/ledger.py next` (13.4f: the four suite files still in `review`).
+
 ### 2026-09-30 · 11.7 scroll view (new, found in 13.4e): done
 - The TUI's pinned viewport and search were ported, but nothing installed the app keys:
   PageUp, ctrl+r, ctrl+up/down, ctrl+home/end did nothing. New `scroll_view.rs` ports
