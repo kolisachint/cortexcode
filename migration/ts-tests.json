@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 283,
-  "equivalent": 0,
+  "ported": 285,
+  "equivalent": 1,
   "n.a.": 6,
   "pending": 94,
-  "review": 17
+  "review": 14
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -1448,7 +1448,8 @@
    "status": "review"
   },
   "packages/coding-agent/test/interactive-mode-clone-command.test.ts": {
-   "status": "review"
+   "status": "equivalent",
+   "note": "clone of the current leaf runs for real in L2 fork-clone ('Cloned to new session', empty prompt); the null-leaf branch ('Nothing to clone yet') is the same one-line match in Mode::handle_clone_command, unreachable from the UI since a new session already holds its thinking-level entry"
   },
   "packages/coding-agent/test/interactive-mode-compaction.test.ts": {
    "status": "ported",
@@ -1457,7 +1458,10 @@
    ]
   },
   "packages/coding-agent/test/interactive-mode-import-command.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/import_command_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-status.test.ts": {
    "status": "review"
@@ -2026,7 +2030,10 @@
    ]
   },
   "packages/coding-agent/test/selected-row-list.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/selected_row_list.rs"
+   ]
   },
   "packages/coding-agent/test/self-docs.test.ts": {
    "status": "pending",

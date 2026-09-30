@@ -6725,7 +6725,7 @@
    "id": "13.4e",
    "title": "TS test port ledger review, coding-agent interactive-mode and transcript rendering: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "todo",
+   "status": "in_progress",
    "depends": [
     "13.4a"
    ],
@@ -6739,7 +6739,20 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:49:08Z",
+     "commit": "511a45c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:51:55Z",
+     "commit": "511a45c",
+     "kind": "note",
+     "text": "part 1: selected-row-list, import-command ported; clone-command equivalent (L2 fork-clone)"
+    }
+   ]
   },
   {
    "id": "13.4f",

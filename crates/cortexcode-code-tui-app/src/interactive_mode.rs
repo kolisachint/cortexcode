@@ -563,7 +563,7 @@ fn model_argument_completions(
 }
 
 /// `getPathArgument`: the first argument after `command`, quoted or not.
-fn command_path_argument(text: &str, command: &str) -> Option<String> {
+pub fn command_path_argument(text: &str, command: &str) -> Option<String> {
     let args = text.strip_prefix(command)?.strip_prefix(' ')?.trim_start();
     let first = args.chars().next()?;
     if first == '"' || first == '\'' {
