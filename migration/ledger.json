@@ -6763,6 +6763,12 @@
      "commit": "c994c53",
      "kind": "note",
      "text": "part 3: interactive-mode-suspend ported; Ctrl+Z (app.suspend) was a no-op in cortex, now implemented (suspend.rs, checked by hand in tmux: C-z, jobs, fg, typing)"
+    },
+    {
+     "at": "2026-09-30T17:59:34Z",
+     "commit": "4d9f04c",
+     "kind": "note",
+     "text": "part 4: message-block-fill, theme-block-rendering ported"
     }
    ]
   },
