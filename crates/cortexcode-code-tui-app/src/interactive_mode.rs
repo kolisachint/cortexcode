@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use cortexcode_agent_compaction::CompactionResult;
 use cortexcode_agent_types::{AgentEvent, AgentMessage, CompactionSummaryMessage, CustomMessage};
-use cortexcode_ai_types::{AssistantMessage, Content, StopReason, UserContent};
+use cortexcode_ai_types::{AssistantMessage, Content, ImageContent, StopReason, UserContent};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
 use cortexcode_ai_util::is_long_retry_delay_error;
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
@@ -165,6 +165,8 @@ pub struct InteractiveOptions {
     /// Force the verbose startup banner.
     pub verbose: bool,
     pub initial_message: Option<String>,
+    /// Sent with `initial_message` (the `@file` images).
+    pub initial_images: Vec<ImageContent>,
     pub initial_messages: Vec<String>,
     /// Shown as a notice (the only place the remedy is named).
     pub model_fallback_message: Option<String>,
@@ -1405,6 +1407,10 @@ impl Mode {
     }
 
     fn prompt(&mut self, text: String) {
+        self.prompt_with_images(text, Vec::new());
+    }
+
+    fn prompt_with_images(&mut self, text: String, images: Vec<ImageContent>) {
         startup_progress::clear();
         let session = self.session.clone();
         let tx = self.tx.clone();
@@ -1414,6 +1420,7 @@ impl Mode {
                     &text,
                     PromptOptions {
                         expand_prompt_templates: true,
+                        images,
                         ..Default::default()
                     },
                 )
@@ -5187,7 +5194,12 @@ impl Mode {
 
     fn run(
         mut self,
-        options_initial: (Option<String>, Vec<String>, Option<String>),
+        options_initial: (
+            Option<String>,
+            Vec<ImageContent>,
+            Vec<String>,
+            Option<String>,
+        ),
     ) -> Result<(), String> {
         let input = self.tui.start();
         // From here the TUI owns the terminal: the agent's operational log
@@ -5244,20 +5256,27 @@ impl Mode {
             let _ = tx.send(AppEvent::Rerender);
         });
 
-        let (initial_message, initial_messages, fallback) = options_initial;
+        let (initial_message, initial_images, initial_messages, fallback) = options_initial;
         if let Some(message) = fallback {
             self.show_error(&message);
         }
         if let Some(model_error) = self.session.model_registry().error() {
             self.show_error(&format!("models.json error: {model_error}"));
         }
+        let has_initial_message = initial_message.is_some();
         let mut queued: Vec<String> = initial_message
             .into_iter()
             .chain(initial_messages)
             .collect();
         queued.reverse();
         if let Some(first) = queued.pop() {
-            self.prompt(first);
+            // The @file images go with the initial message only.
+            let images = if has_initial_message {
+                initial_images
+            } else {
+                Vec::new()
+            };
+            self.prompt_with_images(first, images);
         }
 
         self.tui.request_render(false);
@@ -5634,6 +5653,7 @@ pub fn plan_settle_outcome(
 pub fn run_interactive(options: InteractiveOptions) -> Result<(), String> {
     let initial = (
         options.initial_message.clone(),
+        options.initial_images.clone(),
         options.initial_messages.clone(),
         options.model_fallback_message.clone(),
     );

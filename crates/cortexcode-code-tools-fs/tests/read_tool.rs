@@ -228,6 +228,65 @@ fn should_detect_image_mime_type_from_file_magic_not_extension() {
     assert_eq!(image.data, PNG_1X1_BASE64);
 }
 
+/// A PNG whose chunk layout sniffs as an image but whose pixel data does not
+/// decode, so auto-resize cannot produce an image.
+fn undecodable_png() -> Vec<u8> {
+    use base64::Engine as _;
+    let mut png = base64::engine::general_purpose::STANDARD
+        .decode(PNG_1X1_BASE64)
+        .unwrap();
+    // Corrupt the IDAT payload (it starts after the 8-byte signature, the
+    // 25-byte IHDR chunk and the IDAT length/type).
+    for b in &mut png[41..47] {
+        *b = 0xFF;
+    }
+    png
+}
+
+// Ports of `test/block-images.test.ts` ("Read tool") and
+// `test/image-resize-callers.test.ts` (read tool case).
+
+#[test]
+fn should_always_read_images_filtering_happens_at_convert_to_llm_layer() {
+    use base64::Engine as _;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("test.png");
+    std::fs::write(
+        &file,
+        base64::engine::general_purpose::STANDARD
+            .decode(PNG_1X1_BASE64)
+            .unwrap(),
+    )
+    .unwrap();
+    let result = exec(&read_tool(), "test-1", json!({ "path": p(&file) })).unwrap();
+    assert!(!result.content.is_empty());
+    assert!(result
+        .content
+        .iter()
+        .any(|c| matches!(c, Content::Image(_))));
+}
+
+#[test]
+fn should_read_text_files_normally() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("test.txt");
+    std::fs::write(&file, "Hello, world!").unwrap();
+    let result = exec(&read_tool(), "test-2", json!({ "path": p(&file) })).unwrap();
+    assert_eq!(result.content.len(), 1);
+    assert!(text_output(&result).contains("Hello, world!"));
+}
+
+#[test]
+fn read_tool_returns_text_only_output_when_auto_resize_cannot_produce_a_safe_image() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("test.png");
+    std::fs::write(&file, undecodable_png()).unwrap();
+    let result = exec(&read_tool(), "test-read-image", json!({ "path": p(&file) })).unwrap();
+    assert_eq!(result.content.len(), 1);
+    assert!(matches!(result.content[0], Content::Text(_)));
+    assert!(text_output(&result).contains("Image omitted"));
+}
+
 #[test]
 fn should_treat_files_with_image_extension_but_non_image_content_as_text() {
     let dir = tempfile::tempdir().unwrap();

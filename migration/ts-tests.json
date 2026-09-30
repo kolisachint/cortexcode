@@ -5,10 +5,10 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 280,
+  "ported": 282,
   "equivalent": 0,
   "n.a.": 6,
-  "pending": 97,
+  "pending": 95,
   "review": 17
  },
  "tests": {
@@ -955,9 +955,14 @@
    ]
   },
   "packages/coding-agent/test/block-images.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "10.12"
+   ],
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs",
+    "crates/cortexcode-code-settings/tests/block_images_ts.rs",
+    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/builtin-skills.test.ts": {
@@ -1418,9 +1423,13 @@
    ]
   },
   "packages/coding-agent/test/image-resize-callers.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "10.12"
+   ],
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs",
+    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {

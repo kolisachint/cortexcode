@@ -1,0 +1,17 @@
+{
+  "description": "Print mode with @file arguments: an image (sent as a prompt image with an empty <file> tag) and a text file (inlined). Model requests must be identical: the user message carries the <file> text, the first CLI message, and the image part.",
+  "compare_requests": true,
+  "request_fields": ["messages"],
+  "phase": "10.12",
+  "terminal": {"cols": 100, "rows": 12},
+  "settings": {"enableSemanticIndex": false},
+  "models": [{"id": "mock-model", "name": "Mock Model", "input": ["text", "image"], "contextWindow": 128000, "maxTokens": 4096}],
+  "files": {"notes.txt": "alpha\nbeta\n"},
+  "binary_files": {"pixel.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="},
+  "args": ["--offline", "--provider", "mock", "--model", "mock-model", "--light", "-p", "@pixel.png", "@notes.txt", "describe these"],
+  "llm": [{"text": "A red pixel and two notes."}],
+  "steps": [
+    {"wait_exit": true, "timeout": 30},
+    {"snapshot": "stdout", "history": true, "contains": ["A red pixel", "<exited status=0>"]}
+  ]
+}

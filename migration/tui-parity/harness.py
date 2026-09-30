@@ -35,6 +35,7 @@ Scenario format: see ``scenarios/README.md``.
 from __future__ import annotations
 
 import argparse
+import base64
 import difflib
 import html
 import json
@@ -386,6 +387,18 @@ def wait_stable(tmux: Tmux, quiet: float, timeout: float, normalizer: "Normalize
     raise StepError(f"screen did not settle for {quiet}s within {timeout}s")
 
 
+def write_files(sc: dict, work: Path) -> None:
+    """The scenario's `files` (text) and `binary_files` (base64) into `work`."""
+    for rel, content in (sc.get("files") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+    for rel, content in (sc.get("binary_files") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(base64.b64decode(content))
+
+
 def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     """Run one scenario against one app. Returns {"ok", "error", "snapshots"}."""
     out.mkdir(parents=True, exist_ok=True)
@@ -393,10 +406,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     home, work = tmp / "home", tmp / "work"
     home.mkdir()
     work.mkdir()
-    for rel, content in (sc.get("files") or {}).items():
-        p = work / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+    write_files(sc, work)
     # Links into the pinned hoocode package (read-only), e.g. so a scenario can
     # point HOOCODE_PACKAGE_DIR at a dir with its own CHANGELOG.md and still
     # have the pin's package.json and themes. `{HOOCODE_PKG}` is that package.
@@ -631,10 +641,7 @@ def run_headless(app: str, sc: dict, keep: bool = False) -> dict:
     home, work = tmp / "home", tmp / "work"
     home.mkdir()
     work.mkdir()
-    for rel, content in (sc.get("files") or {}).items():
-        p = work / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+    write_files(sc, work)
     if sc.get("symlinks") or sc.get("git"):
         raise StepError("symlinks/git scenarios are not replayable")
     mock, port, log = start_mock(sc.get("llm", []), tmp)

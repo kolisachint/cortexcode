@@ -10,6 +10,7 @@ Each `*.json` file is one scenario, run against the real hoocode (pinned build i
   "terminal": {"cols": 100, "rows": 30},          // fixed size; optional term/colorterm
   "args": ["--offline", "--provider", "mock", "--model", "mock-model"],  // default
   "files": {"notes.txt": "..."},                  // seeded into the workspace (cwd)
+  "binary_files": {"i.png": "iVBOR..."},          // base64, seeded like files
   "symlinks": {"pkg/dist": "{HOOCODE_PKG}/dist"}, // links in the workspace; {HOOCODE_PKG} = the pinned package
   "git": false,                                   // git init the workspace
   "settings": {},                                 // written to ~/.hoocode and ~/.cortexcode settings.json

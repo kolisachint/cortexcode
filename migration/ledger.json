@@ -3454,11 +3454,13 @@
    "id": "10.12",
    "title": "@file arguments at parity: image @file args (resize, dimension note, \"Image omitted\" text) sent as prompt images, and @file args in interactive mode (prepareInitialMessage feeds both modes)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-code-cli",
-    "cortexcode-code-tui-app"
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-settings"
    ],
    "sources": [
     "packages/coding-agent/src/cli/file-processor.ts",
@@ -3470,9 +3472,24 @@
     "packages/coding-agent/test/image-resize-callers.test.ts"
    ],
    "l1_cmds": [],
-   "l2": "n/a: covered by L1 (file processor output and the prompt request); add a print scenario with an image @file if the mock LLM logs images",
+   "l2": [
+    "print-file-image"
+   ],
    "notes": "Found in 13.4c: process_file_arguments rejected image @file args (\"not yet supported\") and run_interactive_mode passed no file text at all.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:33:14Z",
+     "commit": "287c8fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:42:12Z",
+     "commit": "287c8fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-file-image=pass"
+    }
+   ]
   },
   {
    "id": "11.1",

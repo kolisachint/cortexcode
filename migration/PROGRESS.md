@@ -44,6 +44,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 10.12 @file arguments at parity: done
+- `initial_message.rs`: `process_file_arguments` returns `ProcessedFiles { text, images }`;
+  image args are auto-resized (`images.autoResize`), get the dimension note or the
+  "Image omitted" text; `prepare_initial_message` feeds print and interactive modes.
+- Print mode sends the images with the initial message only; interactive mode gained
+  `InteractiveOptions::initial_images` and now gets the @file text too. File errors are
+  printed in red and exit 1 in both modes (`run_interactive_mode` returns an exit code).
+- Ported block-images (settings/read tool/processFileArguments) and image-resize-callers.
+- Harness: scenarios can seed `binary_files` (base64). New L2 `print-file-image` compares
+  the model request (text + image_url part) with hoocode: pass, stable.
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-30 · 13.4d session/SDK/suite TS test review done; 13.4f split out
 - Ported: initial-message, read-dedup-guard (session test harness gained
   `real_builtin_tools`), stdout-cleanliness (help half), session-cwd,

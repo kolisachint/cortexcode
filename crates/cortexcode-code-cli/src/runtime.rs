@@ -668,25 +668,22 @@ pub fn run_print_mode(
     let home = std::env::var_os("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_default();
-    let file_text = if args.file_args.is_empty() {
-        None
-    } else {
-        match crate::initial_message::process_file_arguments(&args.file_args, &cwd, &home) {
-            Ok(text) => Some(text),
-            Err(message) => {
-                writeln!(err, "{}", crate::red(color, &message))?;
-                return Ok(1);
-            }
+    let (session, diagnostics) = build_session(args, false);
+    let mut messages = args.messages.clone();
+    let (initial_message, initial_images) = match crate::initial_message::prepare_initial_message(
+        &args.file_args,
+        &mut messages,
+        stdin_content.as_deref(),
+        session.settings().image_auto_resize(),
+        &cwd,
+        &home,
+    ) {
+        Ok(prepared) => prepared,
+        Err(message) => {
+            writeln!(err, "{}", crate::red(color, &message))?;
+            return Ok(1);
         }
     };
-    let mut messages = args.messages.clone();
-    let initial_message = crate::initial_message::build_initial_message(
-        &mut messages,
-        file_text.as_deref(),
-        stdin_content.as_deref(),
-    );
-
-    let (session, diagnostics) = build_session(args, false);
     report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -767,8 +764,21 @@ pub fn run_print_mode(
         .map(|cap| turn_limit(&session, cap, reached_max_turns.clone()));
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
+    let mut initial_images = Some(initial_images);
     for prompt in initial_message.iter().chain(messages.iter()) {
-        let run = session.prompt(prompt, PromptOptions::default());
+        // The @file images go with the initial message only.
+        let images = if initial_message.is_some() {
+            initial_images.take().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let run = session.prompt(
+            prompt,
+            PromptOptions {
+                images,
+                ..Default::default()
+            },
+        );
         let result = async_runtime().block_on(async {
             tokio::pin!(run);
             loop {
@@ -1121,12 +1131,32 @@ pub fn run_interactive_mode(
     args: &Args,
     _output: &mut dyn Write,
     err: &mut dyn Write,
-) -> Result<(), RuntimeError> {
+) -> Result<i32, RuntimeError> {
     // One credential store for the session and `/login`/`/logout`.
     let auth = load_auth();
     let (session_runtime, diagnostics) = build_session_runtime(args, auth.clone(), true);
     let session = session_runtime.session().clone();
-    report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
+    let color = crate::Env::detect().color;
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    let mut messages = args.messages.clone();
+    let (initial_message, initial_images) = match crate::initial_message::prepare_initial_message(
+        &args.file_args,
+        &mut messages,
+        None,
+        session.settings().image_auto_resize(),
+        &cwd,
+        &home,
+    ) {
+        Ok(prepared) => prepared,
+        Err(message) => {
+            writeln!(err, "{}", crate::red(color, &message))?;
+            return Ok(1);
+        }
+    };
+    report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
         .any(|(kind, _)| *kind == DiagnosticKind::Error)
@@ -1135,8 +1165,6 @@ pub fn run_interactive_mode(
     }
     start_semantic_index(args, &session);
 
-    let mut messages = args.messages.clone();
-    let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
     cortexcode_code_tui_app::interactive_mode::run_interactive(
         cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
             session,
@@ -1153,11 +1181,13 @@ pub fn run_interactive_mode(
             version: cortexcode_code_paths::VERSION.to_string(),
             verbose: args.verbose == Some(true),
             initial_message,
+            initial_images,
             initial_messages: messages,
             model_fallback_message: None,
             terminal: None,
         },
     )
+    .map(|()| 0)
     .map_err(RuntimeError::Setup)
 }
 
@@ -1266,6 +1296,7 @@ mod tests {
                 version: "0.0.1".into(),
                 verbose: false,
                 initial_message: None,
+                initial_images: Vec::new(),
                 initial_messages: Vec::new(),
                 model_fallback_message: None,
                 terminal: Some(Box::new(terminal)),
