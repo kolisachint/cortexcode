@@ -47,6 +47,8 @@
     {"match": "packages/coding-agent/test/suite/regressions/2835-tools-allowlist-filters-extension-tools.test.ts", "status": "pending", "task": "12.3", "note": "tool allowlist over extension-registered tools (code extensions, deferred)"},
     {"match": "packages/coding-agent/test/suite/regressions/3592-no-builtin-tools-keeps-extension-tools.test.ts", "status": "pending", "task": "12.3", "note": "--no-builtin-tools keeping extension-registered tools (code extensions, deferred)"},
     {"match": "packages/coding-agent/test/suite/regressions/2860-replaced-session-context.test.ts", "status": "pending", "task": "12.3", "note": "extension hoo/ctx rebinding across withSession (new, fork, switch) (code extensions, deferred)"},
+    {"match": "packages/coding-agent/test/print-mode.test.ts", "status": "pending", "task": "12.3", "note": "asserts session_shutdown reaching the extension runner (code extensions, deferred); prompt images are 10.12, exit code 1 on error is the replay print-error scenario"},
+    {"match": "packages/coding-agent/test/suite/regressions/2791-fswatch-error-crash.test.ts", "status": "n.a.", "note": "an unhandled Node FSWatcher error event killing the process; Rust watcher errors are values"},
     {"match": "packages/coding-agent/test/restore-sandbox-env.test.ts", "status": "n.a.", "note": "works around Bun's empty process.env in sandboxes; a Rust binary reads the real environment"},
     {"match": "packages/coding-agent/test/bash-close-hang-windows.test.ts", "status": "n.a.", "note": "Windows-only child-process close hang in Node"},
     {"match": "packages/coding-agent/test/suite/regressions/windows-esm-url-scheme.test.ts", "status": "n.a.", "note": "Node ESM import of Windows paths (file:// URL scheme); no module loading in Rust"},

@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 269,
+  "ported": 275,
   "equivalent": 0,
-  "n.a.": 5,
-  "pending": 95,
-  "review": 31
+  "n.a.": 6,
+  "pending": 96,
+  "review": 23
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -924,7 +924,10 @@
    ]
   },
   "packages/coding-agent/test/background-messages.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-agent-harness/tests/background_messages_ts.rs"
+   ]
   },
   "packages/coding-agent/test/bash-close-hang-windows.test.ts": {
    "status": "n.a.",
@@ -1837,7 +1840,11 @@
    ]
   },
   "packages/coding-agent/test/print-mode.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "note": "asserts session_shutdown reaching the extension runner (code extensions, deferred); prompt images are 10.12, exit code 1 on error is the replay print-error scenario",
+   "tasks": [
+    "12.3"
+   ]
   },
   "packages/coding-agent/test/progress-bar.test.ts": {
    "status": "ported",
@@ -1973,7 +1980,10 @@
    "status": "review"
   },
   "packages/coding-agent/test/sdk-session-manager.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/tests/sdk_session_manager_ts.rs"
+   ]
   },
   "packages/coding-agent/test/sdk-skills.test.ts": {
    "status": "ported",
@@ -2024,7 +2034,10 @@
    ]
   },
   "packages/coding-agent/test/session-cwd.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/session_cwd.rs"
+   ]
   },
   "packages/coding-agent/test/session-identity.test.ts": {
    "status": "ported",
@@ -2033,7 +2046,10 @@
    ]
   },
   "packages/coding-agent/test/session-info-modified-timestamp.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-session/tests/session_info_modified_ts.rs"
+   ]
   },
   "packages/coding-agent/test/session-manager/build-context.test.ts": {
    "status": "ported",
@@ -2386,7 +2402,10 @@
    ]
   },
   "packages/coding-agent/test/suite/disabled-tools.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/disabled_tools_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/persisted-flags.test.ts": {
    "status": "pending",
@@ -2415,7 +2434,8 @@
    "status": "review"
   },
   "packages/coding-agent/test/suite/regressions/2791-fswatch-error-crash.test.ts": {
-   "status": "review"
+   "status": "n.a.",
+   "note": "an unhandled Node FSWatcher error event killing the process; Rust watcher errors are values"
   },
   "packages/coding-agent/test/suite/regressions/2835-tools-allowlist-filters-extension-tools.test.ts": {
    "status": "pending",
@@ -2457,7 +2477,10 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/3616-settings-inmemory-reload.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-settings/tests/settings_inmemory_reload_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/3686-session-name-event.test.ts": {
    "status": "pending",
