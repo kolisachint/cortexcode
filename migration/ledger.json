@@ -6662,7 +6662,7 @@
    "id": "13.4d",
    "title": "TS test port ledger review, coding-agent session, SDK and suite/regression tests: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "in_progress",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6672,16 +6672,22 @@
    ],
    "ts_tests": [],
    "l1_cmds": [
-    "python3 migration/ts_tests.py check 'packages/coding-agent/test/agent-session-*' 'packages/coding-agent/test/background-messages.test.ts' 'packages/coding-agent/test/initial-message.test.ts' 'packages/coding-agent/test/print-mode.test.ts' 'packages/coding-agent/test/sdk-*' 'packages/coding-agent/test/session-cwd.test.ts' 'packages/coding-agent/test/session-info-modified-timestamp.test.ts' 'packages/coding-agent/test/stdout-cleanliness.test.ts' 'packages/coding-agent/test/suite/*'"
+    "python3 migration/ts_tests.py check 'packages/coding-agent/test/agent-session-*' packages/coding-agent/test/background-messages.test.ts packages/coding-agent/test/initial-message.test.ts packages/coding-agent/test/print-mode.test.ts 'packages/coding-agent/test/sdk-*' packages/coding-agent/test/session-cwd.test.ts packages/coding-agent/test/session-info-modified-timestamp.test.ts packages/coding-agent/test/stdout-cleanliness.test.ts packages/coding-agent/test/suite/disabled-tools.test.ts packages/coding-agent/test/suite/persisted-flags.test.ts packages/coding-agent/test/suite/read-dedup-guard.test.ts packages/coding-agent/test/suite/subagent-footer-indicator.test.ts 'packages/coding-agent/test/suite/regressions/2*' 'packages/coding-agent/test/suite/regressions/3*' 'packages/coding-agent/test/suite/regressions/79-*'"
    ],
    "l2": "n/a: bookkeeping",
-   "notes": "",
+   "notes": "Split 2026-09-30: subagent-spawn-audit, subagent-visual-tie, session-surface-sync and 4167 moved to 13.4f.",
    "log": [
     {
      "at": "2026-09-30T11:15:10Z",
      "commit": "a08a21e",
      "kind": "start",
      "text": "started"
+    },
+    {
+     "at": "2026-09-30T11:29:36Z",
+     "commit": "2392e40",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
     }
    ]
   },
@@ -6706,6 +6712,26 @@
    "log": []
   },
   {
+   "id": "13.4f",
+   "title": "TS test port ledger review, subagent roster/panel/pool suites and interactive session surfaces (subagent-spawn-audit, subagent-visual-tie, session-surface-sync, 4167): resolve every `review` entry",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/coding-agent/test/suite/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check packages/coding-agent/test/suite/subagent-spawn-audit.test.ts packages/coding-agent/test/suite/subagent-visual-tie.test.ts packages/coding-agent/test/suite/session-surface-sync.test.ts packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "Split from 13.4d: 34+ cases across roster, task panel, lifeguard, jsonl reader, pool, colors, linkage; many likely covered piecemeal by 10.9 tests without citations.",
+   "log": []
+  },
+  {
    "id": "13.4",
    "title": "TS test port ledger: every one of the 400 TS test files marked ported/equivalent/n.a.",
    "phase": 13,
@@ -6715,7 +6741,8 @@
     "13.4b",
     "13.4c",
     "13.4d",
-    "13.4e"
+    "13.4e",
+    "13.4f"
    ],
    "crates": [],
    "sources": [

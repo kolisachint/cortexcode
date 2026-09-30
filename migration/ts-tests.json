@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 279,
+  "ported": 280,
   "equivalent": 0,
   "n.a.": 6,
   "pending": 97,
-  "review": 18
+  "review": 17
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -2434,7 +2434,10 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/2753-reload-stale-resource-settings.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-resources/tests/reload_stale_resource_settings_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/2781-skill-collision-precedence.test.ts": {
    "status": "pending",

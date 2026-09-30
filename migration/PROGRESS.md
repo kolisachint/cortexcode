@@ -44,6 +44,22 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 13.4d session/SDK/suite TS test review done; 13.4f split out
+- Ported: initial-message, read-dedup-guard (session test harness gained
+  `real_builtin_tools`), stdout-cleanliness (help half), session-cwd,
+  session-info-modified-timestamp, sdk-session-manager (default-path case; the other two
+  are fixed by the Rust signature), background-messages, disabled-tools,
+  sdk-openrouter-attribution (`merge_request_headers` extracted), subagent-footer-indicator,
+  regressions 79 (`plan_settle_outcome` extracted from InteractiveMode), 2753 (loader +
+  shared settings), 3303, 3317, 3616; auto-compaction-queue was already in compaction.rs.
+- Classified: extension-driven files -> 12.3 (dynamic-provider, persisted-flags, print-mode,
+  2023, 2835, 2860, 3592, 3686, 3688, 3982), package skills 2781 -> 12.2, 2791 n.a.
+- 13.4f (new): subagent-spawn-audit, subagent-visual-tie, session-surface-sync, 4167.
+- Seen once under a full `cargo test --workspace`: `cortexcode-code-rpc --test runtime_host
+  fork_branches_before_a_user_message_and_returns_its_text` timed out (10 s WAIT) on the
+  second prompt; passes 3/3 alone. Not investigated.
+- Next: 13.4e, then 13.4f; 10.12 and 11.6 are ready any time.
+
 ### 2026-09-30 · 13.4c agent/ai/coding-agent utility TS test review done
 - Ported, citing the TS files: frontmatter, path-utils, native-search (onto
   `run_lexical_retriever`; its ignoreCase/literal/single-file flags have no Rust
