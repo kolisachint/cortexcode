@@ -6549,7 +6549,40 @@
   },
   {
    "id": "13.4b",
-   "title": "TS test port ledger review: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "title": "TS test port ledger review, tui package: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "phase": 13,
+   "status": "done",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/tui/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check 'packages/tui/test/*'"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "Split 2026-09-30 by package/area into 13.4b..13.4e (85 files, ~800 cases).",
+   "log": [
+    {
+     "at": "2026-09-30T05:56:44Z",
+     "commit": "26735a0",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T06:11:38Z",
+     "commit": "26735a0",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "13.4c",
+   "title": "TS test port ledger review, agent, ai and coding-agent utility modules: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
    "status": "todo",
    "depends": [
@@ -6557,11 +6590,51 @@
    ],
    "crates": [],
    "sources": [
-    "packages/*/test/"
+    "packages/agent/test/"
    ],
    "ts_tests": [],
    "l1_cmds": [
-    "python3 migration/ts_tests.py check"
+    "python3 migration/ts_tests.py check 'packages/agent/test/*' 'packages/ai/test/*' 'packages/coding-agent/test/frontmatter.test.ts' 'packages/coding-agent/test/config.test.ts' 'packages/coding-agent/test/hoocode-user-agent.test.ts' 'packages/coding-agent/test/image-processing.test.ts' 'packages/coding-agent/test/image-resize-callers.test.ts' 'packages/coding-agent/test/block-images.test.ts' 'packages/coding-agent/test/path-utils.test.ts' 'packages/coding-agent/test/plan-mode-utils.test.ts' 'packages/coding-agent/test/plan-parser.test.ts' 'packages/coding-agent/test/native-search.test.ts' 'packages/coding-agent/test/retry-quota-classification.test.ts' 'packages/coding-agent/test/restore-sandbox-env.test.ts' 'packages/coding-agent/test/shipped-prose.test.ts' 'packages/coding-agent/test/tips.test.ts' 'packages/coding-agent/test/truncate-to-width.test.ts' 'packages/coding-agent/test/compaction-serialization.test.ts' 'packages/coding-agent/test/compaction-summary-reasoning.test.ts' 'packages/coding-agent/test/session-identity.test.ts' 'packages/coding-agent/test/prompt-reactive-nudges.test.ts'"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "13.4d",
+   "title": "TS test port ledger review, coding-agent session, SDK and suite/regression tests: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/coding-agent/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check 'packages/coding-agent/test/agent-session-*' 'packages/coding-agent/test/background-messages.test.ts' 'packages/coding-agent/test/initial-message.test.ts' 'packages/coding-agent/test/print-mode.test.ts' 'packages/coding-agent/test/sdk-*' 'packages/coding-agent/test/session-cwd.test.ts' 'packages/coding-agent/test/session-info-modified-timestamp.test.ts' 'packages/coding-agent/test/stdout-cleanliness.test.ts' 'packages/coding-agent/test/suite/*'"
+   ],
+   "l2": "n/a: bookkeeping",
+   "notes": "",
+   "log": []
+  },
+  {
+   "id": "13.4e",
+   "title": "TS test port ledger review, coding-agent interactive-mode and transcript rendering: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
+   "phase": 13,
+   "status": "todo",
+   "depends": [
+    "13.4a"
+   ],
+   "crates": [],
+   "sources": [
+    "packages/coding-agent/test/"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check 'packages/coding-agent/test/interactive-mode-*' 'packages/coding-agent/test/message-block-*' 'packages/coding-agent/test/screen-anchor.test.ts' 'packages/coding-agent/test/scroll-view-keys.test.ts' 'packages/coding-agent/test/selected-row-list.test.ts' 'packages/coding-agent/test/subagent-dispatch-tui-output.test.ts' 'packages/coding-agent/test/theme-block-rendering.test.ts' 'packages/coding-agent/test/transcript-thinking-order.test.ts'"
    ],
    "l2": "n/a: bookkeeping",
    "notes": "",
@@ -6574,14 +6647,19 @@
    "status": "todo",
    "depends": [
     "13.4a",
-    "13.4b"
+    "13.4b",
+    "13.4c",
+    "13.4d",
+    "13.4e"
    ],
    "crates": [],
    "sources": [
     "packages/*/test/"
    ],
    "ts_tests": [],
-   "l1_cmds": [],
+   "l1_cmds": [
+    "python3 migration/ts_tests.py check"
+   ],
    "l2": "n/a: bookkeeping",
    "notes": "Split 2026-09-29: 13.4a tooling + automatic/curated classification, 13.4b manual review of what is left.",
    "log": []

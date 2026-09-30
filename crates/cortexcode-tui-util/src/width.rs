@@ -89,7 +89,18 @@ pub(crate) fn grapheme_width(segment: &str) -> usize {
         return 2;
     }
 
-    UnicodeWidthChar::width(base).unwrap_or(0)
+    let mut width = UnicodeWidthChar::width(base).unwrap_or(0);
+
+    // Trailing halfwidth/fullwidth forms and AM vowels that segment with a base.
+    for c in segment.chars().skip(1) {
+        match c as u32 {
+            0xFF00..=0xFFEF => width += UnicodeWidthChar::width(c).unwrap_or(0),
+            0x0E33 | 0x0EB3 => width += 1,
+            _ => {}
+        }
+    }
+
+    width
 }
 
 fn is_printable_ascii(s: &str) -> bool {

@@ -200,6 +200,12 @@ impl Normalizer {
         if let Some(Value::Array(extra)) = extra {
             spec.extend(extra.iter().cloned());
         }
+        // Replay-only: the harness runs both apps on one day, but a snapshot
+        // is compared on every later day, and the system prompt carries the date.
+        spec.push(serde_json::json!({
+            "pattern": r"Current date: \d{4}-\d{2}-\d{2}",
+            "replace": "Current date: <DATE>",
+        }));
         let rules = spec
             .iter()
             .map(|r| {

@@ -378,4 +378,40 @@ mod tests {
         let m = KeybindingsManager::new(default_tui_keybindings(), user);
         assert_eq!(m.get_keys("tui.editor.cursorUp"), vec!["up".to_string()]);
     }
+
+    // Ports of `packages/tui/test/keybindings.test.ts`.
+    fn with_user(bindings: &[(&str, &[&str])]) -> KeybindingsManager {
+        let user = bindings
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.iter().map(|s| s.to_string()).collect()))
+            .collect();
+        KeybindingsManager::new(default_tui_keybindings(), user)
+    }
+
+    #[test]
+    fn does_not_evict_selector_confirm_when_input_submit_is_rebound() {
+        let m = with_user(&[("tui.input.submit", &["enter", "ctrl+enter"])]);
+        assert_eq!(m.get_keys("tui.input.submit"), ["enter", "ctrl+enter"]);
+        assert_eq!(m.get_keys("tui.select.confirm"), ["enter"]);
+    }
+
+    #[test]
+    fn does_not_evict_cursor_bindings_when_another_action_reuses_the_key() {
+        let m = with_user(&[("tui.select.up", &["up", "ctrl+p"])]);
+        assert_eq!(m.get_keys("tui.select.up"), ["up", "ctrl+p"]);
+        assert_eq!(m.get_keys("tui.editor.cursorUp"), ["up"]);
+    }
+
+    #[test]
+    fn still_reports_direct_user_conflicts_without_evicting_defaults() {
+        let m = with_user(&[
+            ("tui.input.submit", &["ctrl+x"]),
+            ("tui.select.confirm", &["ctrl+x"]),
+        ]);
+        let c = m.get_conflicts();
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].key, "ctrl+x");
+        assert_eq!(c[0].keybindings, ["tui.input.submit", "tui.select.confirm"]);
+        assert_eq!(m.get_keys("tui.editor.cursorLeft"), ["left", "ctrl+b"]);
+    }
 }

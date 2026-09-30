@@ -509,6 +509,7 @@ mod tests {
         assert_eq!(resolve_dimension(Some(120), Some("999"), 80), 120);
     }
 
+    // Port of `packages/tui/test/terminal.test.ts`: COLUMNS/LINES are used when stdout has no size.
     #[test]
     fn resolve_dimension_falls_back_to_env_var() {
         assert_eq!(resolve_dimension(None, Some("123"), 80), 123);

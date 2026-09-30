@@ -102,13 +102,56 @@ impl Handle {
         self.parser.lock().unwrap().screen().alternate_screen()
     }
 
+    /// Resize like xterm.js (`Buffer.resize`), which the pin's tests run on:
+    /// a height change on the normal screen keeps the cursor row's content
+    /// in view. Shrinking first drops blank rows below the cursor, then
+    /// scrolls the top rows into scrollback; growing pulls rows back out of
+    /// scrollback. vt100's `set_size` would instead cut rows off the bottom.
+    /// Cell styles are not carried across such a resize.
     pub fn resize(&self, cols: u16, rows: u16) {
+        let (old_cols, old_rows) = *self.size.lock().unwrap();
         *self.size.lock().unwrap() = (cols, rows);
-        self.parser
-            .lock()
-            .unwrap()
-            .screen_mut()
-            .set_size(rows, cols);
+        let mut parser = self.parser.lock().unwrap();
+        if cols != old_cols || rows == old_rows || parser.screen().alternate_screen() {
+            parser.screen_mut().set_size(rows, cols);
+            return;
+        }
+
+        parser.screen_mut().set_scrollback(usize::MAX);
+        let depth = parser.screen().scrollback();
+        let mut lines = Vec::new();
+        for offset in (1..=depth).rev() {
+            parser.screen_mut().set_scrollback(offset);
+            lines.extend(parser.screen().rows(0, cols).next());
+        }
+        parser.screen_mut().set_scrollback(0);
+        lines.extend(parser.screen().rows(0, cols));
+        let (cursor_row, cursor_col) = parser.screen().cursor_position();
+        let hidden = parser.screen().hide_cursor();
+        let input_modes = parser.screen().input_mode_formatted();
+
+        let (h, r, cur) = (old_rows as usize, rows as usize, cursor_row as usize);
+        let (end, new_cursor_row) = if r < h {
+            let k = h - r;
+            let trim = k.min(h - 1 - cur);
+            (depth + h - trim, cur - (k - trim))
+        } else {
+            (depth + h, cur + (r - h).min(depth))
+        };
+
+        let mut fresh = vt100::Parser::new(rows, cols, 10_000);
+        fresh.process(lines[..end].join("\r\n").as_bytes());
+        fresh.process(&input_modes);
+        fresh.process(
+            format!(
+                "\x1b[{};{}H{}",
+                new_cursor_row + 1,
+                cursor_col + 1,
+                if hidden { "\x1b[?25l" } else { "" }
+            )
+            .as_bytes(),
+        );
+        *parser = fresh;
     }
 
     pub fn clear_writes(&self) {

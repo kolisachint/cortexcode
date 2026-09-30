@@ -329,6 +329,13 @@ impl Tui {
         }
     }
 
+    /// Test-only: route every frame through the image path (full flatten +
+    /// full diff), the oracle of the pin's `tui-flatcache-stress.test.ts`.
+    #[doc(hidden)]
+    pub fn force_image_path_for_tests(&mut self) {
+        self.saw_image_line = true;
+    }
+
     pub fn full_redraws(&self) -> u64 {
         self.full_redraw_count
     }

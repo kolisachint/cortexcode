@@ -44,6 +44,25 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-09-30 · 13.4b split; 13.4b tui TS test review done
+- 13.4b (85 `review` files, ~800 cases) split by area: 13.4b tui (19 files), 13.4c agent/ai +
+  coding-agent utility modules (21), 13.4d coding-agent session/SDK/suite (32), 13.4e
+  interactive-mode and transcript rendering (13). Each gates on
+  `ts_tests.py check <globs>`; `check` now also fails when ts-tests.json is stale. 13.4 depends
+  on all four.
+- 13.4b done: every tui file is ported case for case, citing its TS file (new `*_ts.rs` test
+  files in tui-keys/-util/-images/-render/-components, plus citations on existing near-ports in
+  stdin_buffer.rs and terminal lib.rs). Two parity bugs found and fixed: `visible_width` now
+  adds the trailing Thai/Lao AM vowels and halfwidth forms of a cluster (hoocode
+  `graphemeWidth`); the tui-render test terminal now resizes like xterm.js (shrink scrolls
+  into scrollback, grow pulls rows back) instead of vt100's cut-from-bottom.
+- The fd-gated autocomplete cases need `fd` on PATH (Debian: `apt-get install fd-find`, found
+  as `fdfind`); without it they skip, as in the TS suite.
+- Also fixed: the replay snapshots (13.2) held the system prompt's `Current date:`, so they
+  failed on every later day; replay.rs now masks it (replay-only rule, not in normalize.json).
+- Next: 13.4c (`ledger.py next`). Same method: for each file, port missing cases citing the
+  TS file, or add an `equivalent`/`n.a.` override with a reason.
+
 ### 2026-09-29 · 13.4 split; 13.4a TS test port ledger tooling
 - 13.4 split into 13.4a (tooling + automatic/curated classification) and 13.4b (review).
 - `migration/ts_tests.py generate` writes `migration/ts-tests.json`, one entry per TS test

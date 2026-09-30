@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 233,
+  "ported": 253,
   "equivalent": 0,
   "n.a.": 3,
   "pending": 79,
-  "review": 85
+  "review": 65
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -2603,7 +2603,10 @@
    ]
   },
   "packages/coding-agent/test/truncate-to-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/coding-agent/test/user-message.test.ts": {
    "status": "ported",
@@ -2659,7 +2662,10 @@
    ]
   },
   "packages/tui/test/autocomplete.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/autocomplete_ts.rs"
+   ]
   },
   "packages/tui/test/background-fill.test.ts": {
    "status": "ported",
@@ -2668,7 +2674,10 @@
    ]
   },
   "packages/tui/test/bug-regression-isimageline-startswith-bug.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+   ]
   },
   "packages/tui/test/cursor-parking.test.ts": {
    "status": "ported",
@@ -2692,7 +2701,10 @@
    ]
   },
   "packages/tui/test/fuzzy.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-fuzzy/src/lib.rs"
+   ]
   },
   "packages/tui/test/hyperlink-click.test.ts": {
    "status": "ported",
@@ -2708,10 +2720,16 @@
    ]
   },
   "packages/tui/test/keybindings.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-keys/src/keybindings.rs"
+   ]
   },
   "packages/tui/test/keys.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-keys/tests/keys_ts.rs"
+   ]
   },
   "packages/tui/test/list-right-margin.test.ts": {
    "status": "ported",
@@ -2741,13 +2759,22 @@
    ]
   },
   "packages/tui/test/overlay-non-capturing.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_non_capturing_ts.rs"
+   ]
   },
   "packages/tui/test/overlay-options.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_options_ts.rs"
+   ]
   },
   "packages/tui/test/overlay-short-content.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+   ]
   },
   "packages/tui/test/paper-sheet.test.ts": {
    "status": "ported",
@@ -2756,7 +2783,10 @@
    ]
   },
   "packages/tui/test/regression-regional-indicator-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/tui/test/screen-fill.test.ts": {
    "status": "ported",
@@ -2795,34 +2825,66 @@
    ]
   },
   "packages/tui/test/stdin-buffer.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-terminal/src/stdin_buffer.rs"
+   ]
   },
   "packages/tui/test/terminal-image.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/image_component.rs",
+    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+   ]
   },
   "packages/tui/test/terminal.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-terminal/src/lib.rs"
+   ]
   },
   "packages/tui/test/truncate-to-width.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/width_ts.rs"
+   ]
   },
   "packages/tui/test/truncated-text.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-components/tests/truncated_text_ts.rs"
+   ]
   },
   "packages/tui/test/tui-cell-size-input.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/cell_size_input.rs"
+   ]
   },
   "packages/tui/test/tui-flatcache-stress.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/src/tui.rs",
+    "crates/cortexcode-tui-render/tests/flatcache_stress.rs"
+   ]
   },
   "packages/tui/test/tui-overlay-style-leak.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+   ]
   },
   "packages/tui/test/tui-render.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-render/tests/tui_render_ts.rs"
+   ]
   },
   "packages/tui/test/wrap-ansi.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-tui-util/tests/wrap_ansi_ts.rs"
+   ]
   }
  }
 }
