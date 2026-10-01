@@ -44,6 +44,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-10-01 · 10.5e modes in the interactive mode: done
+- `ExtensionHooks` grew the UI side of an extension: `commands()` (autocomplete, `[t]`
+  tag), `argument_completions`, `active_mode()` (footer badge, `ctx.ui.setMode`) and
+  `take_ui_requests()` (`ExtensionUiRequest`: Notify / Reload / SendFollowUp /
+  NewSessionWithMessage). `SessionEventResult.active_tools` = `hoo.setActiveTools`.
+- `AgentSession::reload` now emits `session_start` (reason reload) and applies the returned
+  tool filter; `ModesExtension` re-resolves its mode there (active mode is a Mutex now).
+- tui-app drains UI requests every loop pass; alt+a / app.mode.cycleBackward run
+  `cycleAgentMode` (`/mode <next>` from the completions, then "Mode: <landed>" dial step);
+  the badge syncs in `apply_runtime_settings`. `StartAutoLoop` is dropped until 12.5.
+- L2: `mode-cycle` (alt+a twice, `/mo` + `/mode ` completions, `/mode plan`, bare `/mode`).
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-10-01 · 11.8 key bindings: done; 10.5e added
 - ctrl+t (app.thinking.toggle) hides/shows thinking, saves it, rebuilds the transcript
   (pending calls stay registered, a streaming message is re-added) and says so on the band;

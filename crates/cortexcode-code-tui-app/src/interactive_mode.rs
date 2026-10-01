@@ -24,9 +24,9 @@ use cortexcode_code_agent_session::runtime::{format_missing_session_cwd_prompt, 
 use cortexcode_code_agent_session::stats::{sum_assistant_usage, AssistantUsageTotals};
 use cortexcode_code_agent_session::ToolSource;
 use cortexcode_code_agent_session::{
-    AgentSession, AgentSessionEvent, AgentSessionRuntime, CompactionReason, ForkPosition,
-    NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, PromptOptions, StreamingBehavior,
-    TranscriptSelection,
+    AgentSession, AgentSessionEvent, AgentSessionRuntime, CompactionReason, ExtensionUiRequest,
+    ForkPosition, NavigateTreeOptions, NavigateTreeResult, NewSessionRequest, NotifyLevel,
+    PromptOptions, StreamingBehavior, TranscriptSelection,
 };
 use cortexcode_code_auth::provider_display_names::provider_auth_status;
 use cortexcode_code_auth::{AuthCredential, AuthStorage};
@@ -272,6 +272,8 @@ enum Action {
     ExternalEditor,
     SessionNew,
     SessionTree,
+    ModeForward,
+    ModeBackward,
     ModelForward,
     ModelBackward,
     ModelSelect,
@@ -333,7 +335,7 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 27] = [
+const EDITOR_ACTIONS: [(&str, Action); 29] = [
     ("app.tasks.cycleForward", Action::TasksForward),
     ("app.tasks.cycleBackward", Action::TasksBackward),
     ("app.message.followUp", Action::FollowUp),
@@ -370,6 +372,8 @@ const EDITOR_ACTIONS: [(&str, Action); 27] = [
     ("app.editor.external", Action::ExternalEditor),
     ("app.session.new", Action::SessionNew),
     ("app.session.tree", Action::SessionTree),
+    ("app.mode.cycleForward", Action::ModeForward),
+    ("app.mode.cycleBackward", Action::ModeBackward),
 ];
 
 /// The prompt editor with the app's key dispatch in front of it
@@ -2204,6 +2208,119 @@ impl Mode {
         }
     }
 
+    /// `cycleAgentMode`: step the agent mode through `/mode`'s argument
+    /// completions (ask → plan → build → debug → ask) by running `/mode
+    /// <next>`, then name the mode the session landed in.
+    fn cycle_agent_mode(&mut self, forward: bool) {
+        let extensions = self.session.extensions().clone();
+        if !extensions.has_command("mode") {
+            self.show_warning("Modes are not available in this session");
+            return;
+        }
+        let modes = extensions
+            .argument_completions("mode", "")
+            .unwrap_or_default();
+        if modes.is_empty() {
+            self.show_warning("No modes are configured");
+            return;
+        }
+        let current = self.footer_data.get_active_mode();
+        // An active mode missing from the list steps to the first mode going
+        // forward and the last going back.
+        let len = modes.len() as isize;
+        let index = modes
+            .iter()
+            .position(|m| *m == current)
+            .map_or(-1, |i| i as isize);
+        let step = if forward { 1 } else { -1 };
+        let next = modes[((index + step + len) % len) as usize].clone();
+        let session = self.session.clone();
+        let text = format!("/mode {next}");
+        let result = self.runtime.block_on(async move {
+            session
+                .prompt(
+                    &text,
+                    PromptOptions {
+                        expand_prompt_templates: true,
+                        ..Default::default()
+                    },
+                )
+                .await
+        });
+        if let Err(error) = result {
+            self.show_error(&error.to_string());
+            return;
+        }
+        self.drain_extension_ui_requests();
+        let landed = self.footer_data.get_active_mode();
+        let landed = if landed.is_empty() { next } else { landed };
+        self.show_dial_step(
+            if forward {
+                "app.mode.cycleBackward"
+            } else {
+                "app.mode.cycleForward"
+            },
+            &format!("Mode: {landed}"),
+        );
+    }
+
+    /// Carry out what extension command handlers asked of the UI
+    /// (`ctx.ui.notify`, `ctx.reload()`, `ctx.newSession`, `sendUserMessage`).
+    fn drain_extension_ui_requests(&mut self) {
+        loop {
+            let requests = self.session.extensions().take_ui_requests();
+            if requests.is_empty() {
+                return;
+            }
+            for request in requests {
+                match request {
+                    ExtensionUiRequest::Notify(message, level) => match level {
+                        NotifyLevel::Error => self.show_error(&message),
+                        NotifyLevel::Warning => self.show_warning(&message),
+                        NotifyLevel::Info => self.show_status(&message),
+                    },
+                    ExtensionUiRequest::Reload => self.handle_reload_command(),
+                    ExtensionUiRequest::SendFollowUp(text) => self.send_user_follow_up(text),
+                    ExtensionUiRequest::NewSessionWithMessage(text) => {
+                        self.handle_extension_new_session(text)
+                    }
+                }
+            }
+        }
+    }
+
+    /// `sendUserMessage(text, { deliverAs: "followUp" })`: queued behind a
+    /// running turn, else sent now.
+    fn send_user_follow_up(&mut self, text: String) {
+        if self.session.is_streaming() || self.session.is_compacting() {
+            self.queue_prompt(text, StreamingBehavior::FollowUp);
+        } else {
+            self.prompt(text);
+        }
+    }
+
+    /// `ctx.newSession({ withSession })` from a command: a fresh session
+    /// (no "New session started" line), then the message to it.
+    fn handle_extension_new_session(&mut self, text: String) {
+        self.stop_working_loader();
+        let handle_rt = self.runtime.clone();
+        let Some(runtime) = self.session_runtime.as_mut() else {
+            return;
+        };
+        match handle_rt.block_on(runtime.new_session(NewSessionRequest::default())) {
+            Ok(result) if result.cancelled => {}
+            Ok(_) => {
+                self.rebind_current_session();
+                self.render_current_session_state();
+                self.send_user_follow_up(text);
+            }
+            Err(error) => {
+                self.show_error(&format!("Failed to create session: {error}"));
+                self.exit_requested = true;
+            }
+        }
+    }
+
     /// `cycleModel`.
     fn cycle_model(&mut self, forward: bool) {
         let direction = if forward {
@@ -3324,8 +3441,50 @@ impl Mode {
             })
             .collect();
         let skill_commands = self.session.settings().enable_skill_commands();
-        for info in self.session.resource_loader().slash_commands() {
-            if info.source == "skill" && !skill_commands {
+        let (templates, skills): (Vec<_>, Vec<_>) = self
+            .session
+            .resource_loader()
+            .slash_commands()
+            .into_iter()
+            .partition(|info| info.source != "skill");
+        for info in templates {
+            commands.push(CommandEntry::Slash(SlashCommand {
+                description: prefix_autocomplete_description(info.description, &info.source_info),
+                name: info.name,
+                argument_hint: None,
+                get_argument_completions: None,
+            }));
+        }
+        // Extension commands a built-in does not shadow, with their own
+        // argument completions.
+        let extensions = self.session.extensions().clone();
+        for info in extensions.commands() {
+            if BUILTIN_SLASH_COMMANDS.iter().any(|c| c.name == info.name) {
+                continue;
+            }
+            let completer = extensions.clone();
+            let name = info.name.clone();
+            commands.push(CommandEntry::Slash(SlashCommand {
+                description: prefix_autocomplete_description(info.description, &info.source_info),
+                name: info.name,
+                argument_hint: None,
+                get_argument_completions: Some(Box::new(move |prefix: &str| {
+                    let values = completer.argument_completions(&name, prefix)?;
+                    Some(
+                        values
+                            .into_iter()
+                            .map(|value| AutocompleteItem {
+                                label: value.clone(),
+                                value,
+                                description: None,
+                            })
+                            .collect(),
+                    )
+                }) as ArgumentCompletionsFn),
+            }));
+        }
+        for info in skills {
+            if !skill_commands {
                 continue;
             }
             commands.push(CommandEntry::Slash(SlashCommand {
@@ -4603,6 +4762,11 @@ impl Mode {
                 .iter()
                 .any(|t| t == "Task"),
         );
+        // `ctx.ui.setMode` from the mode system's `session_start`.
+        if let Some(mode) = self.session.extensions().active_mode() {
+            self.footer_data.set_active_mode(&mode);
+            self.footer.borrow_mut().invalidate();
+        }
         self.hide_thinking_block = hide_thinking_block;
         self.tui.set_show_hardware_cursor(show_hardware_cursor);
         self.tui.set_clear_on_shrink(clear_on_shrink);
@@ -5350,6 +5514,8 @@ impl Mode {
             Action::ExternalEditor => self.open_external_editor(),
             Action::SessionNew => self.handle_new_command(),
             Action::SessionTree => self.show_tree_selector(None),
+            Action::ModeForward => self.cycle_agent_mode(true),
+            Action::ModeBackward => self.cycle_agent_mode(false),
             Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::CopyMessage => self.handle_copy_command(""),
             Action::PasteImage => self.handle_clipboard_image_paste(),
@@ -5566,6 +5732,7 @@ impl Mode {
                     self.handle_action(action);
                 }
             }
+            self.drain_extension_ui_requests();
             if let Some(restarted) = self.restarted_input.take() {
                 input = restarted;
             }

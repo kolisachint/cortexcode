@@ -2569,7 +2569,7 @@
    "id": "10.5e",
    "title": "Modes in the interactive mode: consume ModesExtension actions (Notify on the band, Reload re-resolving the mode and its tool filter, NewSessionWithMessage, SendFollowUp), the footer mode badge (hoo.setMode), /mode argument completions, and app.mode.cycleForward/Backward (alt+a steps through the completions)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "10.5b"
    ],
@@ -2588,7 +2588,20 @@
     "mode-cycle"
    ],
    "notes": "Found in 11.8: in cortex's interactive mode '/mode plan' is accepted and does nothing (nothing drains ModesExtension::take_actions; its active mode is fixed at construction, so a reload cannot re-resolve it), and alt+a is unbound. hoocode: alt+a from build shows 'Mode set to \"debug\" — reloading…' and the footer badge reads DEBUG. L2 mode-cycle (to write): alt+a twice, then /mode plan.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-10-01T04:38:34Z",
+     "commit": "0e8c9aa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-10-01T04:50:03Z",
+     "commit": "0e8c9aa",
+     "kind": "verify",
+     "text": "L1 pass; L2 mode-cycle=pass"
+    }
+   ]
   },
   {
    "id": "10.6",

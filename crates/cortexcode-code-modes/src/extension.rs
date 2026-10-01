@@ -9,17 +9,13 @@ use crate::plan::{
     load_plan_sections, parse_goal_args, parse_grill_target, plan_path, GrillTarget, PlanLoad,
 };
 use crate::prompts::{default_mode_prompt, DEFAULT_MODE};
-use cortexcode_code_agent_session::{CommandFuture, ExtensionHooks};
+pub use cortexcode_code_agent_session::NotifyLevel;
+use cortexcode_code_agent_session::{
+    CommandFuture, ExtensionCommandInfo, ExtensionHooks, ExtensionUiRequest, SessionEvent,
+    SessionEventFuture, SessionEventResult,
+};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-
-/// `ctx.ui.notify` levels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NotifyLevel {
-    Info,
-    Warning,
-    Error,
-}
+use std::sync::{Mutex, MutexGuard};
 
 /// What a mode command asks the host to do, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,7 +157,7 @@ pub fn append_mode_prompt(system_prompt: &str, active: &ActiveMode) -> Option<St
 /// The mode system for one session.
 pub struct ModesExtension {
     session: ModeSession,
-    active: ActiveMode,
+    active: Mutex<ActiveMode>,
     auto_loop_active: Mutex<bool>,
     actions: Mutex<Vec<ModeAction>>,
 }
@@ -178,14 +174,29 @@ impl ModesExtension {
         let active = resolve_active_mode(&session, config);
         Self {
             session,
-            active,
+            active: Mutex::new(active),
             auto_loop_active: Mutex::new(false),
             actions: Mutex::new(Vec::new()),
         }
     }
 
-    pub fn active(&self) -> &ActiveMode {
-        &self.active
+    /// The mode resolved at the last `session_start`.
+    pub fn active(&self) -> ActiveMode {
+        self.active_guard().clone()
+    }
+
+    fn active_guard(&self) -> MutexGuard<'_, ActiveMode> {
+        self.active.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// `session_start` (a reload): re-resolve the mode from the merged
+    /// `hoo-config.json`; returns the mode's tool filter to activate.
+    pub fn reresolve(&self) -> Option<Vec<String>> {
+        let config = config::read_merged_config(&self.session.cwd);
+        let active = resolve_active_mode(&self.session, &config);
+        let tools = active.enabled_tools.clone();
+        *self.active_guard() = active;
+        tools
     }
 
     /// `LOOP_AUTO_CHANGED`: whether an autonomous loop is running.
@@ -203,7 +214,7 @@ impl ModesExtension {
 
     fn plan_candidates(&self) -> (PathBuf, Vec<PathBuf>) {
         let session_plan = self
-            .active
+            .active_guard()
             .plan_path
             .clone()
             .unwrap_or_else(|| plan_path(&self.session.cwd, &self.session.session_id));
@@ -223,7 +234,10 @@ impl ModesExtension {
             "mode" => {
                 let name = args.trim();
                 if name.is_empty() {
-                    return vec![Notify(format!("Active mode: {}", self.active.mode), Info)];
+                    return vec![Notify(
+                        format!("Active mode: {}", self.active_guard().mode),
+                        Info,
+                    )];
                 }
                 let mut config = config::read_config();
                 if name == DEFAULT_MODE {
@@ -321,11 +335,11 @@ impl ModesExtension {
                 }]
             }
             "approve" => {
-                if self.active.mode != "plan" {
+                let mode = self.active_guard().mode.clone();
+                if mode != "plan" {
                     return vec![Notify(
                         format!(
-                            "/approve is only available in plan mode (current mode: \"{}\")",
-                            self.active.mode
+                            "/approve is only available in plan mode (current mode: \"{mode}\")"
                         ),
                         Warning,
                     )];
@@ -375,6 +389,87 @@ impl ExtensionHooks for ModesExtension {
     }
 
     fn before_agent_start(&self, _prompt: &str, system_prompt: &str) -> Option<String> {
-        append_mode_prompt(system_prompt, &self.active)
+        append_mode_prompt(system_prompt, &self.active_guard())
     }
+
+    fn has_handlers(&self, event_type: &str) -> bool {
+        matches!(event_type, "session_start" | "before_agent_start")
+    }
+
+    fn emit_session_event(&self, event: SessionEvent) -> SessionEventFuture {
+        let active_tools = match event {
+            SessionEvent::Start(_) => self.reresolve(),
+            _ => None,
+        };
+        Box::pin(async move {
+            SessionEventResult {
+                active_tools,
+                ..Default::default()
+            }
+        })
+    }
+
+    fn commands(&self) -> Vec<ExtensionCommandInfo> {
+        MODE_COMMANDS
+            .iter()
+            .map(|(name, description)| ExtensionCommandInfo {
+                name: (*name).to_string(),
+                description: Some((*description).to_string()),
+                source_info: mode_commands_source_info(),
+            })
+            .collect()
+    }
+
+    fn argument_completions(&self, name: &str, prefix: &str) -> Option<Vec<String>> {
+        let values: &[&str] = match name {
+            "mode" => &KNOWN_MODES,
+            "grill" => &["me", "plan"],
+            "plan" | "goal" | "approve" => &[],
+            _ => return None,
+        };
+        Some(
+            values
+                .iter()
+                .filter(|v| v.starts_with(prefix))
+                .map(|v| (*v).to_string())
+                .collect(),
+        )
+    }
+
+    fn active_mode(&self) -> Option<String> {
+        // `ctx.ui.setMode` runs in session_start, which light mode and
+        // subagents skip.
+        let skipped =
+            self.session.light || cortexcode_code_paths::env_override("SUBAGENT_DEPTH").is_some();
+        (!skipped).then(|| self.active_guard().mode.clone())
+    }
+
+    fn take_ui_requests(&self) -> Vec<ExtensionUiRequest> {
+        self.take_actions()
+            .into_iter()
+            .filter_map(|action| match action {
+                ModeAction::Notify(message, level) => {
+                    Some(ExtensionUiRequest::Notify(message, level))
+                }
+                ModeAction::SendFollowUp(text) => Some(ExtensionUiRequest::SendFollowUp(text)),
+                ModeAction::Reload => Some(ExtensionUiRequest::Reload),
+                ModeAction::NewSessionWithMessage(text) => {
+                    Some(ExtensionUiRequest::NewSessionWithMessage(text))
+                }
+                // LOOP_AUTO_START has no listener until the loop extension (12.5).
+                ModeAction::StartAutoLoop { .. } => None,
+            })
+            .collect()
+    }
+}
+
+/// The `sourceInfo` of the built-in `hoo-core` extension's commands: a
+/// temporary-scope extension (autocomplete tags it `[t]`).
+fn mode_commands_source_info() -> serde_json::Value {
+    serde_json::json!({
+        "path": "<builtin:hoo-core>",
+        "source": "hoo-core",
+        "scope": "temporary",
+        "origin": "top-level",
+    })
 }

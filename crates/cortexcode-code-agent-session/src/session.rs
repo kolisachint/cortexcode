@@ -831,6 +831,21 @@ impl AgentSession {
         self.settings().reload();
         self.inner.resource_loader.reload();
         self.build_runtime(Some(self.get_active_tool_names()), true);
+        // `session_start` with reason `reload`: handlers re-read their state
+        // (the mode system re-resolves the mode and its tool filter).
+        if self.inner.extensions.has_handlers("session_start") {
+            let result = self
+                .inner
+                .extensions
+                .emit_session_event(SessionEvent::Start(SessionStartEvent {
+                    reason: crate::hooks::SessionStartReason::Reload,
+                    previous_session_file: None,
+                }))
+                .await;
+            if let Some(tools) = result.active_tools {
+                self.set_active_tools_by_name(&tools);
+            }
+        }
     }
 
     /// `bindExtensions()`: emit this session's `session_start` event (UI and

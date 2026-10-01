@@ -463,3 +463,46 @@ async fn expands_skill_commands_before_sending_the_prompt() {
     assert!(text.contains("Use the skill body."));
     assert!(text.contains("explain this"));
 }
+
+/// A `session_start` handler that narrows the active tools (`hoo.setActiveTools`).
+struct ReloadFilter(Arc<Mutex<Vec<cortexcode_code_agent_session::SessionStartReason>>>);
+
+impl ExtensionHooks for ReloadFilter {
+    fn has_handlers(&self, event_type: &str) -> bool {
+        event_type == "session_start"
+    }
+    fn emit_session_event(
+        &self,
+        event: cortexcode_code_agent_session::SessionEvent,
+    ) -> cortexcode_code_agent_session::SessionEventFuture {
+        if let cortexcode_code_agent_session::SessionEvent::Start(start) = event {
+            self.0.lock().unwrap().push(start.reason);
+        }
+        Box::pin(async {
+            cortexcode_code_agent_session::SessionEventResult {
+                active_tools: Some(vec!["read".to_string()]),
+                ..Default::default()
+            }
+        })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reload_emits_session_start_and_applies_its_tool_filter() {
+    let reasons = Arc::new(Mutex::new(Vec::new()));
+    let h = Harness::new(HarnessOptions {
+        tools: vec![
+            tool("read", |_| text_result("")),
+            tool("write", |_| text_result("")),
+        ],
+        extensions: Some(Arc::new(ReloadFilter(reasons.clone()))),
+        ..Default::default()
+    });
+    assert_eq!(h.session.get_active_tool_names(), ["read", "write"]);
+    h.session.reload().await;
+    assert_eq!(
+        *reasons.lock().unwrap(),
+        [cortexcode_code_agent_session::SessionStartReason::Reload]
+    );
+    assert_eq!(h.session.get_active_tool_names(), ["read"]);
+}
