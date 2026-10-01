@@ -454,6 +454,28 @@ fn lookup_tool() -> Tool {
 }
 
 #[test]
+fn sends_opencode_gos_session_header_on_the_anthropic_messages_api() {
+    let server = serve_script(vec![(OK, SSE, "")]);
+    let mut model = ts_model(&server.base_url, None);
+    model.provider = "opencode-go".into();
+    let context = Context::new(String::new(), vec![user("Use the tool")], vec![]);
+    let s = stream_anthropic(
+        model,
+        context,
+        AnthropicOptions {
+            api_key: Some("test-key".into()),
+            cache_retention: Some(cortexcode_ai_types::CacheRetention::None),
+            session_id: Some("go-session-123".into()),
+            ..Default::default()
+        },
+    );
+    s.result_blocking();
+    let request = server.requests().remove(0);
+    assert_eq!(request.header("x-opencode-session"), Some("go-session-123"));
+    assert_eq!(request.header("user-agent"), Some("hoocode"));
+}
+
+#[test]
 fn sends_per_tool_eager_input_streaming_by_default() {
     let request = capture_request(None, vec![lookup_tool()]);
     assert_eq!(request.json()["tools"][0]["eager_input_streaming"], true);

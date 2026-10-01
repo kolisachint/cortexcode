@@ -116,7 +116,7 @@ crates.io, off by default). Manual runs: Actions → Release.
 
 ## Migration status (paused 2026-10-01, ready to use)
 
-The port of hoocode **v0.5.89** (commit `a6cd96e7`) is paused, and `cortex` is usable as a
+The port of hoocode **v0.6.0** (commit `2223437c`) is paused, and `cortex` is usable as a
 daily coding agent. Phases 7, 8 and 11 are complete. Phase 10 is complete apart from the
 deferred items listed below. Every remaining task is **deferred** by user decision; none is
 in progress. Status per task: `python3 migration/ledger.py status`.

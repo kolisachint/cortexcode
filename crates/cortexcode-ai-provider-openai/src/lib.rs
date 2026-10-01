@@ -177,6 +177,7 @@ async fn drive(
         options.headers.as_ref(),
         cache_session_id,
         &compat,
+        options.session_id.as_deref(),
     );
     let params = request::build_params(model, context, options, &compat, &cache_retention);
     let params = OnPayload::apply(options.on_payload.as_ref(), params, model).await;

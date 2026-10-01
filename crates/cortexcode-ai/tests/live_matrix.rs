@@ -89,7 +89,7 @@ const SHARED: &[Case] = &[
     case("cerebras", "gpt-oss-120b", "CEREBRAS_API_KEY"),
     case("nvidia", "meta/llama-3.3-70b-instruct", "NVIDIA_API_KEY"),
     case("huggingface", "moonshotai/Kimi-K2.5", "HF_TOKEN"),
-    case("together", "moonshotai/Kimi-K2.6", "TOGETHER_API_KEY"),
+    case("together", "moonshotai/Kimi-K3", "TOGETHER_API_KEY"),
     case("zai", "glm-5.2", "ZAI_API_KEY"),
     case("minimax", "MiniMax-M2.7", "MINIMAX_API_KEY"),
     case("xiaomi", "mimo-v2.5-pro", "XIAOMI_API_KEY"),
@@ -281,7 +281,7 @@ async fn context_overflow_is_detected() {
             Error(None),
         ),
         (
-            case("together", "moonshotai/Kimi-K2.6", "TOGETHER_API_KEY"),
+            case("together", "moonshotai/Kimi-K3", "TOGETHER_API_KEY"),
             Error(None),
         ),
         (case("zai", "glm-5.2", "ZAI_API_KEY"), Zai),
@@ -584,7 +584,7 @@ async fn tool_results_with_images_reach_the_model() {
         ),
         case("anthropic", "claude-haiku-4-5", "ANTHROPIC_API_KEY"),
         case("openrouter", "z-ai/glm-4.5v", "OPENROUTER_API_KEY"),
-        case("together", "moonshotai/Kimi-K2.6", "TOGETHER_API_KEY"),
+        case("together", "moonshotai/Kimi-K3", "TOGETHER_API_KEY"),
         case("xiaomi", "mimo-v2.5-pro", "XIAOMI_API_KEY"),
         case(
             "xiaomi-token-plan-cn",

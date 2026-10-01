@@ -5,6 +5,19 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
+- **2026-10-01: pin bumped v0.5.89 (`a6cd96e7`) to v0.6.0 (`2223437c`)** (user-approved,
+  outside the ledger tasks). Ported the whole delta (`HOOCODE_DELTA_BASE=a6cd96e7… python3
+  migration/pin_drift.py delta v0.6.0`): regenerated catalog (1228 models: claude-sonnet-5-5,
+  opencode-go longcat-2.5-preview-free, ...); OpenCode Go `x-opencode-session` + `user-agent:
+  hoocode` in the anthropic/openai/openai-responses providers (fixes Go's 400); Kimi K3 defaults
+  for opencode-go/fireworks/together; theme `$schema` URLs. Other src changes are URL branding
+  only. New guards: `migration/pin_drift.py status|check|delta`,
+  `every_provider_default_is_in_the_catalog` (cerebras/zai defaults are stale upstream too,
+  allow-listed), `tui-theme/tests/pin_copies.rs`; `setup_hoocode.sh` uses the pin's bun version.
+  L2 was not rerun in full (not needed outside migration tasks); model/chat/print scenarios pass.
+  Known macOS-only failures on clean HEAD too: code-main replay (`/private` tmp), code-tool-api
+  NFD path, tui-app `option+a` tip, tui-selectors scoped-models hint.
+
 - **Paused 2026-10-01 (user decision): every remaining task is `deferred`.** `ledger.py next`
   reports nothing ready. To resume, the user picks a task: move it back to `todo` with a
   log note, then use the usual loop. Open decisions: 9.1 (rmcp vs hand-written MCP) and 10.2e

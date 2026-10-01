@@ -270,6 +270,7 @@ pub fn build_headers(
     options_headers: Option<&HashMap<String, String>>,
     cache_session_id: Option<&str>,
     compat: &ResolvedCompat,
+    opencode_session_id: Option<&str>,
 ) -> Vec<(String, String)> {
     let mut headers = vec![
         ("content-type".to_string(), "application/json".to_string()),
@@ -284,6 +285,13 @@ pub fn build_headers(
         let has_images = has_copilot_vision_input(&context.messages);
         for (k, v) in build_copilot_dynamic_headers(&context.messages, has_images) {
             set_header(&mut headers, &k, &v);
+        }
+    }
+    // OpenCode Go routes on a stable session header, sent even with caching off.
+    if model.provider == "opencode-go" {
+        set_header(&mut headers, "user-agent", "hoocode");
+        if let Some(session_id) = opencode_session_id {
+            set_header(&mut headers, "x-opencode-session", session_id);
         }
     }
     if let Some(session_id) = cache_session_id {

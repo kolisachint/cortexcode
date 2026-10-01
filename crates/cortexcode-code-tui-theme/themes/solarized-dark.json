@@ -1,5 +1,5 @@
 {
-	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode-ts/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
 	"name": "solarized-dark",
 	"description": "Solarized: the sixteen canonical colors, dark ground, low selective contrast",
 	"vars": {

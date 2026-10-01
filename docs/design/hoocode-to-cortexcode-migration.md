@@ -3,7 +3,7 @@
 > **Status:** RE-BASELINED 2026-09-24 — audited against the pinned source; Phases 7–13 added (see §0 and §9)  
 > **Author:** Sachin Koli  
 > **Source Repo:** https://github.com/kolisachint/hoocode-ts (TypeScript monorepo)  
-> **Source Pin:** hoocode **v0.5.89**, commit [`a6cd96e73c23c897ced685b6bb97b4a0dd61b65a`](https://github.com/kolisachint/hoocode-ts/tree/a6cd96e73c23c897ced685b6bb97b4a0dd61b65a) (2026-09-24) — see §0  
+> **Source Pin:** hoocode **v0.6.0**, commit [`2223437c99cc4279ad40a39d8ff9268a5c8ee0fd`](https://github.com/kolisachint/hoocode-ts/tree/2223437c99cc4279ad40a39d8ff9268a5c8ee0fd) (2026-10-01; bumped from v0.5.89 `a6cd96e7`) — see §0  
 > **Target Repo:** https://github.com/kolisachint/cortexcode (Rust workspace, this repo)  
 > **Migration Reference:** https://github.com/kolisachint/pycortex (Python ultramodular migration)  
 
@@ -45,18 +45,23 @@ immutable hoocode snapshot:
 
 | Field | Value |
 |---|---|
-| hoocode version | `0.5.89` (all four npm packages, lockstep) |
-| hoocode commit | `a6cd96e73c23c897ced685b6bb97b4a0dd61b65a` |
-| Commit date | 2026-09-24 |
+| hoocode version | `0.6.0` (all four npm packages, lockstep) |
+| hoocode commit | `2223437c99cc4279ad40a39d8ff9268a5c8ee0fd` |
+| Commit date | 2026-10-01 |
+| Previous pins | `0.5.89` `a6cd96e7` (2026-09-24 to 2026-10-01) |
 | Machine-readable copy | `[workspace.metadata.cortex.source]` (`hoocode-version`, `hoocode-commit`) in the root `Cargo.toml` |
 
 **Pin policy.**
 
 1. hoocode keeps shipping, so we don't chase `main`. Port from the pinned commit only:
-   `git -C ../hoocode checkout a6cd96e7`.
+   `git -C ../hoocode checkout 2223437c`.
 2. Moving the pin is a deliberate PR. It updates `Cargo.toml` metadata and this header,
    and adds a "delta" checklist built from
    `git diff <old-pin>..<new-pin> -- packages/` (the files that changed, mapped to crates).
+   `python3 migration/pin_drift.py delta <tag>` prints that checklist, and
+   `pin_drift.py check` exits non-zero once upstream releases past the pin. Run it at the
+   start of a session, and nightly in CI (`migration/ci/tui-parity.yml`), so drift is seen before users
+   hit missing models or provider wire changes.
 3. Golden fixtures (Phase 13) are recorded from the pinned commit and carry the pin in
    their file header. Fixtures from a different pin fail the check.
 4. The previous revision of this plan targeted **0.4.146**. Everything marked done in

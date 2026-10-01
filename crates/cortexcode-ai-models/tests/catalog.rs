@@ -29,7 +29,8 @@ fn supports_xhigh(m: &Model) -> bool {
 fn catalog_matches_the_pin() {
     let providers = get_providers();
     let total: usize = providers.iter().map(|p| get_models(p).len()).sum();
-    assert_eq!(total, 1224);
+    // hoocode v0.6.0: Object.values(MODELS) flattened (scripts/convert_models_to_json.py).
+    assert_eq!(total, 1228);
     // hoocode's provider order (Object.entries(MODELS)).
     assert_eq!(
         &providers[..3],
@@ -106,15 +107,15 @@ fn openrouter_rolling_claude_aliases() {
 
 #[test]
 fn fireworks_models() {
-    let m = model("fireworks", "accounts/fireworks/models/kimi-k2p6");
+    let m = model("fireworks", "accounts/fireworks/models/kimi-k3");
     assert_eq!(m.api, "anthropic-messages");
     assert_eq!(m.provider, "fireworks");
     assert_eq!(m.base_url, "https://api.fireworks.ai/inference");
     assert!(m.reasoning);
     assert_eq!(m.input, ["text", "image"]);
-    assert_eq!(m.context_window, 262_000);
-    assert_eq!(m.max_tokens, 262_000);
-    assert_eq!(m.cost, cost(0.95, 4.0, 0.16, 0.0));
+    assert_eq!(m.context_window, 1_048_576);
+    assert_eq!(m.max_tokens, 131_072);
+    assert_eq!(m.cost, cost(3.0, 15.0, 0.3, 0.0));
 
     let turbo = model("fireworks", "accounts/fireworks/routers/kimi-k3-fast");
     assert_eq!(turbo.api, "anthropic-messages");
@@ -124,7 +125,7 @@ fn fireworks_models() {
 
 #[test]
 fn together_default_kimi_model() {
-    let m = model("together", "moonshotai/Kimi-K2.6");
+    let m = model("together", "moonshotai/Kimi-K3");
     assert_eq!(m.api, "openai-completions");
     assert_eq!(m.base_url, "https://api.together.ai/v1");
     assert!(m.reasoning);
@@ -133,9 +134,9 @@ fn together_default_kimi_model() {
         json!({"minimal": null, "low": null, "medium": null})
     );
     assert_eq!(m.input, ["text", "image"]);
-    assert_eq!(m.context_window, 262_144);
-    assert_eq!(m.max_tokens, 131_000);
-    assert_eq!(m.cost, cost(1.2, 4.5, 0.2, 0.0));
+    assert_eq!(m.context_window, 1_048_576);
+    assert_eq!(m.max_tokens, 131_072);
+    assert_eq!(m.cost, cost(3.0, 15.0, 0.3, 0.0));
     assert_eq!(
         m.compat,
         Some(json!({
@@ -185,10 +186,10 @@ fn together_reasoning_controls() {
 
 #[test]
 fn models_round_trip_through_the_hoocode_json_shape() {
-    let m = model("together", "moonshotai/Kimi-K2.6");
+    let m = model("together", "moonshotai/Kimi-K3");
     let value = serde_json::to_value(m).unwrap();
     assert_eq!(value["baseUrl"], "https://api.together.ai/v1");
-    assert_eq!(value["cost"]["cacheRead"], 0.2);
+    assert_eq!(value["cost"]["cacheRead"], 0.3);
     let back: Model = serde_json::from_value(value).unwrap();
     assert_eq!(&back, m);
     // An Anthropic model reads an empty compat view.

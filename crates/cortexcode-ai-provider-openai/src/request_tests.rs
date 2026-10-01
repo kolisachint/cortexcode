@@ -255,6 +255,7 @@ fn cache_request(
         options.headers.as_ref(),
         cache_session,
         &compat,
+        options.session_id.as_deref(),
     );
     (params, headers)
 }
@@ -348,6 +349,19 @@ fn uses_env_long_for_direct_openai() {
     });
     assert_eq!(p["prompt_cache_key"], "session-env");
     assert_eq!(p["prompt_cache_retention"], "24h");
+}
+
+#[test]
+fn sends_opencode_gos_required_session_header_even_when_cache_retention_is_disabled() {
+    let model = with_base_url(
+        completions("opencode-go", "kimi-k3"),
+        "https://opencode.ai/zen/go/v1",
+        json!({}),
+    );
+    let (p, h) = cache_request(&model, Some(CacheRetention::None), "go-session-123", None);
+    assert_eq!(header(&h, "x-opencode-session"), Some("go-session-123"));
+    assert_eq!(header(&h, "user-agent"), Some("hoocode"));
+    assert!(p.get("prompt_cache_key").is_none());
 }
 
 fn affinity_model() -> Model {

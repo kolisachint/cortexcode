@@ -136,6 +136,20 @@ fn explicit_headers_override_cache_affinity_headers() {
     );
 }
 
+// --- openai-responses-opencode-go-session.test.ts ---
+
+#[test]
+fn opencode_go_sends_the_required_session_and_client_identification_headers() {
+    let options = ResponsesOptions {
+        cache_retention: Some(CacheRetention::None),
+        session_id: Some("go-session-456".into()),
+        ..Default::default()
+    };
+    let (req, _) = capture(catalog("opencode-go", "grok-4.7"), options);
+    assert_eq!(req.header("x-opencode-session"), Some("go-session-456"));
+    assert_eq!(req.header("user-agent"), Some("hoocode"));
+}
+
 #[test]
 fn omits_cache_affinity_headers_when_cache_retention_is_none() {
     let options = ResponsesOptions {

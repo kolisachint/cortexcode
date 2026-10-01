@@ -1,6 +1,6 @@
 //! Model resolution, scoping and initial selection.
 //!
-//! Port of hoocode `packages/coding-agent/src/core/model-resolver.ts` (pinned v0.5.89).
+//! Port of hoocode `packages/coding-agent/src/core/model-resolver.ts` (pinned v0.6.0).
 //! The TS functions print warnings with `console.warn` / exit on CLI errors; here they
 //! are returned for the caller to print.
 
@@ -31,10 +31,10 @@ pub const DEFAULT_MODEL_PER_PROVIDER: &[(&str, &str)] = &[
     ("moonshotai", "kimi-k2.6"),
     ("moonshotai-cn", "kimi-k2.6"),
     ("huggingface", "moonshotai/Kimi-K2.6"),
-    ("fireworks", "accounts/fireworks/models/kimi-k2p6"),
-    ("together", "moonshotai/Kimi-K2.6"),
+    ("fireworks", "accounts/fireworks/models/kimi-k3"),
+    ("together", "moonshotai/Kimi-K3"),
     ("opencode", "kimi-k2.6"),
-    ("opencode-go", "kimi-k2.6"),
+    ("opencode-go", "kimi-k3"),
     ("kimi-coding", "kimi-for-coding"),
     ("xiaomi", "mimo-v2.5-pro"),
     ("xiaomi-token-plan-cn", "mimo-v2.5-pro"),
