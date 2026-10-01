@@ -1,0 +1,38 @@
+[package]
+name = "cortexcode-app-server"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "hoocode app-server: Codex app-server protocol over stdio and a Unix socket"
+readme = "README.md"
+
+[package.metadata.cortex]
+publish = false
+
+[dependencies]
+cortexcode-app-server-protocol = { workspace = true }
+cortexcode-agent-types = { workspace = true }
+cortexcode-ai-types = { workspace = true }
+cortexcode-code-agent-session = { workspace = true }
+cortexcode-code-modes = { workspace = true }
+cortexcode-code-permissions = { workspace = true }
+cortexcode-code-session = { workspace = true }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "io-util", "io-std", "net", "sync", "macros", "time", "fs", "signal"] }
+tokio-tungstenite = { version = "0.26", default-features = false, features = ["handshake"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+cortexcode-agent-core = { workspace = true }
+cortexcode-ai-provider-faux = { workspace = true }
+cortexcode-code-models = { workspace = true }
+cortexcode-code-settings = { workspace = true }
+tempfile = "3"
+tokio = { version = "1", features = ["process"] }
+cortexcode-code-tool-api = { workspace = true }
+jsonschema = { version = "0.30", default-features = false }

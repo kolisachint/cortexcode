@@ -381,6 +381,7 @@ fn build_session(args: &Args, interactive: bool) -> (AgentSession, Diagnostics) 
         session_manager,
         None,
         interactive,
+        None,
     );
     (session, diagnostics)
 }
@@ -434,7 +435,7 @@ fn initial_session_manager(args: &Args, interactive: bool) -> SessionManager {
 /// the `--models` scope, the model from the flags (or `findInitialModel`
 /// inside `create_agent_session`), `--api-key` as a runtime key for the chosen
 /// provider, and the default or light tools. `auth` is shared across runtimes.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn create_runtime(
     args: &Args,
     auth: &Arc<AuthStorage>,
@@ -443,6 +444,7 @@ fn create_runtime(
     session_manager: SessionManager,
     session_start_event: Option<SessionStartEvent>,
     interactive: bool,
+    gate: Option<Arc<dyn PermissionGate>>,
 ) -> (AgentSession, AgentSessionServices, Diagnostics) {
     let settings = SettingsManager::create_default(&cwd);
     let registry = load_registry(auth);
@@ -500,6 +502,7 @@ fn create_runtime(
         options,
         session_start_event,
         interactive,
+        gate,
     );
     (session, services, diagnostics)
 }
@@ -531,6 +534,7 @@ fn assemble_session(
     model_options: ModelOptions,
     session_start_event: Option<SessionStartEvent>,
     interactive: bool,
+    gate: Option<Arc<dyn PermissionGate>>,
 ) -> (AgentSession, AgentSessionServices) {
     let light = args.light.unwrap_or_else(|| settings.light());
     // main.ts: the light preset is an allowlist of the four short-schema tools
@@ -628,7 +632,9 @@ fn assemble_session(
             no_tools,
             custom_tools: custom,
             base_tools,
-            permission_gate: Some(build_permission_gate(interactive, &services.cwd)),
+            permission_gate: Some(
+                gate.unwrap_or_else(|| build_permission_gate(interactive, &services.cwd)),
+            ),
             disallowed_tools,
             extensions: Some(modes),
             session_start_event,
@@ -871,6 +877,7 @@ fn build_session_runtime(
         session_manager,
         None,
         interactive,
+        None,
     );
     let factory_args = args.clone();
     let factory: cortexcode_code_agent_session::RuntimeFactory = Arc::new(move |request| {
@@ -882,6 +889,7 @@ fn build_session_runtime(
             request.session_manager,
             request.session_start_event,
             interactive,
+            None,
         );
         let created = CreatedRuntime {
             session,
@@ -928,6 +936,119 @@ pub fn run_rpc_mode(args: &Args, color: bool, err: &mut dyn Write) -> std::io::R
         tokio::io::stdin(),
         output,
     )))
+}
+
+/// `hoocode app-server`: builds sessions for the server the same way the
+/// other modes do (settings, models, tools, modes), with the server's gate.
+pub(crate) struct AppServerSessions {
+    pub args: Args,
+    pub cwd: std::path::PathBuf,
+    pub session_dir: Option<std::path::PathBuf>,
+    pub auth: Arc<AuthStorage>,
+}
+
+impl AppServerSessions {
+    fn build(
+        &self,
+        manager: SessionManager,
+        model: Option<&str>,
+        gate: Arc<dyn PermissionGate>,
+    ) -> Result<AgentSession, String> {
+        let mut args = self.args.clone();
+        // Clients send their own default model (e.g. the Codex TUI's). Only
+        // a model hoocode has auth for, named exactly, overrides ours.
+        if let Some(model) = model.and_then(|m| self.available_model(m)) {
+            args.model = Some(model);
+            args.provider = None;
+        }
+        let (session, _, diagnostics) = create_runtime(
+            &args,
+            &self.auth,
+            self.cwd.clone(),
+            cortexcode_code_paths::agent_dir(),
+            manager,
+            None,
+            false,
+            Some(gate),
+        );
+        if let Some((_, message)) = diagnostics
+            .iter()
+            .find(|(kind, _)| *kind == DiagnosticKind::Error)
+        {
+            session.dispose();
+            return Err(message.clone());
+        }
+        Ok(session)
+    }
+
+    pub fn create(
+        &self,
+        model: Option<&str>,
+        gate: Arc<dyn PermissionGate>,
+    ) -> Result<AgentSession, String> {
+        let manager = SessionManager::create(self.cwd.to_string_lossy(), self.session_dir.clone());
+        self.build(manager, model, gate)
+    }
+
+    pub fn open(
+        &self,
+        path: &std::path::Path,
+        model: Option<&str>,
+        gate: Arc<dyn PermissionGate>,
+    ) -> Result<AgentSession, String> {
+        let manager = SessionManager::open(path, self.session_dir.clone(), None);
+        self.build(manager, model, gate)
+    }
+
+    /// The directory sessions for this workspace are saved in.
+    pub fn sessions_dir(&self) -> std::path::PathBuf {
+        self.session_dir.clone().unwrap_or_else(|| {
+            cortexcode_code_session::manager::default_session_dir(&self.cwd.to_string_lossy())
+        })
+    }
+
+    /// `provider/id` of the available model `wanted` names exactly (as
+    /// `provider/id`, or a bare id; for a bare id the default provider wins).
+    fn available_model(&self, wanted: &str) -> Option<String> {
+        let registry = load_registry(&self.auth);
+        let available = registry.get_available(self.auth.as_ref());
+        let full = |m: &&Model| format!("{}/{}", m.provider, m.id);
+        if let Some(m) = available.iter().find(|m| full(m) == wanted) {
+            return Some(full(m));
+        }
+        let default_provider = SettingsManager::create_default(&self.cwd).default_provider();
+        let mut matches: Vec<&&Model> = available.iter().filter(|m| m.id == wanted).collect();
+        matches.sort_by_key(|m| Some(&m.provider) != default_provider.as_ref());
+        matches.first().map(|m| full(m))
+    }
+
+    /// The available model `name` names exactly.
+    pub fn resolve_model(&self, name: &str) -> Option<Model> {
+        let full = self.available_model(name)?;
+        let (provider, id) = full.split_once('/')?;
+        load_registry(&self.auth).find(provider, id).cloned()
+    }
+
+    /// Models with auth configured: `(provider/id, name, is default)`.
+    pub fn models(&self) -> Vec<(String, String, bool)> {
+        let registry = load_registry(&self.auth);
+        let settings = SettingsManager::create_default(&self.cwd);
+        let default = settings.default_model();
+        registry
+            .get_available(self.auth.as_ref())
+            .into_iter()
+            .map(|m| {
+                let id = format!("{}/{}", m.provider, m.id);
+                let is_default = default.as_deref() == Some(m.id.as_str());
+                (id, m.name.clone(), is_default)
+            })
+            .collect()
+    }
+}
+
+/// Auth for the app-server's sessions.
+pub(crate) fn app_server_auth() -> Arc<AuthStorage> {
+    load_auth()
 }
 
 /// The CLI's diagnostics as `AgentSessionRuntimeDiagnostic`s.
@@ -1210,6 +1331,7 @@ mod tests {
             ModelOptions::default(),
             None,
             false,
+            None,
         );
         (session.system_prompt(), session.get_active_tool_names())
     }
@@ -1276,6 +1398,7 @@ mod tests {
             ModelOptions::default(),
             None,
             true,
+            None,
         );
         let output = Arc::new(Mutex::new(String::new()));
         let title = Arc::new(Mutex::new(String::new()));
@@ -1499,6 +1622,7 @@ mod tests {
                 ModelOptions::default(),
                 None,
                 true,
+                None,
             );
             let output = Arc::new(Mutex::new(String::new()));
             let terminal = ScriptedTerminal {
@@ -1633,6 +1757,7 @@ mod tests {
                 ModelOptions::default(),
                 None,
                 true,
+                None,
             );
             let output = Arc::new(Mutex::new(String::new()));
             let mut script: Vec<(u64, &'static str)> = vec![(300, "")];
