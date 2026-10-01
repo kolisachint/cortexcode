@@ -1,0 +1,17 @@
+{
+  "description": "alt+e (app.editor.external) opens the prompt in $EDITOR (here a script that appends a line to the file) and the edited text, its trailing newline dropped, replaces the prompt when the editor exits 0; the TUI comes back fully redrawn.",
+  "phase": "11.8",
+  "terminal": {"cols": 100, "rows": 24},
+  "env": {"EDITOR": "sh {WORK}/fake-editor.sh"},
+  "files": {"fake-editor.sh": "printf ' and more from the editor\\n' >> \"$1\"\n"},
+  "llm": [],
+  "steps": [
+    {"wait_for": "❯", "timeout": 30},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"type": "draft prompt"},
+    {"keys": ["M-e"]},
+    {"wait_for": "and more from the editor", "timeout": 20},
+    {"wait_stable": 1.0, "timeout": 20},
+    {"snapshot": "edited", "contains": ["draft prompt and more from the editor"]}
+  ]
+}

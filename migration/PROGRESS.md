@@ -44,6 +44,18 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-10-01 · 11.8 key bindings: done; 10.5e added
+- ctrl+t (app.thinking.toggle) hides/shows thinking, saves it, rebuilds the transcript
+  (pending calls stay registered, a streaming message is re-added) and says so on the band;
+  alt+e (app.editor.external) edits the prompt in $VISUAL/$EDITOR (TUI stopped and restarted
+  through `restarted_input`); app.session.new / app.session.tree dispatch /new and /tree.
+- L2: `thinking-toggle-pending-tool` (4167: ctrl+t during a slow bash call),
+  `external-editor` (scripted $EDITOR). Both stable.
+- 10.5e (new, todo): the mode system in the interactive mode. `/mode plan` is a no-op in
+  cortex today (nobody drains ModesExtension::take_actions; the active mode is fixed at
+  construction), and alt+a needs it. See its ledger notes for hoocode's behavior.
+- Next: `python3 migration/ledger.py next` (10.5e).
+
 ### 2026-10-01 · 13.4f suite TS test review: done; 11.9 done; 11.8 added
 - Ported subagent-visual-tie (tui-app tests: identity colors, wall-clock elapsed, TodoWrite
   links, flat lens nesting, reconcile by identity) and subagent-spawn-audit (subagents tests:

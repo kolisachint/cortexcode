@@ -2566,6 +2566,31 @@
    ]
   },
   {
+   "id": "10.5e",
+   "title": "Modes in the interactive mode: consume ModesExtension actions (Notify on the band, Reload re-resolving the mode and its tool filter, NewSessionWithMessage, SendFollowUp), the footer mode badge (hoo.setMode), /mode argument completions, and app.mode.cycleForward/Backward (alt+a steps through the completions)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5b"
+   ],
+   "crates": [
+    "cortexcode-code-modes",
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/extensions/core/modes.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "mode-cycle"
+   ],
+   "notes": "Found in 11.8: in cortex's interactive mode '/mode plan' is accepted and does nothing (nothing drains ModesExtension::take_actions; its active mode is fixed at construction, so a reload cannot re-resolve it), and alt+a is unbound. hoocode: alt+a from build shows 'Mode set to \"debug\" — reloading…' and the footer badge reads DEBUG. L2 mode-cycle (to write): alt+a twice, then /mode plan.",
+   "log": []
+  },
+  {
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
@@ -6301,9 +6326,9 @@
   },
   {
    "id": "11.8",
-   "title": "InteractiveMode key bindings at parity: app.thinking.toggle (ctrl+t: hide/show thinking, rebuild the transcript), app.mode.cycleForward/Backward (alt+a: step the agent mode through the /mode completions), app.editor.external (open $VISUAL/$EDITOR on the prompt), app.session.new and app.session.tree (unbound by default, rebindable)",
+   "title": "InteractiveMode key bindings at parity: app.thinking.toggle (ctrl+t: hide/show thinking, rebuild the transcript keeping pending calls and the streaming message), app.editor.external (alt+e: the prompt in $VISUAL/$EDITOR), app.session.new and app.session.tree (unbound by default, rebindable)",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-code-tui-app"
@@ -6316,10 +6341,24 @@
    ],
    "l1_cmds": [],
    "l2": [
-    "thinking-toggle-pending-tool"
+    "thinking-toggle-pending-tool",
+    "external-editor"
    ],
-   "notes": "Found in 13.4f: hoocode binds these in setupKeyHandlers (onAction); cortex's EDITOR_ACTIONS lacks them, so the keys the startup hints advertise (ctrl+t, alt+a, ctrl+g) do nothing. team.focus and input.voiceTranscribe are phase-12 features. 4167 (a re-render while a tool is pending keeps its completion routed) needs ctrl+t; its L2 scenario runs a slow bash call and toggles thinking mid-call.",
-   "log": []
+   "notes": "Found in 13.4f: hoocode binds these in setupKeyHandlers (onAction); cortex's EDITOR_ACTIONS lacks them, so the keys the startup hints advertise (ctrl+t, alt+a, ctrl+g) do nothing. team.focus and input.voiceTranscribe are phase-12 features. 4167 (a re-render while a tool is pending keeps its completion routed) needs ctrl+t; its L2 scenario runs a slow bash call and toggles thinking mid-call. The mode cycle (alt+a) moved to 10.5e: it needs /mode to work interactively first.",
+   "log": [
+    {
+     "at": "2026-10-01T04:27:29Z",
+     "commit": "88a9e35",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-10-01T04:33:39Z",
+     "commit": "88a9e35",
+     "kind": "verify",
+     "text": "L1 pass; L2 thinking-toggle-pending-tool=pass, external-editor=pass"
+    }
+   ]
   },
   {
    "id": "11.9",

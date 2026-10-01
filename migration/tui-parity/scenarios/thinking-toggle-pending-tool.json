@@ -1,0 +1,84 @@
+{
+  "description": "ctrl+t (app.thinking.toggle) while a tool call is still running (allowed once at the build-mode prompt) (suite/regressions/4167): the transcript is rebuilt with the thinking trace folded to its label, the pending call stays registered, and its result lands in the rebuilt block when the slow bash finishes; the status band says 'Thinking blocks: hidden'. Full view so the result body shows.",
+  "phase": "11.8",
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "toolOutputView": "full"
+  },
+  "llm": [
+    {
+      "thinking": "I should run the slow command.",
+      "text": "",
+      "tool_calls": [
+        {
+          "id": "call_slow_1",
+          "name": "bash",
+          "arguments": {
+            "command": "sleep 3; echo FINAL_RESULT"
+          }
+        }
+      ]
+    },
+    {
+      "text": "The command printed FINAL_RESULT."
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "type": "run the slow command"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Allow: \\$ sleep 3",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 0.5,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "Working",
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "C-t"
+      ]
+    },
+    {
+      "wait_for": "The command printed",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.5,
+      "timeout": 20
+    },
+    {
+      "snapshot": "settled",
+      "contains": [
+        "FINAL_RESULT",
+        "Thinking..."
+      ]
+    }
+  ]
+}

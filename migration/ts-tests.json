@@ -5,10 +5,10 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 297,
+  "ported": 298,
   "equivalent": 2,
   "n.a.": 6,
-  "pending": 95,
+  "pending": 94,
   "review": 0
  },
  "tests": {
@@ -2561,7 +2561,7 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "11.8"
    ]

@@ -268,6 +268,10 @@ enum Action {
     ChromeBackward,
     ThinkingForward,
     ThinkingBackward,
+    ThinkingToggle,
+    ExternalEditor,
+    SessionNew,
+    SessionTree,
     ModelForward,
     ModelBackward,
     ModelSelect,
@@ -329,7 +333,7 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 23] = [
+const EDITOR_ACTIONS: [(&str, Action); 27] = [
     ("app.tasks.cycleForward", Action::TasksForward),
     ("app.tasks.cycleBackward", Action::TasksBackward),
     ("app.message.followUp", Action::FollowUp),
@@ -362,6 +366,10 @@ const EDITOR_ACTIONS: [(&str, Action); 23] = [
     ("app.model.select", Action::ModelSelect),
     ("app.settings.open", Action::SettingsOpen),
     ("app.session.resume", Action::ResumeSession),
+    ("app.thinking.toggle", Action::ThinkingToggle),
+    ("app.editor.external", Action::ExternalEditor),
+    ("app.session.new", Action::SessionNew),
+    ("app.session.tree", Action::SessionTree),
 ];
 
 /// The prompt editor with the app's key dispatch in front of it
@@ -4042,6 +4050,81 @@ impl Mode {
         }
     }
 
+    /// `toggleThinkingBlockVisibility`: hide or show thinking traces, saved,
+    /// and the transcript rebuilt with the new display.
+    fn toggle_thinking_block_visibility(&mut self) {
+        self.hide_thinking_block = !self.hide_thinking_block;
+        self.session
+            .settings()
+            .set_hide_thinking_block(self.hide_thinking_block);
+        let streaming = self.streaming.clone();
+        let streaming_message = self.streaming_message.clone();
+        self.reset_transcript_view();
+        let messages = self.session.messages();
+        self.render_session_context(&messages, false);
+        // A message still streaming goes back on with the new display.
+        if let (Some(component), Some(message)) = (streaming, streaming_message) {
+            {
+                let mut c = component.borrow_mut();
+                c.set_thinking_display(self.thinking_display());
+                c.update_content(&message, true);
+            }
+            self.add_to_chat(as_component(&component));
+            self.streaming = Some(component);
+            self.streaming_message = Some(message);
+        }
+        // Radar overrides the setting: say so rather than claim a change the
+        // screen does not show.
+        let status = if !self.hide_thinking_block && self.tool_output_view == ToolOutputView::Radar
+        {
+            "Thinking blocks: visible (radar hides them)"
+        } else if self.hide_thinking_block {
+            "Thinking blocks: hidden"
+        } else {
+            "Thinking blocks: visible"
+        };
+        self.show_status(status);
+    }
+
+    /// `openExternalEditor`: edit the prompt in `$VISUAL` / `$EDITOR`.
+    fn open_external_editor(&mut self) {
+        let editor_cmd = std::env::var("VISUAL")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .or_else(|| std::env::var("EDITOR").ok().filter(|v| !v.is_empty()));
+        let Some(editor_cmd) = editor_cmd else {
+            self.show_warning("No editor configured. Set $VISUAL or $EDITOR environment variable.");
+            return;
+        };
+        let current = self.editor.borrow().editor.get_expanded_text();
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        let tmp_file =
+            std::env::temp_dir().join(format!("{APP_NAME}-editor-{millis}.{APP_NAME}.md"));
+        if std::fs::write(&tmp_file, &current).is_ok() {
+            self.tui.stop();
+            // Split on spaces for editor arguments (e.g. "code --wait").
+            let mut parts = editor_cmd.split(' ').filter(|p| !p.is_empty());
+            let program = parts.next().unwrap_or_default().to_string();
+            let status = std::process::Command::new(&program)
+                .args(parts)
+                .arg(&tmp_file)
+                .status();
+            if status.is_ok_and(|s| s.success()) {
+                if let Ok(content) = std::fs::read_to_string(&tmp_file) {
+                    let content = content.strip_suffix('\n').unwrap_or(&content);
+                    self.editor.borrow_mut().editor.set_text(content);
+                }
+            }
+            self.restarted_input = Some(self.tui.start());
+            // The editor used the alternate screen: redraw everything.
+            self.tui.request_render(true);
+        }
+        let _ = std::fs::remove_file(&tmp_file);
+        self.dirty.set(true);
+    }
+
     /// `handleImport`: `/import <path.jsonl>` replaces the session, after a
     /// confirm.
     fn handle_import_command(&mut self, text: &str) {
@@ -5263,6 +5346,10 @@ impl Mode {
             Action::SettingsOpen => self.show_settings_selector(),
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
+            Action::ThinkingToggle => self.toggle_thinking_block_visibility(),
+            Action::ExternalEditor => self.open_external_editor(),
+            Action::SessionNew => self.handle_new_command(),
+            Action::SessionTree => self.show_tree_selector(None),
             Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::CopyMessage => self.handle_copy_command(""),
             Action::PasteImage => self.handle_clipboard_image_paste(),
