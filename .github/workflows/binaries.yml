@@ -1,6 +1,18 @@
 name: Build binaries
 
+# Release binaries, shipped as `hoocode` (the Rust build; the crate's binary is
+# `cortex`) plus the `hoocode-ts` shim that runs the TypeScript hoocode.
+
 on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      upload:
+        description: "Attach the archives to the release named by tag"
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       tag:
@@ -8,71 +20,86 @@ on:
         required: true
         type: string
   release:
+    # Releases made by hand. Releases made by release.yml (GITHUB_TOKEN) do not
+    # fire this event; release.yml calls this workflow directly instead.
     types: [published]
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
 
 jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive: tar.gz
           - target: x86_64-apple-darwin
             os: macos-latest
-            archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest
-            archive: tar.gz
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive: zip
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          ref: ${{ env.TAG }}
+
+      - name: Toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-
-      - name: Install cross-compilation tools (Linux)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }} --bin cortex
+        run: cargo build --locked --release --target ${{ matrix.target }} --bin cortex
 
-      - name: Package (unix)
-        if: matrix.archive == 'tar.gz'
+      - name: Package
+        id: pkg
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/cortex dist/cortex-${{ matrix.target }}
-          tar czf dist/cortex-${{ matrix.target }}.tar.gz -C dist cortex-${{ matrix.target }}
-
-      - name: Package (windows)
-        if: matrix.archive == 'zip'
-        run: |
-          mkdir dist
-          cp target/${{ matrix.target }}/release/cortex.exe dist/cortex-${{ matrix.target }}.exe
-          cd dist
-          7z a cortex-${{ matrix.target }}.zip cortex-${{ matrix.target }}.exe
+          name="hoocode-$TARGET"
+          mkdir -p "dist/$name"
+          cp README.md LICENSE "dist/$name/"
+          if [[ "$TARGET" == *windows* ]]; then
+            cp "target/$TARGET/release/cortex.exe" "dist/$name/hoocode.exe"
+            cp scripts/shims/hoocode-ts.cmd "dist/$name/"
+            (cd dist && 7z a "$name.zip" "$name" >/dev/null)
+            echo "file=dist/$name.zip" >> "$GITHUB_OUTPUT"
+          else
+            cp "target/$TARGET/release/cortex" "dist/$name/hoocode"
+            cp scripts/shims/hoocode-ts "dist/$name/"
+            chmod +x "dist/$name/hoocode" "dist/$name/hoocode-ts"
+            tar czf "dist/$name.tar.gz" -C dist "$name"
+            echo "file=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload to release
-        if: github.event_name == 'release'
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/cortex-${{ matrix.target }}.${{ matrix.archive }} --clobber
+        # Under workflow_call, event_name is the caller's, so the input decides.
+        if: github.event_name == 'release' || inputs.upload
+        shell: bash
+        run: gh release upload "$TAG" "${{ steps.pkg.outputs.file }}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifacts
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload artifact
+        if: github.event_name != 'release' && !inputs.upload
         uses: actions/upload-artifact@v4
         with:
-          name: cortex-${{ matrix.target }}
-          path: dist/cortex-${{ matrix.target }}.${{ matrix.archive }}
+          name: hoocode-${{ matrix.target }}
+          path: ${{ steps.pkg.outputs.file }}

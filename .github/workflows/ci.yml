@@ -1,25 +1,82 @@
 name: CI
 
+# Parallel gates (docs/design/build-speed.md §4.2). Also called by release.yml,
+# so a release runs exactly these checks, side by side, before it tags.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+
+concurrency:
+  # github.workflow is the caller's name under workflow_call, so a release never
+  # cancels (or is cancelled by) the CI run of the same push.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
 
 jobs:
-  check:
+  fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - name: cargo fmt
-        run: cargo fmt --all -- --check
-      - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: cargo check
-        run: cargo check --workspace
-      - name: cargo test
-        run: cargo test --workspace
-      - name: cargo doc
-        run: cargo doc --workspace --no-deps
+        with:
+          shared-key: clippy
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Pinned hoocode fixtures
+        run: scripts/ci/fetch_hoocode_fixtures.sh
+      - run: cargo nextest run --locked --workspace --no-fail-fast
+      - run: cargo test --locked --workspace --doc
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: doc
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo doc --locked --workspace --no-deps
+
+  firewall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 migration/check_dep_firewall.py

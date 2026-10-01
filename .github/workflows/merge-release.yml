@@ -27,7 +27,14 @@ jobs:
   release:
     needs: level
     if: needs.level.outputs.level != ''
+    # The called jobs need these; a caller granting less fails at startup.
+    permissions:
+      contents: write
     uses: ./.github/workflows/release.yml
     with:
       level: ${{ needs.level.outputs.level }}
+      # Optional labels: release:skip-gates (the PR's CI already covers it),
+      # release:crates (also publish to crates.io).
+      skip_gates: ${{ contains(github.event.pull_request.labels.*.name, 'release:skip-gates') }}
+      publish_crates: ${{ contains(github.event.pull_request.labels.*.name, 'release:crates') }}
     secrets: inherit
