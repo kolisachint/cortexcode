@@ -314,7 +314,7 @@ checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 
 [[package]]
 name = "cortexcode"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent",
  "cortexcode-ai",
@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-compaction",
  "cortexcode-agent-core",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-compaction"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-agent-session",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-loop",
  "cortexcode-agent-types",
@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-harness"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-types",
@@ -390,7 +390,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-loop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-stream",
@@ -404,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-tools",
  "cortexcode-agent-types",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-orchestrator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-compaction",
  "cortexcode-agent-core",
@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-session"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-types",
@@ -448,7 +448,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -458,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-agent-types"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-stream",
  "cortexcode-ai-types",
@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-env",
@@ -499,14 +499,14 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-env"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dirs",
 ]
 
 [[package]]
 name = "cortexcode-ai-images"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-env",
@@ -521,7 +521,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-models"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-models-catalog",
  "cortexcode-ai-types",
@@ -531,11 +531,11 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-models-catalog"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "cortexcode-ai-oauth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-types",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-oauth-anthropic"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-oauth",
  "cortexcode-ai-types",
@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-oauth-github-copilot"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-oauth",
@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-oauth-google"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-oauth",
  "serde_json",
@@ -587,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-oauth-openai-codex"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-oauth",
@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-anthropic"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-env",
  "cortexcode-ai-models",
@@ -614,7 +614,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-azure"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-provider-openai-responses",
@@ -626,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-faux"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-registry",
  "cortexcode-ai-stream",
@@ -638,7 +638,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-google"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-env",
  "cortexcode-ai-models",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-google-gemini-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-ai-models",
@@ -673,7 +673,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-openai"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-env",
  "cortexcode-ai-models",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-openai-codex"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-ai-env",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-provider-openai-responses"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-env",
  "cortexcode-ai-models",
@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-registry"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-provider-anthropic",
@@ -744,7 +744,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-sse"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "eventsource-stream",
  "futures-executor",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-stream"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-types",
  "futures-executor",
@@ -764,7 +764,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-types"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-ai-util"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-ai-types",
@@ -788,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-code-cli",
  "cortexcode-code-extensions",
@@ -805,7 +805,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-agent-session"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-compaction",
@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-auth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-env",
  "cortexcode-ai-oauth",
@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-extensions"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -914,7 +914,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-main"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-code-cli",
  "insta",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-media"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "fancy-regex",
@@ -936,7 +936,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-models"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-models",
  "cortexcode-ai-types",
@@ -949,7 +949,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-modes"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-code-agent-session",
  "cortexcode-code-paths",
@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-paths"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dirs",
  "serde_json",
@@ -970,7 +970,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-permissions"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-code-modes",
@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-print"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -991,7 +991,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-prompts"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-harness",
@@ -1001,7 +1001,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-resources"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-code-paths",
@@ -1017,7 +1017,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-rpc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-core",
  "cortexcode-agent-harness",
@@ -1037,7 +1037,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-session"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-session",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-settings"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-ai-types",
  "cortexcode-code-paths",
@@ -1062,7 +1062,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-subagents"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-agent-types",
@@ -1086,11 +1086,11 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-task-store"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "cortexcode-code-tool-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -1102,7 +1102,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tool-bash"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-agent-types",
@@ -1118,7 +1118,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tool-search"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-harness",
  "cortexcode-agent-types",
@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tools-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "cortexcode-agent-types",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tools-optin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tui-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arboard",
  "chrono",
@@ -1235,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tui-keybindings"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-code-paths",
  "cortexcode-code-tui-theme",
@@ -1247,7 +1247,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tui-selectors"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cortexcode-ai-models",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tui-theme"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-code-paths",
  "cortexcode-code-session",
@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-code-tui-widgets"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-agent-types",
  "cortexcode-ai-types",
@@ -1315,7 +1315,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-tui-components",
  "cortexcode-tui-editing",
@@ -1329,7 +1329,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-components"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-tui-editing",
  "cortexcode-tui-fuzzy",
@@ -1346,15 +1346,15 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-editing"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "cortexcode-tui-fuzzy"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "cortexcode-tui-highlight"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-tui-util",
  "once_cell",
@@ -1363,7 +1363,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-images"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "once_cell",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-keys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "once_cell",
  "regex",
@@ -1380,7 +1380,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-render"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cortexcode-tui-images",
  "cortexcode-tui-keys",
@@ -1391,7 +1391,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-terminal"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crossterm",
  "windows-sys 0.59.0",
@@ -1399,7 +1399,7 @@ dependencies = [
 
 [[package]]
 name = "cortexcode-tui-util"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fancy-regex",
  "unicode-segmentation",
