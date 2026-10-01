@@ -33,13 +33,17 @@ impl Drop for TempDir {
 }
 
 fn uuid() -> String {
+    // The counter keeps parallel tests apart: macOS clocks tick in
+    // microseconds, so two tests could otherwise share (and delete) a dir.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     format!(
-        "{:x}{:x}",
+        "{:x}{:x}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     )
 }
 

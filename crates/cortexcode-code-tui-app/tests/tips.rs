@@ -73,7 +73,9 @@ fn key_tips_name_the_live_binding() {
     cortexcode_code_tui_keybindings::AppKeybindingsManager::default().install();
     let modes = tips().into_iter().find(|t| t.id == "modes").unwrap();
     let body = render_tip(&modes).body;
-    assert_eq!(body[0], "alt+a cycles ask → plan → build → debug.");
+    // "option+a" on macOS, like the pin's formatKeyText.
+    let key = cortexcode_code_tui_keybindings::format_key_text("alt+a", false);
+    assert_eq!(body[0], format!("{key} cycles ask → plan → build → debug."));
 }
 
 #[test]

@@ -171,7 +171,9 @@ fn toggle_from_all_enabled_keeps_only_that_model_and_marks_unsaved() {
     let ids = full_ids(&models);
     let mut selector = ScopedModelsSelectorComponent::new(models, None);
     let rendered = strip(&selector.render(120));
-    assert!(rendered.contains("Session-only. alt+s to save to settings."));
+    // "option+s" on macOS, like the pin's formatKeyText.
+    let save = cortexcode_code_tui_keybindings::format_key_text("alt+s", false);
+    assert!(rendered.contains(&format!("Session-only. {save} to save to settings.")));
     assert!(rendered.contains("all enabled"));
     selector.handle_input("\r");
     assert_eq!(

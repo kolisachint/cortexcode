@@ -149,6 +149,8 @@ fn shows_rename_hint_in_resume_picker_configuration() {
         None,
     );
     let out = render(&mut s, 120);
+    // Display text: "option+r" on macOS.
+    let rename_key = cortexcode_code_tui_keybindings::format_key_text(&rename_key, false);
     assert!(out.contains(&rename_key), "{out}");
     assert!(out.contains("rename"), "{out}");
 }
