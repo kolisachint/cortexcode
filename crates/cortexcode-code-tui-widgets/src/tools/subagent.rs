@@ -83,10 +83,7 @@ static ROSTER_LINE: Lazy<Regex> = Lazy::new(|| {
 });
 
 fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+    cortexcode_code_task_store::now_ms()
 }
 
 pub fn format_task_output_result(result: &ToolResultView<'_>) -> String {

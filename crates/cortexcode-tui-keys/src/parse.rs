@@ -207,46 +207,73 @@ mod tests {
 
     #[test]
     fn test_parse_key_escape() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1b").as_deref(), Some("escape"));
     }
 
     #[test]
     fn test_parse_key_ctrl_letter() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x03").as_deref(), Some("ctrl+c"));
     }
 
     #[test]
     fn test_parse_key_plain_letter() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("a").as_deref(), Some("a"));
     }
 
     #[test]
     fn test_parse_key_arrow() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1b[A").as_deref(), Some("up"));
     }
 
     #[test]
     fn test_parse_key_tab() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\t").as_deref(), Some("tab"));
     }
 
     #[test]
     fn test_parse_key_enter() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\r").as_deref(), Some("enter"));
     }
 
     #[test]
     fn test_parse_key_alt_letter_legacy() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1bx").as_deref(), Some("alt+x"));
     }
 
     #[test]
     fn test_parse_key_ctrl_alt_letter_legacy() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1b\x03").as_deref(), Some("ctrl+alt+c"));
     }
 
     #[test]
     fn test_parse_key_kitty_ctrl_c() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         set_kitty_protocol_active(true);
         assert_eq!(parse_key("\x1b[99;5u").as_deref(), Some("ctrl+c"));
         set_kitty_protocol_active(false);
@@ -254,11 +281,17 @@ mod tests {
 
     #[test]
     fn test_parse_key_unrecognized() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1b[999zzz"), None);
     }
 
     #[test]
     fn test_parse_key_function_key() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(parse_key("\x1bOP").as_deref(), Some("f1"));
     }
 }

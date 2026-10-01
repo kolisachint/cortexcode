@@ -198,6 +198,12 @@ pub struct InputListenerResult {
 
 pub type InputListener = Box<dyn FnMut(&str) -> Option<InputListenerResult>>;
 
+/// See [`Tui::can_pin_scroll`].
+pub type CanPinScroll = Box<dyn Fn(&Tui) -> bool>;
+
+/// See [`Tui::set_input_interceptor`].
+pub type InputInterceptor = Box<dyn FnMut(&mut Tui, &str) -> bool>;
+
 /// Event delivered from the terminal's background threads to the single
 /// thread driving the `Tui` (see module docs).
 pub enum TuiEvent {
@@ -280,8 +286,12 @@ pub struct Tui {
     scroll_total_lines: i64,
     scroll_status_formatter: ScrollStatusFormatter,
     scroll_search: Option<ScrollSearch>,
-    /// Whether the view may pin right now (unset means always).
-    pub can_pin_scroll: Option<Box<dyn Fn() -> bool>>,
+    /// Whether the view may pin right now (unset means always). Given the
+    /// TUI so it can ask what holds focus.
+    pub can_pin_scroll: Option<CanPinScroll>,
+    /// Sees input after mouse reports and before the input listeners, with
+    /// the TUI in hand; `true` consumes it. The app's scroll view keys.
+    input_interceptor: Option<InputInterceptor>,
     /// Live kitty image id -> the id the pinned window transmits its copy
     /// under, and the copies currently placed on the alternate screen.
     scroll_image_ids: HashMap<u32, u32>,
@@ -324,6 +334,7 @@ impl Tui {
             scroll_status_formatter: Box::new(default_scroll_status),
             scroll_search: None,
             can_pin_scroll: None,
+            input_interceptor: None,
             scroll_image_ids: HashMap::new(),
             scroll_placed_images: HashSet::new(),
         }
@@ -473,7 +484,7 @@ impl Tui {
     fn set_scroll_offset(&mut self, offset: i64) {
         let entering = self.scroll_offset.is_none();
         // Only entry is gated, so a pinned view never strands the reader.
-        if entering && self.can_pin_scroll.as_ref().is_some_and(|f| !f()) {
+        if entering && self.can_pin_scroll.as_ref().is_some_and(|f| !f(self)) {
             return;
         }
         self.scroll_offset = Some(offset.max(0));
@@ -943,6 +954,19 @@ impl Tui {
         }
     }
 
+    /// Install the input interceptor: it sees each input after mouse reports
+    /// are taken and before the input listeners, and may drive the TUI
+    /// (scroll, search). hoocode's scroll view is an input listener closing
+    /// over the TUI; a Rust listener cannot hold the TUI that owns it.
+    pub fn set_input_interceptor(&mut self, interceptor: Option<InputInterceptor>) {
+        self.input_interceptor = interceptor;
+    }
+
+    /// The root's children, in order (`ui.children`).
+    pub fn children(&self) -> &[ComponentHandle] {
+        &self.root.children
+    }
+
     pub fn add_input_listener(&mut self, listener: InputListener) {
         self.input_listeners.push(listener);
     }
@@ -1009,6 +1033,15 @@ impl Tui {
             match self.consume_mouse_reports(&data) {
                 None => return,
                 Some(rest) => data = rest,
+            }
+        }
+        if let Some(mut interceptor) = self.input_interceptor.take() {
+            let consumed = interceptor(self, &data);
+            if self.input_interceptor.is_none() {
+                self.input_interceptor = Some(interceptor);
+            }
+            if consumed {
+                return;
             }
         }
         if !self.input_listeners.is_empty() {

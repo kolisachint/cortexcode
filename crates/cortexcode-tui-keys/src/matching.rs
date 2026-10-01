@@ -433,70 +433,109 @@ mod tests {
 
     #[test]
     fn test_matches_key_escape() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1b", "escape"));
         assert!(!matches_key("a", "escape"));
     }
 
     #[test]
     fn test_matches_key_plain_letter() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("a", "a"));
         assert!(!matches_key("b", "a"));
     }
 
     #[test]
     fn test_matches_key_ctrl_c() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x03", "ctrl+c"));
     }
 
     #[test]
     fn test_matches_key_ctrl_minus_maps_to_unit_separator() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1f", "ctrl+-"));
     }
 
     #[test]
     fn test_matches_key_shift_letter_is_uppercase() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("A", "shift+a"));
     }
 
     #[test]
     fn test_matches_key_tab() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\t", "tab"));
         assert!(matches_key("\x1b[Z", "shift+tab"));
     }
 
     #[test]
     fn test_matches_key_enter() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\r", "enter"));
     }
 
     #[test]
     fn test_matches_key_backspace() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x7f", "backspace"));
     }
 
     #[test]
     fn test_matches_key_arrow_up() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1b[A", "up"));
         assert!(matches_key("\x1bOA", "up"));
     }
 
     #[test]
     fn test_matches_key_ctrl_arrow_via_kitty() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1b[1;5A", "ctrl+up"));
     }
 
     #[test]
     fn test_matches_key_alt_left_legacy() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1bb", "alt+left"));
     }
 
     #[test]
     fn test_matches_key_function_key() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1bOP", "f1"));
     }
 
     #[test]
     fn test_matches_key_kitty_ctrl_c_when_protocol_active() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         set_kitty_protocol_active(true);
         assert!(matches_key("\x1b[99;5u", "ctrl+c"));
         set_kitty_protocol_active(false);
@@ -504,11 +543,17 @@ mod tests {
 
     #[test]
     fn test_matches_key_invalid_key_id() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(!matches_key("a", ""));
     }
 
     #[test]
     fn test_matches_key_combined_modifiers() {
+        let _kitty = crate::state::KITTY_TEST_LOCK
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         assert!(matches_key("\x1b[99;7u", "ctrl+alt+c"));
     }
 }

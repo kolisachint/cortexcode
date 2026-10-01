@@ -1,0 +1,74 @@
+{
+  "description": "Session surface sync, /reload first: the global settings are edited on disk (compaction off, light theme) and /reload rebuilds the resources and repaints the chrome; the banner takes the new palette on the second rebuild, as the pin renders it. Companion of session-surface-sync (/new first).",
+  "phase": "11.9",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "files": {
+    "AGENTS.md": "project rules\n",
+    ".hoocode/skills/demo/SKILL.md": "---\nname: demo\ndescription: demo skill\n---\nbody\n",
+    ".hoocode/agents/helper.md": "---\nname: helper\ndescription: helper agent\n---\nyou help\n",
+    ".hoocode/prompts/greet.md": "Say hello to the user\n",
+    ".cortexcode/skills/demo/SKILL.md": "---\nname: demo\ndescription: demo skill\n---\nbody\n",
+    ".cortexcode/agents/helper.md": "---\nname: helper\ndescription: helper agent\n---\nyou help\n",
+    ".cortexcode/prompts/greet.md": "Say hello to the user\n"
+  },
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "startup",
+      "contains": [
+        "1 command",
+        "context AGENTS.md",
+        "auto@"
+      ]
+    },
+    {
+      "write_settings": {
+        "compaction": {
+          "enabled": false
+        },
+        "theme": "light"
+      }
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "reload-first"
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "reload-second"
+    }
+  ]
+}

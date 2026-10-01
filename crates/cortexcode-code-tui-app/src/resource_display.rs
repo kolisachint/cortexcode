@@ -78,6 +78,7 @@ pub struct ResourceListing {
     pub columns: Option<usize>,
     pub quiet_startup: bool,
     pub verbose: bool,
+    /// The tool output dial is at full (verbose opens the details as well).
     pub expanded: bool,
 }
 
@@ -874,7 +875,8 @@ pub fn show_loaded_resources(
             out.push(handle(ExpandableText::new(
                 String::new,
                 move || details.clone(),
-                listing.expanded,
+                // `getStartupExpansionState`: verbose, or the dial at full.
+                listing.verbose || listing.expanded,
                 0,
                 0,
             )));

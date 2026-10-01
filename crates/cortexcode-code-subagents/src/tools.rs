@@ -48,10 +48,7 @@ const TASK_BACKGROUND_NONE_PROMPT: &str =
 const TASK_OUTPUT_DEFAULT_TIMEOUT_MS: u64 = 120_000;
 
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+    cortexcode_code_task_store::now_ms()
 }
 
 fn text_result(text: impl Into<String>, details: Value) -> AgentToolResult {

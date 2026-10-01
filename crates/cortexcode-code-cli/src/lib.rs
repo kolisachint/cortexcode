@@ -312,7 +312,7 @@ pub fn run(
         ),
         AppMode::Rpc => runtime::run_rpc_mode(parsed, env.color, err),
         AppMode::Interactive => match runtime::run_interactive_mode(parsed, output, err) {
-            Ok(()) => Ok(0),
+            Ok(code) => Ok(code),
             Err(e) => {
                 writeln!(err, "{e}")?;
                 Ok(1)

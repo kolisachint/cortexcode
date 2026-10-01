@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 280,
-  "equivalent": 0,
+  "ported": 298,
+  "equivalent": 2,
   "n.a.": 6,
-  "pending": 97,
-  "review": 17
+  "pending": 94,
+  "review": 0
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -955,9 +955,14 @@
    ]
   },
   "packages/coding-agent/test/block-images.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "10.12"
+   ],
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs",
+    "crates/cortexcode-code-settings/tests/block_images_ts.rs",
+    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/builtin-skills.test.ts": {
@@ -1418,9 +1423,13 @@
    ]
   },
   "packages/coding-agent/test/image-resize-callers.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "10.12"
+   ],
+   "rust": [
+    "crates/cortexcode-code-cli/src/initial_message.rs",
+    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {
@@ -1436,10 +1445,15 @@
    ]
   },
   "packages/coding-agent/test/interactive-mode-anthropic-warning.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-agent-session/tests/anthropic_subscription_auth_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/anthropic_warning_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-clone-command.test.ts": {
-   "status": "review"
+   "status": "equivalent",
+   "note": "clone of the current leaf runs for real in L2 fork-clone ('Cloned to new session', empty prompt); the null-leaf branch ('Nothing to clone yet') is the same one-line match in Mode::handle_clone_command, unreachable from the UI since a new session already holds its thinking-level entry"
   },
   "packages/coding-agent/test/interactive-mode-compaction.test.ts": {
    "status": "ported",
@@ -1448,13 +1462,24 @@
    ]
   },
   "packages/coding-agent/test/interactive-mode-import-command.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/import_command_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-status.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/runtime.rs",
+    "crates/cortexcode-code-tui-app/src/record_row.rs",
+    "crates/cortexcode-code-tui-app/tests/interactive_mode_status_ts.rs"
+   ]
   },
   "packages/coding-agent/test/interactive-mode-suspend.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/suspend_ts.rs"
+   ]
   },
   "packages/coding-agent/test/keybinding-layout.test.ts": {
    "status": "ported",
@@ -1567,10 +1592,16 @@
    ]
   },
   "packages/coding-agent/test/message-block-fill.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/message_block_fill.rs"
+   ]
   },
   "packages/coding-agent/test/message-block-sheets.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/message_block_sheets.rs"
+   ]
   },
   "packages/coding-agent/test/mode-commands.test.ts": {
    "status": "ported",
@@ -1974,10 +2005,17 @@
    ]
   },
   "packages/coding-agent/test/screen-anchor.test.ts": {
-   "status": "review"
+   "status": "equivalent",
+   "note": "whole-screen layout against the real mode: L2 compares every rendered row with hoocode at a fixed terminal size: startup (banner on row 0, fill, prompt on the floor), chat-basic (prompt stays on the floor after a turn), color-chrome (the /chrome receipt on the painted band above the prompt, not in the transcript)"
   },
   "packages/coding-agent/test/scroll-view-keys.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "tasks": [
+    "11.7"
+   ],
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/scroll_view_keys.rs"
+   ]
   },
   "packages/coding-agent/test/sdk-openrouter-attribution.test.ts": {
    "status": "ported",
@@ -2017,7 +2055,10 @@
    ]
   },
   "packages/coding-agent/test/selected-row-list.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/selected_row_list.rs"
+   ]
   },
   "packages/coding-agent/test/self-docs.test.ts": {
    "status": "pending",
@@ -2238,7 +2279,10 @@
    ]
   },
   "packages/coding-agent/test/subagent-dispatch-tui-output.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-subagents/tests/agent_log_ts.rs"
+   ]
   },
   "packages/coding-agent/test/subagent-events.test.ts": {
    "status": "ported",
@@ -2517,7 +2561,10 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "tasks": [
+    "11.8"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/79-stale-todo-settle.test.ts": {
    "status": "ported",
@@ -2531,7 +2578,10 @@
    "note": "Node ESM import of Windows paths (file:// URL scheme); no module loading in Rust"
   },
   "packages/coding-agent/test/suite/session-surface-sync.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "tasks": [
+    "11.9"
+   ]
   },
   "packages/coding-agent/test/suite/subagent-execution.test.ts": {
    "status": "ported",
@@ -2549,10 +2599,17 @@
    ]
   },
   "packages/coding-agent/test/suite/subagent-spawn-audit.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-subagents/tests/subagent_spawn_audit_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/subagent_spawn_audit_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/subagent-visual-tie.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/subagent_visual_tie_ts.rs"
+   ]
   },
   "packages/coding-agent/test/system-prompt.test.ts": {
    "status": "ported",
@@ -2621,7 +2678,10 @@
    "note": "tests the TS test helpers themselves"
   },
   "packages/coding-agent/test/theme-block-rendering.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-widgets/tests/theme_block_rendering.rs"
+   ]
   },
   "packages/coding-agent/test/theme-contrast.test.ts": {
    "status": "ported",
@@ -2649,9 +2709,12 @@
    ]
   },
   "packages/coding-agent/test/tips.test.ts": {
-   "status": "pending",
+   "status": "ported",
    "tasks": [
     "11.6"
+   ],
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/tips.rs"
    ]
   },
   "packages/coding-agent/test/tls-ca.test.ts": {
@@ -2738,7 +2801,10 @@
    ]
   },
   "packages/coding-agent/test/transcript-thinking-order.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-cli/src/runtime.rs"
+   ]
   },
   "packages/coding-agent/test/tree-selector.test.ts": {
    "status": "ported",

@@ -13,6 +13,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+libc = "0.2"
 cortexcode-agent-types = { workspace = true }
 cortexcode-agent-compaction = { workspace = true }
 cortexcode-code-agent-session = { workspace = true }
@@ -56,4 +57,4 @@ arboard = { version = "3", default-features = false, features = ["image-data"] }
 [dev-dependencies]
 serde_json = "1"
 tempfile = "3"
-tokio = { version = "1", features = ["rt", "macros", "sync"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }

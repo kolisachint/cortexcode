@@ -668,25 +668,22 @@ pub fn run_print_mode(
     let home = std::env::var_os("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_default();
-    let file_text = if args.file_args.is_empty() {
-        None
-    } else {
-        match crate::initial_message::process_file_arguments(&args.file_args, &cwd, &home) {
-            Ok(text) => Some(text),
-            Err(message) => {
-                writeln!(err, "{}", crate::red(color, &message))?;
-                return Ok(1);
-            }
+    let (session, diagnostics) = build_session(args, false);
+    let mut messages = args.messages.clone();
+    let (initial_message, initial_images) = match crate::initial_message::prepare_initial_message(
+        &args.file_args,
+        &mut messages,
+        stdin_content.as_deref(),
+        session.settings().image_auto_resize(),
+        &cwd,
+        &home,
+    ) {
+        Ok(prepared) => prepared,
+        Err(message) => {
+            writeln!(err, "{}", crate::red(color, &message))?;
+            return Ok(1);
         }
     };
-    let mut messages = args.messages.clone();
-    let initial_message = crate::initial_message::build_initial_message(
-        &mut messages,
-        file_text.as_deref(),
-        stdin_content.as_deref(),
-    );
-
-    let (session, diagnostics) = build_session(args, false);
     report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
@@ -767,8 +764,21 @@ pub fn run_print_mode(
         .map(|cap| turn_limit(&session, cap, reached_max_turns.clone()));
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
+    let mut initial_images = Some(initial_images);
     for prompt in initial_message.iter().chain(messages.iter()) {
-        let run = session.prompt(prompt, PromptOptions::default());
+        // The @file images go with the initial message only.
+        let images = if initial_message.is_some() {
+            initial_images.take().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let run = session.prompt(
+            prompt,
+            PromptOptions {
+                images,
+                ..Default::default()
+            },
+        );
         let result = async_runtime().block_on(async {
             tokio::pin!(run);
             loop {
@@ -1121,12 +1131,32 @@ pub fn run_interactive_mode(
     args: &Args,
     _output: &mut dyn Write,
     err: &mut dyn Write,
-) -> Result<(), RuntimeError> {
+) -> Result<i32, RuntimeError> {
     // One credential store for the session and `/login`/`/logout`.
     let auth = load_auth();
     let (session_runtime, diagnostics) = build_session_runtime(args, auth.clone(), true);
     let session = session_runtime.session().clone();
-    report_diagnostics(err, crate::Env::detect().color, &diagnostics)?;
+    let color = crate::Env::detect().color;
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    let mut messages = args.messages.clone();
+    let (initial_message, initial_images) = match crate::initial_message::prepare_initial_message(
+        &args.file_args,
+        &mut messages,
+        None,
+        session.settings().image_auto_resize(),
+        &cwd,
+        &home,
+    ) {
+        Ok(prepared) => prepared,
+        Err(message) => {
+            writeln!(err, "{}", crate::red(color, &message))?;
+            return Ok(1);
+        }
+    };
+    report_diagnostics(err, color, &diagnostics)?;
     if diagnostics
         .iter()
         .any(|(kind, _)| *kind == DiagnosticKind::Error)
@@ -1135,8 +1165,6 @@ pub fn run_interactive_mode(
     }
     start_semantic_index(args, &session);
 
-    let mut messages = args.messages.clone();
-    let initial_message = crate::initial_message::build_initial_message(&mut messages, None, None);
     cortexcode_code_tui_app::interactive_mode::run_interactive(
         cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
             session,
@@ -1153,11 +1181,13 @@ pub fn run_interactive_mode(
             version: cortexcode_code_paths::VERSION.to_string(),
             verbose: args.verbose == Some(true),
             initial_message,
+            initial_images,
             initial_messages: messages,
             model_fallback_message: None,
             terminal: None,
         },
     )
+    .map(|()| 0)
     .map_err(RuntimeError::Setup)
 }
 
@@ -1266,6 +1296,7 @@ mod tests {
                 version: "0.0.1".into(),
                 verbose: false,
                 initial_message: None,
+                initial_images: Vec::new(),
                 initial_messages: Vec::new(),
                 model_fallback_message: None,
                 terminal: Some(Box::new(terminal)),
@@ -1407,5 +1438,279 @@ mod tests {
         let (o, _) = options_for(&[], scoped.clone(), &settings(None, None));
         assert_eq!(id(&o).as_deref(), Some("mock/mock-model"));
         assert_eq!(o.scoped_models.len(), 2);
+    }
+
+    /// Port of the pin's `test/transcript-thinking-order.test.ts`: a thinking
+    /// trace renders above the tool calls it led to. The TS test borrows
+    /// `renderSessionContext` onto a fake mode and counts chain components;
+    /// here the real interactive mode draws a seeded session and the drawn
+    /// transcript is read (a run's chains show as their tool rows).
+    mod transcript_thinking_order {
+        use super::*;
+        use cortexcode_agent_types::AgentMessage;
+        use serde_json::json;
+
+        fn think_then_call(thinking: &str, id: &str, query: &str) -> AgentMessage {
+            serde_json::from_value(json!({
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": thinking, "thinkingSignature": ""},
+                    {"type": "toolCall", "id": id, "name": "SearchCodebase", "arguments": {"query": query}},
+                ],
+                "api": "test-api", "provider": "test-provider", "model": "test-model",
+                "stopReason": "toolUse", "timestamp": 0,
+            }))
+            .unwrap()
+        }
+
+        fn tool_result(id: &str, text: &str) -> AgentMessage {
+            serde_json::from_value(json!({
+                "role": "toolResult", "toolCallId": id, "toolName": "SearchCodebase",
+                "content": [{"type": "text", "text": text}], "isError": false, "timestamp": 0,
+            }))
+            .unwrap()
+        }
+
+        fn two_turns() -> Vec<AgentMessage> {
+            vec![
+                think_then_call("TRACE_ONE, before the first call", "call-1", "QUERY_ONE"),
+                tool_result("call-1", "RESULT_ONE"),
+                think_then_call("TRACE_TWO, before the second call", "call-2", "QUERY_TWO"),
+                tool_result("call-2", "RESULT_TWO"),
+            ]
+        }
+
+        /// The transcript as first drawn, one row per line, ANSI stripped.
+        fn draw(messages: Vec<AgentMessage>, settings: serde_json::Value) -> Vec<String> {
+            let args = crate::args::parse_args(&[]);
+            let agent_dir = tempfile::tempdir().unwrap();
+            let mut manager = SessionManager::in_memory("/w");
+            for message in messages {
+                manager.append_message(message);
+            }
+            let (session, _) = assemble_session(
+                &args,
+                std::path::PathBuf::from("/w"),
+                agent_dir.path().to_path_buf(),
+                SettingsManager::in_memory(settings.as_object().unwrap().clone()),
+                cortexcode_code_models::ModelRegistry::in_memory(),
+                Arc::new(cortexcode_code_models::NoAuth),
+                manager,
+                ModelOptions::default(),
+                None,
+                true,
+            );
+            let output = Arc::new(Mutex::new(String::new()));
+            let terminal = ScriptedTerminal {
+                script: vec![(400, "\x04")],
+                output: output.clone(),
+                title: Arc::new(Mutex::new(String::new())),
+            };
+            cortexcode_code_tui_app::interactive_mode::run_interactive(
+                cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+                    session,
+                    session_runtime: None,
+                    runtime: async_runtime().handle().clone(),
+                    listing: Box::new(resource_listing),
+                    is_oauth: Box::new(|_| false),
+                    auth_storage: Arc::new(AuthStorage::in_memory([])),
+                    version: "0.0.1".into(),
+                    verbose: false,
+                    initial_message: None,
+                    initial_images: Vec::new(),
+                    initial_messages: Vec::new(),
+                    model_fallback_message: None,
+                    terminal: Some(Box::new(terminal)),
+                },
+            )
+            .unwrap();
+            let drawn = cortexcode_tui_util::strip_vt_control_characters(&output.lock().unwrap());
+            drawn
+                .split("\n")
+                .map(|l| l.trim_end_matches('\r').to_string())
+                .collect()
+        }
+
+        fn line_of(lines: &[String], needle: &str) -> Option<usize> {
+            lines.iter().position(|l| l.contains(needle))
+        }
+
+        fn at(lines: &[String], needle: &str) -> usize {
+            line_of(lines, needle)
+                .unwrap_or_else(|| panic!("{needle} not drawn:\n{}", lines.join("\n")))
+        }
+
+        #[test]
+        fn peek_and_full_draw_each_trace_above_the_call_it_led_to() {
+            for view in ["peek", "full"] {
+                let lines = draw(two_turns(), json!({"toolOutputView": view}));
+                // The second trace is above its own call, not below it, and
+                // below the first call: the run is split at the trace.
+                assert!(at(&lines, "TRACE_ONE") < at(&lines, "QUERY_ONE"), "{view}");
+                assert!(at(&lines, "QUERY_ONE") < at(&lines, "TRACE_TWO"), "{view}");
+                assert!(at(&lines, "TRACE_TWO") < at(&lines, "QUERY_TWO"), "{view}");
+            }
+        }
+
+        #[test]
+        fn a_folded_trace_still_ends_the_run() {
+            let lines = draw(two_turns(), json!({"hideThinkingBlock": true}));
+            let labels: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.contains("Thinking..."))
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(labels.len(), 2, "{}", lines.join("\n"));
+            assert!(at(&lines, "QUERY_ONE") < labels[1]);
+            assert!(labels[1] < at(&lines, "QUERY_TWO"));
+        }
+
+        #[test]
+        fn radar_keeps_the_run_whole_because_it_draws_no_trace() {
+            let lines = draw(two_turns(), json!({"toolOutputView": "radar"}));
+            assert_eq!(line_of(&lines, "TRACE_ONE"), None);
+            assert_eq!(line_of(&lines, "TRACE_TWO"), None);
+            // One chain of two calls.
+            assert!(lines[at(&lines, "SearchCodebase ×2")].contains("2 calls"));
+        }
+
+        #[test]
+        fn speaking_is_still_a_boundary_on_its_own() {
+            let spoken: AgentMessage = serde_json::from_value(json!({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "SPOKEN"},
+                    {"type": "toolCall", "id": "call-2", "name": "SearchCodebase", "arguments": {"query": "QUERY_TWO"}},
+                ],
+                "api": "test-api", "provider": "test-provider", "model": "test-model",
+                "stopReason": "toolUse", "timestamp": 0,
+            }))
+            .unwrap();
+            let lines = draw(
+                vec![
+                    think_then_call("TRACE", "call-1", "QUERY_ONE"),
+                    tool_result("call-1", "RESULT"),
+                    spoken,
+                    tool_result("call-2", "RESULT_TWO"),
+                ],
+                json!({"toolOutputView": "radar"}),
+            );
+            // Two chains of one call each, the spoken text between them.
+            assert_eq!(line_of(&lines, "×2"), None, "{}", lines.join("\n"));
+            let spoken_at = at(&lines, "SPOKEN");
+            let calls: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.contains("● SearchCodebase"))
+                .map(|(i, _)| i)
+                .collect();
+            assert!(calls.len() >= 2, "{}", lines.join("\n"));
+            assert!(calls[0] < spoken_at && spoken_at < calls[1]);
+        }
+    }
+
+    /// The `jumpToFullView` / `setToolsExpanded` cases of the pin's
+    /// `test/interactive-mode-status.test.ts`, on the real interactive mode:
+    /// ctrl+o (`app.tools.expand`) and the footer's view stop.
+    mod interactive_mode_status {
+        use super::*;
+        use serde_json::json;
+
+        /// Run the idle mode with `settings`, typing `keys` (then ctrl+d);
+        /// the drawn output and the session (for its settings).
+        fn run(settings: serde_json::Value, keys: &[&'static str]) -> (String, AgentSession) {
+            let args = crate::args::parse_args(&[]);
+            let agent_dir = tempfile::tempdir().unwrap();
+            let (session, _) = assemble_session(
+                &args,
+                std::path::PathBuf::from("/w"),
+                agent_dir.path().to_path_buf(),
+                SettingsManager::in_memory(settings.as_object().unwrap().clone()),
+                cortexcode_code_models::ModelRegistry::in_memory(),
+                Arc::new(cortexcode_code_models::NoAuth),
+                SessionManager::in_memory("/w"),
+                ModelOptions::default(),
+                None,
+                true,
+            );
+            let output = Arc::new(Mutex::new(String::new()));
+            let mut script: Vec<(u64, &'static str)> = vec![(300, "")];
+            script.extend(keys.iter().map(|k| (150, *k)));
+            script.push((300, "\x04"));
+            let terminal = ScriptedTerminal {
+                script,
+                output: output.clone(),
+                title: Arc::new(Mutex::new(String::new())),
+            };
+            cortexcode_code_tui_app::interactive_mode::run_interactive(
+                cortexcode_code_tui_app::interactive_mode::InteractiveOptions {
+                    session: session.clone(),
+                    session_runtime: None,
+                    runtime: async_runtime().handle().clone(),
+                    listing: Box::new(resource_listing),
+                    is_oauth: Box::new(|_| false),
+                    auth_storage: Arc::new(AuthStorage::in_memory([])),
+                    version: "0.0.1".into(),
+                    verbose: false,
+                    initial_message: None,
+                    initial_images: Vec::new(),
+                    initial_messages: Vec::new(),
+                    model_fallback_message: None,
+                    terminal: Some(Box::new(terminal)),
+                },
+            )
+            .unwrap();
+            let drawn = cortexcode_tui_util::strip_vt_control_characters(&output.lock().unwrap());
+            (drawn, session)
+        }
+
+        /// Where each needle first appears after `from`, in order.
+        fn in_order(drawn: &str, needles: &[&str]) -> bool {
+            let mut at = 0;
+            for needle in needles {
+                match drawn[at..].find(needle) {
+                    Some(i) => at += i + needle.len(),
+                    None => return false,
+                }
+            }
+            true
+        }
+
+        const CTRL_O: &str = "\x0f";
+
+        #[test]
+        fn lands_on_full_from_any_stop_and_goes_back_to_the_one_it_came_from() {
+            for (start, marker) in [("radar", "◌ radar"), ("peek", "◍ peek")] {
+                let (drawn, _) = run(json!({ "toolOutputView": start }), &[CTRL_O, CTRL_O]);
+                assert!(
+                    in_order(&drawn, &[marker, "◉ full", marker]),
+                    "{start}:\n{drawn}"
+                );
+            }
+        }
+
+        #[test]
+        fn is_never_a_dead_keystroke_when_the_dial_is_already_at_full() {
+            // Nothing to return to: the default stop.
+            let (drawn, _) = run(json!({ "toolOutputView": "full" }), &[CTRL_O]);
+            assert!(in_order(&drawn, &["◉ full", "◍ peek"]), "{drawn}");
+        }
+
+        #[test]
+        fn does_not_save_where_it_lands() {
+            let (_, session) = run(json!({ "toolOutputView": "radar" }), &[CTRL_O]);
+            assert_eq!(session.settings().tool_output_view().as_str(), "radar");
+        }
+
+        #[test]
+        fn the_jump_to_full_expands_the_header_too() {
+            // `setToolsExpanded`: what folds but is not a tool call opens with
+            // the dial's top stop.
+            let (drawn, _) = run(json!({ "toolOutputView": "peek" }), &[CTRL_O]);
+            let collapsed_end = drawn.find("◍ peek").unwrap();
+            assert!(!drawn[..collapsed_end].contains("Compose — the message in your hands"));
+            assert!(drawn[collapsed_end..].contains("Compose — the message in your hands"));
+        }
     }
 }

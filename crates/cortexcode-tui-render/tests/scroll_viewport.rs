@@ -82,13 +82,13 @@ fn pins_on_the_first_notch_and_moves_three_lines() {
 #[test]
 fn refuses_to_pin_when_the_app_says_no_but_keeps_answering_once_pinned() {
     let (mut tui, ..) = setup();
-    tui.can_pin_scroll = Some(Box::new(|| false));
+    tui.can_pin_scroll = Some(Box::new(|_| false));
     wheel_up(&mut tui, 1);
     assert!(!tui.scroll_pinned());
 
     let (mut tui, ..) = setup();
     wheel_up(&mut tui, 1);
-    tui.can_pin_scroll = Some(Box::new(|| false));
+    tui.can_pin_scroll = Some(Box::new(|_| false));
     let before = top(&tui);
     tui.scroll_by_lines(-1);
     assert_eq!(top(&tui), before - 1);

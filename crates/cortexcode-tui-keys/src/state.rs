@@ -16,3 +16,8 @@ pub fn set_kitty_protocol_active(active: bool) {
 pub fn is_kitty_protocol_active() -> bool {
     KITTY_PROTOCOL_ACTIVE.load(Ordering::Relaxed)
 }
+
+/// Tests that flip the Kitty flag hold the write lock; tests whose parsing
+/// depends on it hold a read lock, so the flag cannot change under them.
+#[cfg(test)]
+pub(crate) static KITTY_TEST_LOCK: std::sync::RwLock<()> = std::sync::RwLock::new(());

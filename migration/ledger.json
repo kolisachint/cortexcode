@@ -2566,6 +2566,31 @@
    ]
   },
   {
+   "id": "10.5e",
+   "title": "Modes in the interactive mode: consume ModesExtension actions (Notify on the band, Reload re-resolving the mode and its tool filter, NewSessionWithMessage, SendFollowUp), the footer mode badge (hoo.setMode), /mode argument completions, and app.mode.cycleForward/Backward (alt+a steps through the completions)",
+   "phase": 10,
+   "status": "todo",
+   "depends": [
+    "10.5b"
+   ],
+   "crates": [
+    "cortexcode-code-modes",
+    "cortexcode-code-tui-app",
+    "cortexcode-code-cli"
+   ],
+   "sources": [
+    "packages/coding-agent/src/extensions/core/modes.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [],
+   "l1_cmds": [],
+   "l2": [
+    "mode-cycle"
+   ],
+   "notes": "Found in 11.8: in cortex's interactive mode '/mode plan' is accepted and does nothing (nothing drains ModesExtension::take_actions; its active mode is fixed at construction, so a reload cannot re-resolve it), and alt+a is unbound. hoocode: alt+a from build shows 'Mode set to \"debug\" — reloading…' and the footer badge reads DEBUG. L2 mode-cycle (to write): alt+a twice, then /mode plan.",
+   "log": []
+  },
+  {
    "id": "10.6",
    "title": "New crate code-permissions: permission-gate policy, --disallowed-tools",
    "phase": 10,
@@ -3454,11 +3479,13 @@
    "id": "10.12",
    "title": "@file arguments at parity: image @file args (resize, dimension note, \"Image omitted\" text) sent as prompt images, and @file args in interactive mode (prepareInitialMessage feeds both modes)",
    "phase": 10,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-code-cli",
-    "cortexcode-code-tui-app"
+    "cortexcode-code-tui-app",
+    "cortexcode-code-tools-fs",
+    "cortexcode-code-settings"
    ],
    "sources": [
     "packages/coding-agent/src/cli/file-processor.ts",
@@ -3470,9 +3497,24 @@
     "packages/coding-agent/test/image-resize-callers.test.ts"
    ],
    "l1_cmds": [],
-   "l2": "n/a: covered by L1 (file processor output and the prompt request); add a print scenario with an image @file if the mock LLM logs images",
+   "l2": [
+    "print-file-image"
+   ],
    "notes": "Found in 13.4c: process_file_arguments rejected image @file args (\"not yet supported\") and run_interactive_mode passed no file text at all.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:33:14Z",
+     "commit": "287c8fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:42:12Z",
+     "commit": "287c8fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 print-file-image=pass"
+    }
+   ]
   },
   {
    "id": "11.1",
@@ -6222,7 +6264,7 @@
    "id": "11.6",
    "title": "Tips band: tips.ts (TIPS, TipRotation, star nudge) and tips-controller.ts (idle/long-turn timing, cooldown, notification-band etiquette), driven by the existing tips.enabled / seen-tips settings",
    "phase": 11,
-   "status": "todo",
+   "status": "done",
    "depends": [],
    "crates": [
     "cortexcode-code-tui-app"
@@ -6237,7 +6279,128 @@
    "l1_cmds": [],
    "l2": "n/a: time-driven (idle delay, long turn); L1 covers TipsController with a fake clock",
    "notes": "Found in 13.4c: the settings (tips.enabled, seen tips) and the settings-pane toggle are ported, the band content and controller are not.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:46:21Z",
+     "commit": "9c753a3",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:48:41Z",
+     "commit": "9c753a3",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
+  },
+  {
+   "id": "11.7",
+   "title": "Scroll view: the app half of the pinned transcript view (scroll-view.ts): prompt pager keys, pinned-view keys, search query line, jump by user message, the themed indicator; wired into InteractiveMode",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-tui-render",
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/scroll-view.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/scroll-view-keys.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "scroll-view"
+   ],
+   "notes": "Found in 13.4e: the TUI mechanism (tui.rs scroll viewport, search) was ported, but nothing installed the app's keys: PageUp/ctrl+r/ctrl+up did nothing in cortex. The TUI gained an input interceptor (a Rust listener cannot hold the TUI) and can_pin_scroll takes the TUI (focus check).",
+   "log": [
+    {
+     "at": "2026-09-30T18:12:37Z",
+     "commit": "2145278",
+     "kind": "verify",
+     "text": "L1 pass; L2 scroll-view=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.8",
+   "title": "InteractiveMode key bindings at parity: app.thinking.toggle (ctrl+t: hide/show thinking, rebuild the transcript keeping pending calls and the streaming message), app.editor.external (alt+e: the prompt in $VISUAL/$EDITOR), app.session.new and app.session.tree (unbound by default, rebindable)",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "thinking-toggle-pending-tool",
+    "external-editor"
+   ],
+   "notes": "Found in 13.4f: hoocode binds these in setupKeyHandlers (onAction); cortex's EDITOR_ACTIONS lacks them, so the keys the startup hints advertise (ctrl+t, alt+a, ctrl+g) do nothing. team.focus and input.voiceTranscribe are phase-12 features. 4167 (a re-render while a tool is pending keeps its completion routed) needs ctrl+t; its L2 scenario runs a slow bash call and toggles thinking mid-call. The mode cycle (alt+a) moved to 10.5e: it needs /mode to work interactively first.",
+   "log": [
+    {
+     "at": "2026-10-01T04:27:29Z",
+     "commit": "88a9e35",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-10-01T04:33:39Z",
+     "commit": "88a9e35",
+     "kind": "verify",
+     "text": "L1 pass; L2 thinking-toggle-pending-tool=pass, external-editor=pass"
+    }
+   ]
+  },
+  {
+   "id": "11.9",
+   "title": "Session surface sync: applyRuntimeSettings / applySessionTheme on every session swap and /reload (footer auto-compaction, tool view, editor border/padding, cursor, thinking display, keybindings; the theme and the banner rebuilt from settings)",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/session-surface-sync.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "session-surface-sync",
+    "session-surface-sync-reload"
+   ],
+   "notes": "Found in 13.4f: cortex applied these settings only at startup, so an on-disk compaction.enabled edit left auto@ in the footer after /new and /reload, and /new kept the old theme. At the pin the banner is rebuilt before the new theme loads (it takes the palette on the next rebuild); the scenarios encode that. The harness gained write_settings / write_files steps for edits mid-run.",
+   "log": [
+    {
+     "at": "2026-10-01T04:19:36Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:19:46Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:20:46Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-surface-sync=pass, session-surface-sync-reload=pass"
+    }
+   ]
   },
   {
    "id": "12.1",
@@ -6347,6 +6510,12 @@
      "commit": "0f53ae9",
      "kind": "note",
      "text": "When extension hooks land: the pin's 'cancels in-progress manual compaction when abortCompaction is called' test cancels via session_before_compact → 'Compaction cancelled'; port it as written then (the current Rust test covers the no-extension path)."
+    },
+    {
+     "at": "2026-09-30T18:16:42Z",
+     "commit": "6302356",
+     "kind": "note",
+     "text": "interactive-mode-status.test.ts (13.4e): its extension UI context cases (setTheme persistence, addAutocompleteProvider, setupAutocompleteProvider wrapper stacking) are still to port with the extension runtime"
     }
    ]
   },
@@ -6467,6 +6636,12 @@
      "commit": "98a52d2",
      "kind": "note",
      "text": "Owns /share and the HTML half of /export (split out of 11.4e)."
+    },
+    {
+     "at": "2026-09-30T18:16:42Z",
+     "commit": "6302356",
+     "kind": "note",
+     "text": "interactive-mode-status.test.ts (13.4e): the 'counts canvases, and the detail says how to open one' case (real canvas discovery, untrusted workspace) is still to port with canvases"
     }
    ]
   },
@@ -6695,7 +6870,7 @@
    "id": "13.4e",
    "title": "TS test port ledger review, coding-agent interactive-mode and transcript rendering: resolve every `review` entry (port the test, or record equivalent / n.a. with a reason)",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6709,13 +6884,68 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T17:49:08Z",
+     "commit": "511a45c",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-09-30T17:51:55Z",
+     "commit": "511a45c",
+     "kind": "note",
+     "text": "part 1: selected-row-list, import-command ported; clone-command equivalent (L2 fork-clone)"
+    },
+    {
+     "at": "2026-09-30T17:55:14Z",
+     "commit": "864e290",
+     "kind": "note",
+     "text": "part 2: message-block-sheets, anthropic-warning ported; screen-anchor equivalent (L2 startup/chat-basic/color-chrome)"
+    },
+    {
+     "at": "2026-09-30T17:57:29Z",
+     "commit": "c994c53",
+     "kind": "note",
+     "text": "part 3: interactive-mode-suspend ported; Ctrl+Z (app.suspend) was a no-op in cortex, now implemented (suspend.rs, checked by hand in tmux: C-z, jobs, fg, typing)"
+    },
+    {
+     "at": "2026-09-30T17:59:34Z",
+     "commit": "4d9f04c",
+     "kind": "note",
+     "text": "part 4: message-block-fill, theme-block-rendering ported"
+    },
+    {
+     "at": "2026-09-30T18:02:01Z",
+     "commit": "b4fad3f",
+     "kind": "note",
+     "text": "part 5: transcript-thinking-order (real interactive mode over a seeded session), subagent-dispatch-tui-output (fd-2 capture; e2e case = L2 subagent-command) ported"
+    },
+    {
+     "at": "2026-09-30T18:07:01Z",
+     "commit": "2145278",
+     "kind": "note",
+     "text": "scroll-view-keys: the app half of the scroll view was missing; new task 11.7 owns it"
+    },
+    {
+     "at": "2026-09-30T18:16:50Z",
+     "commit": "6302356",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    },
+    {
+     "at": "2026-09-30T18:17:04Z",
+     "commit": "6302356",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.4f",
    "title": "TS test port ledger review, subagent roster/panel/pool suites and interactive session surfaces (subagent-spawn-audit, subagent-visual-tie, session-surface-sync, 4167): resolve every `review` entry",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6729,7 +6959,32 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "Split from 13.4d: 34+ cases across roster, task panel, lifeguard, jsonl reader, pool, colors, linkage; many likely covered piecemeal by 10.9 tests without citations.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T18:18:54Z",
+     "commit": "bbdf6fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-10-01T04:21:00Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:21:06Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:21:14Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.4",

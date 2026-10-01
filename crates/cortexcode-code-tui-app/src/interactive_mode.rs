@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use cortexcode_agent_compaction::CompactionResult;
 use cortexcode_agent_types::{AgentEvent, AgentMessage, CompactionSummaryMessage, CustomMessage};
-use cortexcode_ai_types::{AssistantMessage, Content, StopReason, UserContent};
+use cortexcode_ai_types::{AssistantMessage, Content, ImageContent, StopReason, UserContent};
 use cortexcode_ai_types::{Model, ThinkingLevel, Transport};
 use cortexcode_ai_util::is_long_retry_delay_error;
 use cortexcode_code_agent_session::format::{format_duration_secs, format_tokens};
@@ -141,10 +141,16 @@ use crate::login_controller::{
     PostLoginModel, API_KEY_LABEL, LOGIN_CANCELLED, NOTHING_TO_LOG_OUT, SUBSCRIPTION_LABEL,
 };
 use crate::notification_panel::{NotificationKind, NotificationPanel};
+use crate::record_row::RecordRows;
 use crate::resource_display::{format_display_path, show_loaded_resources, ResourceListing};
+use crate::scroll_view::install_scroll_view;
 use crate::session_chip::render_session_chip;
 use crate::session_picker;
 use crate::startup_progress;
+use crate::suspend::{suspend_to_background, SuspendOps, SuspendOutcome};
+use crate::tips::{
+    render_tip, tip_ttl, TipRotation, TipRotationOptions, TipsController, TipsControllerOptions,
+};
 use crate::wordmark::{build_compact_wordmark, CompactWordmarkOptions};
 
 /// How the mode is started.
@@ -165,6 +171,8 @@ pub struct InteractiveOptions {
     /// Force the verbose startup banner.
     pub verbose: bool,
     pub initial_message: Option<String>,
+    /// Sent with `initial_message` (the `@file` images).
+    pub initial_images: Vec<ImageContent>,
     pub initial_messages: Vec<String>,
     /// Shown as a notice (the only place the remedy is named).
     pub model_fallback_message: Option<String>,
@@ -260,6 +268,10 @@ enum Action {
     ChromeBackward,
     ThinkingForward,
     ThinkingBackward,
+    ThinkingToggle,
+    ExternalEditor,
+    SessionNew,
+    SessionTree,
     ModelForward,
     ModelBackward,
     ModelSelect,
@@ -321,7 +333,7 @@ type OpenEditorDialog = (
 );
 
 /// Bindings the prompt answers to, and their action (`CustomEditor.onAction`).
-const EDITOR_ACTIONS: [(&str, Action); 23] = [
+const EDITOR_ACTIONS: [(&str, Action); 27] = [
     ("app.tasks.cycleForward", Action::TasksForward),
     ("app.tasks.cycleBackward", Action::TasksBackward),
     ("app.message.followUp", Action::FollowUp),
@@ -354,6 +366,10 @@ const EDITOR_ACTIONS: [(&str, Action); 23] = [
     ("app.model.select", Action::ModelSelect),
     ("app.settings.open", Action::SettingsOpen),
     ("app.session.resume", Action::ResumeSession),
+    ("app.thinking.toggle", Action::ThinkingToggle),
+    ("app.editor.external", Action::ExternalEditor),
+    ("app.session.new", Action::SessionNew),
+    ("app.session.tree", Action::SessionTree),
 ];
 
 /// The prompt editor with the app's key dispatch in front of it
@@ -558,7 +574,7 @@ fn model_argument_completions(
 }
 
 /// `getPathArgument`: the first argument after `command`, quoted or not.
-fn command_path_argument(text: &str, command: &str) -> Option<String> {
+pub fn command_path_argument(text: &str, command: &str) -> Option<String> {
     let args = text.strip_prefix(command)?.strip_prefix(' ')?.trim_start();
     let first = args.chars().next()?;
     if first == '"' || first == '\'' {
@@ -853,7 +869,7 @@ struct Mode {
     chain_closed_for_current_message: bool,
     dial_reverse_taught: HashSet<&'static str>,
     /// The last status line, updated in place when nothing followed it.
-    last_status: Option<(ComponentHandle, Rc<RefCell<Text>>)>,
+    last_status: RecordRows,
     /// When running tool blocks that tick (bash's `Elapsed`) last re-rendered.
     last_tool_tick: Instant,
     show_images: bool,
@@ -865,6 +881,8 @@ struct Mode {
     selector: Option<OpenSelector>,
     actions: Rc<RefCell<Vec<Action>>>,
     notifications: Rc<RefCell<NotificationPanel>>,
+    /// Tips on the notification band (`tips.rs`).
+    tips: TipsController,
     footer: Rc<RefCell<FooterComponent>>,
     footer_data: FooterDataProvider,
     chrome: ChromeLayoutController,
@@ -939,6 +957,8 @@ struct Mode {
     /// An `/import` waiting on a confirm: the input path, the fallback cwd
     /// once the stored one turned out missing, and where the answer arrives.
     pending_import: Option<(String, Option<String>, mpsc::Receiver<Option<String>>)>,
+    /// The input channel of a TUI restarted after Ctrl+Z; the loop switches to it.
+    restarted_input: Option<Receiver<TuiEvent>>,
 }
 
 impl Mode {
@@ -1088,6 +1108,45 @@ impl Mode {
             Some(Box::new(move || (budget.get().1 / 3) as usize)),
         ));
 
+        // Tips: one small thing about cortex, on the band, at a moment that was
+        // being spent anyway. `band_is_free` keeps it the lowest-priority thing
+        // on screen: a tip is dropped rather than queued behind anything.
+        let tips = {
+            let (s1, s2, s3, s4, s5) = (
+                session.clone(),
+                session.clone(),
+                session.clone(),
+                session.clone(),
+                session.clone(),
+            );
+            let (band, show) = (notifications.clone(), notifications.clone());
+            TipsController::new(TipsControllerOptions::new(
+                Box::new(move || s1.settings().tips_enabled()),
+                Box::new(move || band.borrow().showing().is_none()),
+                Box::new(move |tip| {
+                    let rendered = render_tip(tip);
+                    let body: Vec<&str> = rendered.body.iter().map(String::as_str).collect();
+                    show.borrow_mut().notify(
+                        NotificationKind::Info,
+                        &rendered.title,
+                        &body,
+                        rendered.note.as_deref(),
+                        Some(tip_ttl(body.len())),
+                        Some("tip"),
+                    );
+                }),
+                TipRotation::new(
+                    TipRotationOptions {
+                        seen: Box::new(move || s2.settings().seen_tips()),
+                        mark_seen: Box::new(move |id| s3.settings().mark_tip_seen(id)),
+                        star_nudge_count: Box::new(move || s4.settings().star_nudge_count()),
+                        mark_star_nudge: Box::new(move || s5.settings().record_star_nudge()),
+                    },
+                    None,
+                ),
+            ))
+        };
+
         let expanded = options.verbose || tool_output_view == MAX_TOOL_OUTPUT_VIEW;
         let (version, cwd) = (
             options.version.clone(),
@@ -1145,6 +1204,19 @@ impl Mode {
         tui.add_child(as_component(&handle(Container::new()))); // widgets below
         tui.add_child(footer_slot.clone());
         tui.set_focus(Some(as_component(&editor)));
+        // Scrolling the transcript: the prompt's pager keys, and the keys of
+        // the pinned view (`scroll_view.rs`).
+        install_scroll_view(
+            &mut tui,
+            as_component(&editor),
+            chat.clone(),
+            Rc::new(|child: &ComponentHandle| {
+                child
+                    .borrow()
+                    .as_any()
+                    .is_some_and(|any| any.is::<UserMessageComponent>())
+            }),
+        );
 
         let (tx, rx) = mpsc::channel();
         Self {
@@ -1175,7 +1247,7 @@ impl Mode {
             latest_chain: None,
             chain_closed_for_current_message: false,
             dial_reverse_taught: HashSet::new(),
-            last_status: None,
+            last_status: RecordRows::default(),
             last_tool_tick: Instant::now(),
             show_images,
             image_width_cells,
@@ -1185,6 +1257,7 @@ impl Mode {
             selector: None,
             actions,
             notifications,
+            tips,
             footer,
             footer_data,
             chrome,
@@ -1227,6 +1300,7 @@ impl Mode {
             fork_selector: None,
             previous_cwd: Rc::new(RefCell::new(None)),
             pending_import: None,
+            restarted_input: None,
         }
     }
 
@@ -1405,6 +1479,10 @@ impl Mode {
     }
 
     fn prompt(&mut self, text: String) {
+        self.prompt_with_images(text, Vec::new());
+    }
+
+    fn prompt_with_images(&mut self, text: String, images: Vec<ImageContent>) {
         startup_progress::clear();
         let session = self.session.clone();
         let tx = self.tx.clone();
@@ -1414,6 +1492,7 @@ impl Mode {
                     &text,
                     PromptOptions {
                         expand_prompt_templates: true,
+                        images,
                         ..Default::default()
                     },
                 )
@@ -2111,23 +2190,18 @@ impl Mode {
 
     /// `maybeWarnAboutAnthropicSubscriptionAuth`: once per session.
     fn maybe_warn_about_anthropic_subscription_auth(&mut self, model: Option<Model>) {
-        if self.anthropic_warning_shown {
-            return;
-        }
         let Some(model) = model.or_else(|| self.session.model()) else {
             return;
         };
-        if !self.session.uses_anthropic_subscription_auth(&model) {
-            return;
+        let session = self.session.clone();
+        if claim_anthropic_subscription_warning(&mut self.anthropic_warning_shown, || {
+            session.uses_anthropic_subscription_auth(&model)
+        }) {
+            self.show_notice(
+                ANTHROPIC_SUBSCRIPTION_AUTH_TITLE,
+                ANTHROPIC_SUBSCRIPTION_AUTH_BODY,
+            );
         }
-        self.anthropic_warning_shown = true;
-        self.show_notice(
-            "Anthropic subscription",
-            &[
-                "Billed per token as extra usage, not against plan limits.",
-                "Turn off in /settings → Anthropic extra usage.",
-            ],
-        );
     }
 
     /// `cycleModel`.
@@ -3880,13 +3954,8 @@ impl Mode {
 
         let session = self.session.clone();
         self.runtime.block_on(async move { session.reload().await });
-        AppKeybindingsManager::create(None).install();
-        let theme_name = self.session.settings().theme();
-        if let Some(name) = theme_name {
-            if let Err(error) = set_theme(&name, true) {
-                self.show_error(&format!("Failed to load theme \"{name}\": {error}"));
-            }
-        }
+        self.apply_runtime_settings();
+        self.apply_session_theme();
         self.update_editor_border_color();
         self.setup_autocomplete_provider();
         self.reset_transcript_view();
@@ -3924,6 +3993,136 @@ impl Mode {
                 "Failed to export session: HTML export is not available yet; use /export <file.jsonl>",
             ),
         }
+    }
+
+    /// `handleCtrlZ`: suspend to the background; the TUI comes back on `fg`.
+    fn handle_ctrl_z(&mut self) {
+        struct Ops<'a> {
+            tui: &'a mut Tui,
+            input: &'a mut Option<Receiver<TuiEvent>>,
+            #[cfg(unix)]
+            signals: crate::suspend::ProcessSignals,
+        }
+        impl SuspendOps for Ops<'_> {
+            fn stop_ui(&mut self) {
+                self.tui.stop();
+            }
+            fn restart_ui(&mut self) {
+                *self.input = Some(self.tui.start());
+                self.tui.request_render(true);
+            }
+            fn ignore_sigint(&mut self) {
+                #[cfg(unix)]
+                self.signals.ignore_sigint();
+            }
+            fn restore_sigint(&mut self) {
+                #[cfg(unix)]
+                self.signals.restore_sigint();
+            }
+            fn stop_process_group(&mut self) -> Result<(), String> {
+                #[cfg(unix)]
+                return self.signals.stop_process_group();
+                #[cfg(not(unix))]
+                Err("not supported".into())
+            }
+        }
+        let mut ops = Ops {
+            tui: &mut self.tui,
+            input: &mut self.restarted_input,
+            #[cfg(unix)]
+            signals: Default::default(),
+        };
+        match suspend_to_background(&mut ops, cfg!(windows)) {
+            SuspendOutcome::Resumed => {
+                // The terminal may have been resized while stopped.
+                let terminal = &self.tui.terminal;
+                self.size.set((terminal.columns(), terminal.rows()));
+                self.dirty.set(true);
+            }
+            SuspendOutcome::Unsupported(message) => self.show_status(message),
+            SuspendOutcome::Failed(error) => {
+                // hoocode rethrows here; the UI is brought back instead so
+                // the session stays usable.
+                self.restarted_input = Some(self.tui.start());
+                self.tui.request_render(true);
+                self.show_error(&format!("Suspend failed: {error}"));
+            }
+        }
+    }
+
+    /// `toggleThinkingBlockVisibility`: hide or show thinking traces, saved,
+    /// and the transcript rebuilt with the new display.
+    fn toggle_thinking_block_visibility(&mut self) {
+        self.hide_thinking_block = !self.hide_thinking_block;
+        self.session
+            .settings()
+            .set_hide_thinking_block(self.hide_thinking_block);
+        let streaming = self.streaming.clone();
+        let streaming_message = self.streaming_message.clone();
+        self.reset_transcript_view();
+        let messages = self.session.messages();
+        self.render_session_context(&messages, false);
+        // A message still streaming goes back on with the new display.
+        if let (Some(component), Some(message)) = (streaming, streaming_message) {
+            {
+                let mut c = component.borrow_mut();
+                c.set_thinking_display(self.thinking_display());
+                c.update_content(&message, true);
+            }
+            self.add_to_chat(as_component(&component));
+            self.streaming = Some(component);
+            self.streaming_message = Some(message);
+        }
+        // Radar overrides the setting: say so rather than claim a change the
+        // screen does not show.
+        let status = if !self.hide_thinking_block && self.tool_output_view == ToolOutputView::Radar
+        {
+            "Thinking blocks: visible (radar hides them)"
+        } else if self.hide_thinking_block {
+            "Thinking blocks: hidden"
+        } else {
+            "Thinking blocks: visible"
+        };
+        self.show_status(status);
+    }
+
+    /// `openExternalEditor`: edit the prompt in `$VISUAL` / `$EDITOR`.
+    fn open_external_editor(&mut self) {
+        let editor_cmd = std::env::var("VISUAL")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .or_else(|| std::env::var("EDITOR").ok().filter(|v| !v.is_empty()));
+        let Some(editor_cmd) = editor_cmd else {
+            self.show_warning("No editor configured. Set $VISUAL or $EDITOR environment variable.");
+            return;
+        };
+        let current = self.editor.borrow().editor.get_expanded_text();
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        let tmp_file =
+            std::env::temp_dir().join(format!("{APP_NAME}-editor-{millis}.{APP_NAME}.md"));
+        if std::fs::write(&tmp_file, &current).is_ok() {
+            self.tui.stop();
+            // Split on spaces for editor arguments (e.g. "code --wait").
+            let mut parts = editor_cmd.split(' ').filter(|p| !p.is_empty());
+            let program = parts.next().unwrap_or_default().to_string();
+            let status = std::process::Command::new(&program)
+                .args(parts)
+                .arg(&tmp_file)
+                .status();
+            if status.is_ok_and(|s| s.success()) {
+                if let Ok(content) = std::fs::read_to_string(&tmp_file) {
+                    let content = content.strip_suffix('\n').unwrap_or(&content);
+                    self.editor.borrow_mut().editor.set_text(content);
+                }
+            }
+            self.restarted_input = Some(self.tui.start());
+            // The editor used the alternate screen: redraw everything.
+            self.tui.request_render(true);
+        }
+        let _ = std::fs::remove_file(&tmp_file);
+        self.dirty.set(true);
     }
 
     /// `handleImport`: `/import <path.jsonl>` replaces the session, after a
@@ -4345,6 +4544,78 @@ impl Mode {
         self.update_terminal_title();
         self.setup_autocomplete_provider();
         self.update_available_provider_count();
+        self.apply_runtime_settings();
+        self.apply_session_theme();
+    }
+
+    /// `applySessionTheme`: load the theme the settings name and rebuild the
+    /// banner, whose text carries its escapes. As the pin renders it, the
+    /// banner is rebuilt before the new theme loads: a theme edited on disk
+    /// reaches the banner on the next rebuild (a second /new or /reload),
+    /// everything else at once.
+    fn apply_session_theme(&mut self) {
+        let expanded = self.verbose || self.expanded;
+        self.header.borrow_mut().set_expanded(expanded);
+        let theme_name = self.session.settings().theme();
+        if let Some(name) = theme_name {
+            if let Err(error) = set_theme(&name, true) {
+                self.show_error(&format!(
+                    "Failed to load theme \"{name}\": {error}\nFell back to dark theme."
+                ));
+            }
+        }
+        self.tui.invalidate();
+        self.dirty.set(true);
+    }
+
+    /// `applyRuntimeSettings`: push the current settings and session onto
+    /// the chrome (keybindings, footer, editor, cursor). Startup, a session
+    /// swap and /reload all rebuild these from disk, so they repaint alike;
+    /// a `compaction.enabled` edit used to leave the footer promising
+    /// auto-compaction after /new or /reload.
+    fn apply_runtime_settings(&mut self) {
+        AppKeybindingsManager::create(None).install();
+        let settings = self.session.settings();
+        let (show_hardware_cursor, clear_on_shrink, hide_thinking_block) = (
+            settings.show_hardware_cursor(),
+            settings.clear_on_shrink(),
+            settings.hide_thinking_block(),
+        );
+        let (border, padding_x, autocomplete_max_visible) = (
+            match settings.editor_border() {
+                EditorBorder::Box => FrameBorderStyle::Box,
+                EditorBorder::Rule => FrameBorderStyle::Rule,
+            },
+            settings.editor_padding_x() as usize,
+            settings.autocomplete_max_visible() as usize,
+        );
+        drop(settings);
+        {
+            let mut footer = self.footer.borrow_mut();
+            footer.set_auto_compact_enabled(self.session.auto_compaction_enabled());
+            footer.set_tool_output_view(self.tool_output_view);
+            footer.invalidate();
+        }
+        self.footer_data.set_cwd(self.session.cwd());
+        self.footer_data.set_subagent_enabled(
+            self.session
+                .get_active_tool_names()
+                .iter()
+                .any(|t| t == "Task"),
+        );
+        self.hide_thinking_block = hide_thinking_block;
+        self.tui.set_show_hardware_cursor(show_hardware_cursor);
+        self.tui.set_clear_on_shrink(clear_on_shrink);
+        set_input_frame_border(border);
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.set_border(border);
+            editor.editor.set_padding_x(padding_x);
+            editor
+                .editor
+                .set_autocomplete_max_visible(autocomplete_max_visible);
+        }
+        self.dirty.set(true);
     }
 
     /// `resetTranscriptView`: drop every view reference into the transcript.
@@ -4361,7 +4632,7 @@ impl Mode {
         self.bash_components.clear();
         self.branch_summaries.clear();
         self.compaction_summaries.clear();
-        self.last_status = None;
+        self.last_status.reset();
     }
 
     /// `renderCurrentSessionState`: the transcript of the session just
@@ -4401,25 +4672,8 @@ impl Mode {
         } else {
             theme().fg("dim", message)
         };
-        if let Some((spacer, text)) = &self.last_status {
-            let chat = self.chat.borrow();
-            let n = chat.children.len();
-            let text_handle = as_component(text);
-            if n >= 2
-                && Rc::ptr_eq(&chat.children[n - 1], &text_handle)
-                && Rc::ptr_eq(&chat.children[n - 2], spacer)
-            {
-                text.borrow_mut().set_text(styled);
-                drop(chat);
-                self.dirty.set(true);
-                return;
-            }
-        }
-        let spacer = as_component(&handle(Spacer::new(1)));
-        let text = handle(Text::new(styled, 1, 0));
-        self.add_to_chat(spacer.clone());
-        self.add_to_chat(as_component(&text));
-        self.last_status = Some((spacer, text));
+        self.last_status.show(&mut self.chat.borrow_mut(), styled);
+        self.dirty.set(true);
     }
 
     /// `showDialStep`: the stop a dial landed on, and (the first time) how to
@@ -4849,6 +5103,7 @@ impl Mode {
     fn handle_agent_event(&mut self, event: AgentEvent) {
         match event {
             AgentEvent::AgentStart => {
+                self.tips.on_turn_start();
                 self.stop_working_loader();
                 let loader = self.create_working_loader();
                 self.status.borrow_mut().add_child(as_component(&loader));
@@ -5055,7 +5310,7 @@ impl Mode {
                 }
             }
             Action::Exit => self.exit_requested = true,
-            Action::Suspend => {}
+            Action::Suspend => self.handle_ctrl_z(),
             Action::ToolsExpand => self.jump_to_full_view(),
             Action::ViewForward | Action::ViewBackward => {
                 self.cycle_tool_output_view(action == Action::ViewForward)
@@ -5091,6 +5346,10 @@ impl Mode {
             Action::SettingsOpen => self.show_settings_selector(),
             Action::SelectorDone(outcome) => self.close_selector(outcome),
             Action::ResumeSession => self.show_session_selector(),
+            Action::ThinkingToggle => self.toggle_thinking_block_visibility(),
+            Action::ExternalEditor => self.open_external_editor(),
+            Action::SessionNew => self.handle_new_command(),
+            Action::SessionTree => self.show_tree_selector(None),
             Action::EditorChanged(text) => self.on_editor_change(&text),
             Action::CopyMessage => self.handle_copy_command(""),
             Action::PasteImage => self.handle_clipboard_image_paste(),
@@ -5148,6 +5407,7 @@ impl Mode {
         let mut wait = Duration::from_millis(250);
         let deadlines = [
             self.notifications.borrow().deadline(),
+            self.tips.deadline(),
             self.editor.borrow().editor.autocomplete_deadline(),
         ];
         for deadline in deadlines.into_iter().flatten() {
@@ -5187,9 +5447,14 @@ impl Mode {
 
     fn run(
         mut self,
-        options_initial: (Option<String>, Vec<String>, Option<String>),
+        options_initial: (
+            Option<String>,
+            Vec<ImageContent>,
+            Vec<String>,
+            Option<String>,
+        ),
     ) -> Result<(), String> {
-        let input = self.tui.start();
+        let mut input = self.tui.start();
         // From here the TUI owns the terminal: the agent's operational log
         // lines (dispatch, warm fallback, lifeguard) must not write to it.
         set_terminal_owned_by_tui(true);
@@ -5244,20 +5509,27 @@ impl Mode {
             let _ = tx.send(AppEvent::Rerender);
         });
 
-        let (initial_message, initial_messages, fallback) = options_initial;
+        let (initial_message, initial_images, initial_messages, fallback) = options_initial;
         if let Some(message) = fallback {
             self.show_error(&message);
         }
         if let Some(model_error) = self.session.model_registry().error() {
             self.show_error(&format!("models.json error: {model_error}"));
         }
+        let has_initial_message = initial_message.is_some();
         let mut queued: Vec<String> = initial_message
             .into_iter()
             .chain(initial_messages)
             .collect();
         queued.reverse();
         if let Some(first) = queued.pop() {
-            self.prompt(first);
+            // The @file images go with the initial message only.
+            let images = if has_initial_message {
+                initial_images
+            } else {
+                Vec::new()
+            };
+            self.prompt_with_images(first, images);
         }
 
         self.tui.request_render(false);
@@ -5265,12 +5537,20 @@ impl Mode {
         loop {
             match input.recv_timeout(self.next_wakeup()) {
                 Ok(event) => {
+                    // A keystroke that turns out to do nothing is still the
+                    // user being present: it restarts the tips' idle clock.
+                    if let TuiEvent::Input(_) = event {
+                        self.tips.on_activity();
+                    }
                     if let TuiEvent::Resize = event {
                         let terminal = &self.tui.terminal;
                         self.size.set((terminal.columns(), terminal.rows()));
                     }
                     self.tui.process_event(event);
                     while let Ok(event) = input.try_recv() {
+                        if let TuiEvent::Input(_) = event {
+                            self.tips.on_activity();
+                        }
                         self.tui.process_event(event);
                     }
                 }
@@ -5285,6 +5565,9 @@ impl Mode {
                 for action in pending {
                     self.handle_action(action);
                 }
+            }
+            if let Some(restarted) = self.restarted_input.take() {
+                input = restarted;
             }
             while let Ok(event) = self.rx.try_recv() {
                 match event {
@@ -5306,6 +5589,7 @@ impl Mode {
                         self.close_open_chain(outcome);
                         self.show_turn_cost();
                         self.settle_dangling_plan_items();
+                        self.tips.on_turn_end();
                         if let Err(error) = result {
                             self.show_error(&error);
                         }
@@ -5350,6 +5634,9 @@ impl Mode {
                 }
             }
             if self.notifications.borrow_mut().poll() {
+                self.dirty.set(true);
+            }
+            if self.tips.poll() {
                 self.dirty.set(true);
             }
             if self
@@ -5438,6 +5725,7 @@ impl Mode {
         self.footer_data.off_branch_change(branch);
         self.footer_data.dispose();
         cortexcode_code_tui_theme::stop_theme_watcher();
+        self.tips.stop();
         self.notifications.borrow_mut().stop();
         if let Some(subscription) = self.task_store_subscription.take() {
             subscription.unsubscribe();
@@ -5613,6 +5901,27 @@ fn prefix_autocomplete_description(
     })
 }
 
+/// The notice for Anthropic subscription auth (`ANTHROPIC_SUBSCRIPTION_AUTH_*`).
+pub const ANTHROPIC_SUBSCRIPTION_AUTH_TITLE: &str = "Anthropic subscription";
+pub const ANTHROPIC_SUBSCRIPTION_AUTH_BODY: &[&str] = &[
+    "Billed per token as extra usage, not against plan limits.",
+    "Turn off in /settings → Anthropic extra usage.",
+];
+
+/// The once-per-session latch of `maybeWarnAboutAnthropicSubscriptionAuth`:
+/// true when the notice should show now. `uses_subscription_auth` is asked
+/// only while the latch is open, and a `false` leaves it open.
+pub fn claim_anthropic_subscription_warning(
+    shown: &mut bool,
+    uses_subscription_auth: impl FnOnce() -> bool,
+) -> bool {
+    if *shown || !uses_subscription_auth() {
+        return false;
+    }
+    *shown = true;
+    true
+}
+
 /// What dangling plan rows settle to when a request ends: done after a clean
 /// stop, cancelled after an abort, error or length stop; nothing while
 /// messages are queued (the request continues).
@@ -5634,6 +5943,7 @@ pub fn plan_settle_outcome(
 pub fn run_interactive(options: InteractiveOptions) -> Result<(), String> {
     let initial = (
         options.initial_message.clone(),
+        options.initial_images.clone(),
         options.initial_messages.clone(),
         options.model_fallback_message.clone(),
     );

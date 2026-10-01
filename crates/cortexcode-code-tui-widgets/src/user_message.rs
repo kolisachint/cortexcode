@@ -43,6 +43,10 @@ impl Component for UserMessageComponent {
         wrap_zone(self.container.render(width))
     }
 
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+
     fn invalidate(&mut self) {
         self.container.invalidate();
     }

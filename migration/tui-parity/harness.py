@@ -35,6 +35,7 @@ Scenario format: see ``scenarios/README.md``.
 from __future__ import annotations
 
 import argparse
+import base64
 import difflib
 import html
 import json
@@ -386,6 +387,18 @@ def wait_stable(tmux: Tmux, quiet: float, timeout: float, normalizer: "Normalize
     raise StepError(f"screen did not settle for {quiet}s within {timeout}s")
 
 
+def write_files(sc: dict, work: Path) -> None:
+    """The scenario's `files` (text) and `binary_files` (base64) into `work`."""
+    for rel, content in (sc.get("files") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+    for rel, content in (sc.get("binary_files") or {}).items():
+        p = work / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(base64.b64decode(content))
+
+
 def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     """Run one scenario against one app. Returns {"ok", "error", "snapshots"}."""
     out.mkdir(parents=True, exist_ok=True)
@@ -393,10 +406,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
     home, work = tmp / "home", tmp / "work"
     home.mkdir()
     work.mkdir()
-    for rel, content in (sc.get("files") or {}).items():
-        p = work / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+    write_files(sc, work)
     # Links into the pinned hoocode package (read-only), e.g. so a scenario can
     # point HOOCODE_PACKAGE_DIR at a dir with its own CHANGELOG.md and still
     # have the pin's package.json and themes. `{HOOCODE_PKG}` is that package.
@@ -444,7 +454,7 @@ def run_app(app: str, sc: dict, out: Path, keep: bool) -> dict:
         tmux.start(argv, work, env, stdout_file)
         for i, step in enumerate(sc["steps"]):
             try:
-                run_step(tmux, step, out, normalizer, result, stdout_file)
+                run_step(tmux, step, out, normalizer, result, stdout_file, {"HOME": home, "WORK": work})
             except StepError as e:
                 raise StepError(f"step {i} {json.dumps(step)}: {e}") from None
     except (StepError, RuntimeError) as e:
@@ -542,9 +552,30 @@ def normalize_jsonl(raw: str, normalizer: "Normalizer", opts: dict) -> str:
     return normalizer.apply_text("\n".join(lines) + ("\n" if lines else ""))
 
 
-def run_step(tmux: Tmux, step: dict, out: Path, normalizer: Normalizer, result: dict, stdout_file: Path | None = None) -> None:
+def run_step(
+    tmux: Tmux,
+    step: dict,
+    out: Path,
+    normalizer: Normalizer,
+    result: dict,
+    stdout_file: Path | None = None,
+    dirs: dict | None = None,
+) -> None:
     timeout = float(step.get("timeout", 15))
-    if "wait_stdout" in step:
+    if "write_settings" in step or "write_files" in step:
+        # Edits on disk while the app runs: `write_settings` replaces the global
+        # settings.json of both apps' agent dirs, `write_files` writes workspace
+        # files (text), as the scenario's `files` do at start.
+        if dirs is None:
+            raise StepError("write_settings/write_files need the run's dirs")
+        for d in (".hoocode", ".cortexcode"):
+            if "write_settings" in step:
+                (dirs["HOME"] / d / "settings.json").write_text(json.dumps(step["write_settings"], indent=2))
+        for rel, content in (step.get("write_files") or {}).items():
+            p = dirs["WORK"] / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content)
+    elif "wait_stdout" in step:
         # `stdout_jsonl` scenarios: wait until the captured stdout matches.
         if stdout_file is None:
             raise StepError("wait_stdout needs stdout_jsonl")
@@ -631,10 +662,7 @@ def run_headless(app: str, sc: dict, keep: bool = False) -> dict:
     home, work = tmp / "home", tmp / "work"
     home.mkdir()
     work.mkdir()
-    for rel, content in (sc.get("files") or {}).items():
-        p = work / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+    write_files(sc, work)
     if sc.get("symlinks") or sc.get("git"):
         raise StepError("symlinks/git scenarios are not replayable")
     mock, port, log = start_mock(sc.get("llm", []), tmp)

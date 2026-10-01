@@ -44,6 +44,90 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-10-01 · 11.8 key bindings: done; 10.5e added
+- ctrl+t (app.thinking.toggle) hides/shows thinking, saves it, rebuilds the transcript
+  (pending calls stay registered, a streaming message is re-added) and says so on the band;
+  alt+e (app.editor.external) edits the prompt in $VISUAL/$EDITOR (TUI stopped and restarted
+  through `restarted_input`); app.session.new / app.session.tree dispatch /new and /tree.
+- L2: `thinking-toggle-pending-tool` (4167: ctrl+t during a slow bash call),
+  `external-editor` (scripted $EDITOR). Both stable.
+- 10.5e (new, todo): the mode system in the interactive mode. `/mode plan` is a no-op in
+  cortex today (nobody drains ModesExtension::take_actions; the active mode is fixed at
+  construction), and alt+a needs it. See its ledger notes for hoocode's behavior.
+- Next: `python3 migration/ledger.py next` (10.5e).
+
+### 2026-10-01 · 13.4f suite TS test review: done; 11.9 done; 11.8 added
+- Ported subagent-visual-tie (tui-app tests: identity colors, wall-clock elapsed, TodoWrite
+  links, flat lens nesting, reconcile by identity) and subagent-spawn-audit (subagents tests:
+  lifeguard dedup, JSONL reader, atomic writes, cumulative budget across the inherited-model
+  retry, process-group kill, cancellation; tui-app tests: per-run roster rows and usage,
+  panel elapsed/orphans/cycle/notes). The jsonl "stream error" case is n.a. (no stream).
+- Test clock: `cortexcode_code_task_store::now_ms` (+ `advance_clock_for_tests`) now feeds the
+  store, task panel, inbox, Task tools and TaskOutput renderer (hoocode's fake timers).
+- 11.9 (new, done): `apply_runtime_settings` / `apply_session_theme` on every session swap
+  and /reload. Footer auto@ and theme now follow on-disk settings edits. At the pin the banner
+  is rebuilt before the new theme loads; L2 `session-surface-sync` (+ `-reload`) encode it.
+  Harness: `write_settings` / `write_files` steps edit files mid-run.
+- 11.8 (new, todo): missing key bindings: ctrl+t thinking toggle, alt+a mode cycle,
+  external editor, session new/tree. It owns 4167 (needs ctrl+t) and its L2 scenario.
+- TS test ledger: 0 files in `review`.
+- Full L2 run (HEAD before these changes): 55 pass; the 9 known default-bundle failures
+  (l1_done tasks waiting on 12.4); file-autocomplete invalid here because `fd` is not on PATH
+  (hoocode itself fails it).
+- Next: `python3 migration/ledger.py next` (11.8 is a good next pick).
+
+### 2026-09-30 · 13.4e interactive-mode/transcript TS test review: done
+- Ported: selected-row-list, import-command, anthropic-warning (latch + notice extracted),
+  suspend, message-block-sheets, message-block-fill, theme-block-rendering,
+  transcript-thinking-order and interactive-mode-status (jump/expand cases on the real mode
+  via ScriptedTerminal; showRecord via the new `record_row.rs`; showLoadedResources incl.
+  the extension-label inline snapshots), subagent-dispatch-tui-output (fd-2 capture).
+- Equivalent (L2): clone-command (fork-clone), screen-anchor (startup/chat-basic/color-chrome).
+- Gaps found and fixed: Ctrl+Z suspend was a no-op (now `suspend.rs`); the scroll view app
+  layer was missing (new task 11.7, done); `--verbose` didn't keep the resource details open
+  after a dial change (show_loaded_resources now opens them on verbose, as hoocode does).
+- Left for phase 12 (noted on 12.3/12.7): interactive-mode-status's extension UI context and
+  canvas cases.
+- Note: `ledger.py verify` on a task with no crates runs clippy on no package; clippy the
+  crates you touched yourself.
+- Next: `python3 migration/ledger.py next` (13.4f: the four suite files still in `review`).
+
+### 2026-09-30 · 11.7 scroll view (new, found in 13.4e): done
+- The TUI's pinned viewport and search were ported, but nothing installed the app keys:
+  PageUp, ctrl+r, ctrl+up/down, ctrl+home/end did nothing. New `scroll_view.rs` ports
+  scroll-view.ts (prompt pager keys, pinned keys, query line, jump by user message, themed
+  indicator) and InteractiveMode installs it.
+- tui-render: `Tui::set_input_interceptor` (sees input after mouse reports, before listeners,
+  with `&mut Tui`; a listener can't hold its own TUI), `Tui::children`, and `can_pin_scroll`
+  now takes `&Tui` (focus check). UserMessageComponent exposes `as_any`.
+- L2 `scroll-view` (8 snapshots, stable). Its search types one key at a time and searches
+  digits: tmux may deliver "beta" in timing-dependent chunks, and the random session name on
+  the editor border is in the searched buffer.
+
+### 2026-09-30 · 11.6 tips band: done
+- New `cortexcode-code-tui-app/src/tips.rs`: TIPS (rebranded), `TipRotation` (unseen first,
+  star nudge every 6 tips, once a session, 3 ever), `TipsController` (grace 60 s, idle 45 s,
+  streaming 20 s, cooldown 3 min, band must be free). Poll-based like the notification band:
+  `poll()` + `deadline()` on an injectable clock instead of timers.
+- Wired into InteractiveMode: keystrokes -> on_activity, agent_start -> on_turn_start,
+  request settled -> on_turn_end; a tip goes on the band as an Info with topic "tip".
+- The rotation leaves out tips for features cortex doesn't ship yet (phase-12 /learn,
+  /plugin, /new-skill, /canvas, /cost, and the `hoo` alias): `UNAVAILABLE_TIP_IDS`.
+  Drop ids from that list as those features land.
+- Ported tips.test.ts (tests/tips.rs).
+
+### 2026-09-30 · 10.12 @file arguments at parity: done
+- `initial_message.rs`: `process_file_arguments` returns `ProcessedFiles { text, images }`;
+  image args are auto-resized (`images.autoResize`), get the dimension note or the
+  "Image omitted" text; `prepare_initial_message` feeds print and interactive modes.
+- Print mode sends the images with the initial message only; interactive mode gained
+  `InteractiveOptions::initial_images` and now gets the @file text too. File errors are
+  printed in red and exit 1 in both modes (`run_interactive_mode` returns an exit code).
+- Ported block-images (settings/read tool/processFileArguments) and image-resize-callers.
+- Harness: scenarios can seed `binary_files` (base64). New L2 `print-file-image` compares
+  the model request (text + image_url part) with hoocode: pass, stable.
+- Next: `python3 migration/ledger.py next`.
+
 ### 2026-09-30 · 13.4d session/SDK/suite TS test review done; 13.4f split out
 - Ported: initial-message, read-dedup-guard (session test harness gained
   `real_builtin_tools`), stdout-cleanliness (help half), session-cwd,

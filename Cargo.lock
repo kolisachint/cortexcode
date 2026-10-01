@@ -857,6 +857,7 @@ dependencies = [
 name = "cortexcode-code-cli"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "cortexcode-agent-compaction",
  "cortexcode-agent-core",
@@ -1223,6 +1224,7 @@ dependencies = [
  "cortexcode-tui-render",
  "cortexcode-tui-terminal",
  "cortexcode-tui-util",
+ "libc",
  "regex",
  "serde_json",
  "tempfile",
@@ -1307,6 +1309,7 @@ dependencies = [
  "regex",
  "serde_json",
  "tempfile",
+ "unicode-segmentation",
 ]
 
 [[package]]

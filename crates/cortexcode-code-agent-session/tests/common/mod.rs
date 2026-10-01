@@ -51,6 +51,8 @@ pub struct HarnessOptions {
     /// The real built-in tools from settings (`useRealBuiltinTools`) instead
     /// of `tools`.
     pub real_builtin_tools: bool,
+    /// Replaces the faux provider's test auth.
+    pub auth: Option<Arc<dyn AuthLookup + Send + Sync>>,
 }
 
 pub struct Harness {
@@ -93,10 +95,10 @@ impl Harness {
             api_key: Some("faux-key".into()),
             ..Default::default()
         }));
-        let auth = if options.without_auth {
-            TestAuth(vec![])
-        } else {
-            TestAuth(vec![model.provider.clone()])
+        let auth: Arc<dyn AuthLookup + Send + Sync> = match options.auth {
+            Some(auth) => auth,
+            None if options.without_auth => Arc::new(TestAuth(vec![])),
+            None => Arc::new(TestAuth(vec![model.provider.clone()])),
         };
         let session = AgentSession::new(AgentSessionConfig {
             agent,
@@ -112,7 +114,7 @@ impl Harness {
                 .unwrap_or_else(|| Arc::new(StaticResourceLoader::default())),
             custom_tools: options.custom_tools,
             model_registry: Arc::new(ModelRegistry::in_memory()),
-            auth: Arc::new(auth),
+            auth,
             initial_active_tool_names: options.initial_active_tool_names,
             allowed_tool_names: options.allowed_tool_names,
             disallowed_tool_names: options.disallowed_tool_names,
