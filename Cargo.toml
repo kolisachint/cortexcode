@@ -60,6 +60,8 @@ members = [
     "crates/cortexcode-code-prompts",
     "crates/cortexcode-code-resources",
     "crates/cortexcode-code-rpc",
+    "crates/cortexcode-app-server-protocol",
+    "crates/cortexcode-app-server",
     "crates/cortexcode-code-session",
     "crates/cortexcode-code-agent-session",
     "crates/cortexcode-code-subagents",
@@ -151,6 +153,8 @@ cortexcode-ai-registry = { path = "crates/cortexcode-ai-registry" }
 cortexcode-code-prompts = { path = "crates/cortexcode-code-prompts" }
 cortexcode-code-resources = { path = "crates/cortexcode-code-resources" }
 cortexcode-code-rpc = { path = "crates/cortexcode-code-rpc" }
+cortexcode-app-server-protocol = { path = "crates/cortexcode-app-server-protocol" }
+cortexcode-app-server = { path = "crates/cortexcode-app-server" }
 cortexcode-code-session = { path = "crates/cortexcode-code-session" }
 cortexcode-code-agent-session = { path = "crates/cortexcode-code-agent-session" }
 cortexcode-code-subagents = { path = "crates/cortexcode-code-subagents" }

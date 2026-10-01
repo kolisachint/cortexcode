@@ -5,6 +5,7 @@
 //! whose behavior is not ported yet fail with a clear "not yet supported"
 //! error instead of being silently ignored.
 
+mod app_server;
 pub mod args;
 pub mod auth;
 mod config_command;
@@ -143,6 +144,9 @@ pub fn main(argv: &[String]) -> i32 {
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
 
+    if argv.first().is_some_and(|a| a == "app-server") {
+        return app_server::run(&argv[1..], &mut stderr);
+    }
     if argv.first().is_some_and(|a| a == "config") {
         return config_command::run_config_command(env.color, &mut stderr);
     }
