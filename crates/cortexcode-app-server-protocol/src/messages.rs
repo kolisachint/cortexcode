@@ -259,6 +259,15 @@ pub struct ModelInfo {
     pub input_modalities: Vec<String>,
 }
 
+/// `model/list`. Hidden models (outside the user's model scope) are left out
+/// unless `includeHidden`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelListParams {
+    #[serde(default)]
+    pub include_hidden: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelListResponse {

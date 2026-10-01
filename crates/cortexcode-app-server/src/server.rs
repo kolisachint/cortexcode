@@ -52,8 +52,10 @@ pub trait SessionFactory: Send + Sync + 'static {
     ) -> Result<AgentSession, String>;
     /// Saved sessions, newest first.
     fn list(&self) -> Vec<SavedSession>;
-    /// Models for `model/list`: `(id, display name, is default)`.
-    fn models(&self) -> Vec<(String, String, bool)> {
+    /// Models for `model/list`: `(id, display name, is default, hidden)`.
+    /// Hidden models are outside the user's model scope (`enabledModels`):
+    /// still usable by name, left out of pickers.
+    fn models(&self) -> Vec<(String, String, bool, bool)> {
         Vec::new()
     }
     /// The model a client names (`model` on `turn/start`), if usable.
@@ -909,7 +911,7 @@ impl Inner {
                 account: None,
                 requires_openai_auth: false,
             }),
-            methods::MODEL_LIST => ok(self.model_list()),
+            methods::MODEL_LIST => ok(self.model_list(parse(params)?)),
             methods::SKILLS_LIST => {
                 let params: proto::SkillsListParams = parse(params)?;
                 ok(proto::SkillsListResponse {
@@ -1346,17 +1348,18 @@ impl Inner {
         ok(proto::TurnInterruptResponse {})
     }
 
-    fn model_list(&self) -> proto::ModelListResponse {
+    fn model_list(&self, params: proto::ModelListParams) -> proto::ModelListResponse {
         let data = self
             .factory
             .models()
             .into_iter()
-            .map(|(id, name, is_default)| proto::ModelInfo {
+            .filter(|(_, _, _, hidden)| params.include_hidden || !hidden)
+            .map(|(id, name, is_default, hidden)| proto::ModelInfo {
                 id: id.clone(),
                 model: id,
                 display_name: name.clone(),
                 description: name,
-                hidden: false,
+                hidden,
                 is_default,
                 default_reasoning_effort: "medium".into(),
                 supported_reasoning_efforts: vec![proto::ReasoningEffortOption {

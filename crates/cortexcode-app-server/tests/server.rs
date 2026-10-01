@@ -151,6 +151,13 @@ impl SessionFactory for Factory {
         Ok(self.session(manager, gate))
     }
 
+    fn models(&self) -> Vec<(String, String, bool, bool)> {
+        vec![
+            ("p/in-scope".into(), "In scope".into(), true, false),
+            ("p/out-of-scope".into(), "Out of scope".into(), false, true),
+        ]
+    }
+
     fn list(&self) -> Vec<SavedSession> {
         let mut out: Vec<SavedSession> =
             cortexcode_code_session::manager::list_sessions(self.sessions_dir(), None)
@@ -400,6 +407,26 @@ async fn requests_before_initialize_are_rejected() {
     assert_eq!(r["error"]["code"], json!(-32601));
     let r = c.call("account/read", json!({})).await;
     assert_eq!(r["result"]["requiresOpenaiAuth"], json!(false));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn model_list_leaves_out_hidden_models_unless_asked() {
+    let s = setup(false);
+    let mut c = Client::connect(&s.server);
+    c.initialize().await;
+    let ids = |r: &Value| -> Vec<String> {
+        r["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let scoped = c.ok("model/list", json!({})).await;
+    assert_eq!(ids(&scoped), vec!["p/in-scope"]);
+    let all = c.ok("model/list", json!({"includeHidden": true})).await;
+    assert_eq!(ids(&all), vec!["p/in-scope", "p/out-of-scope"]);
+    assert_eq!(all["data"][1]["hidden"], json!(true));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
