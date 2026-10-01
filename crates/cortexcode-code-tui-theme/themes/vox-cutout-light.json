@@ -1,5 +1,5 @@
 {
-	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode-ts/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
 	"name": "vox-cutout-light",
 	"description": "Paper cut-outs on a cream page: bold flat stocks, scissor-cut rules, tape-yellow highlight, AAA ink",
 	"vars": {

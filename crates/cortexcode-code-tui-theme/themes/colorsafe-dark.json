@@ -1,5 +1,5 @@
 {
-	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode-ts/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
 	"name": "colorsafe-dark",
 	"description": "Low vision + color blindness: Okabe-Ito hues on dark, no red/green pairs",
 	"vars": {

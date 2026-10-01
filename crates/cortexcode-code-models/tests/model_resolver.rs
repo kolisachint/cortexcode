@@ -463,6 +463,35 @@ fn ai_gateway_default_tracks_current_model() {
     );
 }
 
+// The release regenerates the catalog first; a default that upstream dropped
+// must fail here, not in the publish step.
+#[test]
+fn fireworks_together_and_opencode_go_defaults_are_in_the_catalog() {
+    for provider in ["fireworks", "together", "opencode-go"] {
+        let id = default_model_for_provider(provider).unwrap();
+        assert!(
+            cortexcode_ai_models::get_model(provider, id).is_some(),
+            "{provider}/{id}"
+        );
+    }
+}
+
+/// Every default must survive a catalog regeneration (pin bump), not only the
+/// three hoocode tests above. `UPSTREAM_STALE` are defaults the pinned hoocode
+/// itself names but its catalog no longer has (findInitialModel skips them,
+/// buildFallbackModel falls back to the provider's first model); they stay
+/// for parity. Drop an entry when hoocode fixes it; any new miss fails here.
+#[test]
+fn every_provider_default_is_in_the_catalog() {
+    const UPSTREAM_STALE: &[&str] = &["cerebras/zai-glm-4.7", "zai/glm-5.1"];
+    let missing: Vec<String> = cortexcode_code_models::DEFAULT_MODEL_PER_PROVIDER
+        .iter()
+        .filter(|(provider, id)| cortexcode_ai_models::get_model(provider, id).is_none())
+        .map(|(provider, id)| format!("{provider}/{id}"))
+        .collect();
+    assert_eq!(missing, UPSTREAM_STALE, "defaults missing from catalog");
+}
+
 /// Registry stub: `auth` lists providers with configured auth.
 struct Stub {
     all: Vec<Model>,

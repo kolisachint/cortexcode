@@ -86,12 +86,7 @@ const PROVIDER_MODEL_PAIRS: &[(&str, &str, &str, Option<&str>)] = &[
         "huggingface-kimi-k2.5",
         None,
     ),
-    (
-        "together",
-        "moonshotai/Kimi-K2.6",
-        "together-kimi-k2.6",
-        None,
-    ),
+    ("together", "moonshotai/Kimi-K3", "together-kimi-k3", None),
     (
         "kimi-coding",
         "kimi-for-coding",
@@ -116,7 +111,7 @@ const PROVIDER_MODEL_PAIRS: &[(&str, &str, &str, Option<&str>)] = &[
         "zen-minimax-m2.1-free",
         None,
     ),
-    ("opencode-go", "kimi-k2.6", "go-kimi-k2.6", None),
+    ("opencode-go", "kimi-k3", "go-kimi-k3", None),
     ("opencode-go", "minimax-m2.7", "go-minimax-m2.7", None),
     ("xiaomi", "mimo-v2.5-pro", "xiaomi-mimo-v2.5-pro", None),
     (

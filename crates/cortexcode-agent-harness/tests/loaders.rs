@@ -16,13 +16,17 @@ struct TempDir(std::path::PathBuf);
 
 impl TempDir {
     fn new() -> Self {
+        // The counter keeps parallel tests apart: macOS clocks tick in
+        // microseconds, so two tests could otherwise share (and delete) a dir.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let id = format!(
-            "harness-loaders-{:x}-{:x}",
+            "harness-loaders-{:x}-{:x}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         );
         let path = std::env::temp_dir().join(id);
         std::fs::create_dir_all(&path).unwrap();

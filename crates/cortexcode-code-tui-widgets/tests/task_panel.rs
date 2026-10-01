@@ -509,7 +509,11 @@ fn the_header_exists_only_when_there_is_more_than_one_lens() {
     assert!(
         two.contains(&format!(
             "{} cycle",
-            app_key_label("app.tasks.cycleForward")
+            // Display text: "option+l" on macOS.
+            cortexcode_code_tui_keybindings::format_key_text(
+                &app_key_label("app.tasks.cycleForward"),
+                false
+            )
         )),
         "{two}"
     );

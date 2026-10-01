@@ -76,6 +76,8 @@ pub struct AnthropicOptions {
     pub tool_choice: Option<Value>,
     pub on_payload: Option<OnPayload>,
     pub on_response: Option<OnResponse>,
+    /// Sent as `x-opencode-session` for OpenCode Go only (Go routes on it).
+    pub session_id: Option<String>,
 }
 
 /// `streamSimpleAnthropic`'s option mapping (`buildBaseOptions` plus the
@@ -100,6 +102,7 @@ pub fn simple_options(
         metadata: options.metadata.clone(),
         on_payload: options.on_payload.clone(),
         on_response: options.on_response.clone(),
+        session_id: options.session_id.clone(),
         ..Default::default()
     };
     let Some(level) = options
@@ -329,6 +332,13 @@ pub fn build_headers(
         set_header(&mut headers, "x-app", "cli");
     } else if !betas.is_empty() {
         set_header(&mut headers, "anthropic-beta", &betas.join(","));
+    }
+    // OpenCode Go routes on a stable session header (`opencodeSessionId`).
+    if model.provider == "opencode-go" {
+        if let Some(session_id) = options.session_id.as_deref() {
+            set_header(&mut headers, "x-opencode-session", session_id);
+            set_header(&mut headers, "user-agent", "hoocode");
+        }
     }
     if let Some(extra) = &model.headers {
         for (k, v) in extra {

@@ -1,8 +1,8 @@
 {
  "_comment": "Migration ledger - single source of truth for task status. Edit via migration/ledger.py. Order of 'tasks' is the execution order.",
  "pin": {
-  "hoocode_version": "0.5.89",
-  "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
+  "hoocode_version": "0.6.0",
+  "hoocode_commit": "2223437c99cc4279ad40a39d8ff9268a5c8ee0fd"
  },
  "statuses": {
   "todo": "not started",

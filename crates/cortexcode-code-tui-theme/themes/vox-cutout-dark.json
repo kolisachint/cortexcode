@@ -1,5 +1,5 @@
 {
-	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"$schema": "https://raw.githubusercontent.com/kolisachint/hoocode-ts/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
 	"name": "vox-cutout-dark",
 	"description": "Paper cut-outs on newsprint black: dark colored stocks, cut edges, tape-yellow headlines, AAA ink",
 	"vars": {

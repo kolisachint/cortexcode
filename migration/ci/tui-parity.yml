@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin drift (upstream released past the pin?)
+        run: python3 migration/pin_drift.py status >> "$GITHUB_STEP_SUMMARY"
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
       - name: Build pinned hoocode reference

@@ -245,10 +245,23 @@ mod tests {
 
         let nfd: String = "Capture d\u{2019}écran.png".nfd().collect();
         std::fs::write(dir.join(&nfd), "x").unwrap();
-        assert_eq!(
-            resolve_read_path_with_home("Capture d'écran.png", &dir, home),
-            dir.join(&nfd)
-        );
+        let resolved = resolve_read_path_with_home("Capture d'écran.png", &dir, home);
+        if cfg!(target_os = "macos") {
+            // APFS matches names normalization-insensitively, so the curly-quote
+            // NFC spelling already exists; either spelling opens the NFD file.
+            assert!(resolved.exists(), "{}", resolved.display());
+            assert_eq!(
+                resolved
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .nfd()
+                    .collect::<String>(),
+                nfd
+            );
+        } else {
+            assert_eq!(resolved, dir.join(&nfd));
+        }
 
         std::fs::write(dir.join("it\u{2019}s.txt"), "x").unwrap();
         assert_eq!(

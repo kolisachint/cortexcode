@@ -769,7 +769,10 @@ fn run_cortex(sc: &Value) -> RawRun {
         .prefix("replay-")
         .tempdir()
         .expect("tempdir");
-    let (home, work) = (tmp.path().join("home"), tmp.path().join("work"));
+    // The real path: on macOS the temp dir is under the /var -> /private/var
+    // symlink and cortex reports its cwd resolved, which the masks must match.
+    let root = tmp.path().canonicalize().expect("canonical tempdir");
+    let (home, work) = (root.join("home"), root.join("work"));
     fs::create_dir_all(&home).expect("home");
     fs::create_dir_all(&work).expect("work");
     if let Some(files) = sc.get("files").and_then(Value::as_object) {
@@ -809,7 +812,7 @@ fn run_cortex(sc: &Value) -> RawRun {
     let (home_s, work_s, tmp_s) = (
         home.display().to_string(),
         work.display().to_string(),
-        tmp.path().display().to_string(),
+        root.display().to_string(),
     );
     let mut env: Vec<(String, String)> = vec![
         ("HOME".into(), home_s.clone()),

@@ -29,7 +29,15 @@ git -C "$DEST" checkout --force --detach "$COMMIT"
 
 cd "$DEST"
 rm -f .built-*
-bun install --frozen-lockfile
+# Install with the bun the pin declares (package.json "packageManager"). A newer
+# bun can read the lockfile differently and refuse --frozen-lockfile (v0.6.0 with
+# bun 1.4: "lockfile had changes"), which used to stop a pin bump here.
+BUN=(bun)
+WANT_BUN="$(node -p "(require('./package.json').packageManager||'').replace(/^bun@/,'')" 2>/dev/null || true)"
+if [[ -n "$WANT_BUN" && "$(bun --version 2>/dev/null)" != "$WANT_BUN" ]]; then
+  BUN=(npx -y "bun@$WANT_BUN")
+fi
+"${BUN[@]}" install --frozen-lockfile
 npm run build
 touch ".built-$COMMIT"
 echo "hoocode $COMMIT built at $DEST"

@@ -182,8 +182,8 @@ cortexcode-tui-util = { path = "crates/cortexcode-tui-util" }
 # Pinned hoocode snapshot this migration ports from. Changing the pin is a
 # deliberate PR; see docs/design/hoocode-to-cortexcode-migration.md §0.1.
 repository = "https://github.com/kolisachint/hoocode-ts"
-hoocode-version = "0.5.89"
-hoocode-commit = "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
+hoocode-version = "0.6.0"
+hoocode-commit = "2223437c99cc4279ad40a39d8ff9268a5c8ee0fd"
 
 # Full debuginfo across ~220 test binaries does not fit a cloud session's disk
 # and slows every link; file:line backtraces are kept (build-speed.md D1).

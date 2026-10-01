@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Pin bumped to hoocode v0.6.0 (2026-10-01)
+- Model catalog regenerated from hoocode v0.6.0 (1228 models). It adds
+  `anthropic/claude-sonnet-5-5`, `opencode-go/longcat-2.5-preview-free`, `opencode/gpt-6.1-sol`
+  and others, and drops models upstream removed (e.g. `opencode-go/kimi-k2.6`).
+- OpenCode Go: every request sends `user-agent: hoocode` and, when a session exists,
+  `x-opencode-session` (Chat Completions, Responses and Anthropic Messages), even with prompt
+  caching off. Go rejected requests without it: `400 Request is missing x-opencode-session`.
+- Default models for `opencode-go`, `fireworks` and `together` are now Kimi K3. A test now
+  fails when any provider default drops out of the catalog.
+- Bundled theme JSONs match the pin (a test checks them against the pinned checkout).
+- `migration/pin_drift.py` reports when upstream has released past the pin and prints the
+  port checklist for a bump. `setup_hoocode.sh` installs with the pin's declared bun version.
+
 ### Migration paused, `cortex` ready for use (2026-10-01)
 - Every remaining ledger task is deferred by user decision: MCP (9.1, 10.11),
   webfetch/websearch (10.2e), the TS test ledger close-out (13.4) and phase 12. See the

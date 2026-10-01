@@ -1,7 +1,9 @@
 # cortexcode
 
 Rust port of the TypeScript coding agent hoocode (https://github.com/kolisachint/hoocode-ts),
-pinned to hoocode v0.5.89 (`[workspace.metadata.cortex.source]` in `Cargo.toml`).
+pinned to hoocode v0.6.0 (`[workspace.metadata.cortex.source]` in `Cargo.toml`).
+`python3 migration/pin_drift.py status` shows whether upstream has released past the pin;
+a bump needs the user's go-ahead and follows the `pin_drift.py delta` checklist.
 Never modify hoocode; it is the reference.
 
 - "continue migration" / migration status → follow `.claude/skills/continue-migration/SKILL.md`.

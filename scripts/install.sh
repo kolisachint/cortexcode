@@ -4,12 +4,20 @@
 # changes, so nothing in the code needs renaming.
 #
 # Usage: scripts/install.sh [--prefix DIR] [--also-cortex]
-#   --prefix DIR    install into DIR (default: ~/.local/bin)
+#   --prefix DIR    install into DIR (default: ~/.hoocode/bin when the curl
+#                   installer's install exists, else ~/.local/bin)
 #   --also-cortex   keep a `cortex` link too
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PREFIX="$HOME/.local/bin"
+# Update the curl install (install/install.sh: ~/.hoocode/bin, on PATH) in place
+# rather than adding a second copy elsewhere that it would shadow.
+CURL_BIN="${HOOCODE_INSTALL_DIR:-$HOME/.hoocode}/bin"
+if [[ -x "$CURL_BIN/hoocode" ]]; then
+  PREFIX="$CURL_BIN"
+else
+  PREFIX="$HOME/.local/bin"
+fi
 ALSO_CORTEX=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -24,13 +32,20 @@ TARGET_DIR="$(cargo metadata --format-version 1 --no-deps --manifest-path "$ROOT
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["target_directory"])')"
 
 mkdir -p "$PREFIX"
-install -m 755 "$TARGET_DIR/release/cortex" "$PREFIX/hoocode"
-install -m 755 "$ROOT/scripts/shims/hoocode-ts" "$PREFIX/hoocode-ts"
+# Copy then rename, so a running hoocode keeps its (old) file.
+install -m 755 "$TARGET_DIR/release/cortex" "$PREFIX/.hoocode.new"
+mv -f "$PREFIX/.hoocode.new" "$PREFIX/hoocode"
+[[ -e "$PREFIX/hoo" ]] || ln -s hoocode "$PREFIX/hoo"
+# Keep an existing hoocode-ts (e.g. the curl installer's link to a real TS
+# install); the shim only fills the gap.
+if [[ ! -e "$PREFIX/hoocode-ts" ]]; then
+  install -m 755 "$ROOT/scripts/shims/hoocode-ts" "$PREFIX/hoocode-ts"
+fi
 if [[ $ALSO_CORTEX == 1 ]]; then
   ln -sf hoocode "$PREFIX/cortex"
 fi
 
-echo "installed: $PREFIX/hoocode (Rust), $PREFIX/hoocode-ts (TypeScript shim)"
+echo "installed: $PREFIX/hoocode (Rust); hoocode-ts: $PREFIX/hoocode-ts"
 case ":$PATH:" in
   *":$PREFIX:"*) ;;
   *) echo "note: $PREFIX is not on PATH" >&2 ;;
