@@ -80,3 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 migration/check_dep_firewall.py
+      # The curl installer runs under any /bin/sh; check it parses under dash too.
+      - name: install.sh syntax
+        run: |
+          sudo apt-get install -y -qq dash >/dev/null
+          sh -n install/install.sh
+          dash -n install/install.sh

@@ -11,7 +11,7 @@ Ship the current work as a GitHub pull request. Do every step yourself with
 |---|---|---|
 | `patch` / `minor` / `major` | release level, **required** (first arg) | `rust:<level>` |
 | `none` | merge without a release | (no release label) |
-| `crates` | also publish crates to crates.io on release | `release:crates` |
+| `crates` | deferred: crates.io publishing is off, the label only leaves a notice | `release:crates` |
 | `fast` | release skips CI gates (PR CI already ran) | `release:skip-gates` |
 | `draft` | open as a draft PR | — |
 | `auto` | enable auto-merge (merge commit) once checks pass | — |

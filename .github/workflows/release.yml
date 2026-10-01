@@ -1,8 +1,9 @@
 name: Release
 
 # Fast path: CI gates (parallel, via ci.yml) → bump + tag + GitHub release →
-# binaries for 4 targets in parallel (binaries.yml). crates.io publishing is
-# opt-in (publish_crates) and runs beside the binaries, never in front of them.
+# binaries for 4 targets in parallel, then SHA256SUMS and npm (binaries.yml).
+# crates.io publishing is deferred: publish_crates is accepted but does nothing
+# (see docs/design/distribution.md).
 
 on:
   workflow_dispatch:
@@ -17,7 +18,7 @@ on:
         type: boolean
         default: false
       publish_crates:
-        description: "Also publish crates to crates.io"
+        description: "Deferred: crates.io publishing is off; this does nothing"
         type: boolean
         default: false
   workflow_call:
@@ -89,19 +90,14 @@ jobs:
       tag: ${{ needs.tag.outputs.tag }}
     permissions:
       contents: write
+      id-token: write
+    secrets: inherit
 
   crates:
+    # Deferred (docs/design/distribution.md): 34 of 42 crates are unpublished and
+    # a first publish hits crates.io rate limits. The label only leaves a note.
     needs: tag
     if: ${{ !cancelled() && needs.tag.result == 'success' && inputs.publish_crates }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.tag.outputs.tag }}
-      - name: Toolchain (rust-toolchain.toml)
-        run: rustup toolchain install
-      - name: Publish to crates.io
-        run: python3 scripts/publish_packages.py
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      - run: echo "::notice::crates.io publishing is deferred; release:crates / publish_crates did nothing."

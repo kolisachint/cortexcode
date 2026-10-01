@@ -26,6 +26,26 @@ All crates share a single lockstep version defined in the workspace `Cargo.toml`
 
 ## Installation
 
+**macOS / Linux** (no root, no Node):
+
+```bash
+curl -fsSL https://kolisachint.github.io/hoocode/install.sh | sh
+```
+
+It installs `~/.hoocode/bin/hoocode` (and `hoo`), checks the download against the
+release's `SHA256SUMS`, and adds `~/.hoocode/bin` to `PATH`. `--help` lists the
+options (`--version`, `--dir`, `--no-modify-path`).
+
+**npm / bun:**
+
+```bash
+npm install -g @kolisachint/hoocode     # or: bun add -g @kolisachint/hoocode
+```
+
+The package pulls in only the binary for your platform (macOS or Linux, x64 or
+arm64). There is no Windows build; on Windows use the TypeScript build,
+[hoocode-ts](https://github.com/kolisachint/hoocode-ts).
+
 ### From source
 
 ### Command names: `hoocode` and `hoocode-ts`
@@ -50,9 +70,10 @@ Plain cargo still works and installs the binary as `cortex`:
 
 ### Pre-built binaries
 
-Download `hoocode-<target>.tar.gz` (or `.zip` on Windows) from the
-[GitHub Releases](https://github.com/kolisachint/cortexcode/releases) page. It holds the
-`hoocode` binary and the `hoocode-ts` shim; put both on your `PATH`.
+Download `hoocode-<target>.tar.gz` from the
+[GitHub Releases](https://github.com/kolisachint/hoocode/releases) page and check it
+against `SHA256SUMS`. It holds the `hoocode` binary and the `hoocode-ts` shim; put both
+on your `PATH`. Linux builds are static (musl) and run on any distro.
 
 ## Usage
 

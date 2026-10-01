@@ -48,8 +48,8 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          # No Windows build: it was the slowest leg of every release.
+          # Windows users run the TypeScript build (hoocode-ts).
 
     steps:
       - uses: actions/checkout@v4
@@ -83,11 +83,12 @@ jobs:
         # x86_64-apple-darwin is cross-built on an arm64 runner; skip running it.
         if: matrix.target != 'x86_64-apple-darwin'
         shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          bin="target/${{ matrix.target }}/release/cortex"
-          [[ -f "$bin.exe" ]] && bin="$bin.exe"
+          bin="target/$TARGET/release/cortex"
           "$bin" --version
-          if [[ "${{ matrix.target }}" == *musl ]]; then
+          if [[ "$TARGET" == *musl ]]; then
             file "$bin"
             file "$bin" | grep -Eq 'static(ally|-pie) linked' || { echo "not statically linked" >&2; exit 1; }
           fi
@@ -101,18 +102,11 @@ jobs:
           name="hoocode-$TARGET"
           mkdir -p "dist/$name"
           cp README.md LICENSE "dist/$name/"
-          if [[ "$TARGET" == *windows* ]]; then
-            cp "target/$TARGET/release/cortex.exe" "dist/$name/hoocode.exe"
-            cp scripts/shims/hoocode-ts.cmd "dist/$name/"
-            (cd dist && 7z a "$name.zip" "$name" >/dev/null)
-            echo "file=dist/$name.zip" >> "$GITHUB_OUTPUT"
-          else
-            cp "target/$TARGET/release/cortex" "dist/$name/hoocode"
-            cp scripts/shims/hoocode-ts "dist/$name/"
-            chmod +x "dist/$name/hoocode" "dist/$name/hoocode-ts"
-            tar czf "dist/$name.tar.gz" -C dist "$name"
-            echo "file=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
-          fi
+          cp "target/$TARGET/release/cortex" "dist/$name/hoocode"
+          cp scripts/shims/hoocode-ts "dist/$name/"
+          chmod +x "dist/$name/hoocode" "dist/$name/hoocode-ts"
+          tar czf "dist/$name.tar.gz" -C dist "$name"
+          echo "file=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload to release
         # Under workflow_call, event_name is the caller's, so the input decides.
@@ -146,3 +140,43 @@ jobs:
           gh release download "$TAG" --pattern 'hoocode-*'
           sha256sum hoocode-* | tee SHA256SUMS
           gh release upload "$TAG" SHA256SUMS --clobber
+
+  npm:
+    # @kolisachint/hoocode + one package per platform, built from the archives
+    # just uploaded. Only for releases that uploaded (not artifact-only runs).
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' && (github.event_name == 'release' || inputs.upload) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Build packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$TAG" --pattern 'hoocode-*.tar.gz' --dir archives
+          python3 scripts/npm/build_packages.py "$TAG" archives npm-dist
+      - name: Publish
+        # Platform packages first: the main one depends on them. A version that
+        # is already published (a re-run) is skipped, not an error.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for dir in npm-dist/hoocode-* npm-dist/hoocode; do
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "skip $name@$version (already published)"
+              continue
+            fi
+            (cd "$dir" && npm publish --access public --provenance)
+          done
