@@ -3,6 +3,7 @@
 *.pdb
 .DS_Store
 scripts/__pycache__/
-.agents/
+.agents/*
+!.agents/commands/
 .hoocode/dispatch/
 migration/**/__pycache__/
