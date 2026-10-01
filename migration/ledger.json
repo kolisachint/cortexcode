@@ -2527,7 +2527,7 @@
    "id": "10.5b",
    "title": "New crate code-modes: ask/plan/build/debug modes, mode prompts, /mode /plan /approve semantics",
    "phase": 10,
-   "status": "l1_done",
+   "status": "done",
    "depends": [
     "10.5"
    ],
@@ -2562,6 +2562,12 @@
      "commit": "9b29742",
      "kind": "note",
      "text": "New crate code-modes: hoo-config.json (read/merge/write), mode prompts + grill prompts embedded verbatim, plan parsing (reproduces hoocode's multiline-regex first-line capture), /mode /plan /grill /goal /approve as ModeAction lists, ModesExtension (ExtensionHooks: commands + new before_agent_start hook). CLI installs it per session (--mode-path, enabled_tools). print-context-files: the build-mode appendix now matches hoocode byte for byte. mode-plan L2 (stable) waits on the interactive TUI (11.x: editor, footer mode badge) — cortex's interactive mode is still the placeholder. The host must carry out ModeActions (Notify, Reload, NewSessionWithMessage, SendFollowUp via take_actions); nothing consumes them yet (interactive 11.x; StartAutoLoop needs /loop, 12.5). Not ported: mode prompt in subagents is skipped via SUBAGENT_DEPTH env (10.9 must set CORTEXCODE_SUBAGENT_DEPTH); hoo.setMode footer, argument completions (11.x)."
+    },
+    {
+     "at": "2026-10-01T05:15:25Z",
+     "commit": "cd5f056",
+     "kind": "verify",
+     "text": "L1 pass; L2 mode-plan=pass"
     }
    ]
   },

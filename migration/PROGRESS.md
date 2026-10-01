@@ -55,7 +55,13 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   `cycleAgentMode` (`/mode <next>` from the completions, then "Mode: <landed>" dial step);
   the badge syncs in `apply_runtime_settings`. `StartAutoLoop` is dropped until 12.5.
 - L2: `mode-cycle` (alt+a twice, `/mo` + `/mode ` completions, `/mode plan`, bare `/mode`).
-- Next: `python3 migration/ledger.py next`.
+- 10.5b now done: `mode-plan` passes once the footer badge follows the mode; its scenario
+  got `enableSemanticIndex: false` (README rule 5: hoocode's embsearch stderr line is
+  host-dependent; it was the only remaining difference).
+- Full L2 run: 61 pass; the 8 remaining default-bundle failures (print-* scenarios, waiting
+  on 12.4) and file-autocomplete invalid (no `fd` here).
+- Next: nothing unblocked is left outside phase 12. 13.4 waits on the pending TS files of
+  9.1/10.2e/10.11/12.x; 9.1 (rmcp) and 10.2e (webtools) need the user's decisions.
 
 ### 2026-10-01 · 11.8 key bindings: done; 10.5e added
 - ctrl+t (app.thinking.toggle) hides/shows thinking, saves it, rebuilds the transcript
