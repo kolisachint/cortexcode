@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="${HOOCODE_PIN_DIR:-$ROOT/target/hoocode-pin}"
 COMMIT="$(python3 -c "import tomllib;print(tomllib.load(open('$ROOT/Cargo.toml','rb'))['workspace']['metadata']['cortex']['source']['hoocode-commit'])")"
-REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode}"
+REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode-ts}"
 
 # The file-autocomplete scenario walks files with fd; --offline never downloads it.
 if ! command -v fd >/dev/null && ! command -v fdfind >/dev/null; then

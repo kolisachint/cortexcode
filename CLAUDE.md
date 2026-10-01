@@ -1,6 +1,6 @@
 # cortexcode
 
-Rust port of the TypeScript coding agent hoocode (https://github.com/kolisachint/hoocode),
+Rust port of the TypeScript coding agent hoocode (https://github.com/kolisachint/hoocode-ts),
 pinned to hoocode v0.5.89 (`[workspace.metadata.cortex.source]` in `Cargo.toml`).
 Never modify hoocode; it is the reference.
 

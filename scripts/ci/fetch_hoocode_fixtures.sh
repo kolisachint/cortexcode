@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="${HOOCODE_PIN_DIR:-$ROOT/target/hoocode-pin}"
 COMMIT="$(python3 -c "import tomllib;print(tomllib.load(open('$ROOT/Cargo.toml','rb'))['workspace']['metadata']['cortex']['source']['hoocode-commit'])")"
-REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode}"
+REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode-ts}"
 
 if [[ ! -d "$DEST/.git" ]]; then
   git init -q "$DEST"

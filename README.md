@@ -1,6 +1,6 @@
 # cortexcode
 
-Rust migration of the [HooCode](https://github.com/kolisachint/hoocode) TypeScript coding-agent framework.
+Rust migration of the [HooCode](https://github.com/kolisachint/hoocode-ts) TypeScript coding-agent framework.
 
 This is a multi-crate workspace that mirrors the structure of the [pycortex](https://github.com/kolisachint/pycortex) Python migration. Each namespace (`ai`, `agent`, `code`, `tui`) is split into focused, version-locked crates published to crates.io.
 

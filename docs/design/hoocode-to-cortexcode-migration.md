@@ -2,8 +2,8 @@
 
 > **Status:** RE-BASELINED 2026-09-24 — audited against the pinned source; Phases 7–13 added (see §0 and §9)  
 > **Author:** Sachin Koli  
-> **Source Repo:** https://github.com/kolisachint/hoocode (TypeScript monorepo)  
-> **Source Pin:** hoocode **v0.5.89**, commit [`a6cd96e73c23c897ced685b6bb97b4a0dd61b65a`](https://github.com/kolisachint/hoocode/tree/a6cd96e73c23c897ced685b6bb97b4a0dd61b65a) (2026-09-24) — see §0  
+> **Source Repo:** https://github.com/kolisachint/hoocode-ts (TypeScript monorepo)  
+> **Source Pin:** hoocode **v0.5.89**, commit [`a6cd96e73c23c897ced685b6bb97b4a0dd61b65a`](https://github.com/kolisachint/hoocode-ts/tree/a6cd96e73c23c897ced685b6bb97b4a0dd61b65a) (2026-09-24) — see §0  
 > **Target Repo:** https://github.com/kolisachint/cortexcode (Rust workspace, this repo)  
 > **Migration Reference:** https://github.com/kolisachint/pycortex (Python ultramodular migration)  
 
@@ -136,7 +136,7 @@ with `python3 migration/ledger.py status`.
 
 ### What
 
-Rewrite [HooCode](https://github.com/kolisachint/hoocode) — a deterministic terminal coding agent written as a TypeScript npm monorepo (4 packages, ~133K hand-written LOC plus ~22K generated at the v0.5.89 pin) — into an **ultramodular Rust workspace** of ~47 small, independently versioned crates published on [crates.io](https://crates.io).
+Rewrite [HooCode](https://github.com/kolisachint/hoocode-ts) — a deterministic terminal coding agent written as a TypeScript npm monorepo (4 packages, ~133K hand-written LOC plus ~22K generated at the v0.5.89 pin) — into an **ultramodular Rust workspace** of ~47 small, independently versioned crates published on [crates.io](https://crates.io).
 
 ### Why
 
@@ -1434,7 +1434,7 @@ This document follows the same structure as the pycortex migration design docs:
 
 ## References
 
-- **HooCode (TypeScript):** https://github.com/kolisachint/hoocode — the source being ported
+- **HooCode (TypeScript):** https://github.com/kolisachint/hoocode-ts — the source being ported
 - **pycortex (Python):** https://github.com/kolisachint/pycortex — ultramodular Python migration (same architecture)
 - **cortexcode (Rust):** https://github.com/kolisachint/cortexcode — this repo, the target
 - **Upstream pi-mono:** Mario Zechner (@badlogicgames, @earendil-works) — original project
