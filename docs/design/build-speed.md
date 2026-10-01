@@ -1,6 +1,8 @@
 # Build speed: shortest path from idea to binary
 
-Status: agreed design, not yet implemented (2026-09-29). Scope: cortexcode only; hoocode is
+Status: agreed design (2026-09-29). Implemented 2026-10-01: D1, D9 (CI and release; §4.2,
+§4.6) and D2 in CI. Not yet: D2 locally (`ledger.py verify`), D3–D8, D10–D12.
+Scope: cortexcode only; hoocode is
 never touched. Implementation lands as small steps in the order of §5, each re-measured
 against §2.
 
@@ -145,6 +147,25 @@ The repo-side `SessionStart` hook (§4.1) is the source of truth, so a fresh ses
 no environment configuration. Optionally, the environment's setup script (environment settings
 → Setup script) can pre-install `cargo-binstall` and `cargo-nextest`. The hook skips anything
 already installed.
+
+### 4.6 Release pipeline (implemented 2026-10-01)
+
+Before: `merge-release.yml` failed at startup on every labeled merge (the caller granted the
+reusable `release.yml` less than its `contents: write`), so no release ever ran. Behind it,
+the release ran fmt, clippy and test serially, `cargo install cargo-edit` (unused), then
+crates.io publishing with `cargo publish` verify builds and a 25s sleep per crate, and
+relied on `release: published` to start `binaries.yml`, which a `GITHUB_TOKEN`-created
+release never fires.
+
+Now `release.yml` calls `ci.yml` (parallel gates; skippable) → bump, `cargo update
+--workspace`, tag, `gh release create` → calls `binaries.yml` (4 targets in parallel, each
+uploads on completion). crates.io is opt-in (`publish_crates` / `release:crates` label) and
+runs beside the binaries: `--no-verify`, sleeping only before brand-new crate names.
+crates.io publishing is still blocked by the workspace itself: publishable crates depend on
+crates marked `publish = false`, and internal workspace deps carry no `version`.
+
+Binaries ship as `hoocode-<target>` archives holding `hoocode` (the `cortex` binary,
+renamed at packaging) and the `hoocode-ts` shim.
 
 ## 5. Implementation order
 

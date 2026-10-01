@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# hoocode-ts: run the TypeScript hoocode (npm @kolisachint/hoocode-agent).
+#
+# `hoocode` now names the Rust build (this repo's `cortex` binary), so the
+# TypeScript agent is reached through this shim. Resolution order:
+#   1. $HOOCODE_TS_BIN, if set (any executable, e.g. a local checkout's bin)
+#   2. a global npm install of @kolisachint/hoocode-agent (run with node)
+#   3. npx, which fetches the package on first use
+set -euo pipefail
+
+PKG="@kolisachint/hoocode-agent"
+
+if [[ -n "${HOOCODE_TS_BIN:-}" ]]; then
+  exec "$HOOCODE_TS_BIN" "$@"
+fi
+
+if command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+  entry="$(npm root -g 2>/dev/null)/$PKG/bin/hoocode.js"
+  if [[ -f "$entry" ]]; then
+    exec node "$entry" "$@"
+  fi
+fi
+
+if command -v npx >/dev/null 2>&1; then
+  # npx puts the package's own bin first on PATH, so this is the TS hoocode
+  # even when the Rust `hoocode` is installed.
+  exec npx --yes --package "$PKG" -- hoocode "$@"
+fi
+
+echo "hoocode-ts: Node.js not found. Install Node >= 20 and run: npm install -g $PKG" >&2
+exit 127

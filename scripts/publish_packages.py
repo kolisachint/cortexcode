@@ -72,7 +72,8 @@ def index_url(name: str) -> str:
     return f"https://index.crates.io/{prefix}/{lower}"
 
 
-def on_crates_io(name: str, version: str) -> bool:
+def on_crates_io(name: str, version: str) -> tuple[bool, bool]:
+    """(name exists, this version exists) on crates.io."""
     url = index_url(name)
     try:
         with urllib.request.urlopen(url, timeout=10) as resp:
@@ -81,13 +82,13 @@ def on_crates_io(name: str, version: str) -> bool:
             try:
                 data = json.loads(line)
                 if data.get("vers") == version:
-                    return True
+                    return True, True
             except json.JSONDecodeError:
                 continue
-        return False
+        return True, False
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return False
+            return False, False
         raise
 
 
@@ -139,8 +140,11 @@ def publish_crate(toml: Path, dry_run: bool) -> None:
 
     max_retries = 3
     for attempt in range(max_retries):
+        # --no-verify: the release's CI gates already built and tested the
+        # workspace; re-building every crate from its packaged tarball only
+        # repeats that, one crate at a time.
         proc = subprocess.run(
-            ["cargo", "publish", "-p", name, "--allow-dirty"],
+            ["cargo", "publish", "-p", name, "--allow-dirty", "--no-verify"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -166,7 +170,7 @@ def publish_crate(toml: Path, dry_run: bool) -> None:
     raise RuntimeError(f"failed to publish {name} after {max_retries} attempts")
 
 
-def check_crate(crate: dict) -> tuple[dict, bool]:
+def check_crate(crate: dict) -> tuple[dict, tuple[bool, bool]]:
     return crate, on_crates_io(crate["name"], crate["version"])
 
 
@@ -193,11 +197,13 @@ def main() -> int:
     # Pre-flight: check crates.io presence in parallel.
     print("Checking crates.io index...")
     presence: dict[str, bool] = {}
+    known: dict[str, bool] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(check_crate, c): c for c in to_publish}
         for future in concurrent.futures.as_completed(futures):
-            c, exists = future.result()
+            c, (name_exists, exists) = future.result()
             presence[c["name"]] = exists
+            known[c["name"]] = name_exists
             if exists:
                 print(f"skip  {c['name']} {c['version']} (already on crates.io)")
 
@@ -216,7 +222,8 @@ def main() -> int:
         # New project creation on crates.io is throttled; sleep between publishes.
         # Observed limit: ~5 new crates per 2-minute window. 25s is a conservative
         # base delay; the retry loop handles 429s with the exact Retry-After window.
-        if not args.dry_run:
+        # New versions of existing crates have a far larger allowance: no sleep.
+        if not args.dry_run and not known.get(c["name"], False):
             time.sleep(25)
         published += 1
 
