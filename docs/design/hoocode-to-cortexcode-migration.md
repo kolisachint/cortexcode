@@ -11,7 +11,7 @@
 
 ## Table of Contents
 
-0. [Source pin and audit summary](#0-source-pin-and-audit-summary)
+0. [Source pin, audit and status](#0-source-pin-and-audit-summary) (§0.3: status at pause)
 1. [Scope and Goals](#1-scope-and-goals)
 2. [Principles](#2-principles)
 3. [Source Analysis — HooCode (TypeScript)](#3-source-analysis--hoocode-typescript)
@@ -102,6 +102,33 @@ phase builds on those types.
 > `MIGRATION_FINAL_SESSION_SUMMARY.md`, `MIGRATION_SESSION_SUMMARY.md`,
 > `MIGRATION_VIM_JUMP_COMPLETE.md`. **This document is the single source of truth.**
 > Those files were removed in task 7.0, and their history is summarized in `CHANGELOG.md`.
+
+### 0.3 Status at pause (2026-10-01)
+
+By user decision, the migration is **paused** so that `cortex` can be used. Every task
+left in `migration/ledger.json` is `deferred` (9.1, 10.2e, 10.11, 13.4 and all of
+phase 12), and none is `todo` or `in_progress`. Tally: phases 7, 8 and 11 complete; phase 9
+at 6/7; phase 10 at 33/43 done plus 8 `l1_done`; phase 13 at 9/10. Check the current figures
+with `python3 migration/ledger.py status`.
+
+- **Usable now:** interactive TUI, print, json and rpc modes; every catalog provider and
+  OAuth login; sessions (compaction, resume, fork, tree); the read, bash, edit, write,
+  lexical SearchCodebase, TodoWrite and ask_options tools; the permission gate;
+  ask/plan/build/debug modes; subagents; skills, prompt templates, context files, themes,
+  settings and keybindings.
+- **L1-only tasks** (10.2a/b/c/d/f/g, 10.4c, 10.5): they pass their ported tests, but their
+  Level-2 scenarios use the default-bundle system prompt. At the pin, that prompt includes the
+  SearchHooCode self-knowledge tool from 12.4, so the model requests differ in that one block.
+- **Deferred:** MCP (9.1, 10.11), webfetch/websearch (10.2e; decision pending between the
+  external `webtools` binary and in-process `htmd`/`dom_smoothie`), plugins (12.1),
+  package manager (12.2), code extensions (12.3), semantic search (12.4), `/loop` and
+  `/goal` (12.5), warm pool (12.6), and the 12.7 extras (HTML export, `/share`, `/learn`,
+  canvas, teams, voice, telemetry, version check). 13.4 can close only once these tasks have
+  ported their 94 pending TS test files.
+- **Open decisions:** 9.1 (adopt `rmcp` and accept that tool results are re-serialized, or
+  keep a hand-written transport) and 10.2e (see its ledger `block` entry).
+- **Resuming:** move a task back to `todo` in the ledger (it is a user decision, so note it
+  in the task log), then follow `.claude/skills/continue-migration/SKILL.md`.
 
 ---
 
@@ -1155,9 +1182,9 @@ The one-off `.github/workflows/reserve-names.yml` workflow publishes `0.0.1` pla
 
 Everything later serializes these types or runs on this runtime, so this phase is ordered strictly.
 
-- [ ] **7.0 Pin + docs hygiene.** Record the pin in root `Cargo.toml` `[workspace.metadata.cortex.source]` (done with this revision). Fold the stale `MIGRATION_*.md` files into `CHANGELOG.md` or delete them, and point the README status at this document.
-- [ ] **7.1 MSRV 1.88.** Bump `rust-version`, set the CI toolchain, and add `rust-toolchain.toml` so contributors build the same way.
-- [ ] **7.2 Hoocode-compatible wire types.** In `ai-types` and `agent-types`:
+- [x] **7.0 Pin + docs hygiene.** Record the pin in root `Cargo.toml` `[workspace.metadata.cortex.source]` (done with this revision). Fold the stale `MIGRATION_*.md` files into `CHANGELOG.md` or delete them, and point the README status at this document.
+- [x] **7.1 MSRV 1.88.** Bump `rust-version`, set the CI toolchain, and add `rust-toolchain.toml` so contributors build the same way.
+- [x] **7.2 Hoocode-compatible wire types.** In `ai-types` and `agent-types`:
   - Internally tagged `role` on messages and `type` on content blocks, all camelCase.
   - `UserMessage.content` accepts `string | blocks`.
   - `AssistantMessage` gains `api`, `provider`, `model`, `responseModel?`, `responseId?`, `diagnostics?`, a non-optional `usage` (with `cost`), and a non-optional `timestamp`.
@@ -1173,26 +1200,26 @@ Everything later serializes these types or runs on this runtime, so this phase i
 ### Phase 8 — AI namespace parity
 
 - [x] **8.1 Model registry at the pin.** Regenerate `models.json` from `packages/ai/src/models.generated.ts` at the pin (1224 models) using `scripts/convert_models_to_json.py`, and record the pin in the file. Add the `compat` structs (`OpenAICompletionsCompat`, `OpenAIResponsesCompat`, `AnthropicMessagesCompat`, OpenRouter/Vercel routing). Regenerate `image-models` too.
-- [ ] **8.2 API registry.** Dispatch on `model.api` (8 APIs), not on the provider name, mirroring `api-registry.ts` and `register-builtins.ts`. That routes all 31 known providers (groq, xai, openrouter, deepseek, cerebras, zai, …) through `openai-completions` with compat, and removes the hard-coded match in `code-main::runtime`. Extend the `env-api-keys.ts` parity test to cover every provider.
-- [ ] **8.3 `openai-responses`.** Extract the Responses request/stream code already in `ai-provider-azure` into a shared module, then add the `openai-responses` API (reasoning replay, foreign tool-call ids, partial-JSON cleanup, image tool results).
-- [ ] **8.4 Subscription providers.** `openai-codex-responses` (+ ChatGPT OAuth, SSE and WebSocket transport), `github-copilot` routing (Anthropic and OpenAI backends), `google-gemini-cli` and `google-antigravity` (+ OAuth). Lower priority: behind the core, but needed by users who log in with subscriptions.
-- [ ] **8.5 Provider utilities.** Port with their tests: `transform-messages` (cross-provider handoff), `overflow`, `retry-delay`, `param-fallback`, `tool-constraints`, `simple-options`, the Anthropic tool-name normalization and eager-tool-input handling, cache retention, and `xhigh`. Adopt `jsonschema` for tool-argument validation (`validation.ts`).
-- [ ] **8.6 Port the provider test suite.** The 68 TS test files map to Rust unit and fixture tests. Tests that need live keys (`*-e2e.test.ts`) become `#[ignore]` integration tests gated on env vars.
+- [x] **8.2 API registry.** Dispatch on `model.api` (8 APIs), not on the provider name, mirroring `api-registry.ts` and `register-builtins.ts`. That routes all 31 known providers (groq, xai, openrouter, deepseek, cerebras, zai, …) through `openai-completions` with compat, and removes the hard-coded match in `code-main::runtime`. Extend the `env-api-keys.ts` parity test to cover every provider.
+- [x] **8.3 `openai-responses`.** Extract the Responses request/stream code already in `ai-provider-azure` into a shared module, then add the `openai-responses` API (reasoning replay, foreign tool-call ids, partial-JSON cleanup, image tool results).
+- [x] **8.4 Subscription providers.** `openai-codex-responses` (+ ChatGPT OAuth, SSE and WebSocket transport), `github-copilot` routing (Anthropic and OpenAI backends), `google-gemini-cli` and `google-antigravity` (+ OAuth). Lower priority: behind the core, but needed by users who log in with subscriptions.
+- [x] **8.5 Provider utilities.** Port with their tests: `transform-messages` (cross-provider handoff), `overflow`, `retry-delay`, `param-fallback`, `tool-constraints`, `simple-options`, the Anthropic tool-name normalization and eager-tool-input handling, cache retention, and `xhigh`. Adopt `jsonschema` for tool-argument validation (`validation.ts`).
+- [x] **8.6 Port the provider test suite.** The 68 TS test files map to Rust unit and fixture tests. Tests that need live keys (`*-e2e.test.ts`) become `#[ignore]` integration tests gated on env vars.
 
 ### Phase 9 — Agent harness parity
 
-- [ ] **9.1 MCP on `rmcp`.** Replace `agent-mcp/src/transport.rs` with `rmcp` clients (child-process stdio, streamable HTTP, legacy SSE). Add MCP OAuth (`mcp-oauth.ts`) via `rmcp`'s `auth` feature. Keep the `mcp.json` loader, tool naming (`mcp_<server>_<tool>`), deferred MCP loading (`mcp-deferred.ts`) and status reporting (`mcp-status.ts`). Port the `extensions/core/mcp-loader.ts` discovery order.
-- [ ] **9.2 Compaction.** Port `harness/compaction/{compaction,branch-summarization,utils}.ts` (~1.4K LOC), the cut-point selection, and `agent-session-compaction.ts` (auto-compaction thresholds and overflow recovery).
-- [ ] **9.3 Harness utilities.** Port `harness/{skills,prompt-templates,messages,system-prompt}.ts` deltas since 0.4.x, plus `utils/{truncate,shell-output,output-compression}.ts` (tool output limits shared by bash and read).
-- [ ] **9.4 Agent harness.** Port `harness/agent-harness.ts`: the execution environment abstraction (`env/nodejs.ts` → std/tokio implementation).
-- [ ] **9.5 Proxy stream.** Port `proxy.ts` (app-server proxy streaming) only if an RPC or web consumer needs it. Otherwise it goes to Phase 12.
+- [ ] **9.1 MCP on `rmcp`.** Replace `agent-mcp/src/transport.rs` with `rmcp` clients (child-process stdio, streamable HTTP, legacy SSE). Add MCP OAuth (`mcp-oauth.ts`) via `rmcp`'s `auth` feature. Keep the `mcp.json` loader, tool naming (`mcp_<server>_<tool>`), deferred MCP loading (`mcp-deferred.ts`) and status reporting (`mcp-status.ts`). Port the `extensions/core/mcp-loader.ts` discovery order. *(Status 2026-10-01: deferred: 9.1.)*
+- [x] **9.2 Compaction.** Port `harness/compaction/{compaction,branch-summarization,utils}.ts` (~1.4K LOC), the cut-point selection, and `agent-session-compaction.ts` (auto-compaction thresholds and overflow recovery).
+- [x] **9.3 Harness utilities.** Port `harness/{skills,prompt-templates,messages,system-prompt}.ts` deltas since 0.4.x, plus `utils/{truncate,shell-output,output-compression}.ts` (tool output limits shared by bash and read).
+- [x] **9.4 Agent harness.** Port `harness/agent-harness.ts`: the execution environment abstraction (`env/nodejs.ts` → std/tokio implementation).
+- [ ] **9.5 Proxy stream.** Port `proxy.ts` (app-server proxy streaming) only if an RPC or web consumer needs it. Otherwise it goes to Phase 12. *(Not in the ledger: not needed so far.)*
 
 ### Phase 10 — Coding-agent core (headless parity)
 
 Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with the same settings, sessions and tools.
 
-- [ ] **10.1 Settings.** Port `settings-{manager,types,defaults,storage}.ts`: global + project scopes, merge rules, file locking (`fs4`) and atomic writes (`tempfile`). Read `~/.hoocode/settings.json` and `.hoocode/settings.json` as fallback sources, and keep the `migrate.rs` one-shot copy.
-- [ ] **10.2 Built-in tools at the pin.** Default bundle `read, bash, edit, write, SearchCodebase`. Opt-in via flags: `webfetch`, `websearch` (`--enable-webtools`), `todo` (`--enable-todowrite`), `subagent` (`--enable-subagents`). Keep `grep/find/ls` only as non-default compatibility tools. Per tool:
+- [x] **10.1 Settings.** Port `settings-{manager,types,defaults,storage}.ts`: global + project scopes, merge rules, file locking (`fs4`) and atomic writes (`tempfile`). Read `~/.hoocode/settings.json` and `.hoocode/settings.json` as fallback sources, and keep the `migrate.rs` one-shot copy.
+- [ ] **10.2 Built-in tools at the pin.** Default bundle `read, bash, edit, write, SearchCodebase`. Opt-in via flags: `webfetch`, `websearch` (`--enable-webtools`), `todo` (`--enable-todowrite`), `subagent` (`--enable-subagents`). Keep `grep/find/ls` only as non-default compatibility tools. Per tool: *(Status 2026-10-01: L1 only (L2 waits on 12.4): 10.2a, 10.2b, 10.2c, 10.2d, 10.2f, 10.2g; deferred: 10.2e.)*
   - `read`: truncation, line ranges, image reads via `image`, and `read-dedup`.
   - `bash`: `process-wrap` process groups, timeout, abort, `output-accumulator`, and shell resolution (`utils/shell.ts`).
   - `edit`: `edit-diff.ts` fuzzy matching with `similar`, `file-mutation-queue`, and diff details for the UI.
@@ -1200,22 +1227,22 @@ Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with 
   - `SearchCodebase`: lexical mode on `grep-searcher` + `ignore`. Semantic and hybrid modes go to Phase 12.
   - `webfetch`/`websearch`: `htmd` + `dom_smoothie`, and the `webtools-shared.ts` limits.
   - Port the tool tests.
-- [ ] **10.3 AgentSession.** Port `agent-session.ts` plus its `-runtime`, `-services`, `-retry`, `-stats`, `-skills` and `-tree-navigation` modules. This is the orchestrator all three modes share: persistence into the `code-session` tree, retries, auto-compaction, model and thinking switching, and cost/usage stats. `session-manager.ts` deltas and `session-cwd`/`session-identity` go here too.
-- [ ] **10.4 Models and auth.** Port `model-registry.ts` (built-ins + user `models.json` custom providers), `model-resolver.ts` (`provider/model` patterns, `--models` scoping, fuzzy match), `auth-storage.ts` (`auth.json` format-compatible; OAuth refresh with a lock), and `auth-guidance.ts`.
-- [ ] **10.5 Resources.** Port `resource-loader.ts`, `skills.ts`, `builtin-skills.ts`, `prompt-templates.ts`, `context-files.ts` (AGENTS.md/CLAUDE.md walk-up), `slash-commands.ts`, `mode-prompts.ts` and the ask/plan/build/debug mode system (`extensions/core/modes.ts`), plus `agent-frontmatter`/`agent-registry` (`--agent`). Parse frontmatter with `serde_yaml_ng`. Discovery honors `.hoocode/` and `.cortexcode/`.
-- [ ] **10.6 Permission gate.** Port the `extensions/core/permission-gate.ts` policy (hard tool/command policy, `--disallowed-tools`, per-session approvals). Keep the trait from `agent-types`.
-- [ ] **10.7 CLI.** Move `code-main` args into `code-cli` as an exact port of the hand-written `args.ts` parser (not `clap`; see §3.4) with **exactly** the pinned flag set (`cli/args.ts`, 50+ flags incl. `--continue/--resume/--session/--fork/--no-session`, `--models`, `--thinking`, `--tools/--no-tools`, `--list-models`, `--export`, `--offline`, `--print-token-surface`). Also port `initial-message.ts`, `file-processor.ts` (`@file` args) and `list-models.ts`.
-- [ ] **10.8 Print and RPC protocol parity.** `--mode json` must emit the same event objects as `print-mode.ts`. Replace the generic JSON-RPC server with hoocode's RPC protocol (`modes/rpc/{rpc-types,rpc-mode,jsonl}.ts`: commands, events, extension UI requests). Port `rpc-client.ts` as a Rust client so subagents and tests can use it.
-- [ ] **10.9 Subagents.** Port `subagent-pool.ts`, `tools/subagent.ts`, `subagent-{depth,events,inbox,result}.ts`, `lifeguard.ts` (heartbeat/timeout) and `dispatch-evaluator.ts` (depth guard) on the 10.8 RPC protocol. The warm pool goes to Phase 12.
-- [ ] **10.10 Small core modules.** `bash-executor`, `exec`, `event-bus`, `git-branch`, `format-*`, `token-budget`, `timings`, `diagnostics`, `output-guard`/`output-verifier`, `resolve-config-value` (`!cmd` / env interpolation), `utils/{paths,git,mime,tls-ca}`. `--ca-cert`/`--use-system-ca` map to `reqwest` rustls roots.
+- [x] **10.3 AgentSession.** Port `agent-session.ts` plus its `-runtime`, `-services`, `-retry`, `-stats`, `-skills` and `-tree-navigation` modules. This is the orchestrator all three modes share: persistence into the `code-session` tree, retries, auto-compaction, model and thinking switching, and cost/usage stats. `session-manager.ts` deltas and `session-cwd`/`session-identity` go here too.
+- [ ] **10.4 Models and auth.** Port `model-registry.ts` (built-ins + user `models.json` custom providers), `model-resolver.ts` (`provider/model` patterns, `--models` scoping, fuzzy match), `auth-storage.ts` (`auth.json` format-compatible; OAuth refresh with a lock), and `auth-guidance.ts`. *(Status 2026-10-01: L1 only (L2 waits on 12.4): 10.4c.)*
+- [ ] **10.5 Resources.** Port `resource-loader.ts`, `skills.ts`, `builtin-skills.ts`, `prompt-templates.ts`, `context-files.ts` (AGENTS.md/CLAUDE.md walk-up), `slash-commands.ts`, `mode-prompts.ts` and the ask/plan/build/debug mode system (`extensions/core/modes.ts`), plus `agent-frontmatter`/`agent-registry` (`--agent`). Parse frontmatter with `serde_yaml_ng`. Discovery honors `.hoocode/` and `.cortexcode/`. *(Status 2026-10-01: L1 only (L2 waits on 12.4): 10.5.)*
+- [x] **10.6 Permission gate.** Port the `extensions/core/permission-gate.ts` policy (hard tool/command policy, `--disallowed-tools`, per-session approvals). Keep the trait from `agent-types`.
+- [x] **10.7 CLI.** Move `code-main` args into `code-cli` as an exact port of the hand-written `args.ts` parser (not `clap`; see §3.4) with **exactly** the pinned flag set (`cli/args.ts`, 50+ flags incl. `--continue/--resume/--session/--fork/--no-session`, `--models`, `--thinking`, `--tools/--no-tools`, `--list-models`, `--export`, `--offline`, `--print-token-surface`). Also port `initial-message.ts`, `file-processor.ts` (`@file` args) and `list-models.ts`.
+- [x] **10.8 Print and RPC protocol parity.** `--mode json` must emit the same event objects as `print-mode.ts`. Replace the generic JSON-RPC server with hoocode's RPC protocol (`modes/rpc/{rpc-types,rpc-mode,jsonl}.ts`: commands, events, extension UI requests). Port `rpc-client.ts` as a Rust client so subagents and tests can use it.
+- [x] **10.9 Subagents.** Port `subagent-pool.ts`, `tools/subagent.ts`, `subagent-{depth,events,inbox,result}.ts`, `lifeguard.ts` (heartbeat/timeout) and `dispatch-evaluator.ts` (depth guard) on the 10.8 RPC protocol. The warm pool goes to Phase 12.
+- [x] **10.10 Small core modules.** `bash-executor`, `exec`, `event-bus`, `git-branch`, `format-*`, `token-budget`, `timings`, `diagnostics`, `output-guard`/`output-verifier`, `resolve-config-value` (`!cmd` / env interpolation), `utils/{paths,git,mime,tls-ca}`. `--ca-cert`/`--use-system-ca` map to `reqwest` rustls roots.
 
 ### Phase 11 — Interactive TUI mode
 
-- [ ] **11.1 Wire the ported TUI.** Run `tui-render`, `tui-terminal` and `tui-keys` on a tokio task, fed by AgentSession events over channels. Replace `run_interactive_mode` and the ad-hoc `permission_dialog`. Port `core/keybindings.ts` (app keybindings on top of `tui-keys`) and `theme/theme.ts` with its JSON themes.
-- [ ] **11.2 Chat view.** Port `interactive-mode.ts` (4.6K) incrementally: user and assistant messages (markdown + `syntect` highlighting), tool execution and tool-chain summaries, the `diff` component (`similar`), bash execution, compaction and branch summaries, footer, loaders, and notifications.
-- [ ] **11.3 Selectors and dialogs.** Model, scoped-models, session (resume), tree, settings, thinking, theme, login/oauth, config, user-message and ask-options.
-- [ ] **11.4 Input features.** The slash-command executor (`command-executor.ts`), `@file` autocomplete (`tui-components` autocomplete + `ignore`), `!` bash, clipboard text and image paste (`arboard` + `image`), and image display (`tui-images`).
-- [ ] **11.5 Task panel.** `task-panel.ts`, `task-store.ts`, and subagent progress display.
+- [x] **11.1 Wire the ported TUI.** Run `tui-render`, `tui-terminal` and `tui-keys` on a tokio task, fed by AgentSession events over channels. Replace `run_interactive_mode` and the ad-hoc `permission_dialog`. Port `core/keybindings.ts` (app keybindings on top of `tui-keys`) and `theme/theme.ts` with its JSON themes.
+- [x] **11.2 Chat view.** Port `interactive-mode.ts` (4.6K) incrementally: user and assistant messages (markdown + `syntect` highlighting), tool execution and tool-chain summaries, the `diff` component (`similar`), bash execution, compaction and branch summaries, footer, loaders, and notifications.
+- [x] **11.3 Selectors and dialogs.** Model, scoped-models, session (resume), tree, settings, thinking, theme, login/oauth, config, user-message and ask-options.
+- [x] **11.4 Input features.** The slash-command executor (`command-executor.ts`), `@file` autocomplete (`tui-components` autocomplete + `ignore`), `!` bash, clipboard text and image paste (`arboard` + `image`), and image display (`tui-images`).
+- [x] **11.5 Task panel.** `task-panel.ts`, `task-store.ts`, and subagent progress display.
 
 ### Phase 12 — Extended features (triage; each needs a go/no-go before starting)
 
@@ -1234,7 +1261,7 @@ Goal: `cortex -p` and `cortex --mode rpc` behave like `hoocode` at the pin with 
 - [x] **13.1 Fixture recorder.** *(Level-2 harness built: `migration/tui-parity/`; recording of session/json/rpc fixtures for 13.2 uses `harness.py run --keep`.)* A script that checks out hoocode at the pin, runs scripted scenarios with the **faux provider**, and records the session JSONL, `--mode json` event streams and RPC transcripts into `tests/fixtures/hoocode-0.5.89/`, stamped with the pin.
 - [x] **13.2 Replay harness.** Rust integration tests drive `cortex` with the same faux script and compare normalized output (ids, timestamps and paths masked) using `insta`. *(Done: `harness.py record` runs the terminal-free scenarios in `migration/tui-parity/replay.json` headless against hoocode into `crates/cortexcode-code-main/tests/fixtures/hoocode-0.5.89/replay/` plus insta snapshots; `cargo test -p cortexcode-code-main --test replay` replays them against `cortex` with a Rust port of `mockllm.py`, comparing exit status, stdout/stderr, requests, session files and work files.)*
 - [x] **13.3 Replace `scripts/parity_test.sh`.** Its `--help` grep checks become a smoke test only. CI runs 13.2. *(Done: the script checks `--version`/`--help`, runs the 13.2 replay test and, when the pinned hoocode is built, the L2 `print-basic` scenario. CI runs 13.2 in `cargo test --workspace`; the nightly L2 workflow is staged in `migration/ci/tui-parity.yml`.)*
-- [ ] **13.4 TS test port ledger.** A table in this doc listing each of the 400 TS test files as ported, equivalent or not applicable, updated per PR. *(13.4a: the table is generated, not hand-kept: `migration/ts_tests.py generate` writes `migration/ts-tests.json` from the ledger's `ts_tests`, Rust citations and `migration/ts-tests-overrides.json`; `ts_tests.py status` summarizes it. 13.4b resolves the files still marked `review`.)*
+- [ ] **13.4 TS test port ledger.** A table in this doc listing each of the 400 TS test files as ported, equivalent or not applicable, updated per PR. *(13.4a: the table is generated, not hand-kept: `migration/ts_tests.py generate` writes `migration/ts-tests.json` from the ledger's `ts_tests`, Rust citations and `migration/ts-tests-overrides.json`; `ts_tests.py status` summarizes it. 13.4b resolves the files still marked `review`.)* *(Status 2026-10-01: deferred: 13.4.)*
 
 ### Recommended execution order
 

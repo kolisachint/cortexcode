@@ -375,6 +375,12 @@
      "commit": "edeb2bf",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-read=fail, print-tool-read-paging=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -419,6 +425,12 @@
      "commit": "1b11db2",
      "kind": "note",
      "text": "10.5: skills (builtin artifact-design) and context files are in the default system prompt now; remaining default-bundle gaps: agents roster (10.9), docs section, mode appendix (10.5b), SearchHooCode (12.4)."
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -1422,7 +1434,7 @@
    "id": "9.1",
    "title": "MCP on rmcp (stdio, streamable HTTP, SSE, OAuth); keep mcp.json loader + tool naming",
    "phase": 9,
-   "status": "blocked",
+   "status": "deferred",
    "depends": [
     "7.3b",
     "7.1"
@@ -1455,6 +1467,12 @@
      "commit": "80c5a94",
      "kind": "block",
      "text": "Design decision: rmcp 3.4.1 (a) parses results into typed structs (ServerResult is an untagged union; tools/call -> CallToolResult), so the tool-result text hoocode sends the model (JSON.stringify of the server's raw result) would be re-serialized from rmcp's structs: unknown fields dropped, keys in rmcp's order; identical for plain {content:[{type:text,text}]} results. (b) rmcp 3.x no longer has a legacy HTTP+SSE client, which hoocode still supports (type:sse and the 4xx fallback), so that transport stays hand-written either way. Options: (1) rmcp for stdio + streamable HTTP + OAuth (auth feature), hand-written legacy SSE, accept the result re-serialization deviation; (2) keep the hand-rolled transport (make it async, raw JSON), add streamable-HTTP session handling + OAuth by hand, no rmcp. Recommendation: (1), plan section 3.4 intent, with the deviation documented."
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused for use; all remaining tasks deferred. Status set to deferred by hand (user decision, not a gate result)."
     }
    ]
   },
@@ -1902,6 +1920,12 @@
      "commit": "e760fc9",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-bash-light=pass, print-tool-bash=fail, tool-bash=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -1952,6 +1976,12 @@
      "commit": "5657a8c",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-edit-light=pass, print-tool-edit=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -1998,6 +2028,12 @@
      "commit": "65a2a85",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-search=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -2005,7 +2041,7 @@
    "id": "10.2e",
    "title": "webfetch + websearch: new crate code-tool-web (htmd, dom_smoothie)",
    "phase": 10,
-   "status": "blocked",
+   "status": "deferred",
    "depends": [
     "10.2a"
    ],
@@ -2033,6 +2069,12 @@
      "commit": "89768c1",
      "kind": "block",
      "text": "Design decision needed: hoocode's webfetch/websearch shell out to the external webtools binary (kolisachint/webtools, Rust, downloaded by tools-manager) and parse its --json output. Options: (A) port the tool layer exactly (args, .webtoolsignore, 15-min cache, result formatting, texts) and run the same webtools binary from PATH / ~/.cortexcode/bin, giving output identical to hoocode (deviates from the design doc's htmd+dom_smoothie row); (B) the design doc's in-process htmd + dom_smoothie extraction, only approximately matching the binary's output (its source was not readable here; add_repo was denied); (C) depend on webtools as a library crate (needs access to that repo). Asked the user 2026-09-26."
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused for use; all remaining tasks deferred. Status set to deferred by hand (user decision, not a gate result)."
     }
    ]
   },
@@ -2076,6 +2118,12 @@
      "commit": "7153078",
      "kind": "verify",
      "text": "L1 pass; L2 print-todo-write=fail, todo-write=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -2123,6 +2171,12 @@
      "commit": "71fd6c6",
      "kind": "verify",
      "text": "L1 pass; L2 print-tool-read-paging=fail"
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -2520,6 +2574,12 @@
      "commit": "1b11db2",
      "kind": "note",
      "text": "print-context-files: the # Project Context section and the skills block (builtin artifact-design at the same cache hash 965fb5cbad49) now match hoocode byte for byte; the request diff left is the default-bundle remainder: <available_agents> (10.9 Task tool; format_agents_for_prompt exists in code-resources), the '# About <app> itself' docs section, and the hoo-core build-mode appendix (10.5b). Not ported here: extensions (12.3), themes (11.1), package sources (12.2); skill-expansion read errors are not reported (the extension runner's error event, 12.3)."
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused. Stays l1_done; its L2 waits on the deferred 12.4 (SearchHooCode in the default-bundle prompt)."
     }
    ]
   },
@@ -3466,7 +3526,7 @@
    "id": "10.11",
    "title": "New crate code-mcp: MCP server discovery (mcp-loader), deferred MCP, status",
    "phase": 10,
-   "status": "todo",
+   "status": "deferred",
    "depends": [
     "9.1",
     "10.3a"
@@ -3491,6 +3551,12 @@
      "commit": "8ff9654",
      "kind": "note",
      "text": "8.5b: hoocode's mcp-loader rebuilds each MCP tool's parameters with TypeBox (buildMcpSchema: number/integer→Type.Number, boolean→Type.Boolean, else Type.String; Optional unless required), so validation takes the TypeBox Value.Convert path. cortex's agent-mcp build_schema passes the raw schema through; port buildMcpSchema here (AgentTool.plain_json_schema stays false)."
+    },
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused for use; all remaining tasks deferred. Status set to deferred by hand (user decision, not a gate result)."
     }
    ]
   },
@@ -7009,7 +7075,7 @@
    "id": "13.4",
    "title": "TS test port ledger: every one of the 400 TS test files marked ported/equivalent/n.a.",
    "phase": 13,
-   "status": "todo",
+   "status": "deferred",
    "depends": [
     "13.4a",
     "13.4b",
@@ -7028,7 +7094,14 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "Split 2026-09-29: 13.4a tooling + automatic/curated classification, 13.4b manual review of what is left.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-10-01T05:49:39Z",
+     "commit": "7f44f28",
+     "kind": "note",
+     "text": "User (2026-10-01): migration paused for use; all remaining tasks deferred. Status set to deferred by hand (user decision, not a gate result)."
+    }
+   ]
   }
  ]
 }
