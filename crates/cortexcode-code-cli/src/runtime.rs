@@ -1029,18 +1029,39 @@ impl AppServerSessions {
         load_registry(&self.auth).find(provider, id).cloned()
     }
 
-    /// Models with auth configured: `(provider/id, name, is default)`.
-    pub fn models(&self) -> Vec<(String, String, bool)> {
+    /// Models with auth configured: `(provider/id, name, is default, hidden)`.
+    /// With a model scope (`--models` or `enabledModels`), models outside it
+    /// are hidden; without one, none are.
+    pub fn models(&self) -> Vec<(String, String, bool, bool)> {
         let registry = load_registry(&self.auth);
         let settings = SettingsManager::create_default(&self.cwd);
         let default = settings.default_model();
-        registry
+        let available: Vec<Model> = registry
             .get_available(self.auth.as_ref())
             .into_iter()
+            .cloned()
+            .collect();
+        let patterns = self
+            .args
+            .models
+            .clone()
+            .or_else(|| settings.enabled_models());
+        let scope: Option<Vec<(String, String)>> = patterns.filter(|p| !p.is_empty()).map(|p| {
+            resolve_model_scope(&p, &available)
+                .models
+                .into_iter()
+                .map(|sm| (sm.model.provider.clone(), sm.model.id.clone()))
+                .collect()
+        });
+        available
+            .iter()
             .map(|m| {
                 let id = format!("{}/{}", m.provider, m.id);
                 let is_default = default.as_deref() == Some(m.id.as_str());
-                (id, m.name.clone(), is_default)
+                let hidden = scope
+                    .as_ref()
+                    .is_some_and(|s| !s.iter().any(|(p, i)| *p == m.provider && *i == m.id));
+                (id, m.name.clone(), is_default, hidden)
             })
             .collect()
     }

@@ -1597,13 +1597,15 @@ impl AgentSession {
     // Model and thinking level
     // ------------------------------------------------------------------
 
+    /// Switch this session's model. Saved to the session file only: the
+    /// default model in settings is never changed by a switch, so one
+    /// session (a TUI, a Discord thread, an RPC client) can't move another's.
     fn apply_model(&self, model: &Model) {
         self.inner.agent.set_model(model.clone());
         lock(&self.inner.session_manager).append_model_change(&model.provider, &model.id);
-        lock(&self.inner.settings).set_default_model_and_provider(&model.provider, &model.id);
     }
 
-    /// `setModel`: requires configured auth; saved to the session and settings.
+    /// `setModel`: requires configured auth; saved to the session only.
     pub fn set_model(&self, model: Model) -> Result<()> {
         if !self.has_configured_auth(&model) {
             return err(format!("No API key for {}/{}", model.provider, model.id));
@@ -1682,7 +1684,7 @@ impl AgentSession {
         })
     }
 
-    /// `setThinkingLevel`: clamped to the model; persisted only on change.
+    /// `setThinkingLevel`: clamped to the model; saved to the session on change.
     pub fn set_thinking_level(&self, level: ThinkingLevel) {
         let available = self.get_available_thinking_levels();
         let effective = if available.contains(&level) {
@@ -1696,12 +1698,9 @@ impl AgentSession {
         let previous = self.thinking_level();
         self.inner.agent.set_thinking_level(effective.clone());
         if effective != previous {
+            // Session only, like the model: settings keep the default.
             lock(&self.inner.session_manager)
                 .append_thinking_level_change(thinking_level_str(&effective));
-            if self.supports_thinking() || effective != ThinkingLevel::Off {
-                lock(&self.inner.settings)
-                    .set_default_thinking_level(ThinkingLevelSetting::from(effective.clone()));
-            }
             self.emit(AgentSessionEvent::ThinkingLevelChanged { level: effective });
         }
     }

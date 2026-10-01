@@ -60,7 +60,7 @@ impl SessionFactory for AppServerSessions {
         sessions
     }
 
-    fn models(&self) -> Vec<(String, String, bool)> {
+    fn models(&self) -> Vec<(String, String, bool, bool)> {
         AppServerSessions::models(self)
     }
 

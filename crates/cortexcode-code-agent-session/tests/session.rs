@@ -37,11 +37,14 @@ fn two_models(second_reasoning: bool) -> Vec<FauxModelDefinition> {
 }
 
 #[test]
-fn set_model_saves_the_model_to_the_session_and_settings() {
+fn set_model_saves_the_model_to_the_session_only() {
     let h = Harness::new(HarnessOptions {
         models: two_models(true),
         ..Default::default()
     });
+    // One guard at a time: `settings()` holds a mutex.
+    let provider = h.session.settings().default_provider();
+    let model = h.session.settings().default_model();
     let next = h.faux.get_model_by_id("faux-2").unwrap();
     h.session.set_model(next.clone()).unwrap();
     assert_eq!(h.session.model().unwrap().id, "faux-2");
@@ -59,8 +62,26 @@ fn set_model_saves_the_model_to_the_session_and_settings() {
         .collect();
     assert_eq!(changes, [format!("{}/faux-2", next.provider)]);
     let settings = h.session.settings();
-    assert_eq!(settings.default_provider(), Some(next.provider.clone()));
-    assert_eq!(settings.default_model().as_deref(), Some("faux-2"));
+    assert_eq!(settings.default_provider(), provider);
+    assert_eq!(settings.default_model(), model);
+}
+
+#[test]
+fn thinking_level_changes_stay_in_the_session() {
+    let h = Harness::new(HarnessOptions {
+        models: two_models(true),
+        ..Default::default()
+    });
+    let before = h.session.settings().default_thinking_level();
+    let next = h
+        .session
+        .get_available_thinking_levels()
+        .into_iter()
+        .find(|l| *l != h.session.thinking_level())
+        .unwrap();
+    h.session.set_thinking_level(next.clone());
+    assert_eq!(h.session.thinking_level(), next);
+    assert_eq!(h.session.settings().default_thinking_level(), before);
 }
 
 #[test]
