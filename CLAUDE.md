@@ -16,6 +16,11 @@ Never modify hoocode; it is the reference.
   (`migration/tui-parity/harness.py`: real hoocode vs real cortex rendered in tmux against
   one mock LLM). `ledger.py verify <id>` runs both.
 
+- **MIT only.** Never copy code, schemas or generated types from non-MIT projects (e.g.
+  `../codex`, Apache-2.0) into this repo. Running such tools in tests is fine.
+- Work outside the migration has no TypeScript reference (user, 2026-10-01). Planned:
+  `docs/design/rpc-approvals.md` (RPC approval dialogs; blocks hoobot on Rust hoocode).
+
 - Command names: the Rust build installs as `hoocode` and the TS one is `hoocode-ts`, by
   shims only (`scripts/install.sh`, `scripts/shims/`, release packaging). Code, crates and
   the `cortex` cargo binary keep their names; don't rename them.
