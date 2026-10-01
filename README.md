@@ -28,16 +28,31 @@ All crates share a single lockstep version defined in the workspace `Cargo.toml`
 
 ### From source
 
+### Command names: `hoocode` and `hoocode-ts`
+
+This Rust build is installed as **`hoocode`**. The TypeScript original is reached as
+**`hoocode-ts`**, a small shim (`scripts/shims/hoocode-ts`) that runs the npm package
+`@kolisachint/hoocode-agent` (a global npm install if present, otherwise `npx`; set
+`HOOCODE_TS_BIN` to point it anywhere else). Only the installed names changed: the crates,
+the cargo binary (`cortex`), the config directory and the in-app name are unchanged. If you
+also have the TS one installed globally from npm, put the Rust `hoocode` earlier on `PATH`
+(npm's `hoo` alias still runs the TS one).
+
 ```bash
 git clone https://github.com/kolisachint/cortexcode
 cd cortexcode
-cargo install --path crates/cortexcode-code-main --bin cortex
+scripts/install.sh                     # → ~/.local/bin/hoocode and hoocode-ts
+scripts/install.sh --prefix /usr/local/bin --also-cortex   # also keep a `cortex` link
 ```
+
+Plain cargo still works and installs the binary as `cortex`:
+`cargo install --path crates/cortexcode-code-main --bin cortex`.
 
 ### Pre-built binaries
 
-Download a pre-built binary for your platform from the [GitHub Releases](https://github.com/kolisachint/cortexcode/releases)
-page. Extract it and place the `cortex` executable on your `PATH`.
+Download `hoocode-<target>.tar.gz` (or `.zip` on Windows) from the
+[GitHub Releases](https://github.com/kolisachint/cortexcode/releases) page. It holds the
+`hoocode` binary and the `hoocode-ts` shim; put both on your `PATH`.
 
 ## Usage
 
@@ -65,9 +80,18 @@ cargo build
 # Run checks for all crates
 cargo check --workspace
 
-# Run all tests
-cargo test --workspace
+# Run all tests (CI uses nextest; `cargo test --workspace` works too)
+scripts/ci/fetch_hoocode_fixtures.sh   # pinned hoocode fixtures a few tests read
+cargo nextest run --workspace
 ```
+
+### Releases
+
+Label a PR `rust:patch`, `rust:minor` or `rust:major`; merging it runs the release:
+CI gates (parallel) → version bump, tag and GitHub release → binaries for 4 targets in
+parallel, each uploaded as soon as it is built. Optional labels: `release:skip-gates`
+(skip the gates, the PR's CI already passed) and `release:crates` (also publish to
+crates.io, off by default). Manual runs: Actions → Release.
 
 ## Migration status (paused 2026-10-01, ready to use)
 

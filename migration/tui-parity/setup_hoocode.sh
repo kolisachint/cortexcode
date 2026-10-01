@@ -22,6 +22,8 @@ fi
 if [[ ! -d "$DEST/.git" ]]; then
   git clone --filter=blob:none --no-checkout "$REPO" "$DEST"
 fi
+# A sparse checkout left by scripts/ci/fetch_hoocode_fixtures.sh: build needs every file.
+git -C "$DEST" sparse-checkout disable 2>/dev/null || true
 git -C "$DEST" fetch --filter=blob:none origin "$COMMIT" 2>/dev/null || git -C "$DEST" fetch origin
 git -C "$DEST" checkout --force --detach "$COMMIT"
 

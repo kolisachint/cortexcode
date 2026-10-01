@@ -185,6 +185,11 @@ repository = "https://github.com/kolisachint/hoocode"
 hoocode-version = "0.5.89"
 hoocode-commit = "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
 
+# Full debuginfo across ~220 test binaries does not fit a cloud session's disk
+# and slows every link; file:line backtraces are kept (build-speed.md D1).
+[profile.dev]
+debug = "line-tables-only"
+
 # Regex compilation is very slow unoptimized: the markdown renderer's rules
 # (tens of patterns) took ~1 s to build on first use in dev builds, which
 # delayed the first frame whenever it held markdown. Optimize just these.
