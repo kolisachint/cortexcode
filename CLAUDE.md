@@ -5,6 +5,8 @@ pinned to hoocode v0.5.89 (`[workspace.metadata.cortex.source]` in `Cargo.toml`)
 Never modify hoocode; it is the reference.
 
 - "continue migration" / migration status → follow `.claude/skills/continue-migration/SKILL.md`.
+- **Paused 2026-10-01:** every remaining task is `deferred` by user decision (plan §0.3).
+  Resume only a task the user names, by moving it back to `todo` first.
 - Plan and rationale: `docs/design/hoocode-to-cortexcode-migration.md`.
 - Task status (source of truth): `migration/ledger.json` via `python3 migration/ledger.py`.
 - Handoff log: `migration/PROGRESS.md`.

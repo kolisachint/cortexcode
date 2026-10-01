@@ -23,10 +23,11 @@ pub mod tree;
 
 pub use compaction::{CompactionPlan, CompactionReason};
 pub use hooks::{
-    CommandFuture, ExpandedInput, ExtensionError, ExtensionHooks, ExtensionSummary, ForkPosition,
-    NoExtensions, ResourceLoader, SessionEvent, SessionEventFuture, SessionEventResult,
-    SessionShutdownReason, SessionStartEvent, SessionStartReason, SessionSwitchReason,
-    SlashCommandInfo, StaticResourceLoader, TemplateKind, TreePreparation,
+    CommandFuture, ExpandedInput, ExtensionCommandInfo, ExtensionError, ExtensionHooks,
+    ExtensionSummary, ExtensionUiRequest, ForkPosition, NoExtensions, NotifyLevel, ResourceLoader,
+    SessionEvent, SessionEventFuture, SessionEventResult, SessionShutdownReason, SessionStartEvent,
+    SessionStartReason, SessionSwitchReason, SlashCommandInfo, StaticResourceLoader, TemplateKind,
+    TreePreparation,
 };
 pub use resources::DefaultResources;
 pub use runtime::{

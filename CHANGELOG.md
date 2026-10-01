@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration paused, `cortex` ready for use (2026-10-01)
+- Every remaining ledger task is deferred by user decision: MCP (9.1, 10.11),
+  webfetch/websearch (10.2e), the TS test ledger close-out (13.4) and phase 12. See the
+  README's "Migration status" and §0.3 of the migration plan for what works and what doesn't.
+- Interactive agent modes: `/mode`, `/plan`, `/grill`, `/approve` now act in the TUI. They
+  notify, reload with the new mode's prompt and tool filter, and update the footer badge. alt+a
+  cycles ask → plan → build → debug, and mode commands appear in autocomplete with
+  argument completions (10.5e).
+- Earlier in this cycle: phase 11 (the interactive TUI) is complete. That covers the chat
+  view, selectors, input features, task panel, key bindings, thinking toggle and the
+  external editor.
+
 ### Migration re-baseline (2026-09-24)
 - Pinned the port to hoocode v0.5.89 (`a6cd96e7`). An audit found the earlier
   "100% complete" status overstated, and progress is now tracked in

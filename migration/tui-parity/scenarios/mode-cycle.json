@@ -1,0 +1,158 @@
+{
+  "description": "alt+a (app.mode.cycleForward) steps the agent mode through /mode's argument completions (ask, plan, build, debug): from build it lands on debug, then wraps to ask; each step runs /mode <next> (notify + reload) and the footer badge follows. /mode lists the modes as argument completions, /mode plan switches by name, and bare /mode reports the active mode.",
+  "phase": "10.5e",
+  "terminal": {
+    "cols": 100,
+    "rows": 30
+  },
+  "settings": {
+    "enableSemanticIndex": false
+  },
+  "llm": [
+    {
+      "text": "unused"
+    }
+  ],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "M-a"
+      ]
+    },
+    {
+      "wait_for": "DEBUG",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "debug",
+      "contains": [
+        "DEBUG"
+      ]
+    },
+    {
+      "keys": [
+        "M-a"
+      ]
+    },
+    {
+      "wait_for": "ASK",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "ask",
+      "contains": [
+        "ASK"
+      ]
+    },
+    {
+      "type": "/mo"
+    },
+    {
+      "wait_for": "Switch active mode",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "command-completions",
+      "contains": [
+        "[t] Switch active mode"
+      ]
+    },
+    {
+      "type": "de "
+    },
+    {
+      "wait_for": "debug",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "argument-completions"
+    },
+    {
+      "type": "plan"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_for": "PLAN",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "plan",
+      "contains": [
+        "PLAN"
+      ]
+    },
+    {
+      "type": "/mode"
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Escape"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 2.0,
+      "timeout": 30
+    },
+    {
+      "snapshot": "report"
+    }
+  ]
+}

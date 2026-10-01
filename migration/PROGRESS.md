@@ -5,6 +5,11 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Resume here
 
+- **Paused 2026-10-01 (user decision): every remaining task is `deferred`.** `ledger.py next`
+  reports nothing ready. To resume, the user picks a task: move it back to `todo` with a
+  log note, then use the usual loop. Open decisions: 9.1 (rmcp vs hand-written MCP) and 10.2e
+  (webtools binary vs htmd/dom_smoothie). Releasing 12.4 also unblocks L2 for the 8 `l1_done`
+  phase-10 tasks. Status summary: README "Migration status" and plan §0.3.
 - Disk: if builds fail with ENOSPC / "Bus error" in ld, `rm -rf target/debug` (keep
   target/hoocode-pin) and build with `CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
   CARGO_PROFILE_TEST_DEBUG=0`. Without debuginfo a full verify leaves target/debug at about
@@ -43,6 +48,31 @@ Newest entry first. Each entry says where to resume. Status numbers come from
   notes for what they wait on.
 
 ## Log
+
+### 2026-10-01 · migration paused; docs updated
+- By user decision, 9.1, 10.2e, 10.11 and 13.4 are set to `deferred` by hand (logged in each
+  task). The `l1_done` tasks got a note that their L2 waits on 12.4.
+- README (status, what works, what's deferred, quick start), plan §0.3 + §9 checkboxes
+  synced to the ledger, CHANGELOG, CLAUDE.md.
+
+### 2026-10-01 · 10.5e modes in the interactive mode: done
+- `ExtensionHooks` grew the UI side of an extension: `commands()` (autocomplete, `[t]`
+  tag), `argument_completions`, `active_mode()` (footer badge, `ctx.ui.setMode`) and
+  `take_ui_requests()` (`ExtensionUiRequest`: Notify / Reload / SendFollowUp /
+  NewSessionWithMessage). `SessionEventResult.active_tools` = `hoo.setActiveTools`.
+- `AgentSession::reload` now emits `session_start` (reason reload) and applies the returned
+  tool filter; `ModesExtension` re-resolves its mode there (active mode is a Mutex now).
+- tui-app drains UI requests every loop pass; alt+a / app.mode.cycleBackward run
+  `cycleAgentMode` (`/mode <next>` from the completions, then "Mode: <landed>" dial step);
+  the badge syncs in `apply_runtime_settings`. `StartAutoLoop` is dropped until 12.5.
+- L2: `mode-cycle` (alt+a twice, `/mo` + `/mode ` completions, `/mode plan`, bare `/mode`).
+- 10.5b now done: `mode-plan` passes once the footer badge follows the mode; its scenario
+  got `enableSemanticIndex: false` (README rule 5: hoocode's embsearch stderr line is
+  host-dependent; it was the only remaining difference).
+- Full L2 run: 61 pass; the 8 remaining default-bundle failures (print-* scenarios, waiting
+  on 12.4) and file-autocomplete invalid (no `fd` here).
+- Next: nothing unblocked is left outside phase 12. 13.4 waits on the pending TS files of
+  9.1/10.2e/10.11/12.x; 9.1 (rmcp) and 10.2e (webtools) need the user's decisions.
 
 ### 2026-10-01 · 11.8 key bindings: done; 10.5e added
 - ctrl+t (app.thinking.toggle) hides/shows thinking, saves it, rebuilds the transcript

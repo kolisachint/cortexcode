@@ -133,6 +133,54 @@ pub trait ExtensionHooks: Send + Sync {
     fn emit_session_event(&self, _event: SessionEvent) -> SessionEventFuture {
         Box::pin(async { SessionEventResult::default() })
     }
+    /// `getRegisteredCommands()`, for autocomplete.
+    fn commands(&self) -> Vec<ExtensionCommandInfo> {
+        Vec::new()
+    }
+    /// A registered command's `getArgumentCompletions(prefix)` values;
+    /// `None` when the command has none.
+    fn argument_completions(&self, _name: &str, _prefix: &str) -> Option<Vec<String>> {
+        None
+    }
+    /// The mode `ctx.ui.setMode` last set (the footer badge); `None` = unset.
+    fn active_mode(&self) -> Option<String> {
+        None
+    }
+    /// What command handlers asked the UI to do (`ctx.ui.notify`, `ctx.reload()`,
+    /// `ctx.newSession`, `sendUserMessage`), in order, since the last call.
+    fn take_ui_requests(&self) -> Vec<ExtensionUiRequest> {
+        Vec::new()
+    }
+}
+
+/// A registered extension command (`RegisteredCommand`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtensionCommandInfo {
+    pub name: String,
+    pub description: Option<String>,
+    /// The TS `SourceInfo` object.
+    pub source_info: serde_json::Value,
+}
+
+/// `ctx.ui.notify` levels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyLevel {
+    Info,
+    Warning,
+    Error,
+}
+
+/// A command handler's request to the UI host.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExtensionUiRequest {
+    /// `ctx.ui.notify(message, level)`.
+    Notify(String, NotifyLevel),
+    /// `hoo.sendUserMessage(text, { deliverAs: "followUp" })`.
+    SendFollowUp(String),
+    /// `ctx.reload()`.
+    Reload,
+    /// `ctx.newSession({ withSession: (c) => c.sendUserMessage(text, followUp) })`.
+    NewSessionWithMessage(String),
 }
 
 /// No extensions loaded.
@@ -272,6 +320,8 @@ pub struct SessionEventResult {
     pub custom_instructions: Option<String>,
     pub replace_instructions: Option<bool>,
     pub label: Option<String>,
+    /// `hoo.setActiveTools(names)` from a `session_start` handler.
+    pub active_tools: Option<Vec<String>>,
 }
 
 /// A running session-event emit.

@@ -955,6 +955,7 @@ dependencies = [
  "cortexcode-code-paths",
  "serde_json",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
