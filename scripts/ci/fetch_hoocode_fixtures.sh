@@ -10,7 +10,11 @@ DEST="${HOOCODE_PIN_DIR:-$ROOT/target/hoocode-pin}"
 COMMIT="$(python3 -c "import tomllib;print(tomllib.load(open('$ROOT/Cargo.toml','rb'))['workspace']['metadata']['cortex']['source']['hoocode-commit'])")"
 REPO="${HOOCODE_REPO:-https://github.com/kolisachint/hoocode-ts}"
 
-if [[ ! -d "$DEST/.git" ]]; then
+# A cache restore (rust-cache keeps target/) can leave a partial .git that git
+# no longer recognises; it then walks up to this repo and sparse-checkout fails
+# ("run from the toplevel directory"). Start over unless DEST is its own repo.
+if [[ "$(git -C "$DEST" rev-parse --show-toplevel 2>/dev/null)" != "$(cd "$DEST" 2>/dev/null && pwd -P)" ]]; then
+  rm -rf "$DEST"
   git init -q "$DEST"
   git -C "$DEST" remote add origin "$REPO"
 fi
