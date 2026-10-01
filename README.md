@@ -61,7 +61,7 @@ also have the TS one installed globally from npm, put the Rust `hoocode` earlier
 ```bash
 git clone https://github.com/kolisachint/cortexcode
 cd cortexcode
-scripts/install.sh                     # → ~/.local/bin/hoocode and hoocode-ts
+scripts/install.sh                     # → updates ~/.hoocode/bin/hoocode if installed, else ~/.local/bin
 scripts/install.sh --prefix /usr/local/bin --also-cortex   # also keep a `cortex` link
 ```
 
