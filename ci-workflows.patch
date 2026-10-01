@@ -1,0 +1,391 @@
+diff --git a/.github/workflows/binaries.yml b/.github/workflows/binaries.yml
+index 7797e2f..fdb4797 100644
+--- a/.github/workflows/binaries.yml
++++ b/.github/workflows/binaries.yml
+@@ -1,6 +1,18 @@
+ name: Build binaries
+ 
++# Release binaries, shipped as `hoocode` (the Rust build; the crate's binary is
++# `cortex`) plus the `hoocode-ts` shim that runs the TypeScript hoocode.
++
+ on:
++  workflow_call:
++    inputs:
++      tag:
++        required: true
++        type: string
++      upload:
++        description: "Attach the archives to the release named by tag"
++        type: boolean
++        default: true
+   workflow_dispatch:
+     inputs:
+       tag:
+@@ -8,71 +20,84 @@ on:
+         required: true
+         type: string
+   release:
++    # Releases made by hand. Releases made by release.yml (GITHUB_TOKEN) do not
++    # fire this event; release.yml calls this workflow directly instead.
+     types: [published]
+ 
++env:
++  CARGO_INCREMENTAL: "0"
++  CARGO_TERM_COLOR: always
++  TAG: ${{ inputs.tag || github.event.release.tag_name }}
++
+ jobs:
+   build:
+     name: Build ${{ matrix.target }}
+     runs-on: ${{ matrix.os }}
++    permissions:
++      contents: write
+     strategy:
+       fail-fast: false
+       matrix:
+         include:
+           - target: x86_64-unknown-linux-gnu
+             os: ubuntu-latest
+-            archive: tar.gz
+           - target: x86_64-apple-darwin
+             os: macos-latest
+-            archive: tar.gz
+           - target: aarch64-apple-darwin
+             os: macos-latest
+-            archive: tar.gz
+           - target: x86_64-pc-windows-msvc
+             os: windows-latest
+-            archive: zip
+ 
+     steps:
+       - uses: actions/checkout@v4
+-
+-      - uses: dtolnay/rust-toolchain@stable
+         with:
+-          targets: ${{ matrix.target }}
++          ref: ${{ env.TAG }}
++
++      - name: Toolchain (rust-toolchain.toml)
++        shell: bash
++        run: |
++          rustup toolchain install
++          rustup target add ${{ matrix.target }}
+ 
+       - uses: Swatinem/rust-cache@v2
+         with:
+           key: ${{ matrix.target }}
+-
+-      - name: Install cross-compilation tools (Linux)
+-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+-        run: sudo apt-get update && sudo apt-get install -y musl-tools
++          save-if: ${{ github.ref == 'refs/heads/main' }}
+ 
+       - name: Build binary
+-        run: cargo build --release --target ${{ matrix.target }} --bin cortex
+-
+-      - name: Package (unix)
+-        if: matrix.archive == 'tar.gz'
+-        run: |
+-          mkdir -p dist
+-          cp target/${{ matrix.target }}/release/cortex dist/cortex-${{ matrix.target }}
+-          tar czf dist/cortex-${{ matrix.target }}.tar.gz -C dist cortex-${{ matrix.target }}
++        run: cargo build --locked --release --target ${{ matrix.target }} --bin cortex
+ 
+-      - name: Package (windows)
+-        if: matrix.archive == 'zip'
++      - name: Package
++        id: pkg
++        shell: bash
+         run: |
+-          mkdir dist
+-          cp target/${{ matrix.target }}/release/cortex.exe dist/cortex-${{ matrix.target }}.exe
+-          cd dist
+-          7z a cortex-${{ matrix.target }}.zip cortex-${{ matrix.target }}.exe
++          name="hoocode-${{ matrix.target }}"
++          mkdir -p "dist/$name"
++          cp README.md LICENSE "dist/$name/"
++          if [[ "${{ matrix.target }}" == *windows* ]]; then
++            cp "target/${{ matrix.target }}/release/cortex.exe" "dist/$name/hoocode.exe"
++            cp scripts/shims/hoocode-ts.cmd "dist/$name/"
++            (cd dist && 7z a "$name.zip" "$name" >/dev/null)
++            echo "file=dist/$name.zip" >> "$GITHUB_OUTPUT"
++          else
++            cp "target/${{ matrix.target }}/release/cortex" "dist/$name/hoocode"
++            cp scripts/shims/hoocode-ts "dist/$name/"
++            chmod +x "dist/$name/hoocode" "dist/$name/hoocode-ts"
++            tar czf "dist/$name.tar.gz" -C dist "$name"
++            echo "file=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
++          fi
+ 
+       - name: Upload to release
+-        if: github.event_name == 'release'
+-        run: gh release upload "${{ github.event.release.tag_name }}" dist/cortex-${{ matrix.target }}.${{ matrix.archive }} --clobber
++        # Under workflow_call, event_name is the caller's, so the input decides.
++        if: github.event_name == 'release' || inputs.upload
++        shell: bash
++        run: gh release upload "$TAG" "${{ steps.pkg.outputs.file }}" --clobber
+         env:
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+ 
+-      - name: Upload artifacts
+-        if: github.event_name == 'workflow_dispatch'
++      - name: Upload artifact
++        if: github.event_name != 'release' && !inputs.upload
+         uses: actions/upload-artifact@v4
+         with:
+-          name: cortex-${{ matrix.target }}
+-          path: dist/cortex-${{ matrix.target }}.${{ matrix.archive }}
++          name: hoocode-${{ matrix.target }}
++          path: ${{ steps.pkg.outputs.file }}
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 78b60fc..3c13192 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1,25 +1,82 @@
+ name: CI
+ 
++# Parallel gates (docs/design/build-speed.md §4.2). Also called by release.yml,
++# so a release runs exactly these checks, side by side, before it tags.
++
+ on:
+   push:
+     branches: [main]
+   pull_request:
+     branches: [main]
++  workflow_call:
++
++concurrency:
++  # github.workflow is the caller's name under workflow_call, so a release never
++  # cancels (or is cancelled by) the CI run of the same push.
++  group: ci-${{ github.workflow }}-${{ github.ref }}
++  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
++
++permissions:
++  contents: read
++
++env:
++  CARGO_INCREMENTAL: "0"
++  CARGO_TERM_COLOR: always
++  RUST_BACKTRACE: short
+ 
+ jobs:
+-  check:
++  fmt:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
++      - run: cargo fmt --all -- --check
++
++  clippy:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
++      - uses: Swatinem/rust-cache@v2
++        with:
++          shared-key: clippy
++          save-if: ${{ github.ref == 'refs/heads/main' }}
++      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
++
++  test:
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v4
+-      - uses: dtolnay/rust-toolchain@stable
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+       - uses: Swatinem/rust-cache@v2
+-      - name: cargo fmt
+-        run: cargo fmt --all -- --check
+-      - name: cargo clippy
+-        run: cargo clippy --workspace --all-targets -- -D warnings
+-      - name: cargo check
+-        run: cargo check --workspace
+-      - name: cargo test
+-        run: cargo test --workspace
+-      - name: cargo doc
+-        run: cargo doc --workspace --no-deps
++        with:
++          shared-key: test
++          save-if: ${{ github.ref == 'refs/heads/main' }}
++      - uses: taiki-e/install-action@v2
++        with:
++          tool: cargo-nextest
++      - name: Pinned hoocode fixtures
++        run: scripts/ci/fetch_hoocode_fixtures.sh
++      - run: cargo nextest run --locked --workspace --no-fail-fast
++      - run: cargo test --locked --workspace --doc
++
++  doc:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
++      - uses: Swatinem/rust-cache@v2
++        with:
++          shared-key: doc
++          save-if: ${{ github.ref == 'refs/heads/main' }}
++      - run: cargo doc --locked --workspace --no-deps
++
++  firewall:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: python3 migration/check_dep_firewall.py
+diff --git a/.github/workflows/merge-release.yml b/.github/workflows/merge-release.yml
+index 6a351b0..675a57d 100644
+--- a/.github/workflows/merge-release.yml
++++ b/.github/workflows/merge-release.yml
+@@ -27,7 +27,14 @@ jobs:
+   release:
+     needs: level
+     if: needs.level.outputs.level != ''
++    # The called jobs need these; a caller granting less fails at startup.
++    permissions:
++      contents: write
+     uses: ./.github/workflows/release.yml
+     with:
+       level: ${{ needs.level.outputs.level }}
++      # Optional labels: release:skip-gates (the PR's CI already covers it),
++      # release:crates (also publish to crates.io).
++      skip_gates: ${{ contains(github.event.pull_request.labels.*.name, 'release:skip-gates') }}
++      publish_crates: ${{ contains(github.event.pull_request.labels.*.name, 'release:crates') }}
+     secrets: inherit
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 8811c30..cbb26fc 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -1,5 +1,9 @@
+ name: Release
+ 
++# Fast path: CI gates (parallel, via ci.yml) → bump + tag + GitHub release →
++# binaries for 4 targets in parallel (binaries.yml). crates.io publishing is
++# opt-in (publish_crates) and runs beside the binaries, never in front of them.
++
+ on:
+   workflow_dispatch:
+     inputs:
+@@ -8,53 +12,96 @@ on:
+         required: true
+         type: choice
+         options: [patch, minor, major]
++      skip_gates:
++        description: "Skip CI gates (the commit is already green on main)"
++        type: boolean
++        default: false
++      publish_crates:
++        description: "Also publish crates to crates.io"
++        type: boolean
++        default: false
+   workflow_call:
+     inputs:
+       level:
+         required: true
+         type: string
++      skip_gates:
++        type: boolean
++        default: false
++      publish_crates:
++        type: boolean
++        default: false
++
++concurrency:
++  group: release
++  cancel-in-progress: false
+ 
+ jobs:
+-  release:
++  gates:
++    if: ${{ !inputs.skip_gates }}
++    uses: ./.github/workflows/ci.yml
++    permissions:
++      contents: read
++
++  tag:
++    needs: gates
++    # Run after green gates, or straight away when they were skipped.
++    if: ${{ !cancelled() && (needs.gates.result == 'success' || needs.gates.result == 'skipped') }}
+     runs-on: ubuntu-latest
+     permissions:
+       contents: write
++    outputs:
++      tag: ${{ steps.bump.outputs.tag }}
+     steps:
+       - uses: actions/checkout@v4
+         with:
+-          fetch-depth: 0
++          ref: main
+           token: ${{ secrets.GITHUB_TOKEN }}
+-      - uses: dtolnay/rust-toolchain@stable
+-      - uses: Swatinem/rust-cache@v2
+-      - name: Install cargo-edit
+-        run: cargo install cargo-edit --locked || true
+-      - name: Gates
+-        run: |
+-          cargo fmt --all -- --check
+-          cargo clippy --workspace --all-targets -- -D warnings
+-          cargo test --workspace
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+       - name: Bump versions
+         id: bump
+         run: |
+           version=$(python3 scripts/bump_versions.py "${{ inputs.level }}" | tail -1)
+-          echo "version=$version" >> "$GITHUB_OUTPUT"
++          # Keep Cargo.lock in step with the bumped version (workspace members only),
++          # so the --locked builds downstream accept it.
++          cargo update --workspace
++          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+       - name: Commit, tag, push
+         run: |
++          tag="${{ steps.bump.outputs.tag }}"
+           git config user.name "github-actions[bot]"
+           git config user.email "github-actions[bot]@users.noreply.github.com"
+-          git add -A
+-          git commit -m "Release v${{ steps.bump.outputs.version }}"
+-          git tag "v${{ steps.bump.outputs.version }}"
+-          git push origin HEAD:main "v${{ steps.bump.outputs.version }}"
+-      - name: Log in to crates.io
+-        run: cargo login "$CRATES_IO_TOKEN"
++          git commit -am "Release $tag"
++          git tag "$tag"
++          git push origin HEAD:main "$tag"
++      - name: GitHub release
++        # Created before the binaries so each target uploads as soon as it is built.
++        run: gh release create "${{ steps.bump.outputs.tag }}" --verify-tag --generate-notes
+         env:
+-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++
++  binaries:
++    needs: tag
++    if: ${{ !cancelled() && needs.tag.result == 'success' }}
++    uses: ./.github/workflows/binaries.yml
++    with:
++      tag: ${{ needs.tag.outputs.tag }}
++    permissions:
++      contents: write
++
++  crates:
++    needs: tag
++    if: ${{ !cancelled() && needs.tag.result == 'success' && inputs.publish_crates }}
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: ${{ needs.tag.outputs.tag }}
++      - name: Toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+       - name: Publish to crates.io
+         run: python3 scripts/publish_packages.py
+         env:
++          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+-      - name: GitHub release
+-        run: gh release create "v${{ steps.bump.outputs.version }}" --generate-notes
+-        env:
+-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
