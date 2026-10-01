@@ -33,6 +33,8 @@ Each `*.json` file is one scenario, run against the real hoocode (pinned build i
     {"type": "literal text"},
     {"keys": ["Enter", "C-c", "Escape", "Up", "Tab"]},   // tmux key names
     {"sleep": 0.5},
+    {"write_settings": {}},                       // replace both apps' global settings.json mid-run
+    {"write_files": {"a.md": "..."}},             // write workspace files mid-run
     {"snapshot": "name", "contains": ["..."], "not_contains": ["..."], "history": false}
   ]
 }

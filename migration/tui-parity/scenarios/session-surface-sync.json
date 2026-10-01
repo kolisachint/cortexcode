@@ -1,0 +1,131 @@
+{
+  "description": "Session surface sync (suite/session-surface-sync.test.ts): a project with a skill, a prompt command, an agent and AGENTS.md (prompts/: hoocode migrates a commands/ dir at startup; each app's project dir gets the same files); the global settings are edited on disk while the app runs (compaction off, light theme), then /new and /reload rebuild the resources and repaint the chrome (footer loses auto@, the banner and frame take the light palette); a command added on disk appears through /reload and survives /new. Each frame is compared with hoocode, text and colours, and the listing is drawn once per session change.",
+  "phase": "11.9",
+  "terminal": {
+    "cols": 100,
+    "rows": 40
+  },
+  "files": {
+    "AGENTS.md": "project rules\n",
+    ".hoocode/skills/demo/SKILL.md": "---\nname: demo\ndescription: demo skill\n---\nbody\n",
+    ".hoocode/agents/helper.md": "---\nname: helper\ndescription: helper agent\n---\nyou help\n",
+    ".hoocode/prompts/greet.md": "Say hello to the user\n",
+    ".cortexcode/skills/demo/SKILL.md": "---\nname: demo\ndescription: demo skill\n---\nbody\n",
+    ".cortexcode/agents/helper.md": "---\nname: helper\ndescription: helper agent\n---\nyou help\n",
+    ".cortexcode/prompts/greet.md": "Say hello to the user\n"
+  },
+  "llm": [],
+  "steps": [
+    {
+      "wait_for": "❯",
+      "timeout": 30
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "startup",
+      "contains": [
+        "1 command",
+        "context AGENTS.md",
+        "auto@"
+      ]
+    },
+    {
+      "write_settings": {
+        "compaction": {
+          "enabled": false
+        },
+        "theme": "light"
+      }
+    },
+    {
+      "type": "/new"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "new"
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "new-reload"
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "new-reload-reload"
+    },
+    {
+      "write_files": {
+        ".hoocode/prompts/second.md": "Second command\n",
+        ".cortexcode/prompts/second.md": "Second command\n"
+      }
+    },
+    {
+      "type": "/reload"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "command-added-reload",
+      "contains": [
+        "2 commands"
+      ]
+    },
+    {
+      "type": "/new"
+    },
+    {
+      "keys": [
+        "Enter"
+      ]
+    },
+    {
+      "wait_stable": 1.0,
+      "timeout": 20
+    },
+    {
+      "snapshot": "command-added-new",
+      "contains": [
+        "2 commands"
+      ]
+    }
+  ]
+}

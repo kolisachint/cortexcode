@@ -3946,13 +3946,8 @@ impl Mode {
 
         let session = self.session.clone();
         self.runtime.block_on(async move { session.reload().await });
-        AppKeybindingsManager::create(None).install();
-        let theme_name = self.session.settings().theme();
-        if let Some(name) = theme_name {
-            if let Err(error) = set_theme(&name, true) {
-                self.show_error(&format!("Failed to load theme \"{name}\": {error}"));
-            }
-        }
+        self.apply_runtime_settings();
+        self.apply_session_theme();
         self.update_editor_border_color();
         self.setup_autocomplete_provider();
         self.reset_transcript_view();
@@ -4466,6 +4461,78 @@ impl Mode {
         self.update_terminal_title();
         self.setup_autocomplete_provider();
         self.update_available_provider_count();
+        self.apply_runtime_settings();
+        self.apply_session_theme();
+    }
+
+    /// `applySessionTheme`: load the theme the settings name and rebuild the
+    /// banner, whose text carries its escapes. As the pin renders it, the
+    /// banner is rebuilt before the new theme loads: a theme edited on disk
+    /// reaches the banner on the next rebuild (a second /new or /reload),
+    /// everything else at once.
+    fn apply_session_theme(&mut self) {
+        let expanded = self.verbose || self.expanded;
+        self.header.borrow_mut().set_expanded(expanded);
+        let theme_name = self.session.settings().theme();
+        if let Some(name) = theme_name {
+            if let Err(error) = set_theme(&name, true) {
+                self.show_error(&format!(
+                    "Failed to load theme \"{name}\": {error}\nFell back to dark theme."
+                ));
+            }
+        }
+        self.tui.invalidate();
+        self.dirty.set(true);
+    }
+
+    /// `applyRuntimeSettings`: push the current settings and session onto
+    /// the chrome (keybindings, footer, editor, cursor). Startup, a session
+    /// swap and /reload all rebuild these from disk, so they repaint alike;
+    /// a `compaction.enabled` edit used to leave the footer promising
+    /// auto-compaction after /new or /reload.
+    fn apply_runtime_settings(&mut self) {
+        AppKeybindingsManager::create(None).install();
+        let settings = self.session.settings();
+        let (show_hardware_cursor, clear_on_shrink, hide_thinking_block) = (
+            settings.show_hardware_cursor(),
+            settings.clear_on_shrink(),
+            settings.hide_thinking_block(),
+        );
+        let (border, padding_x, autocomplete_max_visible) = (
+            match settings.editor_border() {
+                EditorBorder::Box => FrameBorderStyle::Box,
+                EditorBorder::Rule => FrameBorderStyle::Rule,
+            },
+            settings.editor_padding_x() as usize,
+            settings.autocomplete_max_visible() as usize,
+        );
+        drop(settings);
+        {
+            let mut footer = self.footer.borrow_mut();
+            footer.set_auto_compact_enabled(self.session.auto_compaction_enabled());
+            footer.set_tool_output_view(self.tool_output_view);
+            footer.invalidate();
+        }
+        self.footer_data.set_cwd(self.session.cwd());
+        self.footer_data.set_subagent_enabled(
+            self.session
+                .get_active_tool_names()
+                .iter()
+                .any(|t| t == "Task"),
+        );
+        self.hide_thinking_block = hide_thinking_block;
+        self.tui.set_show_hardware_cursor(show_hardware_cursor);
+        self.tui.set_clear_on_shrink(clear_on_shrink);
+        set_input_frame_border(border);
+        {
+            let mut editor = self.editor.borrow_mut();
+            editor.editor.set_border(border);
+            editor.editor.set_padding_x(padding_x);
+            editor
+                .editor
+                .set_autocomplete_max_visible(autocomplete_max_visible);
+        }
+        self.dirty.set(true);
     }
 
     /// `resetTranscriptView`: drop every view reference into the transcript.
