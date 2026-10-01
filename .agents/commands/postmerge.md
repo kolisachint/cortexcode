@@ -27,14 +27,18 @@ and `gh`. Arguments: `$ARGUMENTS`
      but do not delete anything in step 5.
 3. **Release** (only if a `rust:*` label was set).
    - The "Merge Release" run (triggered by `pull_request: closed`) calls `release.yml`:
-     gates → bump + tag + GitHub release → binaries for 4 targets (+ crates if `release:crates`).
+     gates → bump + tag + GitHub release → binaries for 4 targets → `SHA256SUMS` + npm.
+     (`release:crates` is deferred and only leaves a notice.)
    - Wait for it like step 2.
    - Then verify:
      - newest tag: `git fetch --tags origin`, `gh release list --limit 1`
      - release assets: `gh release view <tag> --json assets -q '.assets[].name'` —
-       expect 4 archives (linux x86_64, macOS x86_64, macOS aarch64, windows zip).
+       expect 4 `.tar.gz` (linux x86_64 + aarch64 musl, macOS x86_64 + aarch64) and `SHA256SUMS`.
+     - npm: `npm view @kolisachint/hoocode version` equals the tag (also the 4
+       `@kolisachint/hoocode-<os>-<cpu>` packages).
+     - curl: `curl -fsSL https://kolisachint.github.io/hoocode/install.sh | sh -s -- --dir "$(mktemp -d)" --no-modify-path`
+       installs the new version.
      - version bumped: `Release <tag>` commit is on `origin/<base>`.
-     - crates (only with `release:crates`): the publish job succeeded.
 4. **Move to base.**
    - If the working tree is dirty, stop and ask; never stash or discard silently.
    - `git switch <base>` then `git pull --ff-only origin <base>` (picks up the release commit).
