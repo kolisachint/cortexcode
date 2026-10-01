@@ -5,6 +5,7 @@
 //! inside [`TaskStore::batch`] notify once, when the outermost batch ends.
 //! Listeners run outside the store's lock, so they may read the store.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -197,11 +198,22 @@ impl Default for TaskStore {
     }
 }
 
-fn now_ms() -> u64 {
+static CLOCK_OFFSET_MS: AtomicU64 = AtomicU64::new(0);
+
+/// Wall-clock milliseconds for task timing: the store's timestamps, the task
+/// panel's run clocks and the subagent inbox's elapsed times all read this,
+/// so tests can move them together with [`advance_clock_for_tests`].
+pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+        + CLOCK_OFFSET_MS.load(Ordering::SeqCst)
+}
+
+/// Move [`now_ms`] forward (`vi.advanceTimersByTime` in the TS tests).
+pub fn advance_clock_for_tests(ms: u64) {
+    CLOCK_OFFSET_MS.fetch_add(ms, Ordering::SeqCst);
 }
 
 fn apply_agent_patch(agent: &mut TaskAgent, patch: TaskAgentPatch) {

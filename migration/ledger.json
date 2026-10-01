@@ -6300,6 +6300,70 @@
    ]
   },
   {
+   "id": "11.8",
+   "title": "InteractiveMode key bindings at parity: app.thinking.toggle (ctrl+t: hide/show thinking, rebuild the transcript), app.mode.cycleForward/Backward (alt+a: step the agent mode through the /mode completions), app.editor.external (open $VISUAL/$EDITOR on the prompt), app.session.new and app.session.tree (unbound by default, rebindable)",
+   "phase": 11,
+   "status": "todo",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "thinking-toggle-pending-tool"
+   ],
+   "notes": "Found in 13.4f: hoocode binds these in setupKeyHandlers (onAction); cortex's EDITOR_ACTIONS lacks them, so the keys the startup hints advertise (ctrl+t, alt+a, ctrl+g) do nothing. team.focus and input.voiceTranscribe are phase-12 features. 4167 (a re-render while a tool is pending keeps its completion routed) needs ctrl+t; its L2 scenario runs a slow bash call and toggles thinking mid-call.",
+   "log": []
+  },
+  {
+   "id": "11.9",
+   "title": "Session surface sync: applyRuntimeSettings / applySessionTheme on every session swap and /reload (footer auto-compaction, tool view, editor border/padding, cursor, thinking display, keybindings; the theme and the banner rebuilt from settings)",
+   "phase": 11,
+   "status": "done",
+   "depends": [],
+   "crates": [
+    "cortexcode-code-tui-app"
+   ],
+   "sources": [
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+   ],
+   "ts_tests": [
+    "packages/coding-agent/test/suite/session-surface-sync.test.ts"
+   ],
+   "l1_cmds": [],
+   "l2": [
+    "session-surface-sync",
+    "session-surface-sync-reload"
+   ],
+   "notes": "Found in 13.4f: cortex applied these settings only at startup, so an on-disk compaction.enabled edit left auto@ in the footer after /new and /reload, and /new kept the old theme. At the pin the banner is rebuilt before the new theme loads (it takes the palette on the next rebuild); the scenarios encode that. The harness gained write_settings / write_files steps for edits mid-run.",
+   "log": [
+    {
+     "at": "2026-10-01T04:19:36Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:19:46Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:20:46Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 session-surface-sync=pass, session-surface-sync-reload=pass"
+    }
+   ]
+  },
+  {
    "id": "12.1",
    "title": "Declarative plugins + marketplace (.agents-plugin, claude/copilot formats)",
    "phase": 12,
@@ -6842,7 +6906,7 @@
    "id": "13.4f",
    "title": "TS test port ledger review, subagent roster/panel/pool suites and interactive session surfaces (subagent-spawn-audit, subagent-visual-tie, session-surface-sync, 4167): resolve every `review` entry",
    "phase": 13,
-   "status": "todo",
+   "status": "done",
    "depends": [
     "13.4a"
    ],
@@ -6856,7 +6920,32 @@
    ],
    "l2": "n/a: bookkeeping",
    "notes": "Split from 13.4d: 34+ cases across roster, task panel, lifeguard, jsonl reader, pool, colors, linkage; many likely covered piecemeal by 10.9 tests without citations.",
-   "log": []
+   "log": [
+    {
+     "at": "2026-09-30T18:18:54Z",
+     "commit": "bbdf6fa",
+     "kind": "start",
+     "text": "started"
+    },
+    {
+     "at": "2026-10-01T04:21:00Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:21:06Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 failed"
+    },
+    {
+     "at": "2026-10-01T04:21:14Z",
+     "commit": "bbdf6fa",
+     "kind": "verify",
+     "text": "L1 pass; L2 n/a"
+    }
+   ]
   },
   {
    "id": "13.4",

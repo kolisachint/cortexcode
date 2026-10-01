@@ -5,11 +5,11 @@
   "hoocode_commit": "a6cd96e73c23c897ced685b6bb97b4a0dd61b65a"
  },
  "summary": {
-  "ported": 294,
+  "ported": 297,
   "equivalent": 2,
   "n.a.": 6,
-  "pending": 94,
-  "review": 4
+  "pending": 95,
+  "review": 0
  },
  "tests": {
   "packages/agent/test/agent-loop.test.ts": {
@@ -2561,7 +2561,10 @@
    ]
   },
   "packages/coding-agent/test/suite/regressions/4167-thinking-toggle-pending-tool-render.test.ts": {
-   "status": "review"
+   "status": "pending",
+   "tasks": [
+    "11.8"
+   ]
   },
   "packages/coding-agent/test/suite/regressions/79-stale-todo-settle.test.ts": {
    "status": "ported",
@@ -2575,7 +2578,10 @@
    "note": "Node ESM import of Windows paths (file:// URL scheme); no module loading in Rust"
   },
   "packages/coding-agent/test/suite/session-surface-sync.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "tasks": [
+    "11.9"
+   ]
   },
   "packages/coding-agent/test/suite/subagent-execution.test.ts": {
    "status": "ported",
@@ -2593,10 +2599,17 @@
    ]
   },
   "packages/coding-agent/test/suite/subagent-spawn-audit.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-subagents/tests/subagent_spawn_audit_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/subagent_spawn_audit_ts.rs"
+   ]
   },
   "packages/coding-agent/test/suite/subagent-visual-tie.test.ts": {
-   "status": "review"
+   "status": "ported",
+   "rust": [
+    "crates/cortexcode-code-tui-app/tests/subagent_visual_tie_ts.rs"
+   ]
   },
   "packages/coding-agent/test/system-prompt.test.ts": {
    "status": "ported",

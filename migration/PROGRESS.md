@@ -44,6 +44,26 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-10-01 · 13.4f suite TS test review: done; 11.9 done; 11.8 added
+- Ported subagent-visual-tie (tui-app tests: identity colors, wall-clock elapsed, TodoWrite
+  links, flat lens nesting, reconcile by identity) and subagent-spawn-audit (subagents tests:
+  lifeguard dedup, JSONL reader, atomic writes, cumulative budget across the inherited-model
+  retry, process-group kill, cancellation; tui-app tests: per-run roster rows and usage,
+  panel elapsed/orphans/cycle/notes). The jsonl "stream error" case is n.a. (no stream).
+- Test clock: `cortexcode_code_task_store::now_ms` (+ `advance_clock_for_tests`) now feeds the
+  store, task panel, inbox, Task tools and TaskOutput renderer (hoocode's fake timers).
+- 11.9 (new, done): `apply_runtime_settings` / `apply_session_theme` on every session swap
+  and /reload. Footer auto@ and theme now follow on-disk settings edits. At the pin the banner
+  is rebuilt before the new theme loads; L2 `session-surface-sync` (+ `-reload`) encode it.
+  Harness: `write_settings` / `write_files` steps edit files mid-run.
+- 11.8 (new, todo): missing key bindings: ctrl+t thinking toggle, alt+a mode cycle,
+  external editor, session new/tree. It owns 4167 (needs ctrl+t) and its L2 scenario.
+- TS test ledger: 0 files in `review`.
+- Full L2 run (HEAD before these changes): 55 pass; the 9 known default-bundle failures
+  (l1_done tasks waiting on 12.4); file-autocomplete invalid here because `fd` is not on PATH
+  (hoocode itself fails it).
+- Next: `python3 migration/ledger.py next` (11.8 is a good next pick).
+
 ### 2026-09-30 · 13.4e interactive-mode/transcript TS test review: done
 - Ported: selected-row-list, import-command, anthropic-warning (latch + notice extracted),
   suspend, message-block-sheets, message-block-fill, theme-block-rendering,

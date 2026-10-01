@@ -12,7 +12,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde_json::Value;
 use tokio::sync::Notify;
@@ -74,10 +74,7 @@ pub struct InboxRecord {
 const MAX_SETTLED: usize = 50;
 
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+    cortexcode_code_task_store::now_ms()
 }
 
 /// First non-empty line, capped at `max` characters (UTF-16 units in JS).

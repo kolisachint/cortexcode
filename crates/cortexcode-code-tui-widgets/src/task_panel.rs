@@ -160,9 +160,7 @@ fn task_status_color(status: TaskStatus) -> &'static str {
 }
 
 fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as u64)
+    cortexcode_code_task_store::now_ms()
 }
 
 /// Wall-clock time a delegated task occupied (running ones against now).
