@@ -5,7 +5,53 @@ use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use cortexcode_code_subagents::lifeguard::{LifeguardEvent, SubagentLifeguard};
+use cortexcode_code_subagents::lifeguard::{base_timeout_ms, LifeguardEvent, SubagentLifeguard};
+
+/// Every shipped agent must have its own hard timeout.
+///
+/// hoocode's `TIMEOUTS_MS` is keyed `explore`/`edit`/`test`/`review`/`doc`, and
+/// neither tree ships `edit`, `test`, `review` or `doc` — so in both, every
+/// agent silently got the 5-minute default. Four of ten recorded runs in
+/// `hoobot/.cortexcode/dispatch` died `timeout` at exactly 300s, three of them
+/// `code-review` that had been working for 220-297s.
+#[test]
+fn every_shipped_agent_has_a_hard_timeout_worth_the_name() {
+    const MINUTE: u64 = 60 * 1000;
+    // code-review read a whole multi-file diff for 297s and was killed at 300s.
+    assert_eq!(base_timeout_ms("code-review"), 15 * MINUTE);
+    assert_eq!(base_timeout_ms("security-review"), 15 * MINUTE);
+    // general-purpose reads, writes and runs tests: the heaviest.
+    assert_eq!(base_timeout_ms("general-purpose"), 20 * MINUTE);
+    // explore ran 308s and was still producing turns.
+    assert_eq!(base_timeout_ms("explore"), 10 * MINUTE);
+    assert_eq!(base_timeout_ms("plan"), 10 * MINUTE);
+}
+
+/// hoocode's arms are kept for plugin agents that use those names.
+#[test]
+fn keeps_hoocodes_own_timeout_arms() {
+    const MINUTE: u64 = 60 * 1000;
+    assert_eq!(base_timeout_ms("edit"), 10 * MINUTE);
+    assert_eq!(base_timeout_ms("test"), 10 * MINUTE);
+    assert_eq!(base_timeout_ms("review"), 8 * MINUTE);
+}
+
+/// An unknown agent type falls back to the default rather than to nothing.
+#[test]
+fn an_unknown_agent_type_gets_the_default_timeout() {
+    assert_eq!(base_timeout_ms("some-plugin-agent"), 5 * 60 * 1000);
+}
+
+/// The warm pool's run timeout tracks the same table, so a warm `code-review`
+/// is not killed at 180s while the cold pool would have allowed it 15 minutes.
+#[test]
+fn the_warm_run_timeout_tracks_the_agent_type() {
+    // Asserted through the cold table because `warm_run_timeout` is private to
+    // the warm module; the two must not drift apart.
+    assert!(base_timeout_ms("code-review") > 180_000);
+    assert!(base_timeout_ms("general-purpose") > 180_000);
+    assert!(base_timeout_ms("explore") > 180_000);
+}
 
 fn now_ms() -> u64 {
     SystemTime::now()

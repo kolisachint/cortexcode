@@ -298,6 +298,71 @@ async fn tracks_slot_metadata() {
     p.dispose();
 }
 
+/// `output.json` is a post-mortem, not a transcript.
+///
+/// It used to embed the child's whole captured stdout — a 256KB tail of JSONL
+/// events, so the recorded failures each wrote a 267-275KB file, most of it the
+/// task prompt echoed back. Nothing reads it in code and the transcript already
+/// lives in `session.jsonl`, so it carries the outcome, the cause and a stderr
+/// tail instead.
+#[tokio::test]
+async fn output_json_is_a_summary_not_a_transcript() {
+    let dir = setup();
+    // A chatty child that would saturate the capture buffer.
+    let p = pool(mock(dir.path(), 1, 0), 2, dir.path());
+    p.spawn(task("summary", "explore", "hello")).unwrap();
+    let _ = p.wait_for("summary").await;
+
+    let path = cortexcode_code_paths::dispatch_task_dir(dir.path(), "summary").join("output.json");
+    let raw = std::fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+
+    assert_eq!(parsed["task_id"], "summary");
+    assert_eq!(parsed["ok"], false);
+    assert!(parsed.get("status").is_some());
+    assert!(parsed.get("stderr_tail").is_some());
+    // The transcript is not here any more.
+    assert!(
+        parsed.get("stdout").is_none(),
+        "stdout must not be embedded"
+    );
+    assert!(raw.len() < 64 * 1024, "output.json grew to {}", raw.len());
+    p.dispose();
+}
+
+/// The stderr tail survives: that is where a provider error lives, and it is
+/// what makes a failed dispatch diagnosable without the transcript.
+#[tokio::test]
+async fn output_json_keeps_the_stderr_tail() {
+    let dir = setup();
+    let exe = script(
+        dir.path(),
+        "mock-noisy-fail.sh",
+        r#"echo '400 Upstream request failed: This Go model requires Global regions.' >&2; exit 1"#,
+    );
+    let p = SubagentPool::new(SubagentPoolOptions {
+        executable: exe,
+        max_concurrency: Some(1),
+        cwd: Some(dir.path().to_path_buf()),
+        ..Default::default()
+    });
+    p.spawn(task("noisy", "explore", "hello")).unwrap();
+    assert!(!p.wait_for("noisy").await.unwrap().ok);
+    let raw = std::fs::read_to_string(
+        cortexcode_code_paths::dispatch_task_dir(dir.path(), "noisy").join("output.json"),
+    )
+    .unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert!(
+        parsed["stderr_tail"]
+            .as_str()
+            .unwrap()
+            .contains("requires Global regions"),
+        "{raw}"
+    );
+    p.dispose();
+}
+
 #[tokio::test]
 async fn fails_and_emits_task_failed_when_output_verification_fails() {
     let dir = setup();
@@ -427,6 +492,43 @@ async fn passes_a_default_max_turns_cap_and_a_persisted_session() {
     assert_eq!(&argv[..2], ["--mode", "json"]);
     assert_eq!(argv.last().map(String::as_str), Some("Task: scan"));
     p.dispose();
+}
+
+/// The child is told the same per-agent deadline the lifeguard enforces, so it
+/// can ask to wrap up and write a result before the parent kills it.
+///
+/// Without this the parent SIGKILLs at the deadline and `result.json` — only
+/// written after `prompt()` returns — never appears, so every finished turn is
+/// lost. Four of the ten recorded runs died that way holding 4-11 turns each.
+#[tokio::test]
+async fn passes_the_per_agent_deadline_so_the_child_can_wrap_up() {
+    for (agent, expected_ms) in [
+        ("code-review", 15 * 60 * 1000),
+        ("general-purpose", 20 * 60 * 1000),
+        ("explore", 10 * 60 * 1000),
+    ] {
+        let dir = setup();
+        let p = pool(argv_recorder(dir.path()), 1, dir.path());
+        let id = format!("deadline-{agent}");
+        write_valid_result(dir.path(), &id);
+        p.spawn(task(&id, agent, "scan")).unwrap();
+        p.wait_for(&id).await.unwrap();
+        let argv = read_argv(dir.path());
+        assert_eq!(
+            arg_after(&argv, "--deadline-ms"),
+            Some(expected_ms.to_string()),
+            "agent {agent}"
+        );
+        // The base is sent, never the load-scaled budget: under load the parent
+        // widens its kill, so the child's wrap-up lands first either way.
+        assert!(
+            !argv
+                .iter()
+                .any(|a| a.parse::<u64>().is_ok_and(|v| v > expected_ms)),
+            "deadline must not exceed the lifeguard's base for {agent}"
+        );
+        p.dispose();
+    }
 }
 
 fn env_capture(dir: &Path) -> PathBuf {
@@ -654,7 +756,7 @@ async fn an_exceeded_token_budget_is_advisory() {
     let exe = script(
         dir.path(),
         "mock-buster.sh",
-        r#"echo '{"type":"message_end","message":{"role":"assistant","usage":{"totalTokens":1000}}}'"#,
+        r#"echo '{"type":"message_end","message":{"role":"assistant","usage":{"input":0,"output":1000,"cacheRead":0,"cacheWrite":0,"totalTokens":1000}}}'"#,
     );
     let p = pool(exe, 1, dir.path());
     let exceeded = record(&p, "budget_exceeded");
@@ -963,6 +1065,10 @@ async fn fallback_run(provider: Option<&str>) {
             DispatchOptions {
                 force_agent: Some("explore".into()),
                 model: Some("parent-model".into()),
+                // The concrete model the fallback runs on. `model` alone cannot
+                // serve: the caller may have passed a `complexity` category
+                // there instead, which would resolve to the model that failed.
+                inherited_model: Some("parent-model".into()),
                 provider: provider.map(String::from),
                 ..Default::default()
             },
@@ -1021,6 +1127,82 @@ fn fallback_error_matches_not_supported_and_unsupported_wording() {
     )));
 }
 
+/// Region rejections reach the parent as provider text, and hoocode's pattern
+/// matched none of them — so every subagent dispatched to a gateway model the
+/// account could not reach died with no retry, even though the parent's own
+/// model was known-good.
+#[test]
+fn fallback_error_matches_region_rejections() {
+    // Verbatim from the recorded failures in hoobot/.cortexcode/dispatch.
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "400 Upstream request failed: This Go model requires Global regions."
+    )));
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "model is not available in your region"
+    )));
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "unsupported_regions: [eu]"
+    )));
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "region restricted"
+    )));
+}
+
+/// A provider that failed the turn without saying why. This killed the one
+/// recorded run that reached completion.
+#[test]
+fn fallback_error_matches_an_unexplained_provider_failure() {
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "Task failed: Provider finish_reason: error"
+    )));
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "finishReason: error"
+    )));
+    assert!(SubagentPool::is_inherited_model_fallback_error(&failed(
+        "Upstream request failed"
+    )));
+}
+
+/// The new alternatives must not swallow ordinary task failures, or every
+/// failure would be retried on the parent's model forever.
+#[test]
+fn fallback_error_still_ignores_unrelated_failures() {
+    for error in [
+        "syntax error in tool output",
+        "Task failed: the model refused to continue",
+        "read /tmp/x: no such file or directory",
+        "error: region of interest is empty",
+    ] {
+        assert!(
+            !SubagentPool::is_inherited_model_fallback_error(&failed(error)),
+            "should not fall back on: {error}"
+        );
+    }
+}
+
+/// A kill reason is not itself evidence the model was at fault, so a stalled or
+/// timed-out run only retries when the classifier finds a provider error in
+/// what the child captured.
+#[test]
+fn a_kill_reason_alone_is_not_a_provider_failure() {
+    let stalled = SubagentResult {
+        task_id: "t1".into(),
+        status: Some(ResultStatus::Stalled),
+        error: Some("Subagent stalled: no output within the stall threshold.".into()),
+        ..Default::default()
+    };
+    assert!(!SubagentPool::is_inherited_model_fallback_error(&stalled));
+
+    // ...but the child's stderr still counts.
+    let with_provider_error = SubagentResult {
+        stderr: "400 Upstream request failed: This Go model requires Global regions.".into(),
+        ..stalled
+    };
+    assert!(SubagentPool::is_inherited_model_fallback_error(
+        &with_provider_error
+    ));
+}
+
 fn agent(source: AgentSource, model: &str) -> AgentDefinition {
     AgentDefinition {
         name: "custom".into(),
@@ -1043,6 +1225,7 @@ fn agent(source: AgentSource, model: &str) -> AgentDefinition {
 async fn should_retry_with_inherited_model_rules() {
     let t = SubagentPoolTask {
         model: Some("claude-opus-4-7".into()),
+        inherited_model: Some("claude-opus-4-7".into()),
         ..task("t1", "custom", "do work")
     };
     let result = failed("400 The requested model is not supported");
@@ -1064,10 +1247,32 @@ async fn should_retry_with_inherited_model_rules() {
     assert!(!check(agent(AgentSource::Project, "inherit"), &t));
     let no_parent = SubagentPoolTask {
         model: None,
+        inherited_model: None,
         ..t.clone()
     };
     assert!(!check(
         agent(AgentSource::Project, "claude-haiku-4-5"),
         &no_parent
+    ));
+    // A `complexity` tier in `model` is not a fallback target: it resolves to the
+    // model that just failed, so retrying on it changes nothing.
+    let tier_only = SubagentPoolTask {
+        model: Some("fast".into()),
+        inherited_model: None,
+        ..t.clone()
+    };
+    assert!(!check(
+        agent(AgentSource::Project, "claude-haiku-4-5"),
+        &tier_only
+    ));
+    // ...but the same task with the parent's concrete model does fall back.
+    let with_parent = SubagentPoolTask {
+        model: Some("fast".into()),
+        inherited_model: Some("claude-opus-4-7".into()),
+        ..t
+    };
+    assert!(check(
+        agent(AgentSource::Project, "claude-haiku-4-5"),
+        &with_parent
     ));
 }

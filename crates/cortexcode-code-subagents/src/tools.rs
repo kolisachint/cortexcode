@@ -809,6 +809,10 @@ async fn execute_task(
         force_agent: Some(subagent_type.clone()),
         context: Some(String::new()),
         model: dispatch_model.clone(),
+        // The parent's own model, so the inherited-model fallback has somewhere
+        // to go: `model` may be a `complexity` category, which resolves to the
+        // model that just failed.
+        inherited_model: model_id.clone(),
         provider: provider.clone(),
         session_file: fork_session_file.clone(),
         task_id: Some(pool_task_id.clone()),

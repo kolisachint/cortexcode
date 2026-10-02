@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed: subagents stopped failing on almost every dispatch (2026-10-03)
+- Subagents ran to completion in none of ten recorded dispatches. Seven fixes, detailed in
+  `docs/design/subagents.md`.
+- **Every subagent was killed after 5 minutes.** The per-agent timeout table was keyed on
+  `edit`, `test` and `review` — agents this project does not ship — so no entry ever matched
+  and every agent fell through to the 5-minute default. `code-review` died at exactly 300s
+  three times holding up to 297s of finished work. Real per-agent deadlines now exist
+  (`code-review`/`security-review` 15 min, `general-purpose` 20, `explore`/`plan` 10), and
+  the warm worker pool's flat 3-minute limit follows the same table.
+- **A subagent killed at its deadline lost everything it had finished.** `result.json` is
+  written only after the run returns cleanly, so the kill discarded it. A child is now told
+  its deadline up front and asked to wrap up shortly before it, so a run cut short reports
+  its findings as a usable partial result instead of vanishing.
+- **A subagent that died because its model was unreachable never retried on a reachable one.**
+  Timed-out and stalled runs skipped the inherited-model fallback entirely, and the error
+  classifier did not recognise region rejections (`requires Global regions`) or
+  `finish_reason: error`. Both fixed; a cancelled run is still never retried.
+- **The inherited-model fallback could silently do nothing.** When a caller passed a
+  `complexity` tier, the fallback re-resolved that same tier and retried the identical model.
+- **Reported token usage was wildly wrong.** The subagent budget summed each turn's whole
+  context size, so a 15-turn run reported 1.6M tokens against a 35k budget. It now counts what
+  the subagent generated; context size is reported separately as `peak_context`.
+- A failed dispatch wrote a 256 KB `output.json` that duplicated the transcript already in
+  `session.jsonl`. It now holds the outcome, the cause, and a short tail of stderr.
+
 ### Release: npm publish is now verified after it runs (2026-10-02)
 - The npm publish loop moved from an inline shell loop in `binaries.yml` to
   `scripts/npm/publish_packages.py`, which publishes, then checks every package

@@ -152,8 +152,10 @@ fn feeds_token_budget_per_line() {
     );
     for total in [400, 500] {
         budget.process_line(
-            &json!({"type": "message_end", "message": {"role": "assistant", "usage": {"totalTokens": total}}})
-                .to_string(),
+            &json!({"type": "message_end", "message": {"role": "assistant", "usage": {
+                "input": 0, "output": total, "cacheRead": 0, "cacheWrite": 0, "totalTokens": total
+            }}})
+            .to_string(),
         );
     }
     assert_eq!(budget.used(), 900);
@@ -213,7 +215,7 @@ async fn keeps_one_cumulative_token_budget_across_the_inherited_model_retry() {
         &format!(
             r#"tid=; model=; prev=; for a in "$@"; do [ "$prev" = "--task-id" ] && tid=$a; [ "$prev" = "--model" ] && model=$a; prev=$a; done
 mkdir -p {DIR}/dispatch/$tid
-echo '{{"type":"message_end","message":{{"role":"assistant","usage":{{"totalTokens":300}}}}}}'
+echo '{{"type":"message_end","message":{{"role":"assistant","usage":{{"input":0,"output":300,"cacheRead":0,"cacheWrite":0,"totalTokens":300}}}}}}'
 if [ "$model" = "pinned-model" ]; then printf '%s' '{failed}' > {DIR}/dispatch/$tid/result.json; exit 1; fi
 printf '%s' '{ok}' > {DIR}/dispatch/$tid/result.json
 exit 0"#
@@ -229,6 +231,7 @@ exit 0"#
     let exceeded = record(&pool, "budget_exceeded");
     pool.spawn(SubagentPoolTask {
         model: Some("parent-model".into()),
+        inherited_model: Some("parent-model".into()),
         token_budget: Some(500),
         ..task("retry-budget", "pinned", "do work")
     })
@@ -237,11 +240,157 @@ exit 0"#
     assert!(result.ok, "{result:?}");
     assert_eq!(result.used_inherited_model_fallback, Some(true));
     // 300 from the failed attempt plus 300 from the retry: one budget.
-    assert_eq!(done.lock().unwrap()[0]["tokens_used"], 600);
+    assert_eq!(done.lock().unwrap()[0]["tokens_generated"], 600);
     // The 500 cap is only crossed cumulatively: its listeners survived.
     let exceeded = exceeded.lock().unwrap();
     assert_eq!(exceeded.len(), 1);
     assert_eq!(exceeded[0]["used"], 600);
+    pool.dispose();
+}
+
+#[tokio::test]
+async fn a_stalled_run_retries_on_the_inherited_model_when_the_model_is_the_cause() {
+    let _serial = SERIAL.lock().await;
+    let dir = setup();
+    let cwd = dir.path();
+    let agents = cwd.join(DIR).join("agents");
+    std::fs::create_dir_all(&agents).unwrap();
+    std::fs::write(
+        agents.join("pinned.md"),
+        "---\nname: pinned\ndescription: agent with a pinned model.\nmodel: pinned-model\n---\nbody",
+    )
+    .unwrap();
+    // First attempt: hangs, and its stderr names a provider error — the model
+    // being unreachable is the reason it never got going. Second attempt
+    // (inherited model) succeeds.
+    let ok = json!({"summary": "recovered on inherited model", "files_changed": [], "confidence": 0.9, "status": "complete"});
+    let exe = script(
+        cwd,
+        "mock-stall-retry.sh",
+        &format!(
+            r#"tid=; model=; prev=; for a in "$@"; do [ "$prev" = "--task-id" ] && tid=$a; [ "$prev" = "--model" ] && model=$a; prev=$a; done
+mkdir -p {DIR}/dispatch/$tid
+if [ "$model" = "pinned-model" ]; then
+  echo '400 Upstream request failed: This Go model requires Global regions.' >&2
+  sleep 0.2
+  exit 1
+fi
+printf '%s' '{ok}' > {DIR}/dispatch/$tid/result.json
+exit 0"#
+        ),
+    );
+    let pool = SubagentPool::new(SubagentPoolOptions {
+        executable: exe,
+        max_concurrency: Some(1),
+        cwd: Some(cwd.to_path_buf()),
+        ..Default::default()
+    });
+    pool.spawn(SubagentPoolTask {
+        model: Some("parent-model".into()),
+        inherited_model: Some("parent-model".into()),
+        ..task("stall-retry", "pinned", "do work")
+    })
+    .unwrap();
+    // Reap the first attempt as stalled once it is up.
+    for _ in 0..100 {
+        if pool.running_count() > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    pool.lifeguard()
+        .inject_event_for_testing(LifeguardEvent::Stalled {
+            task_id: "stall-retry".into(),
+            pid: 0,
+        });
+    let result = pool.wait_for("stall-retry").await.unwrap();
+    assert!(result.ok, "{result:?}");
+    assert_eq!(result.used_inherited_model_fallback, Some(true));
+    assert_eq!(result.status, Some(ResultStatus::Complete));
+    pool.dispose();
+}
+
+/// A user cancellation is never retried on another model, whatever the child's
+/// stderr says: they asked for it to stop.
+#[tokio::test]
+async fn a_cancelled_run_is_never_retried_on_another_model() {
+    let _serial = SERIAL.lock().await;
+    let dir = setup();
+    let cwd = dir.path();
+    let agents = cwd.join(DIR).join("agents");
+    std::fs::create_dir_all(&agents).unwrap();
+    std::fs::write(
+        agents.join("pinned.md"),
+        "---\nname: pinned\ndescription: agent with a pinned model.\nmodel: pinned-model\n---\nbody",
+    )
+    .unwrap();
+    let exe = script(
+        cwd,
+        "mock-cancel.sh",
+        "echo '429 Go usage limit exceeded' >&2\nsleep 0.2",
+    );
+    let pool = SubagentPool::new(SubagentPoolOptions {
+        executable: exe,
+        max_concurrency: Some(1),
+        cwd: Some(cwd.to_path_buf()),
+        ..Default::default()
+    });
+    pool.spawn(SubagentPoolTask {
+        model: Some("parent-model".into()),
+        inherited_model: Some("parent-model".into()),
+        ..task("cancel-once", "pinned", "do work")
+    })
+    .unwrap();
+    for _ in 0..100 {
+        if pool.running_count() > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(pool.cancel("cancel-once"));
+    let result = pool.wait_for("cancel-once").await.unwrap();
+    assert!(!result.ok);
+    assert_eq!(result.status, Some(ResultStatus::Cancelled));
+    assert_eq!(result.used_inherited_model_fallback, Some(false));
+    // Nothing was requeued behind it.
+    assert_eq!(pool.queued_count(), 0);
+    pool.dispose();
+}
+
+/// A killed run settles with the status alone, exactly as hoocode does, so the
+/// parent still reports `subagent <status>`. The diagnostic value lives in
+/// `output.json` instead.
+#[tokio::test]
+async fn a_killed_run_reports_the_status_not_a_prose_cause() {
+    let _serial = SERIAL.lock().await;
+    let dir = setup();
+    let cwd = dir.path();
+    let exe = script(cwd, "mock-silent.sh", "sleep 0.2");
+    let pool = SubagentPool::new(SubagentPoolOptions {
+        executable: exe,
+        max_concurrency: Some(1),
+        cwd: Some(cwd.to_path_buf()),
+        ..Default::default()
+    });
+    pool.spawn(task("why", "explore", "work")).unwrap();
+    for _ in 0..100 {
+        if pool.running_count() > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    pool.lifeguard()
+        .inject_event_for_testing(LifeguardEvent::Stalled {
+            task_id: "why".into(),
+            pid: 0,
+        });
+    let result = pool.wait_for("why").await.unwrap();
+    assert!(!result.ok);
+    assert_eq!(result.status, Some(ResultStatus::Stalled));
+    // hoocode leaves `error` unset on the kill path; the parent derives
+    // "subagent stalled" from the status. Keep it that way.
+    assert_eq!(result.error, None);
     pool.dispose();
 }
 

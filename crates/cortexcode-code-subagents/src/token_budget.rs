@@ -1,9 +1,23 @@
 //! `core/token-budget.ts`: cumulative token usage for one subagent task, read
 //! from the child's `message_end` events.
 //!
-//! Advisory only: it never stops a subagent (the hard stop is `--max-turns`).
-//! `budget_warning` fires once at 80% of the budget, `budget_exceeded` once at
-//! 100%; the state persists to the task's `budget.json` on every usage event.
+//! Advisory only: it never stops a subagent (the hard stop is `--max-turns`
+//! and the lifeguard's per-agent deadline). `budget_warning` fires once at 80%
+//! of the budget, `budget_exceeded` once at 100%; the state persists to the
+//! task's `budget.json` on every usage event.
+//!
+//! Deviation: hoocode accumulates `usage.totalTokens`, which is the *context
+//! size* of the turn — the whole conversation resent each request, not the work
+//! done. Summing it is quadratic: N turns of a ~10k context report ~10k·N²/2.
+//! The recorded runs report 1 654 795 against a 35 000 budget (47x) when their
+//! real generated total is 4 111.
+//!
+//! Note that fixing the arithmetic is not enough. The delta of `totalTokens`
+//! still counts the fixed system-prompt + tool-schema floor, which is 25k-62k
+//! on turn 1 alone — it crosses a 35k budget at turn 1 or 2 in 7 of the 8
+//! recorded runs. So `used` counts what the subagent *generated*
+//! (`output` + `cacheWrite`, which are per-request figures and need no
+//! baseline), and the context size is reported separately as `peak_context`.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -36,6 +50,9 @@ pub struct TokenBudget {
     limit: u64,
     cwd: PathBuf,
     used: u64,
+    /// Largest `usage.totalTokens` seen: this run's peak context size. Reported
+    /// in `budget.json` for diagnostics; never compared against the budget.
+    peak_context: u64,
     warned: bool,
     exceeded: bool,
     stdout_buffer: String,
@@ -58,6 +75,7 @@ impl TokenBudget {
                 .cwd
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into())),
             used: 0,
+            peak_context: 0,
             warned: false,
             exceeded: false,
             stdout_buffer: String::new(),
@@ -116,6 +134,11 @@ impl TokenBudget {
         self.limit
     }
 
+    /// This run's peak context size, in tokens. Diagnostic only.
+    pub fn peak_context(&self) -> u64 {
+        self.peak_context
+    }
+
     pub fn is_warned(&self) -> bool {
         self.warned
     }
@@ -135,6 +158,7 @@ impl TokenBudget {
             "agent_type": self.agent_type,
             "budget": self.limit,
             "used": self.used,
+            "peak_context": self.peak_context,
             "warned": self.warned,
             "exceeded": self.exceeded,
             "last_updated": last_updated,
@@ -163,17 +187,37 @@ impl TokenBudget {
         if message.get("role").and_then(Value::as_str) != Some("assistant") {
             return;
         }
-        let Some(total) = message
-            .get("usage")
-            .and_then(|u| u.get("totalTokens"))
-            .and_then(Value::as_f64)
-        else {
+        let Some(usage) = message.get("usage").filter(|u| u.is_object()) else {
             return;
         };
-        if total <= 0.0 {
+        // What the subagent generated this turn: `output` and `cacheWrite` are
+        // per-request figures, so they sum directly.
+        let generated = usage
+            .get("output")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .max(0.0)
+            + usage
+                .get("cacheWrite")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0)
+                .max(0.0);
+        if generated > 0.0 {
+            self.used += generated as u64;
+        }
+        // Context size for this turn, tracked separately: it is what a reader
+        // of budget.json actually wants to see grow, and it is not what the
+        // budget is measured against.
+        if let Some(total) = usage.get("totalTokens").and_then(Value::as_f64) {
+            if total > 0.0 {
+                self.peak_context = self.peak_context.max(total as u64);
+            }
+        }
+        if self.used == 0 {
+            // A provider that reports neither (or an empty usage block) must
+            // not re-fire the thresholds on every event.
             return;
         }
-        self.used += total as u64;
 
         if !self.warned && self.used >= self.warning_threshold {
             self.warned = true;
