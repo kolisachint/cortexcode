@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed: compaction and branch summaries on OpenCode Go (2026-10-02)
+- Compaction (`/compact`, automatic context compaction, branch summaries) builds its own
+  summarization request, which did not carry the session id, so OpenCode Go rejected it with
+  `400 Request is missing x-opencode-session and cannot be routed efficiently`. Normal turns
+  were unaffected — they already sent the header. Summarization now passes the session id
+  through on every request (chat completions, responses, Anthropic Messages), and it is still
+  omitted when there is no session. Two tests cover both directions.
+
 ### Pin bumped to hoocode v0.6.0 (2026-10-01)
 - Model catalog regenerated from hoocode v0.6.0 (1228 models). It adds
   `anthropic/claude-sonnet-5-5`, `opencode-go/longcat-2.5-preview-free`, `opencode/gpt-6.1-sol`

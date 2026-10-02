@@ -1,0 +1,11 @@
+mod cell_size_input;
+mod cursor_parking;
+mod flatcache_stress;
+mod hyperlink_click;
+mod overlay_compositing;
+mod overlay_non_capturing_ts;
+mod overlay_options_ts;
+mod screen_fill;
+mod scroll_viewport;
+mod support;
+mod tui_render_ts;

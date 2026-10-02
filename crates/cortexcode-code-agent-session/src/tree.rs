@@ -160,6 +160,9 @@ impl AgentSession {
                 model,
                 api_key: Some(api_key),
                 headers,
+                // OpenCode Go routes on x-opencode-session, which the branch
+                // summary request needs because it is a request of its own.
+                session_id: Some(self.session_id()),
                 signal: Some(signal.clone()),
                 custom_instructions: custom_instructions.clone(),
                 replace_instructions: replace_instructions.unwrap_or(false),

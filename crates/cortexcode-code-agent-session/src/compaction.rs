@@ -142,6 +142,9 @@ impl AgentSession {
         let options = SummarizeOptions {
             api_key: Some(api_key),
             headers,
+            // OpenCode Go routes on x-opencode-session, which the summary
+            // request needs because it is a request of its own.
+            session_id: Some(self.session_id()),
             signal: Some(signal.clone()),
             thinking_level: Some(self.thinking_level()),
         };

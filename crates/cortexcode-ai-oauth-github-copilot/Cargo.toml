@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.cortex]
 publish = false
 
+[lib]
+# This crate has no doctests; skip the rustdoc test build (build-speed D4).
+doctest = false
+
 [dependencies]
 cortexcode-ai-models = { workspace = true }
 cortexcode-ai-oauth = { workspace = true }

@@ -64,6 +64,8 @@ pub struct GenerateBranchSummaryOptions {
     pub model: Model,
     pub api_key: Option<String>,
     pub headers: Option<HashMap<String, String>>,
+    /// The session id, sent as `x-opencode-session` on OpenCode Go models.
+    pub session_id: Option<String>,
     pub signal: Option<AbortSignal>,
     pub custom_instructions: Option<String>,
     /// `custom_instructions` replace the default prompt instead of extending it.
@@ -303,6 +305,7 @@ pub async fn generate_branch_summary(
     let stream_options = SimpleStreamOptions {
         api_key: options.api_key.clone(),
         headers: options.headers.clone(),
+        session_id: options.session_id.clone(),
         signal: options.signal.clone(),
         max_tokens: Some(2048),
         ..Default::default()

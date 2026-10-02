@@ -1,0 +1,10 @@
+mod agent_frontmatter;
+mod agent_registry;
+mod builtin_skills;
+mod context_files;
+mod frontmatter_ts;
+mod package_resolve;
+mod prompt_templates;
+mod reload_stale_resource_settings_ts;
+mod resource_loader;
+mod skills;
