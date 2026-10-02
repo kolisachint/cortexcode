@@ -29,6 +29,7 @@ use crate::depth::{
     current_subagent_depth, resolve_max_subagent_depth, tool_allowlist_needs_mcp, ProcessEnv,
     SubagentEnv, SUBAGENT_DEPTH_ENV, SUBAGENT_SKIP_MCP_ENV,
 };
+use crate::lifeguard;
 use crate::model_categories::{resolve_model_reference, CategorySettings};
 use crate::pool::DEFAULT_SUBAGENT_MAX_TURNS;
 
@@ -79,8 +80,14 @@ impl std::error::Error for WarmWorkerError {}
 /// Reports the tool a worker is running (`""` between tools).
 pub type WarmProgressCallback = Arc<dyn Fn(&str) + Send + Sync>;
 
-/// How long a warm run may take before it is treated as stalled.
-const WARM_RUN_TIMEOUT: Duration = Duration::from_millis(180_000);
+/// Deviation: how long a warm run may take before it is treated as stalled.
+/// hoocode's `WARM_RUN_TIMEOUT_MS` is a flat 180s for every agent; we use the
+/// same per-agent table the cold pool's lifeguard uses, which is never tighter.
+/// A flat 3 minutes killed `code-review` runs that the cold pool would have
+/// allowed 15.
+fn warm_run_timeout(agent_type: &str) -> Duration {
+    Duration::from_millis(lifeguard::base_timeout_ms(agent_type))
+}
 
 /// The spawn command: executable and prefix args.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -489,7 +496,8 @@ impl WarmSubagentPool {
             return Err(WarmWorkerError("warm pool disposed".into()));
         }
         let mut worker = self.acquire(options).await?;
-        match worker.run(prompt, on_activity, WARM_RUN_TIMEOUT).await {
+        let timeout = warm_run_timeout(&options.agent_type);
+        match worker.run(prompt, on_activity, timeout).await {
             Ok(result) => {
                 self.release(worker).await;
                 Ok(result)

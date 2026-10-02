@@ -62,6 +62,50 @@ Newest entry first. Each entry says where to resume. Status numbers come from
 
 ## Log
 
+### 2026-10-03 · subagents: correctness pass, child-process model kept (not a ledger task)
+- Investigated why subagents failed on every run (ten dispatch dirs in `hoobot/`, all
+  failures — a clean success deletes its dir). Design doc rewritten as an as-built record:
+  `docs/design/subagents.md`. The original in-process design was rejected; seven targeted
+  fixes shipped instead.
+- **T1** `base_timeout_ms` keyed on `edit|test|review`, none of which we ship, so every
+  agent got the 5-minute default. Added real per-agent arms; the warm pool's flat 180s now
+  tracks the same table. Four recorded runs timed out at exactly 300s.
+- **T2** `TokenBudget::used` summed cumulative `usage.totalTokens` (the turn's context size),
+  which is quadratic — one run reported 1 654 795 against a 35k budget when its real
+  generated total is 4 111. Now sums `output + cacheWrite`; context reported as
+  `peak_context`. Note the obvious repair (differencing `totalTokens`) is *not* enough: it
+  still crosses 35k at turn 1-2 in 7 of 8 recorded runs, because turn-1 context is a fixed
+  25k-62k the subagent cannot shrink.
+- **T3** Children were killed at their deadline with `result.json` never written, losing
+  every finished turn. The pool now passes `--deadline-ms` (internal flag, not in `--help`);
+  the child wraps up 90s early and settles `partial`. Post-hoc salvage from `session.jsonl`
+  was rejected: 5 of 10 recorded runs produced no assistant text at all.
+- **T4/T5** Killed tasks returned before the model-fallback ladder was consulted, so a run
+  that died because its model was unreachable never retried. Now they consult it (never for
+  a user cancellation). The classifier also gained `region` and `finish_reason: error` groups,
+  which hoocode's pattern misses.
+- **T6** With `complexity` passed, the fallback re-resolved the same category and retried the
+  identical model. New `SubagentPoolTask::inherited_model` carries the parent's concrete model.
+- **T7** `output.json` embedded a 256KB stdout tail (a post-mortem nobody reads in code);
+  now outcome + cause + an 8KB stderr tail.
+- Verified: 3494 tests pass (was 3479), clippy `-D warnings` clean, fmt clean, dep firewall
+  clean. L2 parity passes for `subagent-task`, `subagent-command`, `json-subagent-child`.
+  End-to-end against the release binary and the mock LLM: the deadline path yields
+  `partial`/0.6 with the wrap-up steer delivered exactly once, the control yields
+  `complete`/0.9, and a full `Task` dispatch settles `complete` — the first clean subagent
+  success in the ten recorded runs.
+- The 12 non-passing L2 scenarios in `harness.py run all` are pre-existing, attributed with a
+  clean worktree at HEAD: 9 `print-*` fail on a `SearchHooCode` tool hoocode 0.6.0 ships and
+  the port does not, `config-selector` on a trailing slash, and `cd-reload`/`export-import` are
+  `invalid` because hoocode itself fails them.
+- **Not done, owner is aware:** the budget stays advisory (with `output` at 1.2k-22k against
+  35k, enforcement would never fire); the new deadlines are from four data points, unmeasured
+  against a task corpus; the in-process migration is untouched, with re-entrant nesting the
+  open blocker.
+- **Deviation reverted during review:** setting a prose `error` on killed tasks would change a
+  user-visible TUI line from hoocode's `subagent stalled`, and no parity scenario covers a
+  killed task. `error` stays unset.
+
 ### 2026-10-01 · migration paused; docs updated
 - By user decision, 9.1, 10.2e, 10.11 and 13.4 are set to `deferred` by hand (logged in each
   task). The `l1_done` tasks got a note that their L2 waits on 12.4.

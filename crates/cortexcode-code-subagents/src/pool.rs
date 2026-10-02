@@ -42,10 +42,32 @@ use crate::result::write_file_atomic;
 use crate::token_budget::{TokenBudget, TokenBudgetOptions};
 
 /// Provider/model failures where retrying with the parent's model can recover.
+///
+/// Deviation: hoocode's pattern plus two groups it is missing, both of which
+/// were observed killing real subagents in `hoobot/.cortexcode/dispatch`:
+///
+/// * **region** — `400 Upstream request failed: This Go model requires Global
+///   regions.` A gateway account in the wrong region rejects a model the
+///   catalog lists and the parent model does not use.
+/// * **provider failure** — `Provider finish_reason: error`, which killed the
+///   one recorded run that reached completion.
+///
+/// Kept as one pattern (hoocode's shape) rather than a classifier enum; the
+/// alternatives are grouped so they can be lifted out later.
 static INHERITED_MODEL_FALLBACK_ERROR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?i)usage[_\s-]?limit|subscription|quota|rate.?limit|too many requests|429|insufficient|out of credit|credit balance|billing|payment required|402|model[^\n]*(not found|unavailable|not available|not supported|does not exist|invalid|unsupported)|no api key|no auth configured|authentication|unauthorized|forbidden|permission",
-    )
+    Regex::new(concat!(
+        r#"(?i)"#,
+        // hoocode's groups, verbatim.
+        r#"usage[_\s-]?limit|subscription|quota|rate.?limit|too many requests|429|insufficient|"#,
+        r#"out of credit|credit balance|billing|payment required|402|"#,
+        r#"model[^\n]*(not found|unavailable|not available|not supported|does not exist|invalid|unsupported)|"#,
+        r#"no api key|no auth configured|authentication|unauthorized|forbidden|permission"#,
+        // region / geo-fencing: the catalog lists models the account cannot call.
+        r#"|requires?[^\n]{0,24}regions?|region[^\n]{0,16}(not available|unsupported|restricted)|"#,
+        r#"not available in (your |this )?region|unsupported_regions?|geo[_\s-]?restricted"#,
+        // a provider that failed the turn outright, without saying why
+        r#"|finish[_\s-]?reason["\s:=]*error|upstream request failed"#,
+    ))
     .expect("valid regex")
 });
 
@@ -55,6 +77,9 @@ pub const DEFAULT_SUBAGENT_MAX_TURNS: u64 = 50;
 
 /// Tail cap on the captured stdout/stderr per task.
 const MAX_CAPTURED_STREAM_CHARS: usize = 256 * 1024;
+/// How much of a failed run's stderr goes into `output.json`. A provider error
+/// is a line or two at the end; the rest is noise.
+const OUTPUT_JSON_STDERR_TAIL_CHARS: usize = 8 * 1024;
 /// Cap on one un-terminated stdout line (a runaway writer is dropped).
 const MAX_SUBAGENT_EVENT_LINE_CHARS: usize = 8 * 1024 * 1024;
 /// How long to wait for stdio to close after the child exits (grandchildren
@@ -75,6 +100,12 @@ pub struct SubagentPoolTask {
     pub cwd: Option<PathBuf>,
     pub model: Option<String>,
     pub provider: Option<String>,
+    /// The dispatching session's own concrete model, and the one the inherited-
+    /// model fallback runs on. `model` alone is not enough: when the caller
+    /// asked for a `complexity` tier it holds a *category*, which resolves to
+    /// the model that just failed, so a fallback built from it retries the same
+    /// model and changes nothing.
+    pub inherited_model: Option<String>,
     /// Session file to persist/continue (default: the task's dispatch dir).
     pub session_file: Option<PathBuf>,
     /// Internal: retry with the caller's model after the preferred one failed.
@@ -145,6 +176,8 @@ pub struct DispatchOptions {
     pub context: Option<String>,
     pub model: Option<String>,
     pub provider: Option<String>,
+    /// The dispatching session's own model, for the inherited-model fallback.
+    pub inherited_model: Option<String>,
     /// Session file to persist/continue (resume).
     pub session_file: Option<PathBuf>,
     /// Caller-supplied task id (default: a generated `dispatch-…` id).
@@ -236,6 +269,17 @@ impl KillReason {
             Self::Cancelled => ResultStatus::Cancelled,
         }
     }
+
+    /// A kill reason that another model could plausibly fix.
+    ///
+    /// A `Stalled` or `Timeout` run is retried only when the classifier finds a
+    /// provider error in what the child captured — reaching a deadline is on
+    /// its own not evidence that the model was at fault. A `Cancelled` is never
+    /// retried: the user asked for it to stop, and quietly restarting the work
+    /// they just cancelled is worse than losing it.
+    fn worth_retrying_on_another_model(self) -> bool {
+        matches!(self, Self::Stalled | Self::Timeout)
+    }
 }
 
 /// `SubagentSlot`: a running child.
@@ -303,6 +347,18 @@ fn append_tail(current: &mut String, chunk: &str) {
         }
         current.drain(..cut);
     }
+}
+
+/// The last `cap` bytes of `text`, on a char boundary.
+fn tail(text: &str, cap: usize) -> String {
+    if text.len() <= cap {
+        return text.to_string();
+    }
+    let mut cut = text.len() - cap;
+    while !text.is_char_boundary(cut) {
+        cut += 1;
+    }
+    text[cut..].to_string()
 }
 
 /// Higher runs first: read-only investigation often unblocks other work.
@@ -632,6 +688,7 @@ impl SubagentPool {
             context: options.context,
             model: options.model,
             provider: options.provider,
+            inherited_model: options.inherited_model,
             session_file: options.session_file,
             cwd: Some(self.inner.cwd.clone()),
             ..Default::default()
@@ -826,6 +883,15 @@ impl PoolInner {
         let _ = std::fs::write(path, serde_json::to_string_pretty(&log).unwrap_or_default());
     }
 
+    /// `output.json`: the post-mortem for a run that did not succeed.
+    ///
+    /// Deviation: hoocode embeds the whole captured `stdout`, which is a 256KB
+    /// tail of the child's JSONL event stream — the recorded failures wrote
+    /// 267-275KB files, most of it the task prompt echoed back. Nothing reads
+    /// this file in code; it exists for whoever is debugging a failed dispatch,
+    /// and the transcript is already on disk in `session.jsonl`. So this carries
+    /// the outcome, the cause, and the tail of stderr (where a provider error
+    /// lives), and leaves the transcript where it belongs.
     fn write_output_json(&self, task_id: &str, result: &SubagentResult) {
         // JSON.stringify drops undefined fields.
         let mut output = Map::new();
@@ -835,8 +901,10 @@ impl PoolInner {
         if let Some(status) = result.status {
             output.insert("status".into(), Value::from(status.as_str()));
         }
-        output.insert("stdout".into(), Value::from(result.stdout.clone()));
-        output.insert("stderr".into(), Value::from(result.stderr.clone()));
+        output.insert(
+            "stderr_tail".into(),
+            Value::from(tail(&result.stderr, OUTPUT_JSON_STDERR_TAIL_CHARS)),
+        );
         if let Some(error) = &result.error {
             output.insert("error".into(), Value::from(error.clone()));
         }
@@ -941,7 +1009,18 @@ impl PoolInner {
             .as_ref()
             .and_then(|d| d.model.clone())
             .filter(|m| !task.use_inherited_model_fallback && !m.is_empty() && m != MODEL_INHERIT);
-        let raw = explicit.or_else(|| task.model.clone().filter(|m| !m.is_empty()));
+        // On the fallback attempt the pinned model is dropped and the
+        // dispatching session's own model is used. `task.model` is only that
+        // when the caller passed a concrete model; when it passed a
+        // `complexity` tier it is a category that resolves to the model that
+        // just failed, so prefer `inherited_model` whenever we have it.
+        let raw = if task.use_inherited_model_fallback {
+            task.inherited_model.clone().filter(|m| !m.is_empty())
+        } else {
+            None
+        }
+        .or(explicit)
+        .or_else(|| task.model.clone().filter(|m| !m.is_empty()));
         let model = raw.and_then(|m| {
             resolve_model_reference(
                 &m,
@@ -966,6 +1045,14 @@ impl PoolInner {
             .filter(|n| *n > 0)
             .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS);
         args.extend(["--max-turns".into(), max_turns.to_string()]);
+        // The same per-agent deadline `SubagentLifeguard` enforces, so the child
+        // can ask to wrap up and write a result before we kill it. The base is
+        // sent, not the load-scaled budget: under load we widen the kill, so the
+        // wrap-up still lands first.
+        args.extend([
+            "--deadline-ms".into(),
+            crate::lifeguard::base_timeout_ms(&task.agent_type).to_string(),
+        ]);
 
         for path in self.state().skill_paths.clone() {
             args.extend(["--skill".into(), path]);
@@ -1205,7 +1292,7 @@ impl PoolInner {
     ) -> bool {
         let task_id = task.task_id.as_str();
         let cwd = task.cwd.clone().unwrap_or_else(|| self.cwd.clone());
-        let (tokens_used, budget_exceeded) = {
+        let (tokens_generated, budget_exceeded) = {
             let mut budget = budget.lock().unwrap_or_else(|e| e.into_inner());
             budget.flush();
             (budget.used(), budget.is_exceeded())
@@ -1238,8 +1325,30 @@ impl PoolInner {
                 stderr,
                 exit_code: code,
                 status: Some(reason.status()),
+                used_inherited_model_fallback: Some(task.use_inherited_model_fallback),
                 ..Default::default()
             };
+            // A killed task used to return here, before the ladder was
+            // consulted at all, so a run that died because its model was
+            // unreachable never retried on a reachable one. The classifier
+            // reads the child's captured stderr, where a provider error lives;
+            // `error` stays unset so the parent's message is still hoocode's
+            // "subagent <status>".
+            if reason.worth_retrying_on_another_model()
+                && self.should_retry_with_inherited_model(task, &result)
+            {
+                agent_log(&format!(
+                    "[DISPATCH] agent={} task_id={task_id} {:?} after the preferred model failed; retrying with inherited model",
+                    task.agent_type, reason
+                ));
+                self.cleanup_retry_artifacts(task);
+                self.state().queue.push_front(SubagentPoolTask {
+                    use_inherited_model_fallback: true,
+                    ..task.clone()
+                });
+                return true;
+            }
+
             self.write_output_json(task_id, &result);
             let name = match reason {
                 KillReason::Stalled => "task_stalled",
@@ -1248,7 +1357,7 @@ impl PoolInner {
             };
             self.emit(
                 name,
-                json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_used": tokens_used}),
+                json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_generated": tokens_generated}),
             );
             self.resolve_waiter(task_id, result);
             return false;
@@ -1278,7 +1387,7 @@ impl PoolInner {
                 self.write_output_json(task_id, &result);
                 self.emit(
                     "task_failed",
-                    json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_used": tokens_used, "error": verification.reason}),
+                    json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_generated": tokens_generated, "error": verification.reason}),
                 );
                 self.resolve_waiter(task_id, result);
                 return false;
@@ -1290,7 +1399,7 @@ impl PoolInner {
                 std::fs::remove_dir_all(cortexcode_code_paths::dispatch_task_dir(&cwd, task_id));
             self.emit(
                 "task_done",
-                json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_used": tokens_used, "status": "complete"}),
+                json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_generated": tokens_generated, "status": "complete"}),
             );
             self.resolve_waiter(task_id, result);
             return false;
@@ -1320,7 +1429,7 @@ impl PoolInner {
             .unwrap_or_else(|| format!("Exited with code {}", js_code(code)));
         self.emit(
             "task_failed",
-            json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_used": tokens_used, "error": error}),
+            json!({"task_id": task_id, "agent_type": task.agent_type, "duration": duration, "tokens_generated": tokens_generated, "error": error}),
         );
         self.resolve_waiter(task_id, result);
         false
@@ -1339,7 +1448,7 @@ impl PoolInner {
         stderr: String,
     ) -> bool {
         self.state().slots.remove(&task.task_id);
-        let tokens_used = {
+        let tokens_generated = {
             let mut budget = budget.lock().unwrap_or_else(|e| e.into_inner());
             budget.flush();
             budget.used()
@@ -1361,7 +1470,7 @@ impl PoolInner {
         self.write_output_json(&task.task_id, &result);
         self.emit(
             "task_failed",
-            json!({"task_id": task.task_id, "agent_type": task.agent_type, "duration": now_ms().saturating_sub(spawned_at), "tokens_used": tokens_used, "error": error}),
+            json!({"task_id": task.task_id, "agent_type": task.agent_type, "duration": now_ms().saturating_sub(spawned_at), "tokens_generated": tokens_generated, "error": error}),
         );
         self.resolve_waiter(&task.task_id, result);
         false
@@ -1375,9 +1484,10 @@ impl PoolInner {
         if task.use_inherited_model_fallback || task.session_file.is_some() {
             return false;
         }
-        // Only the parent model is required (the provider may come from a
-        // gateway default).
-        if task.model.as_deref().is_none_or(str::is_empty) {
+        // Falling back needs a concrete model to fall back *to*. `task.model`
+        // may be a `complexity` category, which would resolve to the model that
+        // just failed.
+        if task.inherited_model.as_deref().is_none_or(str::is_empty) {
             return false;
         }
         let Some(def) = self.definition(&task.agent_type) else {

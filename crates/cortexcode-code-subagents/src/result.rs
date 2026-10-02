@@ -246,6 +246,16 @@ fn derive_error_message(messages: &[AgentMessage]) -> Option<String> {
 pub struct BuildSubagentResultOptions {
     /// The run stopped at its turn cap: report a usable partial result.
     pub reached_max_turns: bool,
+    /// The run was asked to wrap up because it was nearing its wall-clock
+    /// deadline. Same treatment: the work is usable, but it was cut short.
+    pub reached_deadline: bool,
+}
+
+impl BuildSubagentResultOptions {
+    /// Whether the run was cut short rather than finished on its own terms.
+    fn cut_short(&self) -> bool {
+        self.reached_max_turns || self.reached_deadline
+    }
 }
 
 fn or_else(text: String, fallback: &str) -> String {
@@ -265,12 +275,14 @@ pub fn build_subagent_result(
     options: BuildSubagentResultOptions,
 ) -> SubagentResultFile {
     let files_changed = collect_changed_files(messages);
-    if options.reached_max_turns {
+    if options.cut_short() {
+        let reason = if options.reached_deadline {
+            "Ran out of time before completing."
+        } else {
+            "Reached the turn limit before completing."
+        };
         return SubagentResultFile {
-            summary: or_else(
-                derive_summary(messages),
-                "Reached the turn limit before completing. Returning partial findings.",
-            ),
+            summary: or_else(derive_summary(messages), reason),
             files_changed,
             confidence: 0.6,
             status: ResultStatus::Partial,

@@ -63,6 +63,10 @@ pub struct Args {
     pub task_id: Option<String>,
     /// Hard cap on assistant turns.
     pub max_turns: Option<u64>,
+    /// Internal: wall-clock budget, in milliseconds, for a spawned subagent.
+    /// The parent passes the same per-agent deadline its lifeguard enforces; the
+    /// child wraps up shortly before it rather than being killed at it.
+    pub deadline_ms: Option<u64>,
     pub session: Option<String>,
     /// Base URL of a hooteams server, or "auto".
     pub team: Option<String>,
@@ -234,6 +238,12 @@ pub fn parse_args(args: &[String]) -> Args {
                 i += 1;
                 if let Some(v) = js_parse_int(&args[i]).filter(|v| *v > 0) {
                     result.max_turns = Some(v as u64);
+                }
+            }
+            "--deadline-ms" if has_next => {
+                i += 1;
+                if let Some(v) = js_parse_int(&args[i]).filter(|v| *v > 0) {
+                    result.deadline_ms = Some(v as u64);
                 }
             }
             "--session" if has_next => {
@@ -939,6 +949,21 @@ mod tests {
         assert_eq!(parse(&["--max-turns", "12abc"]).max_turns, Some(12));
         assert_eq!(parse(&["--max-turns", "-3"]).max_turns, None);
         assert_eq!(parse(&["--max-turns", "abc"]).max_turns, None);
+    }
+    /// The parent's internal wall-clock budget for a spawned subagent. Same
+    /// `Number.parseInt` semantics as `--max-turns`, so a malformed value
+    /// disables the wrap-up rather than arming it at a nonsense deadline.
+    #[test]
+    fn deadline_ms_uses_parse_int_semantics() {
+        assert_eq!(
+            parse(&["--deadline-ms", "900000"]).deadline_ms,
+            Some(900_000)
+        );
+        assert_eq!(parse(&["--deadline-ms", "90s"]).deadline_ms, Some(90));
+        assert_eq!(parse(&["--deadline-ms", "-1"]).deadline_ms, None);
+        assert_eq!(parse(&["--deadline-ms", "0"]).deadline_ms, None);
+        assert_eq!(parse(&["--deadline-ms", "abc"]).deadline_ms, None);
+        assert_eq!(parse(&["--deadline-ms"]).deadline_ms, None);
     }
     #[test]
     fn platform_accumulates_across_repeats() {

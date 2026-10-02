@@ -1,8 +1,9 @@
 # Naming and paths: hoocode (Rust) vs hoocode-ts
 
 Status: **designed 2026-10-01, not started.** Architecture only; no code.
-Companion to `subagents.md` (the same investigation surfaced the naming
-problem) and `distribution.md` (which owns what ships).
+Companion to `subagents.md` (an as-built record of the same investigation, which
+is where the naming problem surfaced) and `distribution.md` (which owns what
+ships).
 
 ## Problem
 

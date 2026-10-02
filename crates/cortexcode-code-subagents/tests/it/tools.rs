@@ -646,6 +646,35 @@ fn model_arg(dir: &Path) -> Option<String> {
     argv.get(i + 1).cloned()
 }
 
+/// A child that appends each attempt's `--model` to `models.txt`: fails with
+/// `failed` on the first (pinned) model, succeeds on any other.
+fn failing_then_ok_child(dir: &Path, failed: &Value) -> PathBuf {
+    let path = dir.join("mock-fallback.sh");
+    let ok = json!({"summary": "recovered", "files_changed": [], "confidence": 0.9, "status": "complete"});
+    std::fs::write(
+        &path,
+        format!(
+            "#!/bin/sh\ntid=unknown; model=; prev=; for a in \"$@\"; do [ \"$prev\" = \"--task-id\" ] && tid=$a; [ \"$prev\" = \"--model\" ] && model=$a; prev=$a; done\nmkdir -p {DIR}/dispatch/$tid\necho \"$model\" >> models.txt\nif [ \"$model\" = \"pinned-model\" ]; then printf '%s' '{failed}' > {DIR}/dispatch/$tid/result.json; exit 1; fi\nprintf '%s' '{ok}' > {DIR}/dispatch/$tid/result.json\n"
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    path
+}
+
+/// Every `--model` the child was spawned with, in order.
+fn model_arg_history(dir: &Path) -> Vec<String> {
+    std::fs::read_to_string(dir.join("models.txt"))
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn task_tool_passes_complexity_or_the_parent_model() {
     let _serial = SERIAL.lock().await;
@@ -704,6 +733,71 @@ async fn task_tool_passes_complexity_or_the_parent_model() {
     .await
     .unwrap();
     assert_eq!(model_arg(&cwd).as_deref(), Some("parent-model"));
+    pool.dispose();
+    set_subagent_pool_for_testing(None);
+    task_store().clear();
+}
+
+/// The inherited-model fallback has to actually switch models.
+///
+/// When the caller passes a `complexity` tier, `DispatchOptions::model` holds
+/// the *category*, not a model. Falling back to it resolved the category again
+/// and re-ran on the model that had just failed — the retry looked like it
+/// happened and changed nothing.
+#[tokio::test]
+async fn the_inherited_model_fallback_switches_away_from_a_complexity_tier() {
+    let _serial = SERIAL.lock().await;
+    isolate_agent_dir();
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().canonicalize().unwrap();
+    // An agent that pins a concrete model, so the fallback has something to
+    // drop; the caller's `complexity` is what it will otherwise resolve to.
+    let agents = cwd.join(DIR).join("agents");
+    std::fs::create_dir_all(&agents).unwrap();
+    std::fs::write(
+        agents.join("pinned.md"),
+        "---\nname: pinned\ndescription: Pins a model.\ntools: read\nmodel: pinned-model\n---\nBody.",
+    )
+    .unwrap();
+    let tool = create_task_tool_definition(&cwd);
+    task_store().clear();
+    let model: cortexcode_ai_types::Model = serde_json::from_value(json!({
+        "id": "parent-model", "name": "p", "api": "openai-completions", "provider": "prov",
+        "baseUrl": "http://x", "contextWindow": 1000, "maxTokens": 100,
+    }))
+    .unwrap();
+    let failed = json!({
+        "summary": "Task failed: This Go model requires Global regions.",
+        "files_changed": [], "confidence": 0.5, "status": "failed"
+    });
+    let pool = SubagentPool::new(SubagentPoolOptions {
+        executable: failing_then_ok_child(&cwd, &failed),
+        cwd: Some(cwd.clone()),
+        settings: Some(
+            cortexcode_code_subagents::model_categories::CategorySettings {
+                model_categories: Some(cortexcode_code_settings::ModelCategories {
+                    fast: Some("tier-model".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ),
+        ..Default::default()
+    });
+    set_subagent_pool_for_testing(Some(pool.clone()));
+    let result = execute(
+        tool,
+        json!({"description": "quick read", "prompt": "read one file", "subagent_type": "pinned", "complexity": "fast"}),
+        ToolContext {
+            model: Some(model),
+            ..ctx(&cwd)
+        },
+    )
+    .await;
+    assert!(result.is_ok(), "{result:?}");
+    // Two attempts were recorded: the pinned model, then the parent's.
+    let models = model_arg_history(&cwd);
+    assert_eq!(models, vec!["pinned-model", "parent-model"]);
     pool.dispose();
     set_subagent_pool_for_testing(None);
     task_store().clear();

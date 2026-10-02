@@ -11,6 +11,14 @@
 //! Deviation: hoocode also hooks the parent's SIGINT/SIGTERM to shut children
 //! down gracefully; here the host calls [`SubagentLifeguard::graceful_shutdown`]
 //! from its own signal handling, since a library must not take over signals.
+//!
+//! Deviation: [`base_timeout_ms`] keeps hoocode's arms but also covers the
+//! agents we actually ship. `TIMEOUTS_MS` is keyed `explore`/`edit`/`test`/
+//! `review`/`doc`, and neither tree ships `edit`, `test`, `review` or `doc` —
+//! so every subagent fell through to the 5-minute default, including
+//! `code-review`. Four of ten recorded runs (`hoobot/.cortexcode/dispatch`)
+//! died `timeout` at exactly 300s, three of them `code-review` holding 220-297s
+//! of finished work. See [`base_timeout_ms`] for the values and why.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -21,12 +29,29 @@ use tokio::task::JoinHandle;
 
 use crate::agent_log::agent_log;
 
-/// Base hard timeout per agent type (explore's for any other type).
-fn base_timeout_ms(agent_type: &str) -> u64 {
+/// Default hard timeout: `explore`'s, for any agent type not listed.
+const DEFAULT_TIMEOUT_MS: u64 = 5 * 60 * 1000;
+
+/// Base hard timeout per agent type (`explore`'s for any other type).
+///
+/// hoocode's `edit`/`test`/`review`/`doc` arms are kept — they are dead in both
+/// trees, but an agent from a plugin can still be named one of those. The
+/// shipped agents get their own, from the recorded runs: a `code-review` that
+/// diffs a large tree needs more than the 5-minute default it was getting, and
+/// `general-purpose` reads, writes and runs tests, so it needs the most.
+///
+/// Wall-clock, before the load multiplier ([`SubagentLifeguard::set_external_load`]
+/// and the pool's own concurrency both widen it).
+pub fn base_timeout_ms(agent_type: &str) -> u64 {
     match agent_type {
         "edit" | "test" => 10 * 60 * 1000,
         "review" => 8 * 60 * 1000,
-        _ => 5 * 60 * 1000,
+        // Diff-reading and file-scanning agents: the recorded code-review runs
+        // were still producing turns at 297s.
+        "code-review" | "security-review" => 15 * 60 * 1000,
+        "general-purpose" => 20 * 60 * 1000,
+        "explore" | "plan" => 10 * 60 * 1000,
+        _ => DEFAULT_TIMEOUT_MS,
     }
 }
 

@@ -768,6 +768,11 @@ pub fn run_print_mode(
         .max_turns
         .filter(|cap| is_subagent && *cap > 0)
         .map(|cap| turn_limit(&session, cap, reached_max_turns.clone()));
+    let reached_deadline = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let _deadline = args
+        .deadline_ms
+        .filter(|ms| is_subagent && *ms > 0)
+        .map(|ms| deadline_wrap_up(&session, ms, reached_deadline.clone()));
 
     // `session.prompt(initialMessage)` then each remaining message in turn.
     let mut initial_images = Some(initial_images);
@@ -821,6 +826,7 @@ pub fn run_print_mode(
             }),
             cortexcode_code_subagents::result::BuildSubagentResultOptions {
                 reached_max_turns: reached_max_turns.load(std::sync::atomic::Ordering::SeqCst),
+                reached_deadline: reached_deadline.load(std::sync::atomic::Ordering::SeqCst),
             },
         );
         // This subagent's own task subtree, for the parent to render below
@@ -839,6 +845,9 @@ pub fn run_print_mode(
     }
     if let Some(heartbeat) = heartbeat {
         heartbeat.abort();
+    }
+    if let Some(deadline) = _deadline {
+        deadline.abort();
     }
     drop(_turn_limit);
     session.dispose();
@@ -1089,6 +1098,52 @@ fn runtime_diagnostics(diagnostics: Diagnostics) -> Vec<AgentSessionRuntimeDiagn
 /// Heartbeat cadence for spawned subagents (the parent's lifeguard stalls
 /// after 60s of silence).
 const SUBAGENT_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// How long before its wall-clock deadline a spawned subagent is asked to stop
+/// investigating and write its result.
+///
+/// Without this lead the run is simply killed at the deadline and every turn of
+/// work it finished is thrown away: `result.json` is only written after
+/// `prompt()` returns, so a `SIGKILL` loses the lot. Ninety seconds covers the
+/// one or two turns a model needs to turn its findings into a summary — the
+/// recorded subagent runs took 5-65s a turn.
+const DEADLINE_WRAP_UP_LEAD: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Ask a spawned subagent to wrap up shortly before its deadline.
+///
+/// `deadline_ms` is the same per-agent deadline the parent's lifeguard enforces
+/// (the pool passes it as `--deadline-ms`). The parent widens its own budget
+/// under load, so this always fires before the process is killed, whatever the
+/// multiplier ends up being.
+///
+/// Unlike the turn cap, this is wall-clock and does not wait for a turn
+/// boundary: the steer lands wherever the run happens to be, and the model sees
+/// it at the start of its next turn.
+fn deadline_wrap_up(
+    session: &AgentSession,
+    deadline_ms: u64,
+    reached: Arc<std::sync::atomic::AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
+    let wrap_up_after =
+        std::time::Duration::from_millis(deadline_ms).saturating_sub(DEADLINE_WRAP_UP_LEAD);
+    let target = session.clone();
+    async_runtime().spawn(async move {
+        tokio::time::sleep(wrap_up_after).await;
+        let mins = wrap_up_after.as_secs() / 60;
+        let steer = target.steer(
+            &format!(
+                "You are {mins} minute(s) from your time limit for this task. Stop investigating \
+                 or making changes now and write your final summary of findings and results in \
+                 your next message."
+            ),
+            &[],
+        );
+        // Only claim the run was cut short if the steer actually landed.
+        if steer.is_ok() {
+            reached.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    })
+}
 
 /// A spawned subagent's turn cap: near it (90%) the agent is asked to wrap
 /// up; at it the run is aborted.

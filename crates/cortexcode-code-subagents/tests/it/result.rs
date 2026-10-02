@@ -100,6 +100,7 @@ fn reports_a_partial_result_when_stopped_at_the_turn_cap() {
         None,
         BuildSubagentResultOptions {
             reached_max_turns: true,
+            ..Default::default()
         },
     );
     assert_eq!(result.status, ResultStatus::Partial);
@@ -114,11 +115,61 @@ fn yields_a_verifier_passing_partial_result_without_assistant_text() {
         None,
         BuildSubagentResultOptions {
             reached_max_turns: true,
+            ..Default::default()
         },
     );
     assert_eq!(result.status, ResultStatus::Partial);
     assert!(!result.summary.is_empty());
     assert!(result.confidence >= 0.5);
+}
+
+/// A run cut short by its wall-clock deadline is reported the same way as one
+/// cut short by the turn cap: a usable `partial`, not a `failed`.
+///
+/// The parent kills the process at the deadline, so whatever the subagent wrote
+/// before then is all that survives — and if the wrap-up steer landed, that is a
+/// real summary rather than nothing. Four of the ten recorded runs in
+/// `hoobot/.cortexcode/dispatch` died this way with 4-11 finished turns each.
+#[test]
+fn a_deadline_wrap_up_yields_a_verifier_passing_partial_result() {
+    let result = build_subagent_result(
+        &[assistant_text("Found the bug at pool.rs:176.")],
+        None,
+        BuildSubagentResultOptions {
+            reached_deadline: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(result.status, ResultStatus::Partial);
+    assert!(result.summary.contains("pool.rs:176"));
+    assert!(result.confidence >= 0.5);
+}
+
+/// With no assistant text at all the summary must still be non-empty and
+/// verifier-passing — five of the ten recorded runs never produced one.
+#[test]
+fn a_deadline_wrap_up_with_no_assistant_text_still_verifies() {
+    let result = build_subagent_result(
+        &[assistant_tool_call("edit", json!({"path": "x.ts"}))],
+        None,
+        BuildSubagentResultOptions {
+            reached_deadline: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(result.status, ResultStatus::Partial);
+    assert!(!result.summary.is_empty());
+    assert!(result.summary.contains("time"));
+    assert!(result.confidence >= 0.5);
+}
+
+/// Without the flag the run is still a clean `complete` — the deadline only
+/// changes the verdict when the wrap-up actually fired.
+#[test]
+fn an_ordinary_run_is_unaffected_by_the_deadline_field() {
+    let result = build(&[assistant_text("all good")]);
+    assert_eq!(result.status, ResultStatus::Complete);
+    assert_eq!(result.confidence, 0.9);
 }
 
 #[test]
