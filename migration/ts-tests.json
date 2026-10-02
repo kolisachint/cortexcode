@@ -53,8 +53,8 @@
     "9.2a"
    ],
    "rust": [
-    "crates/cortexcode-agent-compaction/tests/coding_agent_compaction.rs",
-    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+    "crates/cortexcode-agent-compaction/tests/it/coding_agent_compaction.rs",
+    "crates/cortexcode-agent-compaction/tests/it/harness_compaction.rs"
    ]
   },
   "packages/agent/test/harness/nodejs-env.test.ts": {
@@ -64,7 +64,7 @@
     "9.4a"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/nodejs_env.rs"
+    "crates/cortexcode-agent-harness/tests/it/nodejs_env.rs"
    ]
   },
   "packages/agent/test/harness/prompt-templates.test.ts": {
@@ -74,8 +74,8 @@
     "9.3b"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/loaders.rs",
-    "crates/cortexcode-code-resources/tests/prompt_templates.rs"
+    "crates/cortexcode-agent-harness/tests/it/loaders.rs",
+    "crates/cortexcode-code-resources/tests/it/prompt_templates.rs"
    ]
   },
   "packages/agent/test/harness/repo.test.ts": {
@@ -91,7 +91,7 @@
     "9.3a"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/resource_formatting.rs"
+    "crates/cortexcode-agent-harness/tests/it/resource_formatting.rs"
    ]
   },
   "packages/agent/test/harness/session.test.ts": {
@@ -110,8 +110,8 @@
     "9.3b"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/loaders.rs",
-    "crates/cortexcode-code-resources/tests/skills.rs"
+    "crates/cortexcode-agent-harness/tests/it/loaders.rs",
+    "crates/cortexcode-code-resources/tests/it/skills.rs"
    ]
   },
   "packages/agent/test/harness/storage.test.ts": {
@@ -127,7 +127,7 @@
     "9.3a"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/resource_formatting.rs",
+    "crates/cortexcode-agent-harness/tests/it/resource_formatting.rs",
     "crates/cortexcode-code-prompts/src/system_prompt.rs"
    ]
   },
@@ -167,7 +167,7 @@
     "crates/cortexcode-ai-provider-anthropic/src/tests.rs",
     "crates/cortexcode-ai-provider-google/src/tests.rs",
     "crates/cortexcode-ai-provider-openai/src/tests.rs",
-    "crates/cortexcode-ai-registry/tests/live_e2e.rs"
+    "crates/cortexcode-ai-registry/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-eager-tool-input-compat.test.ts": {
@@ -185,7 +185,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-long-cache-retention-e2e.test.ts": {
@@ -194,7 +194,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-oauth.test.ts": {
@@ -212,7 +212,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-sse-parsing.test.ts": {
@@ -231,7 +231,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-provider-anthropic/src/request_tests.rs",
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-tool-name-normalization.test.ts": {
@@ -240,7 +240,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/anthropic-tool-search.test.ts": {
@@ -264,7 +264,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/cache_retention.rs"
+    "crates/cortexcode-ai/tests/it/cache_retention.rs"
    ]
   },
   "packages/ai/test/claude-5-models.test.ts": {
@@ -274,7 +274,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-models/tests/catalog.rs",
+    "crates/cortexcode-ai-models/tests/it/catalog.rs",
     "crates/cortexcode-ai-provider-anthropic/src/request_tests.rs"
    ]
   },
@@ -295,7 +295,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/cross-provider-handoff.test.ts": {
@@ -304,7 +304,7 @@
     "8.5a"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/cross_provider_handoff.rs"
+    "crates/cortexcode-ai/tests/it/cross_provider_handoff.rs"
    ]
   },
   "packages/ai/test/empty.test.ts": {
@@ -313,7 +313,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/env-api-keys.test.ts": {
@@ -331,7 +331,7 @@
     "8.6a"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-faux/tests/faux_provider.rs"
+    "crates/cortexcode-ai-provider-faux/tests/it/faux_provider.rs"
    ]
   },
   "packages/ai/test/fireworks-models.test.ts": {
@@ -341,7 +341,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-env/src/lib.rs",
-    "crates/cortexcode-ai-models/tests/catalog.rs"
+    "crates/cortexcode-ai-models/tests/it/catalog.rs"
    ]
   },
   "packages/ai/test/github-copilot-anthropic.test.ts": {
@@ -350,7 +350,7 @@
     "8.4b"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/github_copilot.rs"
+    "crates/cortexcode-ai/tests/it/github_copilot.rs"
    ]
   },
   "packages/ai/test/github-copilot-oauth.test.ts": {
@@ -361,7 +361,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-oauth-github-copilot/src/tests.rs",
-    "crates/cortexcode-ai/tests/github_copilot.rs"
+    "crates/cortexcode-ai/tests/it/github_copilot.rs"
    ]
   },
   "packages/ai/test/google-gemini-cli.test.ts": {
@@ -372,7 +372,7 @@
    "rust": [
     "crates/cortexcode-ai-oauth-google/src/tests.rs",
     "crates/cortexcode-ai-provider-google-gemini-cli/src/tests.rs",
-    "crates/cortexcode-ai/tests/oauth_providers.rs"
+    "crates/cortexcode-ai/tests/it/oauth_providers.rs"
    ]
   },
   "packages/ai/test/google-shared-convert-tools.test.ts": {
@@ -409,7 +409,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-provider-google/src/request_tests.rs",
-    "crates/cortexcode-ai-provider-google/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-google/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/google-thinking-signature.test.ts": {
@@ -436,13 +436,13 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/images.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-ai-images/tests/images_ts.rs"
+    "crates/cortexcode-ai-images/tests/it/images_ts.rs"
    ]
   },
   "packages/ai/test/interleaved-thinking.test.ts": {
@@ -451,7 +451,7 @@
     "8.6c"
    ],
    "rust": [
-    "crates/cortexcode-ai-provider-anthropic/tests/live_e2e.rs"
+    "crates/cortexcode-ai-provider-anthropic/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/lazy-module-load.test.ts": {
@@ -587,7 +587,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-provider-openai-responses/src/tests.rs",
-    "crates/cortexcode-ai/tests/github_copilot.rs"
+    "crates/cortexcode-ai/tests/it/github_copilot.rs"
    ]
   },
   "packages/ai/test/openai-responses-foreign-toolcall-id.test.ts": {
@@ -642,7 +642,7 @@
     "8.8"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/stream_hooks.rs"
+    "crates/cortexcode-ai/tests/it/stream_hooks.rs"
    ]
   },
   "packages/ai/test/openrouter-images.test.ts": {
@@ -669,7 +669,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/retry-delay.test.ts": {
@@ -687,7 +687,7 @@
     "7.3a"
    ],
    "rust": [
-    "crates/cortexcode-ai-registry/tests/live_e2e.rs"
+    "crates/cortexcode-ai-registry/tests/it/live_e2e.rs"
    ]
   },
   "packages/ai/test/supports-xhigh.test.ts": {
@@ -696,7 +696,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai-models/tests/catalog.rs"
+    "crates/cortexcode-ai-models/tests/it/catalog.rs"
    ]
   },
   "packages/ai/test/together-models.test.ts": {
@@ -706,7 +706,7 @@
    ],
    "rust": [
     "crates/cortexcode-ai-env/src/lib.rs",
-    "crates/cortexcode-ai-models/tests/catalog.rs"
+    "crates/cortexcode-ai-models/tests/it/catalog.rs"
    ]
   },
   "packages/ai/test/tokens.test.ts": {
@@ -715,7 +715,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/tool-call-id-normalization.test.ts": {
@@ -724,7 +724,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/tool-call-without-result.test.ts": {
@@ -733,7 +733,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/total-tokens.test.ts": {
@@ -742,7 +742,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/transform-messages-copilot-openai-to-anthropic.test.ts": {
@@ -751,7 +751,7 @@
     "8.4b"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/github_copilot.rs"
+    "crates/cortexcode-ai/tests/it/github_copilot.rs"
    ]
   },
   "packages/ai/test/unicode-surrogate.test.ts": {
@@ -760,7 +760,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/validation.test.ts": {
@@ -778,7 +778,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/ai/test/zen.test.ts": {
@@ -787,7 +787,7 @@
     "8.6e"
    ],
    "rust": [
-    "crates/cortexcode-ai/tests/live_matrix.rs"
+    "crates/cortexcode-ai/tests/it/live_matrix.rs"
    ]
   },
   "packages/coding-agent/test/agent-frontmatter.test.ts": {
@@ -796,7 +796,7 @@
     "10.5a"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/agent_frontmatter.rs"
+    "crates/cortexcode-code-resources/tests/it/agent_frontmatter.rs"
    ]
   },
   "packages/coding-agent/test/agent-registry.test.ts": {
@@ -805,7 +805,7 @@
     "10.5c"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/agent_registry.rs"
+    "crates/cortexcode-code-resources/tests/it/agent_registry.rs"
    ]
   },
   "packages/coding-agent/test/agent-selection-eval.test.ts": {
@@ -818,7 +818,7 @@
   "packages/coding-agent/test/agent-session-auto-compaction-queue.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/compaction.rs"
+    "crates/cortexcode-code-agent-session/tests/it/compaction.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-branching.test.ts": {
@@ -827,7 +827,7 @@
     "10.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/runtime.rs"
+    "crates/cortexcode-code-agent-session/tests/it/runtime.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-compaction.test.ts": {
@@ -836,14 +836,14 @@
     "9.2b"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/compaction.rs",
-    "crates/cortexcode-code-agent-session/tests/compaction_e2e.rs"
+    "crates/cortexcode-code-agent-session/tests/it/compaction.rs",
+    "crates/cortexcode-code-agent-session/tests/it/compaction_e2e.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-concurrent.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/prompt.rs"
+    "crates/cortexcode-code-agent-session/tests/it/prompt.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-dynamic-provider.test.ts": {
@@ -856,7 +856,7 @@
   "packages/coding-agent/test/agent-session-dynamic-tools.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/session.rs"
+    "crates/cortexcode-code-agent-session/tests/it/session.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-retry.test.ts": {
@@ -865,7 +865,7 @@
     "10.3b"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/retry.rs"
+    "crates/cortexcode-code-agent-session/tests/it/retry.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-runtime-events.test.ts": {
@@ -874,13 +874,13 @@
     "10.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/runtime.rs"
+    "crates/cortexcode-code-agent-session/tests/it/runtime.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-stats.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/session.rs"
+    "crates/cortexcode-code-agent-session/tests/it/session.rs"
    ]
   },
   "packages/coding-agent/test/agent-session-tree-navigation.test.ts": {
@@ -889,7 +889,7 @@
     "10.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/tree_navigation.rs"
+    "crates/cortexcode-code-agent-session/tests/it/tree_navigation.rs"
    ]
   },
   "packages/coding-agent/test/args.test.ts": {
@@ -908,7 +908,7 @@
     "11.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-optin/tests/optin.rs"
+    "crates/cortexcode-code-tools-optin/tests/it/optin.rs"
    ]
   },
   "packages/coding-agent/test/ask-options.test.ts": {
@@ -917,7 +917,7 @@
     "11.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/ask_options.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/ask_options.rs"
    ]
   },
   "packages/coding-agent/test/assistant-message.test.ts": {
@@ -926,19 +926,19 @@
     "11.2b"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/assistant_message.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/assistant_message.rs"
    ]
   },
   "packages/coding-agent/test/auth-storage.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-auth/tests/auth_storage.rs"
+    "crates/cortexcode-code-auth/tests/it/auth_storage.rs"
    ]
   },
   "packages/coding-agent/test/background-messages.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-agent-harness/tests/background_messages_ts.rs"
+    "crates/cortexcode-agent-harness/tests/it/background_messages_ts.rs"
    ]
   },
   "packages/coding-agent/test/bash-close-hang-windows.test.ts": {
@@ -951,7 +951,7 @@
     "11.2d1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/bash_execution_width.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/bash_execution_width.rs"
    ]
   },
   "packages/coding-agent/test/bash-prompt-snippet.test.ts": {
@@ -960,7 +960,7 @@
     "10.2b"
    ],
    "rust": [
-    "crates/cortexcode-code-tool-bash/tests/bash_tool.rs"
+    "crates/cortexcode-code-tool-bash/tests/it/bash_tool.rs"
    ]
   },
   "packages/coding-agent/test/block-images.test.ts": {
@@ -970,8 +970,8 @@
    ],
    "rust": [
     "crates/cortexcode-code-cli/src/initial_message.rs",
-    "crates/cortexcode-code-settings/tests/block_images_ts.rs",
-    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
+    "crates/cortexcode-code-settings/tests/it/block_images_ts.rs",
+    "crates/cortexcode-code-tools-fs/tests/it/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/builtin-skills.test.ts": {
@@ -980,7 +980,7 @@
     "10.5"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/builtin_skills.rs"
+    "crates/cortexcode-code-resources/tests/it/builtin_skills.rs"
    ]
   },
   "packages/coding-agent/test/canvas-acceptance-catalog.test.ts": {
@@ -1112,7 +1112,7 @@
   "packages/coding-agent/test/chrome-layout.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/chrome_layout.rs"
+    "crates/cortexcode-code-tui-app/tests/it/chrome_layout.rs"
    ]
   },
   "packages/coding-agent/test/clipboard-image-bmp-conversion.test.ts": {
@@ -1121,7 +1121,7 @@
     "11.4d2"
    ],
    "rust": [
-    "crates/cortexcode-code-media/tests/clipboard_image.rs"
+    "crates/cortexcode-code-media/tests/it/clipboard_image.rs"
    ]
   },
   "packages/coding-agent/test/clipboard-image.test.ts": {
@@ -1130,7 +1130,7 @@
     "11.4d2"
    ],
    "rust": [
-    "crates/cortexcode-code-media/tests/clipboard_image.rs"
+    "crates/cortexcode-code-media/tests/it/clipboard_image.rs"
    ]
   },
   "packages/coding-agent/test/clipboard.test.ts": {
@@ -1139,7 +1139,7 @@
     "11.4d1"
    ],
    "rust": [
-    "crates/cortexcode-code-media/tests/clipboard.rs"
+    "crates/cortexcode-code-media/tests/it/clipboard.rs"
    ]
   },
   "packages/coding-agent/test/compaction-extensions-example.test.ts": {
@@ -1159,13 +1159,13 @@
   "packages/coding-agent/test/compaction-serialization.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+    "crates/cortexcode-agent-compaction/tests/it/harness_compaction.rs"
    ]
   },
   "packages/coding-agent/test/compaction-summary-reasoning.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+    "crates/cortexcode-agent-compaction/tests/it/harness_compaction.rs"
    ]
   },
   "packages/coding-agent/test/compaction.test.ts": {
@@ -1174,8 +1174,8 @@
     "9.2a"
    ],
    "rust": [
-    "crates/cortexcode-agent-compaction/tests/coding_agent_compaction.rs",
-    "crates/cortexcode-agent-compaction/tests/harness_compaction.rs"
+    "crates/cortexcode-agent-compaction/tests/it/coding_agent_compaction.rs",
+    "crates/cortexcode-agent-compaction/tests/it/harness_compaction.rs"
    ]
   },
   "packages/coding-agent/test/completion-chime.test.ts": {
@@ -1198,7 +1198,7 @@
     "10.5c"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/context_files.rs"
+    "crates/cortexcode-code-resources/tests/it/context_files.rs"
    ]
   },
   "packages/coding-agent/test/context-gc.test.ts": {
@@ -1207,7 +1207,7 @@
     "10.2g"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/context_gc.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/context_gc.rs"
    ]
   },
   "packages/coding-agent/test/copy-structure.test.ts": {
@@ -1216,7 +1216,7 @@
     "11.4d1"
    ],
    "rust": [
-    "crates/cortexcode-code-media/tests/copy_structure.rs"
+    "crates/cortexcode-code-media/tests/it/copy_structure.rs"
    ]
   },
   "packages/coding-agent/test/deferral-economics.test.ts": {
@@ -1232,7 +1232,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/dispatch_evaluator.rs"
+    "crates/cortexcode-code-subagents/tests/it/dispatch_evaluator.rs"
    ]
   },
   "packages/coding-agent/test/edit-encoding-recovery-loop.test.ts": {
@@ -1241,8 +1241,8 @@
     "10.2c"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/context_gc.rs",
-    "crates/cortexcode-code-tools-fs/tests/edit_write.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/context_gc.rs",
+    "crates/cortexcode-code-tools-fs/tests/it/edit_write.rs"
    ]
   },
   "packages/coding-agent/test/edit-tool-legacy-input.test.ts": {
@@ -1251,7 +1251,7 @@
     "10.2c"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/edit_write.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/edit_write.rs"
    ]
   },
   "packages/coding-agent/test/edit-tool-no-full-redraw.test.ts": {
@@ -1266,7 +1266,7 @@
     "10.2c"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/edit_write.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/edit_write.rs"
    ]
   },
   "packages/coding-agent/test/embsearch.test.ts": {
@@ -1324,7 +1324,7 @@
     "11.3d1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/external_tools_pane.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/external_tools_pane.rs"
    ]
   },
   "packages/coding-agent/test/file-mutation-queue.test.ts": {
@@ -1333,19 +1333,19 @@
     "10.2c"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/edit_write.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/edit_write.rs"
    ]
   },
   "packages/coding-agent/test/footer-data-provider.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/footer_data_provider.rs"
+    "crates/cortexcode-code-tui-app/tests/it/footer_data_provider.rs"
    ]
   },
   "packages/coding-agent/test/footer-width.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/footer.rs"
+    "crates/cortexcode-code-tui-app/tests/it/footer.rs"
    ]
   },
   "packages/coding-agent/test/format-duration.test.ts": {
@@ -1354,7 +1354,7 @@
     "10.10a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/format.rs"
+    "crates/cortexcode-code-agent-session/tests/it/format.rs"
    ]
   },
   "packages/coding-agent/test/format-list.test.ts": {
@@ -1363,7 +1363,7 @@
     "10.10a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/format.rs"
+    "crates/cortexcode-code-agent-session/tests/it/format.rs"
    ]
   },
   "packages/coding-agent/test/format-tokens.test.ts": {
@@ -1372,13 +1372,13 @@
     "10.10a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/format.rs"
+    "crates/cortexcode-code-agent-session/tests/it/format.rs"
    ]
   },
   "packages/coding-agent/test/frontmatter.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-resources/tests/frontmatter_ts.rs"
+    "crates/cortexcode-code-resources/tests/it/frontmatter_ts.rs"
    ]
   },
   "packages/coding-agent/test/git-ssh-url.test.ts": {
@@ -1387,7 +1387,7 @@
     "10.10b"
    ],
    "rust": [
-    "crates/cortexcode-code-paths/tests/git.rs"
+    "crates/cortexcode-code-paths/tests/it/git.rs"
    ]
   },
   "packages/coding-agent/test/git-update.test.ts": {
@@ -1400,13 +1400,13 @@
   "packages/coding-agent/test/goal-command.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-modes/tests/grill_goal.rs"
+    "crates/cortexcode-code-modes/tests/it/grill_goal.rs"
    ]
   },
   "packages/coding-agent/test/grill-command.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-modes/tests/grill_goal.rs"
+    "crates/cortexcode-code-modes/tests/it/grill_goal.rs"
    ]
   },
   "packages/coding-agent/test/hoocode-user-agent.test.ts": {
@@ -1422,13 +1422,13 @@
     "10.2d"
    ],
    "rust": [
-    "crates/cortexcode-code-tool-search/tests/search.rs"
+    "crates/cortexcode-code-tool-search/tests/it/search.rs"
    ]
   },
   "packages/coding-agent/test/image-processing.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-media/tests/image_processing_ts.rs"
+    "crates/cortexcode-code-media/tests/it/image_processing_ts.rs"
    ]
   },
   "packages/coding-agent/test/image-resize-callers.test.ts": {
@@ -1438,7 +1438,7 @@
    ],
    "rust": [
     "crates/cortexcode-code-cli/src/initial_message.rs",
-    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/initial-message.test.ts": {
@@ -1450,14 +1450,14 @@
   "packages/coding-agent/test/input-surface-frame.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/input_frame.rs"
+    "crates/cortexcode-code-tui-app/tests/it/input_frame.rs"
    ]
   },
   "packages/coding-agent/test/interactive-mode-anthropic-warning.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/anthropic_subscription_auth_ts.rs",
-    "crates/cortexcode-code-tui-app/tests/anthropic_warning_ts.rs"
+    "crates/cortexcode-code-agent-session/tests/it/anthropic_subscription_auth_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/it/anthropic_warning_ts.rs"
    ]
   },
   "packages/coding-agent/test/interactive-mode-clone-command.test.ts": {
@@ -1473,7 +1473,7 @@
   "packages/coding-agent/test/interactive-mode-import-command.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/import_command_ts.rs"
+    "crates/cortexcode-code-tui-app/tests/it/import_command_ts.rs"
    ]
   },
   "packages/coding-agent/test/interactive-mode-status.test.ts": {
@@ -1481,25 +1481,25 @@
    "rust": [
     "crates/cortexcode-code-cli/src/runtime.rs",
     "crates/cortexcode-code-tui-app/src/record_row.rs",
-    "crates/cortexcode-code-tui-app/tests/interactive_mode_status_ts.rs"
+    "crates/cortexcode-code-tui-app/tests/it/interactive_mode_status_ts.rs"
    ]
   },
   "packages/coding-agent/test/interactive-mode-suspend.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/suspend_ts.rs"
+    "crates/cortexcode-code-tui-app/tests/it/suspend_ts.rs"
    ]
   },
   "packages/coding-agent/test/keybinding-layout.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-keybindings/tests/keybinding_layout.rs"
+    "crates/cortexcode-code-tui-keybindings/tests/it/keybinding_layout.rs"
    ]
   },
   "packages/coding-agent/test/keybindings-migration.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-keybindings/tests/keybindings_migration.rs"
+    "crates/cortexcode-code-tui-keybindings/tests/it/keybindings_migration.rs"
    ]
   },
   "packages/coding-agent/test/learn-audit.test.ts": {
@@ -1544,7 +1544,7 @@
     "12.7"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/learn_settings_pane.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/learn_settings_pane.rs"
    ]
   },
   "packages/coding-agent/test/lifeguard.test.ts": {
@@ -1553,7 +1553,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/lifeguard.rs"
+    "crates/cortexcode-code-subagents/tests/it/lifeguard.rs"
    ]
   },
   "packages/coding-agent/test/light-mode.test.ts": {
@@ -1603,19 +1603,19 @@
   "packages/coding-agent/test/message-block-fill.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/message_block_fill.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/message_block_fill.rs"
    ]
   },
   "packages/coding-agent/test/message-block-sheets.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/message_block_sheets.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/message_block_sheets.rs"
    ]
   },
   "packages/coding-agent/test/mode-commands.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-modes/tests/mode_commands.rs"
+    "crates/cortexcode-code-modes/tests/it/mode_commands.rs"
    ]
   },
   "packages/coding-agent/test/mode-subagent-appendix.test.ts": {
@@ -1624,13 +1624,13 @@
     "10.9f"
    ],
    "rust": [
-    "crates/cortexcode-code-modes/tests/mode_subagent_appendix.rs"
+    "crates/cortexcode-code-modes/tests/it/mode_subagent_appendix.rs"
    ]
   },
   "packages/coding-agent/test/mode-tool-filter.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-modes/tests/mode_tool_filter.rs"
+    "crates/cortexcode-code-modes/tests/it/mode_tool_filter.rs"
    ]
   },
   "packages/coding-agent/test/model-categories.test.ts": {
@@ -1639,7 +1639,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/model_categories.rs"
+    "crates/cortexcode-code-subagents/tests/it/model_categories.rs"
    ]
   },
   "packages/coding-agent/test/model-registry.test.ts": {
@@ -1648,7 +1648,7 @@
     "10.4a"
    ],
    "rust": [
-    "crates/cortexcode-code-auth/tests/provider_status.rs",
+    "crates/cortexcode-code-auth/tests/it/provider_status.rs",
     "crates/cortexcode-code-models/src/tests.rs"
    ]
   },
@@ -1658,13 +1658,13 @@
     "10.4b"
    ],
    "rust": [
-    "crates/cortexcode-code-models/tests/model_resolver.rs"
+    "crates/cortexcode-code-models/tests/it/model_resolver.rs"
    ]
   },
   "packages/coding-agent/test/native-search.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+    "crates/cortexcode-code-tool-search/tests/it/native_search_ts.rs"
    ]
   },
   "packages/coding-agent/test/new-canvas.test.ts": {
@@ -1677,7 +1677,7 @@
   "packages/coding-agent/test/notification-panel.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/notification_panel.rs"
+    "crates/cortexcode-code-tui-app/tests/it/notification_panel.rs"
    ]
   },
   "packages/coding-agent/test/oauth-selector.test.ts": {
@@ -1687,7 +1687,7 @@
     "11.3f1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/oauth_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/oauth_selector.rs"
    ]
   },
   "packages/coding-agent/test/output-verifier.test.ts": {
@@ -1696,7 +1696,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/output_verifier.rs"
+    "crates/cortexcode-code-subagents/tests/it/output_verifier.rs"
    ]
   },
   "packages/coding-agent/test/package-command-paths.test.ts": {
@@ -1719,13 +1719,13 @@
     "10.5d"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/package_resolve.rs"
+    "crates/cortexcode-code-resources/tests/it/package_resolve.rs"
    ]
   },
   "packages/coding-agent/test/path-utils.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tool-api/tests/path_utils_ts.rs"
+    "crates/cortexcode-code-tool-api/tests/it/path_utils_ts.rs"
    ]
   },
   "packages/coding-agent/test/paths.test.ts": {
@@ -1734,13 +1734,13 @@
     "10.1a"
    ],
    "rust": [
-    "crates/cortexcode-code-paths/tests/paths.rs"
+    "crates/cortexcode-code-paths/tests/it/paths.rs"
    ]
   },
   "packages/coding-agent/test/permission-gate-mutation-path.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-permissions/tests/permission_gate.rs"
+    "crates/cortexcode-code-permissions/tests/it/permission_gate.rs"
    ]
   },
   "packages/coding-agent/test/picker-widths.test.ts": {
@@ -1749,9 +1749,9 @@
     "11.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/extension_selector.rs",
-    "crates/cortexcode-code-tui-selectors/tests/picker_widths.rs",
-    "crates/cortexcode-code-tui-selectors/tests/tree_selector.rs"
+    "crates/cortexcode-code-tui-app/tests/it/extension_selector.rs",
+    "crates/cortexcode-code-tui-selectors/tests/it/picker_widths.rs",
+    "crates/cortexcode-code-tui-selectors/tests/it/tree_selector.rs"
    ]
   },
   "packages/coding-agent/test/plan-mode-utils.test.ts": {
@@ -1772,13 +1772,13 @@
     "11.3d1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/platform_settings_pane.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/platform_settings_pane.rs"
    ]
   },
   "packages/coding-agent/test/platform.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-settings/tests/platform_targets.rs"
+    "crates/cortexcode-code-settings/tests/it/platform_targets.rs"
    ]
   },
   "packages/coding-agent/test/plugin-authoring.test.ts": {
@@ -1865,7 +1865,7 @@
     "12.1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/plugin_settings_keyboard.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/plugin_settings_keyboard.rs"
    ]
   },
   "packages/coding-agent/test/plugin-workspace-trust.test.ts": {
@@ -1892,7 +1892,7 @@
   "packages/coding-agent/test/progress-bar.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/progress_bar.rs"
+    "crates/cortexcode-code-tui-app/tests/it/progress_bar.rs"
    ]
   },
   "packages/coding-agent/test/prompt-reactive-nudges.test.ts": {
@@ -1908,8 +1908,8 @@
     "10.5a"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/loaders.rs",
-    "crates/cortexcode-code-resources/tests/prompt_templates.rs"
+    "crates/cortexcode-agent-harness/tests/it/loaders.rs",
+    "crates/cortexcode-code-resources/tests/it/prompt_templates.rs"
    ]
   },
   "packages/coding-agent/test/provider-health.test.ts": {
@@ -1918,7 +1918,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/provider_health.rs"
+    "crates/cortexcode-code-agent-session/tests/it/provider_health.rs"
    ]
   },
   "packages/coding-agent/test/read-dedup.test.ts": {
@@ -1929,7 +1929,7 @@
    ],
    "rust": [
     "crates/cortexcode-code-tools-fs/src/read_dedup.rs",
-    "crates/cortexcode-code-tools-fs/tests/context_gc.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/context_gc.rs"
    ]
   },
   "packages/coding-agent/test/read-edit-gc-sequence-matrix.test.ts": {
@@ -1939,7 +1939,7 @@
     "10.2g"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-fs/tests/context_gc.rs"
+    "crates/cortexcode-code-tools-fs/tests/it/context_gc.rs"
    ]
   },
   "packages/coding-agent/test/resource-loader.test.ts": {
@@ -1948,7 +1948,7 @@
     "10.5"
    ],
    "rust": [
-    "crates/cortexcode-code-resources/tests/resource_loader.rs"
+    "crates/cortexcode-code-resources/tests/it/resource_loader.rs"
    ]
   },
   "packages/coding-agent/test/restore-sandbox-env.test.ts": {
@@ -1967,7 +1967,7 @@
     "10.8e"
    ],
    "rust": [
-    "crates/cortexcode-code-rpc/tests/client.rs"
+    "crates/cortexcode-code-rpc/tests/it/client.rs"
    ]
   },
   "packages/coding-agent/test/rpc-jsonl.test.ts": {
@@ -1985,7 +1985,7 @@
     "10.8c"
    ],
    "rust": [
-    "crates/cortexcode-code-rpc/tests/prompt_response_semantics.rs"
+    "crates/cortexcode-code-rpc/tests/it/prompt_response_semantics.rs"
    ]
   },
   "packages/coding-agent/test/rpc.test.ts": {
@@ -1995,8 +1995,8 @@
     "10.8e"
    ],
    "rust": [
-    "crates/cortexcode-code-rpc/tests/client.rs",
-    "crates/cortexcode-code-rpc/tests/runtime_host.rs"
+    "crates/cortexcode-code-rpc/tests/it/client.rs",
+    "crates/cortexcode-code-rpc/tests/it/runtime_host.rs"
    ]
   },
   "packages/coding-agent/test/scaffold-templates.test.ts": {
@@ -2023,7 +2023,7 @@
     "11.7"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/scroll_view_keys.rs"
+    "crates/cortexcode-code-tui-app/tests/it/scroll_view_keys.rs"
    ]
   },
   "packages/coding-agent/test/sdk-openrouter-attribution.test.ts": {
@@ -2035,7 +2035,7 @@
   "packages/coding-agent/test/sdk-session-manager.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-session/tests/sdk_session_manager_ts.rs"
+    "crates/cortexcode-code-session/tests/it/sdk_session_manager_ts.rs"
    ]
   },
   "packages/coding-agent/test/sdk-skills.test.ts": {
@@ -2044,7 +2044,7 @@
     "10.5"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/sdk_skills.rs"
+    "crates/cortexcode-code-agent-session/tests/it/sdk_skills.rs"
    ]
   },
   "packages/coding-agent/test/search-eval.test.ts": {
@@ -2060,13 +2060,13 @@
     "10.2d"
    ],
    "rust": [
-    "crates/cortexcode-code-tool-search/tests/search.rs"
+    "crates/cortexcode-code-tool-search/tests/it/search.rs"
    ]
   },
   "packages/coding-agent/test/selected-row-list.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/selected_row_list.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/selected_row_list.rs"
    ]
   },
   "packages/coding-agent/test/self-docs.test.ts": {
@@ -2086,13 +2086,13 @@
   "packages/coding-agent/test/session-chip.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/session_chip.rs"
+    "crates/cortexcode-code-tui-app/tests/it/session_chip.rs"
    ]
   },
   "packages/coding-agent/test/session-cwd.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/session_cwd.rs"
+    "crates/cortexcode-code-agent-session/tests/it/session_cwd.rs"
    ]
   },
   "packages/coding-agent/test/session-identity.test.ts": {
@@ -2104,7 +2104,7 @@
   "packages/coding-agent/test/session-info-modified-timestamp.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-session/tests/session_info_modified_ts.rs"
+    "crates/cortexcode-code-session/tests/it/session_info_modified_ts.rs"
    ]
   },
   "packages/coding-agent/test/session-manager/build-context.test.ts": {
@@ -2137,7 +2137,7 @@
     "7.2"
    ],
    "rust": [
-    "crates/cortexcode-code-session/tests/hoocode_fixtures.rs"
+    "crates/cortexcode-code-session/tests/it/hoocode_fixtures.rs"
    ]
   },
   "packages/coding-agent/test/session-manager/save-entry.test.ts": {
@@ -2164,7 +2164,7 @@
     "11.3a1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/session_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/session_selector.rs"
    ]
   },
   "packages/coding-agent/test/session-selector-path-delete.test.ts": {
@@ -2173,7 +2173,7 @@
     "11.3a1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/session_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/session_selector.rs"
    ]
   },
   "packages/coding-agent/test/session-selector-rename.test.ts": {
@@ -2182,7 +2182,7 @@
     "11.3a1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/session_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/session_selector.rs"
    ]
   },
   "packages/coding-agent/test/session-selector-search.test.ts": {
@@ -2191,7 +2191,7 @@
     "11.3a1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/session_selector_search.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/session_selector_search.rs"
    ]
   },
   "packages/coding-agent/test/settings-manager-bug.test.ts": {
@@ -2200,7 +2200,7 @@
     "10.1b"
    ],
    "rust": [
-    "crates/cortexcode-code-settings/tests/settings_manager.rs"
+    "crates/cortexcode-code-settings/tests/it/settings_manager.rs"
    ]
   },
   "packages/coding-agent/test/settings-manager.test.ts": {
@@ -2209,7 +2209,7 @@
     "10.1b"
    ],
    "rust": [
-    "crates/cortexcode-code-settings/tests/settings_manager.rs"
+    "crates/cortexcode-code-settings/tests/it/settings_manager.rs"
    ]
   },
   "packages/coding-agent/test/settings-token-surface.test.ts": {
@@ -2220,14 +2220,14 @@
     "11.3d1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/settings_token_surface.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/settings_token_surface.rs"
    ]
   },
   "packages/coding-agent/test/shipped-prose.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-modes/tests/shipped_prose_ts.rs",
-    "crates/cortexcode-code-subagents/tests/shipped_prose_ts.rs"
+    "crates/cortexcode-code-modes/tests/it/shipped_prose_ts.rs",
+    "crates/cortexcode-code-subagents/tests/it/shipped_prose_ts.rs"
    ]
   },
   "packages/coding-agent/test/skills.test.ts": {
@@ -2236,8 +2236,8 @@
     "10.5a"
    ],
    "rust": [
-    "crates/cortexcode-agent-harness/tests/loaders.rs",
-    "crates/cortexcode-code-resources/tests/skills.rs"
+    "crates/cortexcode-agent-harness/tests/it/loaders.rs",
+    "crates/cortexcode-code-resources/tests/it/skills.rs"
    ]
   },
   "packages/coding-agent/test/startup-progress-tui.test.ts": {
@@ -2250,14 +2250,14 @@
   "packages/coding-agent/test/startup-progress.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/footer.rs",
-    "crates/cortexcode-code-tui-app/tests/startup_progress.rs"
+    "crates/cortexcode-code-tui-app/tests/it/footer.rs",
+    "crates/cortexcode-code-tui-app/tests/it/startup_progress.rs"
    ]
   },
   "packages/coding-agent/test/stdout-cleanliness.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-main/tests/stdout_cleanliness_ts.rs"
+    "crates/cortexcode-code-main/tests/it/stdout_cleanliness_ts.rs"
    ]
   },
   "packages/coding-agent/test/streaming-segmentation.test.ts": {
@@ -2266,7 +2266,7 @@
     "11.2b"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/streaming_segmentation.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/streaming_segmentation.rs"
    ]
   },
   "packages/coding-agent/test/subagent-claude-agent.test.ts": {
@@ -2275,7 +2275,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/pool.rs"
+    "crates/cortexcode-code-subagents/tests/it/pool.rs"
    ]
   },
   "packages/coding-agent/test/subagent-depth.test.ts": {
@@ -2284,13 +2284,13 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/depth.rs"
+    "crates/cortexcode-code-subagents/tests/it/depth.rs"
    ]
   },
   "packages/coding-agent/test/subagent-dispatch-tui-output.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-subagents/tests/agent_log_ts.rs"
+    "crates/cortexcode-code-subagents/tests/it/agent_log_ts.rs"
    ]
   },
   "packages/coding-agent/test/subagent-events.test.ts": {
@@ -2299,13 +2299,13 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/events.rs"
+    "crates/cortexcode-code-subagents/tests/it/events.rs"
    ]
   },
   "packages/coding-agent/test/subagent-footer.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/footer.rs"
+    "crates/cortexcode-code-tui-app/tests/it/footer.rs"
    ]
   },
   "packages/coding-agent/test/subagent-inbox.test.ts": {
@@ -2314,7 +2314,7 @@
     "10.9c"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/inbox.rs"
+    "crates/cortexcode-code-subagents/tests/it/inbox.rs"
    ]
   },
   "packages/coding-agent/test/subagent-line-classify.test.ts": {
@@ -2323,7 +2323,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/events.rs"
+    "crates/cortexcode-code-subagents/tests/it/events.rs"
    ]
   },
   "packages/coding-agent/test/subagent-pool-inherited-model.test.ts": {
@@ -2332,7 +2332,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/pool.rs"
+    "crates/cortexcode-code-subagents/tests/it/pool.rs"
    ]
   },
   "packages/coding-agent/test/subagent-pool-protocol.test.ts": {
@@ -2341,7 +2341,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/pool.rs"
+    "crates/cortexcode-code-subagents/tests/it/pool.rs"
    ]
   },
   "packages/coding-agent/test/subagent-pool-registry.test.ts": {
@@ -2350,7 +2350,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/pool.rs"
+    "crates/cortexcode-code-subagents/tests/it/pool.rs"
    ]
   },
   "packages/coding-agent/test/subagent-pool.test.ts": {
@@ -2359,7 +2359,7 @@
     "10.9b"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/pool.rs"
+    "crates/cortexcode-code-subagents/tests/it/pool.rs"
    ]
   },
   "packages/coding-agent/test/subagent-progress-roster.test.ts": {
@@ -2368,7 +2368,7 @@
     "10.9d"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/tools.rs"
+    "crates/cortexcode-code-subagents/tests/it/tools.rs"
    ]
   },
   "packages/coding-agent/test/subagent-result.test.ts": {
@@ -2377,7 +2377,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/result.rs"
+    "crates/cortexcode-code-subagents/tests/it/result.rs"
    ]
   },
   "packages/coding-agent/test/subagent-skills.test.ts": {
@@ -2386,7 +2386,7 @@
     "10.9f"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/subagent_skills.rs"
+    "crates/cortexcode-code-subagents/tests/it/subagent_skills.rs"
    ]
   },
   "packages/coding-agent/test/subagent.test.ts": {
@@ -2395,7 +2395,7 @@
     "10.9d"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/tools.rs"
+    "crates/cortexcode-code-subagents/tests/it/tools.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-bash-persistence.test.ts": {
@@ -2404,7 +2404,7 @@
     "10.3a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/bash_persistence.rs"
+    "crates/cortexcode-code-agent-session/tests/it/bash_persistence.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-compaction.test.ts": {
@@ -2414,14 +2414,14 @@
     "10.3b"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/compaction.rs",
-    "crates/cortexcode-code-agent-session/tests/compaction_e2e.rs"
+    "crates/cortexcode-code-agent-session/tests/it/compaction.rs",
+    "crates/cortexcode-code-agent-session/tests/it/compaction_e2e.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-model-extension.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/session.rs"
+    "crates/cortexcode-code-agent-session/tests/it/session.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-prompt.test.ts": {
@@ -2430,7 +2430,7 @@
     "10.3a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/prompt.rs"
+    "crates/cortexcode-code-agent-session/tests/it/prompt.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-queue.test.ts": {
@@ -2439,7 +2439,7 @@
     "10.3a"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/queue.rs"
+    "crates/cortexcode-code-agent-session/tests/it/queue.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-retry-events.test.ts": {
@@ -2448,7 +2448,7 @@
     "10.3b"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/retry.rs"
+    "crates/cortexcode-code-agent-session/tests/it/retry.rs"
    ]
   },
   "packages/coding-agent/test/suite/agent-session-runtime.test.ts": {
@@ -2457,13 +2457,13 @@
     "10.3c"
    ],
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/runtime.rs"
+    "crates/cortexcode-code-agent-session/tests/it/runtime.rs"
    ]
   },
   "packages/coding-agent/test/suite/disabled-tools.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/disabled_tools_ts.rs"
+    "crates/cortexcode-code-agent-session/tests/it/disabled_tools_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/persisted-flags.test.ts": {
@@ -2476,7 +2476,7 @@
   "packages/coding-agent/test/suite/read-dedup-guard.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/read_dedup_guard.rs"
+    "crates/cortexcode-code-agent-session/tests/it/read_dedup_guard.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/2023-queued-slash-command-followup.test.ts": {
@@ -2489,7 +2489,7 @@
   "packages/coding-agent/test/suite/regressions/2753-reload-stale-resource-settings.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-resources/tests/reload_stale_resource_settings_ts.rs"
+    "crates/cortexcode-code-resources/tests/it/reload_stale_resource_settings_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/2781-skill-collision-precedence.test.ts": {
@@ -2520,19 +2520,19 @@
   "packages/coding-agent/test/suite/regressions/3217-scoped-model-order.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/model_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/model_selector.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/3303-find-nested-gitignore.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tool-search/tests/native_search_ts.rs"
+    "crates/cortexcode-code-tool-search/tests/it/native_search_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/3317-network-connection-lost-retry.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-agent-session/tests/retry.rs"
+    "crates/cortexcode-code-agent-session/tests/it/retry.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/3592-no-builtin-tools-keeps-extension-tools.test.ts": {
@@ -2545,7 +2545,7 @@
   "packages/coding-agent/test/suite/regressions/3616-settings-inmemory-reload.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-settings/tests/settings_inmemory_reload_ts.rs"
+    "crates/cortexcode-code-settings/tests/it/settings_inmemory_reload_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/3686-session-name-event.test.ts": {
@@ -2578,8 +2578,8 @@
   "packages/coding-agent/test/suite/regressions/79-stale-todo-settle.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tools-optin/tests/stale_todo_settle_ts.rs",
-    "crates/cortexcode-code-tui-app/tests/stale_todo_settle_ts.rs"
+    "crates/cortexcode-code-tools-optin/tests/it/stale_todo_settle_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/it/stale_todo_settle_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/regressions/windows-esm-url-scheme.test.ts": {
@@ -2598,32 +2598,32 @@
     "10.9f"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/tools.rs"
+    "crates/cortexcode-code-subagents/tests/it/tools.rs"
    ]
   },
   "packages/coding-agent/test/suite/subagent-footer-indicator.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/subagent_footer_indicator_ts.rs"
+    "crates/cortexcode-code-tui-app/tests/it/subagent_footer_indicator_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/subagent-spawn-audit.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-subagents/tests/subagent_spawn_audit_ts.rs",
-    "crates/cortexcode-code-tui-app/tests/subagent_spawn_audit_ts.rs"
+    "crates/cortexcode-code-subagents/tests/it/subagent_spawn_audit_ts.rs",
+    "crates/cortexcode-code-tui-app/tests/it/subagent_spawn_audit_ts.rs"
    ]
   },
   "packages/coding-agent/test/suite/subagent-visual-tie.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/subagent_visual_tie_ts.rs"
+    "crates/cortexcode-code-tui-app/tests/it/subagent_visual_tie_ts.rs"
    ]
   },
   "packages/coding-agent/test/system-prompt.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-agent-harness/tests/resource_formatting.rs",
+    "crates/cortexcode-agent-harness/tests/it/resource_formatting.rs",
     "crates/cortexcode-code-prompts/src/system_prompt.rs"
    ]
   },
@@ -2633,7 +2633,7 @@
     "10.9d"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/tools.rs"
+    "crates/cortexcode-code-subagents/tests/it/tools.rs"
    ]
   },
   "packages/coding-agent/test/task-panel-team-focus.test.ts": {
@@ -2642,7 +2642,7 @@
     "11.5a"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/task_panel.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/task_panel.rs"
    ]
   },
   "packages/coding-agent/test/task-panel.test.ts": {
@@ -2651,7 +2651,7 @@
     "11.5a"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/task_panel.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/task_panel.rs"
    ]
   },
   "packages/coding-agent/test/team-approvals.test.ts": {
@@ -2689,25 +2689,25 @@
   "packages/coding-agent/test/theme-block-rendering.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/theme_block_rendering.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/theme_block_rendering.rs"
    ]
   },
   "packages/coding-agent/test/theme-contrast.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-theme/tests/theme_contrast.rs"
+    "crates/cortexcode-code-tui-theme/tests/it/theme_contrast.rs"
    ]
   },
   "packages/coding-agent/test/theme-cutout-tokens.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-theme/tests/theme_cutout_tokens.rs"
+    "crates/cortexcode-code-tui-theme/tests/it/theme_cutout_tokens.rs"
    ]
   },
   "packages/coding-agent/test/theme-export.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-code-tui-theme/tests/theme_export.rs"
+    "crates/cortexcode-code-tui-theme/tests/it/theme_export.rs"
    ]
   },
   "packages/coding-agent/test/thinking-escalation.test.ts": {
@@ -2723,7 +2723,7 @@
     "11.6"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-app/tests/tips.rs"
+    "crates/cortexcode-code-tui-app/tests/it/tips.rs"
    ]
   },
   "packages/coding-agent/test/tls-ca.test.ts": {
@@ -2732,7 +2732,7 @@
     "10.10c"
    ],
    "rust": [
-    "crates/cortexcode-ai-util/tests/tls.rs"
+    "crates/cortexcode-ai-util/tests/it/tls.rs"
    ]
   },
   "packages/coding-agent/test/todo-tool.test.ts": {
@@ -2741,7 +2741,7 @@
     "10.2f"
    ],
    "rust": [
-    "crates/cortexcode-code-tools-optin/tests/optin.rs"
+    "crates/cortexcode-code-tools-optin/tests/it/optin.rs"
    ]
   },
   "packages/coding-agent/test/token-budget.test.ts": {
@@ -2750,7 +2750,7 @@
     "10.9a"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/token_budget.rs"
+    "crates/cortexcode-code-subagents/tests/it/token_budget.rs"
    ]
   },
   "packages/coding-agent/test/tool-chain-summary.test.ts": {
@@ -2759,7 +2759,7 @@
     "11.2c1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/tool_chain_summary.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/tool_chain_summary.rs"
    ]
   },
   "packages/coding-agent/test/tool-chain.test.ts": {
@@ -2768,7 +2768,7 @@
     "11.2c1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/tool_chain.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/tool_chain.rs"
    ]
   },
   "packages/coding-agent/test/tool-execution-component.test.ts": {
@@ -2777,8 +2777,8 @@
     "11.2c1"
    ],
    "rust": [
-    "crates/cortexcode-code-tool-bash/tests/bash_tool.rs",
-    "crates/cortexcode-code-tui-widgets/tests/tool_execution_component.rs"
+    "crates/cortexcode-code-tool-bash/tests/it/bash_tool.rs",
+    "crates/cortexcode-code-tui-widgets/tests/it/tool_execution_component.rs"
    ]
   },
   "packages/coding-agent/test/tool-output-view.test.ts": {
@@ -2787,7 +2787,7 @@
     "11.2c1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/tool_output_view.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/tool_output_view.rs"
    ]
   },
   "packages/coding-agent/test/tools-manager-download.test.ts": {
@@ -2804,9 +2804,9 @@
     "10.2c"
    ],
    "rust": [
-    "crates/cortexcode-code-tool-bash/tests/bash_tool.rs",
-    "crates/cortexcode-code-tools-fs/tests/edit_write.rs",
-    "crates/cortexcode-code-tools-fs/tests/read_tool.rs"
+    "crates/cortexcode-code-tool-bash/tests/it/bash_tool.rs",
+    "crates/cortexcode-code-tools-fs/tests/it/edit_write.rs",
+    "crates/cortexcode-code-tools-fs/tests/it/read_tool.rs"
    ]
   },
   "packages/coding-agent/test/transcript-thinking-order.test.ts": {
@@ -2822,7 +2822,7 @@
     "11.3e1"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-selectors/tests/tree_selector.rs"
+    "crates/cortexcode-code-tui-selectors/tests/it/tree_selector.rs"
    ]
   },
   "packages/coding-agent/test/trigger-compact-extension.test.ts": {
@@ -2835,7 +2835,7 @@
   "packages/coding-agent/test/truncate-to-width.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-util/tests/width_ts.rs"
+    "crates/cortexcode-tui-util/tests/it/width_ts.rs"
    ]
   },
   "packages/coding-agent/test/user-message.test.ts": {
@@ -2844,7 +2844,7 @@
     "11.2b"
    ],
    "rust": [
-    "crates/cortexcode-code-tui-widgets/tests/user_message.rs"
+    "crates/cortexcode-code-tui-widgets/tests/it/user_message.rs"
    ]
   },
   "packages/coding-agent/test/version-check.test.ts": {
@@ -2874,7 +2874,7 @@
     "10.9c"
    ],
    "rust": [
-    "crates/cortexcode-code-subagents/tests/warm.rs"
+    "crates/cortexcode-code-subagents/tests/it/warm.rs"
    ]
   },
   "packages/coding-agent/test/websearch-api-key-warning.test.ts": {
@@ -2894,25 +2894,25 @@
   "packages/tui/test/autocomplete.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/autocomplete_ts.rs"
+    "crates/cortexcode-tui-components/tests/it/autocomplete_ts.rs"
    ]
   },
   "packages/tui/test/background-fill.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-util/tests/pin_catchup.rs"
+    "crates/cortexcode-tui-util/tests/it/pin_catchup.rs"
    ]
   },
   "packages/tui/test/bug-regression-isimageline-startswith-bug.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+    "crates/cortexcode-tui-images/tests/it/terminal_image_ts.rs"
    ]
   },
   "packages/tui/test/cursor-parking.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/cursor_parking.rs"
+    "crates/cortexcode-tui-render/tests/it/cursor_parking.rs"
    ]
   },
   "packages/tui/test/editor.test.ts": {
@@ -2921,13 +2921,13 @@
     "11.0c"
    ],
    "rust": [
-    "crates/cortexcode-tui-components/tests/editor.rs"
+    "crates/cortexcode-tui-components/tests/it/editor.rs"
    ]
   },
   "packages/tui/test/frame.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/frame.rs"
+    "crates/cortexcode-tui-components/tests/it/frame.rs"
    ]
   },
   "packages/tui/test/fuzzy.test.ts": {
@@ -2939,14 +2939,14 @@
   "packages/tui/test/hyperlink-click.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/hyperlink_click.rs",
-    "crates/cortexcode-tui-util/tests/pin_catchup.rs"
+    "crates/cortexcode-tui-render/tests/it/hyperlink_click.rs",
+    "crates/cortexcode-tui-util/tests/it/pin_catchup.rs"
    ]
   },
   "packages/tui/test/input.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/lists_and_input.rs"
+    "crates/cortexcode-tui-components/tests/it/lists_and_input.rs"
    ]
   },
   "packages/tui/test/keybindings.test.ts": {
@@ -2958,13 +2958,13 @@
   "packages/tui/test/keys.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-keys/tests/keys_ts.rs"
+    "crates/cortexcode-tui-keys/tests/it/keys_ts.rs"
    ]
   },
   "packages/tui/test/list-right-margin.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/lists_and_input.rs"
+    "crates/cortexcode-tui-components/tests/it/lists_and_input.rs"
    ]
   },
   "packages/tui/test/loader.test.ts": {
@@ -2979,79 +2979,79 @@
     "11.2a"
    ],
    "rust": [
-    "crates/cortexcode-tui-components/tests/markdown.rs"
+    "crates/cortexcode-tui-components/tests/it/markdown.rs"
    ]
   },
   "packages/tui/test/mouse.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-terminal/tests/mouse.rs"
+    "crates/cortexcode-tui-terminal/tests/it/mouse.rs"
    ]
   },
   "packages/tui/test/overlay-non-capturing.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/overlay_non_capturing_ts.rs"
+    "crates/cortexcode-tui-render/tests/it/overlay_non_capturing_ts.rs"
    ]
   },
   "packages/tui/test/overlay-options.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/overlay_options_ts.rs"
+    "crates/cortexcode-tui-render/tests/it/overlay_options_ts.rs"
    ]
   },
   "packages/tui/test/overlay-short-content.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+    "crates/cortexcode-tui-render/tests/it/overlay_compositing.rs"
    ]
   },
   "packages/tui/test/paper-sheet.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/paper_sheet.rs"
+    "crates/cortexcode-tui-components/tests/it/paper_sheet.rs"
    ]
   },
   "packages/tui/test/regression-regional-indicator-width.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-util/tests/width_ts.rs"
+    "crates/cortexcode-tui-util/tests/it/width_ts.rs"
    ]
   },
   "packages/tui/test/screen-fill.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/screen_fill.rs"
+    "crates/cortexcode-tui-render/tests/it/screen_fill.rs"
    ]
   },
   "packages/tui/test/scroll-images.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/scroll_images.rs"
+    "crates/cortexcode-tui-components/tests/it/scroll_images.rs"
    ]
   },
   "packages/tui/test/scroll-viewport.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/scroll_viewport.rs"
+    "crates/cortexcode-tui-render/tests/it/scroll_viewport.rs"
    ]
   },
   "packages/tui/test/select-list.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/lists_and_input.rs"
+    "crates/cortexcode-tui-components/tests/it/lists_and_input.rs"
    ]
   },
   "packages/tui/test/settings-list.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/lists_and_input.rs"
+    "crates/cortexcode-tui-components/tests/it/lists_and_input.rs"
    ]
   },
   "packages/tui/test/sixel.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/sixel.rs"
+    "crates/cortexcode-tui-components/tests/it/sixel.rs"
    ]
   },
   "packages/tui/test/stdin-buffer.test.ts": {
@@ -3063,8 +3063,8 @@
   "packages/tui/test/terminal-image.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/image_component.rs",
-    "crates/cortexcode-tui-images/tests/terminal_image_ts.rs"
+    "crates/cortexcode-tui-components/tests/it/image_component.rs",
+    "crates/cortexcode-tui-images/tests/it/terminal_image_ts.rs"
    ]
   },
   "packages/tui/test/terminal.test.ts": {
@@ -3076,44 +3076,44 @@
   "packages/tui/test/truncate-to-width.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-util/tests/width_ts.rs"
+    "crates/cortexcode-tui-util/tests/it/width_ts.rs"
    ]
   },
   "packages/tui/test/truncated-text.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-components/tests/truncated_text_ts.rs"
+    "crates/cortexcode-tui-components/tests/it/truncated_text_ts.rs"
    ]
   },
   "packages/tui/test/tui-cell-size-input.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/cell_size_input.rs"
+    "crates/cortexcode-tui-render/tests/it/cell_size_input.rs"
    ]
   },
   "packages/tui/test/tui-flatcache-stress.test.ts": {
    "status": "ported",
    "rust": [
     "crates/cortexcode-tui-render/src/tui.rs",
-    "crates/cortexcode-tui-render/tests/flatcache_stress.rs"
+    "crates/cortexcode-tui-render/tests/it/flatcache_stress.rs"
    ]
   },
   "packages/tui/test/tui-overlay-style-leak.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/overlay_compositing.rs"
+    "crates/cortexcode-tui-render/tests/it/overlay_compositing.rs"
    ]
   },
   "packages/tui/test/tui-render.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-render/tests/tui_render_ts.rs"
+    "crates/cortexcode-tui-render/tests/it/tui_render_ts.rs"
    ]
   },
   "packages/tui/test/wrap-ansi.test.ts": {
    "status": "ported",
    "rust": [
-    "crates/cortexcode-tui-util/tests/wrap_ansi_ts.rs"
+    "crates/cortexcode-tui-util/tests/it/wrap_ansi_ts.rs"
    ]
   }
  }

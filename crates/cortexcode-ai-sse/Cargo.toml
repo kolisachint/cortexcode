@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.cortex]
 publish = false
 
+[lib]
+# This crate has no doctests; skip the rustdoc test build (build-speed D4).
+doctest = false
+
 [dependencies]
 eventsource-stream = "0.2"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }

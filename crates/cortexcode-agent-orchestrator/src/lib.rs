@@ -1067,6 +1067,9 @@ where
                 let options = SummarizeOptions {
                     api_key: Some(auth.api_key),
                     headers: auth.headers,
+                    // OpenCode Go routes on x-opencode-session, which the
+                    // summary request needs because it is a request of its own.
+                    session_id: inner.agent.session_id(),
                     signal: None,
                     thinking_level: Some(thinking_level),
                 };
@@ -1174,6 +1177,9 @@ where
                     model,
                     api_key: Some(auth.api_key),
                     headers: auth.headers,
+                    // OpenCode Go routes on x-opencode-session, which the
+                    // branch summary request needs because it is one of its own.
+                    session_id: inner.agent.session_id(),
                     signal: Some(AbortSignal::new()),
                     custom_instructions: hook
                         .as_ref()

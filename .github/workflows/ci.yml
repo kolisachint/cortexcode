@@ -61,7 +61,8 @@ jobs:
       - name: Pinned hoocode fixtures
         run: scripts/ci/fetch_hoocode_fixtures.sh
       - run: cargo nextest run --locked --workspace --no-fail-fast
-      - run: cargo test --locked --workspace --doc
+        # The only crate with a doctest (build-speed D4: the rest set doctest = false).
+      - run: cargo test --locked --doc -p cortexcode-agent-mcp
 
   doc:
     runs-on: ubuntu-latest
@@ -74,6 +75,20 @@ jobs:
           shared-key: doc
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo doc --locked --workspace --no-deps
+
+  test-layout:
+    # Guard for build-speed D3: integration tests live in crates/*/tests/it/
+    # (one `it` binary per crate), not as one binary per file.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          stray=$(find crates -path '*/tests/*.rs' -not -path '*/tests/it/*')
+          if [ -n "$stray" ]; then
+            echo "integration tests must live under tests/it/:"
+            echo "$stray"
+            exit 1
+          fi
 
   firewall:
     runs-on: ubuntu-latest

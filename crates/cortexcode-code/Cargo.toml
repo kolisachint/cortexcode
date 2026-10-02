@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.cortex]
 publish = true
 
+[lib]
+# This crate has no doctests; skip the rustdoc test build (build-speed D4).
+doctest = false
+
 [dependencies]
 cortexcode-code-paths = { workspace = true }
 cortexcode-code-settings = { workspace = true }

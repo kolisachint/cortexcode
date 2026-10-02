@@ -486,11 +486,15 @@ Summarize the prefix to provide context for the retained suffix:
 Be concise. Focus on what's needed to understand the kept suffix.";
 
 /// The request knobs shared by the summarization calls (`apiKey`,
-/// `headers`, `signal`, `thinkingLevel`).
+/// `headers`, `sessionId`, `signal`, `thinkingLevel`).
 #[derive(Debug, Clone, Default)]
 pub struct SummarizeOptions {
     pub api_key: Option<String>,
     pub headers: Option<HashMap<String, String>>,
+    /// The session id, sent as `x-opencode-session` on OpenCode Go models.
+    /// Summarization goes out on its own request, so without this Go rejects
+    /// it: `400 Request is missing x-opencode-session`.
+    pub session_id: Option<String>,
     pub signal: Option<AbortSignal>,
     /// Sent as `reasoning` only for reasoning models, and never `off`.
     pub thinking_level: Option<ThinkingLevel>,
@@ -532,6 +536,7 @@ async fn summarize(
         signal: options.signal.clone(),
         api_key: options.api_key.clone(),
         headers: options.headers.clone(),
+        session_id: options.session_id.clone(),
         reasoning,
         ..Default::default()
     };

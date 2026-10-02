@@ -2,7 +2,7 @@
 # Parity smoke test (migration task 13.3).
 #
 # The real parity gates are:
-#   Level 1  cargo test -p cortexcode-code-main --test replay
+#   Level 1  cargo test -p cortexcode-code-main --test it replay
 #            (cortex vs fixtures recorded from the pinned hoocode; runs in CI via
 #            `cargo test --workspace`)
 #   Level 2  python3 migration/tui-parity/harness.py run all
@@ -32,7 +32,7 @@ bin=target/debug/cortex
 
 check "--version prints the version" sh -c "$bin --version </dev/null 2>&1 | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'"
 check "--help prints usage" sh -c "$bin --help </dev/null 2>&1 | grep -q 'Usage:'"
-check "Level-1 replay (cortex vs hoocode fixtures)" cargo test -q -p cortexcode-code-main --test replay
+check "Level-1 replay (cortex vs hoocode fixtures)" cargo test -q -p cortexcode-code-main --test it replay
 if [ -f target/hoocode-pin/packages/coding-agent/dist/cli.js ] && command -v tmux >/dev/null; then
     check "Level-2 print-basic (cortex vs hoocode in tmux)" python3 migration/tui-parity/harness.py run print-basic
 else

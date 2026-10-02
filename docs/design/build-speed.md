@@ -1,7 +1,9 @@
 # Build speed: shortest path from idea to binary
 
 Status: agreed design (2026-09-29). Implemented 2026-10-01: D1, D9 (CI and release; §4.2,
-§4.6) and D2 in CI. Not yet: D2 locally (`ledger.py verify`), D3–D8, D10–D12.
+§4.6) and D2 in CI. Implemented 2026-10-02: D3 + D4 (nextest lists 97 test binaries, down
+from 270 in CI; the `--doc` CI step is scoped to cortexcode-agent-mcp, the one crate with a
+doctest). Not yet: D2 locally (`ledger.py verify`), D5–D8, D10–D12.
 Scope: cortexcode only; hoocode is
 never touched. Implementation lands as small steps in the order of §5, each re-measured
 against §2.
@@ -174,12 +176,15 @@ Each step is its own PR, verified with Level 1 (`cargo fmt`, clippy `-D warnings
 
 1. **D1 + D2 + D8**: line-tables-only, nextest (`ledger.py verify` switches to
    `cargo nextest run -p …`), hooks.
-2. **D3 + D4**: test consolidation. Do it only when no migration branch touching `tests/` is
-   open. Includes: scripted `git mv` (keeps blame), generated `tests/it/main.rs` per crate,
-   fixing helper-module collisions (`mod common;` → `tests/it/common.rs` once per crate),
-   a scripted rewrite of the 197 test paths in `migration/ts-tests.json`, `--test replay` →
-   `--test it replay` in `migration/ledger.json`, and the CI layout guard. Test names gain a
-   module prefix (`replay::foo`); update filter strings that reference them.
+2. **D3 + D4**: test consolidation. **Done 2026-10-02.** As landed: scripted `git mv` (keeps
+   blame), generated `tests/it/main.rs` per crate, helpers moved to `tests/it/{common,support}/`
+   and declared once in `main.rs` (per-file `#[path]` mods lost to `clippy::duplicate_mod`),
+   test files rewritten to `crate::common::`/`crate::support::`. tui-components shares
+   tui-render's support as `mod render_support` via one cross-crate `#[path]` in its main.rs.
+   `migration/ts-tests.json` needed no scripted rewrite — `ts_tests.py generate` re-derives
+   paths from the tree. `--test replay` → `--test it replay` in `migration/ledger.json` and
+   `scripts/parity_test.sh`. replay.rs pins insta's old `replay__<name>` snapshot names with
+   `prepend_module_to_snapshot => false`. Test names gain a module prefix (`replay::foo`).
 3. **D9 + D12**: CI rework.
 4. **D5**: wasmtime behind the `wasm` feature.
 5. **D6 + D7 + D10**: highlight opt-level experiment, workspace lints, `CLAUDE.md` rules.

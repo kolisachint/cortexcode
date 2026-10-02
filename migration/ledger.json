@@ -6765,7 +6765,7 @@
    ],
    "ts_tests": [],
    "l1_cmds": [
-    "cargo test -p cortexcode-code-main --test replay"
+    "cargo test -p cortexcode-code-main --test it replay"
    ],
    "l2": "n/a: test infra",
    "notes": "harness.py record <scenario|all> (scenarios in migration/tui-parity/replay.json) -> crates/cortexcode-code-main/tests/{fixtures/hoocode-0.5.89/replay,snapshots}; tests/replay.rs replays against cortex. Default-bundle print scenarios join after 12.4.",
