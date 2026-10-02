@@ -46,7 +46,7 @@ fn after_indent(line: &str) -> &str {
 /// `/^ {0,3}(?:[-*+] |\d{1,9}[.)] )/`
 fn is_list_item(line: &str) -> bool {
     let rest = after_indent(line);
-    if rest.len() >= 2 && matches!(&rest[..2], "- " | "* " | "+ ") {
+    if matches!(rest.as_bytes(), [b'-' | b'*' | b'+', b' ', ..]) {
         return true;
     }
     let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
