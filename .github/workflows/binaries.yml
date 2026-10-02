@@ -167,16 +167,11 @@ jobs:
           python3 scripts/npm/build_packages.py "$TAG" archives npm-dist
       - name: Publish
         # Platform packages first: the main one depends on them. A version that
-        # is already published (a re-run) is skipped, not an error.
+        # is already published (a re-run) is skipped, not an error. After
+        # publishing, every package is checked against the registry packument:
+        # `npm publish` printing success does not mean the version is readable
+        # yet (v0.1.5's darwin-x64 took ~11 minutes to appear), so without this
+        # a partial publish looks identical to a successful one.
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          for dir in npm-dist/hoocode-* npm-dist/hoocode; do
-            name=$(node -p "require('./$dir/package.json').name")
-            version=$(node -p "require('./$dir/package.json').version")
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "skip $name@$version (already published)"
-              continue
-            fi
-            (cd "$dir" && npm publish --access public --provenance)
-          done
+        run: python3 scripts/npm/publish_packages.py npm-dist

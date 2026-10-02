@@ -22,8 +22,15 @@ Every release made by `release.yml` (a merged PR with a `rust:*` label):
    The main package is a small Node launcher (`npm/hoocode/bin/hoocode.js`);
    the platform packages are `optionalDependencies` gated by `os`/`cpu`, so
    npm and bun fetch only the one for the machine. No postinstall script.
-   Built by `scripts/npm/build_packages.py`, published with provenance using
-   the `NPM_TOKEN` secret. Re-runs skip versions that already exist.
+   Built by `scripts/npm/build_packages.py`, published with provenance by
+   `scripts/npm/publish_packages.py` using the `NPM_TOKEN` secret. Re-runs skip
+   versions that already exist. After publishing, the script checks every
+   package against the registry packument and fails the job if any has not
+   turned up: a fresh publish is readable only after registry propagation
+   (`v0.1.5`'s `darwin-x64` took ~11 minutes), and `npm publish` reporting
+   success does not mean `npm install` can resolve it yet. Verify a published
+   release with
+   `python3 scripts/npm/publish_packages.py <dist-dir> --verify-only`.
 4. **curl installer**: `install/install.sh`, served at
    `https://kolisachint.github.io/hoocode/install.sh`. The site repo
    (kolisachint.github.io) keeps a verbatim copy in `public/hoocode/`.
