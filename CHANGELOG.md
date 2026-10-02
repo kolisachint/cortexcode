@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Release: npm publish is now verified after it runs (2026-10-02)
+- The npm publish loop moved from an inline shell loop in `binaries.yml` to
+  `scripts/npm/publish_packages.py`, which publishes, then checks every package
+  against the registry packument and fails the job if any is missing. A fresh
+  publish is readable only after registry propagation — after v0.1.5, `darwin-x64`
+  took ~11 minutes to appear — so a partial publish used to look exactly like a
+  successful one. Re-runs still skip published versions, so a failed release is
+  recovered by re-running `binaries.yml` for the same tag.
+- `--verify-only` checks a published release without publishing, and reads the
+  packument with cache busting (npm's CDN otherwise serves stale versions).
+
 ### Fixed: compaction and branch summaries on OpenCode Go (2026-10-02)
 - Compaction (`/compact`, automatic context compaction, branch summaries) builds its own
   summarization request, which did not carry the session id, so OpenCode Go rejected it with
