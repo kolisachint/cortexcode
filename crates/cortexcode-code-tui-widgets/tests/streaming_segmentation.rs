@@ -119,3 +119,13 @@ fn prefix_stability_appending_text_never_changes_earlier_chunks() {
     }
     assert!(previous.len() > 1);
 }
+
+#[test]
+fn multibyte_line_starts_do_not_panic() {
+    // Regression: a thinking block rendered as `✻ ...` crashed the list-item
+    // check by slicing inside a multi-byte char.
+    let text = "✻ first paragraph\n\n✻ second\n\n- item\n\n日本語\n\n  é\n\n[é]: x";
+    let _ = segment_streaming_markdown(text);
+    let chunks = segment_streaming_markdown("✻ a\n\n✻ b\n\n— c");
+    assert_eq!(chunks.len(), 3);
+}
